@@ -1,8 +1,22 @@
 "use client";
 import { useState } from "react";
 
+interface AdmissionFormData {
+  studentFirstName: string;
+  studentLastName: string;
+  studentMiddleName: string;
+  parentFirstName: string;
+  parentLastName: string;
+  parentMiddleName: string;
+  parentEmail: string;
+  parentPhone: string;
+  parentAddress: string;
+  selectedClass: string;
+}
+
+
 export default function AdmissionForm() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AdmissionFormData>({
     studentFirstName: "",
     studentLastName: "",
     studentMiddleName: "",
@@ -14,6 +28,7 @@ export default function AdmissionForm() {
     parentAddress: "",
     selectedClass: "",
   });
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -98,13 +113,14 @@ export default function AdmissionForm() {
                 <input
                   type="text"
                   name={name}
-                  value={(formData as any)[name]}
+                  value={formData[name as keyof AdmissionFormData]}
                   onChange={handleChange}
                   className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
                   required={!label.includes("Optional")}
                 />
               </div>
             ))}
+
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

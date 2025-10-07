@@ -1,22 +1,32 @@
-import  { Schema, models, model } from "mongoose";
+import mongoose, { Schema, models, model } from "mongoose";
 
 const AdmissionSchema = new Schema(
   {
-    fullName: { type: String, required: true },
-    email: { type: String, required: true },
-    phone: { type: String, required: true },
+    // --- Student Info ---
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    middleName: { type: String },
+
     gender: { type: String, enum: ["Male", "Female"], required: true },
-    address: { type: String, required: true },
-    previousSchool: { type: String },
-    classApplyingFor: { type: String, required: true },
     dateOfBirth: { type: Date, required: true },
+    address: { type: String, required: true },
+
+    classApplyingFor: { type: String, required: true },
+
+    // --- Parent / Guardian Info ---
+    parentFirstName: { type: String, required: true },
+    parentLastName: { type: String, required: true },
+    parentMiddleName: { type: String },
+    parentEmail: { type: String, required: true },
+    parentPhone: { type: String, required: true },
+    parentAddress: { type: String, required: true },
+
+    // --- Application Status ---
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
-    guardianName: { type: String },
-    guardianPhone: { type: String },
   },
   { timestamps: true }
 );

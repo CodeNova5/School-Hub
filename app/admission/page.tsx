@@ -1,109 +1,210 @@
 "use client";
-
 import { useState } from "react";
 
-export default function AdmissionPage() {
-  const [form, setForm] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    gender: "",
-    classApplyingFor: "",
-    address: "",
-    dateOfBirth: "",
+export default function AdmissionForm() {
+  const [formData, setFormData] = useState({
+    studentFirstName: "",
+    studentLastName: "",
+    studentMiddleName: "",
+    parentFirstName: "",
+    parentLastName: "",
+    parentMiddleName: "",
+    parentEmail: "",
+    parentPhone: "",
+    parentAddress: "",
+    selectedClass: "",
   });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const res = await fetch("/api/admissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setMessage("✅ Application submitted successfully!");
-        setForm({
-          fullName: "",
-          email: "",
-          phone: "",
-          gender: "",
-          classApplyingFor: "",
-          address: "",
-          dateOfBirth: "",
-        });
-      } else {
-        setMessage("❌ Failed to submit application");
-      }
-    } catch (error) {
-      console.error(error);
-      setMessage("⚠️ Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }
+    const res = await fetch("/api/admission", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+    const data = await res.json();
+    alert(data.message || "Form submitted!");
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-black py-10 px-4">
-      <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow">
-        <h1 className="text-2xl font-semibold mb-6 text-center">Admission Form</h1>
+    <div className="max-w-4xl mx-auto bg-white text-black p-8 rounded-2xl shadow-md">
+      <h2 className="text-2xl font-semibold mb-6 text-center">Admission Form</h2>
+      <form onSubmit={handleSubmit} className="space-y-8">
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {[
-            { label: "Full Name", name: "fullName", type: "text" },
-            { label: "Email", name: "email", type: "email" },
-            { label: "Phone", name: "phone", type: "text" },
-            { label: "Gender", name: "gender", type: "select", options: ["Male", "Female"] },
-            { label: "Class Applying For", name: "classApplyingFor", type: "text" },
-            { label: "Address", name: "address", type: "text" },
-            { label: "Date of Birth", name: "dateOfBirth", type: "date" },
-          ].map((field) => (
-            <div key={field.name}>
-              <label className="block mb-1 font-medium">{field.label}</label>
-              {field.type === "select" ? (
-                <select
-                  className="w-full border rounded-lg p-2"
-                  value={form[field.name as keyof typeof form]}
-                  onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-                  required
-                >
-                  <option value="">Select {field.label}</option>
-                  {field.options?.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type={field.type}
-                  className="w-full border rounded-lg p-2"
-                  value={form[field.name as keyof typeof form]}
-                  onChange={(e) => setForm({ ...form, [field.name]: e.target.value })}
-                  required
-                />
-              )}
+        {/* --- Student Info --- */}
+        <section>
+          <h3 className="text-lg font-semibold mb-4 border-b pb-2">Student Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1">
+                First Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="studentFirstName"
+                value={formData.studentFirstName}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              />
             </div>
-          ))}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition"
+            <div>
+              <label className="block text-sm font-semibold mb-1">
+                Last Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="studentLastName"
+                value={formData.studentLastName}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">
+                Middle Name (Optional)
+              </label>
+              <input
+                type="text"
+                name="studentMiddleName"
+                value={formData.studentMiddleName}
+                onChange={handleChange}
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* --- Parent Info --- */}
+        <section>
+          <h3 className="text-lg font-semibold mb-4 border-b pb-2">Parent / Guardian Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { label: "First Name", name: "parentFirstName" },
+              { label: "Last Name", name: "parentLastName" },
+              { label: "Middle Name (Optional)", name: "parentMiddleName" },
+            ].map(({ label, name }) => (
+              <div key={name}>
+                <label className="block text-sm font-semibold mb-1">
+                  {label} {label.includes("Optional") ? "" : <span className="text-red-500">*</span>}
+                </label>
+                <input
+                  type="text"
+                  name={name}
+                  value={(formData as any)[name]}
+                  onChange={handleChange}
+                  className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+                  required={!label.includes("Optional")}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1">
+                Email <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                name="parentEmail"
+                value={formData.parentEmail}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                name="parentPhone"
+                value={formData.parentPhone}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <label className="block text-sm font-semibold mb-1">
+              Address <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="parentAddress"
+              value={formData.parentAddress}
+              onChange={handleChange}
+              required
+              className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+            />
+          </div>
+        </section>
+
+        {/* --- Class Selection --- */}
+        <section>
+          <h3 className="text-lg font-semibold mb-4 border-b pb-2">Class Selection</h3>
+          <label className="block text-sm font-semibold mb-1">
+            Select Class <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="selectedClass"
+            value={formData.selectedClass}
+            onChange={handleChange}
+            required
+            className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
           >
-            {loading ? "Submitting..." : "Submit Application"}
-          </button>
-        </form>
+            <option value="">-- Select Class --</option>
 
-        {message && <p className="mt-4 text-center text-gray-700">{message}</p>}
-      </div>
+            <optgroup label="PRE-PRIMARY EDUCATION">
+              <option value="Creche">Creche</option>
+              <option value="Kindergarten 1">Kindergarten 1</option>
+              <option value="Kindergarten 2">Kindergarten 2</option>
+              <option value="Nursery 1">Nursery 1</option>
+              <option value="Nursery 2">Nursery 2</option>
+            </optgroup>
+
+            <optgroup label="PRIMARY EDUCATION">
+              <option value="Primary 1">Primary 1</option>
+              <option value="Primary 2">Primary 2</option>
+              <option value="Primary 3">Primary 3</option>
+              <option value="Primary 4">Primary 4</option>
+              <option value="Primary 5">Primary 5</option>
+              <option value="Primary 6">Primary 6</option>
+            </optgroup>
+
+            <optgroup label="JUNIOR SECONDARY SCHOOL">
+              <option value="JSS 1">JSS 1</option>
+              <option value="JSS 2">JSS 2</option>
+              <option value="JSS 3">JSS 3</option>
+            </optgroup>
+
+            <optgroup label="SENIOR SECONDARY SCHOOL">
+              <option value="SS 1">SS 1</option>
+              <option value="SS 2">SS 2</option>
+              <option value="SS 3">SS 3</option>
+            </optgroup>
+          </select>
+        </section>
+
+        <button
+          type="submit"
+          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+        >
+          Submit Application
+        </button>
+      </form>
     </div>
   );
 }

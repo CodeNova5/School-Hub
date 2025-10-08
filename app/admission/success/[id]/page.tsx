@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { dbConnect } from "@/lib/dbConnect";
 import Admission from "@/lib/models/Admission";
+import Link from "next/link";
 
 export default async function SuccessPage({
     params,
@@ -75,12 +76,9 @@ export default async function SuccessPage({
             </div>
 
             <div className="mt-8 text-center">
-                <a
-                    href="/"
-                    className="inline-block px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
-                >
-                    Go to Homepage
-                </a>
+               <Link href="/" className="text-blue-600 hover:underline">
+                    Return To Homepage
+                </Link>
             </div>
         </div>
     );

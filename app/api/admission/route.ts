@@ -2,15 +2,12 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/dbConnect";
 import Admission from "@/lib/models/Admission";
 import nodemailer from "nodemailer";
-
 export async function POST(req: Request) {
   try {
     await dbConnect();
-    const data = await req.json();
-
-    const newAdmission = await Admission.create(data);
-
-    // --- Send confirmation email ---
+    const body = await req.json();
+    const admission = await Admission.create(body);
+      // --- Send confirmation email ---
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -21,13 +18,13 @@ export async function POST(req: Request) {
 
     const mailOptions = {
       from: `"Your School" <${process.env.SMTP_USER}>`,
-      to: data.parentEmail,
+      to: admission.parentEmail,
       subject: "Admission Application Received",
       html: `
-        <h2>Dear ${data.parentFirstName} ${data.parentLastName},</h2>
+        <h2>Dear ${admission.parentFirstName} ${admission.parentLastName},</h2>
         <p>Your child's admission application has been successfully received.</p>
-        <p><strong>Student Name:</strong> ${data.firstName} ${data.lastName}</p>
-        <p><strong>Class Applying For:</strong> ${data.classApplyingFor}</p>
+        <p><strong>Student Name:</strong> ${admission.studentFirstName} ${admission.studentLastName}</p>
+        <p><strong>Class Applying For:</strong> ${admission.classApplyingFor}</p>
         <p>We’ll review the application and get back to you shortly.</p>
         <br/>
         <p>Thank you,<br/>The School Admissions Office</p>
@@ -36,21 +33,9 @@ export async function POST(req: Request) {
 
     await transporter.sendMail(mailOptions);
 
-    return NextResponse.json(
-      { success: true, admission: newAdmission },
-      { status: 201 }
-    );
-  } catch (error) {
-    console.error("Admission error:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to submit application" },
-      { status: 500 }
-    );
+    return NextResponse.json(admission); // returns full doc including _id
+  } catch (error: any) {
+    console.error(error);
+    return NextResponse.json({ message: error.message }, { status: 500 });
   }
-}
-
-export async function GET() {
-  await dbConnect();
-  const admissions = await Admission.find().sort({ createdAt: -1 });
-  return NextResponse.json(admissions);
 }

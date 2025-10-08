@@ -44,23 +44,25 @@ export default function AdmissionForm() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    const res = await fetch("/api/admission", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
+  const res = await fetch("/api/admission", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(formData),
+  });
 
-    const data = await res.json();
-    if (data.success) {
-      const encoded = encodeURIComponent(JSON.stringify(data.admission));
-      router.push(`/admission/success?data=${encoded}`);
-    } else {
-      alert("Failed to submit application. Please try again.");
-    }
-  };
+  const data = await res.json();
+
+  if (res.ok) {
+    // redirect to thank you page with admission ID
+    router.push(`/admission/success/${data._id}`);
+  } else {
+    alert(data.message || "Something went wrong");
+  }
+};
+
   return (
     <div className="max-w-4xl mx-auto bg-white text-black p-8 rounded-2xl shadow-md">
       <h2 className="text-2xl font-semibold mb-6 text-center">Admission Form</h2>

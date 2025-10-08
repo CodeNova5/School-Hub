@@ -1,8 +1,9 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-export default function AdmissionSuccess() {
+function AdmissionSuccessContent() {
   const params = useSearchParams();
   const admissionData = params.get("data")
     ? JSON.parse(decodeURIComponent(params.get("data")!))
@@ -61,5 +62,13 @@ export default function AdmissionSuccess() {
         </tbody>
       </table>
     </div>
+  );
+}
+
+export default function AdmissionSuccess() {
+  return (
+    <Suspense fallback={<div className="text-center mt-20">Loading...</div>}>
+      <AdmissionSuccessContent />
+    </Suspense>
   );
 }

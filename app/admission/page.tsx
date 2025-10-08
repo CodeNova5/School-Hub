@@ -1,32 +1,42 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+
 
 interface AdmissionFormData {
   studentFirstName: string;
   studentLastName: string;
   studentMiddleName: string;
+  dateOfBirth: string;
+  gender: string;
+  address: string;
   parentFirstName: string;
   parentLastName: string;
   parentMiddleName: string;
   parentEmail: string;
   parentPhone: string;
   parentAddress: string;
-  selectedClass: string;
+  classApplyingFor: string;
 }
 
 
 export default function AdmissionForm() {
+  const router = useRouter();
   const [formData, setFormData] = useState<AdmissionFormData>({
     studentFirstName: "",
     studentLastName: "",
     studentMiddleName: "",
+    dateOfBirth: "",
+    gender: "",
+    address: "",
     parentFirstName: "",
     parentLastName: "",
     parentMiddleName: "",
     parentEmail: "",
     parentPhone: "",
     parentAddress: "",
-    selectedClass: "",
+    classApplyingFor: "",
   });
 
 
@@ -36,20 +46,27 @@ export default function AdmissionForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const res = await fetch("/api/admission", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
     });
-    const data = await res.json();
-    alert(data.message || "Form submitted!");
-  };
 
+    const data = await res.json();
+    if (data.success) {
+      const encoded = encodeURIComponent(JSON.stringify(data.admission));
+      router.push(`/admission/success?data=${encoded}`);
+    } else {
+      alert("Failed to submit application. Please try again.");
+    }
+  };
   return (
     <div className="max-w-4xl mx-auto bg-white text-black p-8 rounded-2xl shadow-md">
       <h2 className="text-2xl font-semibold mb-6 text-center">Admission Form</h2>
       <form onSubmit={handleSubmit} className="space-y-8">
 
+        {/* --- Student Info --- */}
         {/* --- Student Info --- */}
         <section>
           <h3 className="text-lg font-semibold mb-4 border-b pb-2">Student Information</h3>
@@ -94,8 +111,48 @@ export default function AdmissionForm() {
                 className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
               />
             </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">Gender *</label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              >
+                <option value="">Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">Date of Birth *</label>
+              <input
+                type="date"
+                name="dateOfBirth"
+                value={formData.dateOfBirth}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold mb-1">Address *</label>
+              <input
+                type="text"
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+              />
+            </div>
           </div>
         </section>
+
 
         {/* --- Parent Info --- */}
         <section>
@@ -175,8 +232,8 @@ export default function AdmissionForm() {
             Select Class <span className="text-red-500">*</span>
           </label>
           <select
-            name="selectedClass"
-            value={formData.selectedClass}
+            name="classApplyingFor"
+            value={formData.classApplyingFor}
             onChange={handleChange}
             required
             className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"

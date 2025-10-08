@@ -3,9 +3,9 @@ import { Schema, models, model } from "mongoose";
 const AdmissionSchema = new Schema(
   {
     // --- Student Info ---
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
-    middleName: { type: String },
+    studentFirstName: { type: String, required: true },
+    studentLastName: { type: String, required: true },
+    studentMiddleName: { type: String },
 
     gender: { type: String, enum: ["Male", "Female"], required: true },
     dateOfBirth: { type: Date, required: true },

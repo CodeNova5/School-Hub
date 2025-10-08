@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import { dbConnect } from "@/lib/dbConnect";
 import Admission from "@/lib/models/Admission";
 
-interface Params {
+// Remove the Params interface and use the correct type for props
+type PageProps = {
   params: { id: string };
-}
+};
 
-export default async function SuccessPage({ params }: Params) {
+export default async function SuccessPage({ params }: PageProps) {
   await dbConnect();
   const admission = await Admission.findById(params.id).lean();
 

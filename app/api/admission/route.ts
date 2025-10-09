@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/dbConnect";
-import Admission from "@/lib/models/Admission";
+import Admission from "@/models/Admission";
 import nodemailer from "nodemailer";
 export async function POST(req: Request) {
   try {
@@ -24,6 +24,8 @@ export async function POST(req: Request) {
         <h2>Dear ${admission.parentFirstName} ${admission.parentLastName},</h2>
         <p>Your child's admission application has been successfully received.</p>
         <p><strong>Student Name:</strong> ${admission.studentFirstName} ${admission.studentLastName}</p>
+        <p><strong>Date of Birth:</strong> ${admission.dateOfBirth} </p>
+        <p><strong>Address:</strong> ${admission.address} </p>
         <p><strong>Class Applying For:</strong> ${admission.classApplyingFor}</p>
         <p>We’ll review the application and get back to you shortly.</p>
         <br/>

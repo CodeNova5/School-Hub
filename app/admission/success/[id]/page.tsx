@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { dbConnect } from "@/lib/dbConnect";
-import Admission from "@/lib/models/Admission";
+import Admission from "@/models/Admission";
 import Link from "next/link";
 
 export default async function SuccessPage({
@@ -31,7 +31,7 @@ export default async function SuccessPage({
         });
 
     return (
-        <div className="max-w-4xl mx-auto py-12 px-6">
+        <div className="max-w-4xl bg-white text-black mx-auto py-12 px-6">
             <div className="text-center mb-8">
                 <h1 className="text-3xl font-bold text-green-700 mb-3">
                     🎉 Application Submitted Successfully!

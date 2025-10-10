@@ -17,7 +17,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await fetch("/api/admissions");
+        const res = await fetch("/api/admission");
         const data = await res.json();
         setAdmissions(data);
         setFilteredAdmissions(data);

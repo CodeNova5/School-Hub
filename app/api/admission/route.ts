@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { dbConnect } from "@/lib/dbConnect";
 import Admission from "@/models/Admission";
 import nodemailer from "nodemailer";
+
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
+  await dbConnect();
+  const { status } = await req.json();
+  await Admission.findByIdAndUpdate(params.id, { status });
+  return NextResponse.json({ success: true });
+}
+
 export async function POST(req: Request) {
   try {
     await dbConnect();

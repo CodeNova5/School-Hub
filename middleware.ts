@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 
+export const runtime = "nodejs"; // ✅ Fixes secret mismatch issue
+
 export function middleware(req: NextRequest) {
   const token = req.cookies.get("admin_token")?.value;
 
@@ -10,15 +12,24 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/admin/login", req.url));
   }
 
+  const jwtSecret = process.env.JWT_SECRET;
+  console.log("JWT_SECRET (length):", jwtSecret?.length);
+
+  if (!jwtSecret) {
+    console.error("❌ JWT_SECRET missing in middleware");
+    return NextResponse.redirect(new URL("/admin/login", req.url));
+  }
+
   try {
-    jwt.verify(token, process.env.JWT_SECRET!);
+    jwt.verify(token, jwtSecret);
     console.log("✅ Token verified");
     return NextResponse.next();
-  } catch {
+  } catch (err) {
+    console.error("❌ Invalid token:", err);
     return NextResponse.redirect(new URL("/admin/login", req.url));
   }
 }
 
 export const config = {
-  matcher: ["/admin"],
+  matcher: ["/admin/dashboard"],
 };

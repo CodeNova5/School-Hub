@@ -58,9 +58,9 @@ export default function AdminDashboard() {
     const lowerSearch = searchQuery.toLowerCase();
     const filtered = admissions.filter((a) => {
       const matchSearch =
-        a.firstName.toLowerCase().includes(lowerSearch) ||
-        a.lastName.toLowerCase().includes(lowerSearch) ||
-        a.parentFirstName.toLowerCase().includes(lowerSearch);
+        a.studentFirstName?.toLowerCase().includes(lowerSearch) ||
+        a.studentLastName?.toLowerCase().includes(lowerSearch) ||
+        a.parentFirstName?.toLowerCase().includes(lowerSearch);
       const matchStatus =
         filterStatus === "all" ? true : a.status === filterStatus;
       const matchClass =

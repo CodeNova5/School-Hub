@@ -3,9 +3,23 @@
 import { useEffect, useState } from "react";
 import { CheckCircle, XCircle, Loader2, Search } from "lucide-react";
 
+// Define the shape of each admission document
+interface Admission {
+  _id: string;
+  studentFirstName: string;
+  studentLastName: string;
+  gender: "male" | "female";
+  dateOfBirth: string;
+  classApplyingFor: string;
+  parentFirstName: string;
+  parentLastName: string;
+  parentEmail: string;
+  status: "pending" | "approved" | "rejected";
+}
+
 export default function AdminDashboard() {
-  const [admissions, setAdmissions] = useState<any[]>([]);
-  const [filteredAdmissions, setFilteredAdmissions] = useState<any[]>([]);
+  const [admissions, setAdmissions] = useState<Admission[]>([]);
+  const [filteredAdmissions, setFilteredAdmissions] = useState<Admission[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -13,12 +27,20 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterClass, setFilterClass] = useState("all");
 
+  // Helper: Calculate age from date of birth
+  const calculateAge = (dob: string): number => {
+    const birthDate = new Date(dob);
+    const diff = Date.now() - birthDate.getTime();
+    const ageDate = new Date(diff);
+    return Math.abs(ageDate.getUTCFullYear() - 1970);
+  };
+
   // Fetch all admissions
   useEffect(() => {
     const fetchData = async () => {
       try {
         const res = await fetch("/api/admission");
-        const data = await res.json();
+        const data: Admission[] = await res.json();
         setAdmissions(data);
         setFilteredAdmissions(data);
       } catch (error) {
@@ -30,30 +52,36 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
-  
+  // Update student status
   const updateStatus = async (id: string, newStatus: string) => {
-    const res = await fetch("/api/admission/update", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: newStatus }),
-    });
+    try {
+      setUpdatingId(id);
+      const res = await fetch("/api/admission/update", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (data.success) {
-      alert("Status updated successfully");
-      setAdmissions((prev) =>
-        prev.map((item) =>
-          item._id === id ? { ...item, status: newStatus } : item
-        )
-      );
-    } else {
-      alert(data.message || "Failed to update");
+      if (data.success) {
+        alert("Status updated successfully");
+        setAdmissions((prev) =>
+          prev.map((item) =>
+            item._id === id ? { ...item, status: newStatus as Admission["status"] } : item
+          )
+        );
+      } else {
+        alert(data.message || "Failed to update");
+      }
+    } catch (err) {
+      console.error("Update error:", err);
+    } finally {
+      setUpdatingId(null);
     }
   };
 
-
-  // Filter Logic
+  // Filter logic
   useEffect(() => {
     const lowerSearch = searchQuery.toLowerCase();
     const filtered = admissions.filter((a) => {
@@ -61,10 +89,8 @@ export default function AdminDashboard() {
         a.studentFirstName?.toLowerCase().includes(lowerSearch) ||
         a.studentLastName?.toLowerCase().includes(lowerSearch) ||
         a.parentFirstName?.toLowerCase().includes(lowerSearch);
-      const matchStatus =
-        filterStatus === "all" ? true : a.status === filterStatus;
-      const matchClass =
-        filterClass === "all" ? true : a.classApplyingFor === filterClass;
+      const matchStatus = filterStatus === "all" ? true : a.status === filterStatus;
+      const matchClass = filterClass === "all" ? true : a.classApplyingFor === filterClass;
       return matchSearch && matchStatus && matchClass;
     });
     setFilteredAdmissions(filtered);
@@ -131,12 +157,12 @@ export default function AdminDashboard() {
             <option value="Primary 4">Primary 4</option>
             <option value="Primary 5">Primary 5</option>
             <option value="Primary 6">Primary 6</option>
-            <option value="JSS1">JSS1</option>
-            <option value="JSS2">JSS2</option>
-            <option value="JSS3">JSS3</option>
-            <option value="SS1">SS1</option>
-            <option value="SS2">SS2</option>
-            <option value="SS3">SS3</option>
+            <option value="JSS1">JSS 1</option>
+            <option value="JSS2">JSS 2</option>
+            <option value="JSS3">JSS 3</option>
+            <option value="SS1">SS 1</option>
+            <option value="SS2">SS 2</option>
+            <option value="SS3">SS 3</option>
           </select>
         </div>
       </div>
@@ -147,6 +173,8 @@ export default function AdminDashboard() {
           <thead className="bg-gray-100 uppercase text-xs text-gray-600">
             <tr>
               <th className="p-4 text-left">Student</th>
+              <th className="p-4 text-left">Gender</th>
+              <th className="p-4 text-left">Age</th>
               <th className="p-4 text-left">Class</th>
               <th className="p-4 text-left">Parent</th>
               <th className="p-4 text-left">Email</th>
@@ -157,26 +185,25 @@ export default function AdminDashboard() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="text-center py-10 text-gray-500">
+                <td colSpan={8} className="text-center py-10 text-gray-500">
                   <Loader2 className="animate-spin inline mr-2" />
                   Loading applications...
                 </td>
               </tr>
             ) : filteredAdmissions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-10 text-gray-500">
+                <td colSpan={8} className="text-center py-10 text-gray-500">
                   No admissions found.
                 </td>
               </tr>
             ) : (
               filteredAdmissions.map((a) => (
-                <tr
-                  key={a._id}
-                  className="border-t hover:bg-gray-50 transition-colors"
-                >
+                <tr key={a._id} className="border-t hover:bg-gray-50 transition-colors">
                   <td className="p-4 font-medium">
                     {a.studentFirstName} {a.studentLastName}
                   </td>
+                  <td className="p-4 capitalize">{a.gender}</td>
+                  <td className="p-4">{calculateAge(a.dateOfBirth)}</td>
                   <td className="p-4">{a.classApplyingFor}</td>
                   <td className="p-4">
                     {a.parentFirstName} {a.parentLastName}
@@ -236,7 +263,7 @@ function DashboardCard({
 }: {
   title: string;
   value: number;
-  color: string;
+  color: "blue" | "yellow" | "green" | "red";
 }) {
   const colors: Record<string, string> = {
     blue: "bg-blue-100 text-blue-700",
@@ -246,9 +273,7 @@ function DashboardCard({
   };
 
   return (
-    <div
-      className={`p-6 rounded-xl shadow text-center font-semibold ${colors[color]}`}
-    >
+    <div className={`p-6 rounded-xl shadow text-center font-semibold ${colors[color]}`}>
       <p className="text-sm text-gray-600 mb-1">{title}</p>
       <h2 className="text-3xl">{value}</h2>
     </div>

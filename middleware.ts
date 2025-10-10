@@ -31,5 +31,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/dashboard"],
+  // Apply middleware to all /admin routes except /admin/login
+  matcher: ["/admin/:path*", "!/admin/login"],
 };

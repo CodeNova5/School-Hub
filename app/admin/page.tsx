@@ -157,12 +157,12 @@ export default function AdminDashboard() {
             <option value="Primary 4">Primary 4</option>
             <option value="Primary 5">Primary 5</option>
             <option value="Primary 6">Primary 6</option>
-            <option value="JSS1">JSS 1</option>
-            <option value="JSS2">JSS 2</option>
-            <option value="JSS3">JSS 3</option>
-            <option value="SS1">SS 1</option>
-            <option value="SS2">SS 2</option>
-            <option value="SS3">SS 3</option>
+            <option value="JSS 1">JSS 1</option>
+            <option value="JSS 2">JSS 2</option>
+            <option value="JSS 3">JSS 3</option>
+            <option value="SS 1">SS 1</option>
+            <option value="SS 2">SS 2</option>
+            <option value="SS 3">SS 3</option>
           </select>
         </div>
       </div>

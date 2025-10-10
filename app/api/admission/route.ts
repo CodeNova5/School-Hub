@@ -3,6 +3,20 @@ import { dbConnect } from "@/lib/dbConnect";
 import Admission from "@/models/Admission";
 import nodemailer from "nodemailer";
 
+export async function GET() {
+  try {
+    await dbConnect();
+    const admissions = await Admission.find().lean();
+    return NextResponse.json(admissions);
+  } catch (error) {
+    console.error("Error fetching admissions:", error);
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(req: Request) {
   try {
     await dbConnect();

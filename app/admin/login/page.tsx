@@ -31,7 +31,7 @@ export default function AdminLoginPage() {
 
       if (res.ok) {
         setModal({ open: true, message: "Login successful!", type: "success" });
-        setTimeout(() => router.push("/admin/dashboard"), 1500);
+        setTimeout(() => router.push("/admin"), 1500);
       } else {
         const data = await res.json();
         const msg = data.message || "Login failed";

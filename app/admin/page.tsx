@@ -76,7 +76,7 @@ export default function AdminDashboard() {
   const rejected = admissions.filter((a) => a.status === "rejected").length;
 
   return (
-    <div className="max-w-7xl mx-auto py-12 px-6">
+    <div className="max-w-7xl bg-white text-black mx-auto py-12 px-6">
       <h1 className="text-4xl font-bold mb-10 text-center text-blue-800">
         🏫 School Admin Dashboard
       </h1>
@@ -175,7 +175,7 @@ export default function AdminDashboard() {
                   className="border-t hover:bg-gray-50 transition-colors"
                 >
                   <td className="p-4 font-medium">
-                    {a.firstName} {a.lastName}
+                    {a.studentFirstName} {a.studentLastName}
                   </td>
                   <td className="p-4">{a.classApplyingFor}</td>
                   <td className="p-4">

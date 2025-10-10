@@ -30,26 +30,28 @@ export default function AdminDashboard() {
     fetchData();
   }, []);
 
-  // Update admission status
-  const updateStatus = async (id: string, status: string) => {
-    setUpdatingId(id);
-    try {
-      const res = await fetch(`/api/admissions/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        setAdmissions((prev) =>
-          prev.map((a) => (a._id === id ? { ...a, status } : a))
-        );
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setUpdatingId(null);
+  
+  const updateStatus = async (id: string, newStatus: string) => {
+    const res = await fetch("/api/admission/update", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: newStatus }),
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      alert("Status updated successfully");
+      setAdmissions((prev) =>
+        prev.map((item) =>
+          item._id === id ? { ...item, status: newStatus } : item
+        )
+      );
+    } else {
+      alert(data.message || "Failed to update");
     }
   };
+
 
   // Filter Logic
   useEffect(() => {

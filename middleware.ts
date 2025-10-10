@@ -5,6 +5,12 @@ import jwt from "jsonwebtoken";
 export const runtime = "nodejs"; // ✅ Fixes secret mismatch issue
 
 export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // Skip middleware for login route
+  if (pathname.startsWith("/admin/login")) {
+    return NextResponse.next();
+  }
   const token = req.cookies.get("admin_token")?.value;
 
   if (!token) {
@@ -32,5 +38,5 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   // Apply middleware to all /admin routes except /admin/login
-  matcher: ["/admin/:path*", "!/admin/login"],
+  matcher: ["/admin/:path*"],
 };

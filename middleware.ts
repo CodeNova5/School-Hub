@@ -7,36 +7,61 @@ export const runtime = "nodejs"; // ✅ Fixes secret mismatch issue
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Skip middleware for login route
-  if (pathname.startsWith("/admin/login")) {
-    return NextResponse.next();
-  }
-  const token = req.cookies.get("admin_token")?.value;
-
-  if (!token) {
-    console.log("❌ No token found, redirecting to login");
-    return NextResponse.redirect(new URL("/admin/login", req.url));
-  }
-
   const jwtSecret = process.env.JWT_SECRET;
-  console.log("JWT_SECRET (length):", jwtSecret?.length);
-
   if (!jwtSecret) {
     console.error("❌ JWT_SECRET missing in middleware");
     return NextResponse.redirect(new URL("/admin/login", req.url));
   }
 
-  try {
-    jwt.verify(token, jwtSecret);
-    console.log("✅ Token verified");
-    return NextResponse.next();
-  } catch (err) {
-    console.error("❌ Invalid token:", err);
-    return NextResponse.redirect(new URL("/admin/login", req.url));
+  // 🔹 Handle Admin routes
+  if (pathname.startsWith("/admin")) {
+    if (pathname.startsWith("/admin/login")) return NextResponse.next();
+
+    const adminToken = req.cookies.get("admin_token")?.value;
+
+    if (!adminToken) {
+      console.log("❌ No admin token found, redirecting to admin login");
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
+
+    try {
+      jwt.verify(adminToken, jwtSecret);
+      console.log("✅ Admin token verified");
+      return NextResponse.next();
+    } catch (err) {
+      console.error("❌ Invalid admin token:", err);
+      return NextResponse.redirect(new URL("/admin/login", req.url));
+    }
   }
+
+  // 🔹 Handle Teacher routes
+  if (pathname.startsWith("/teacher")) {
+    if (pathname.startsWith("/teacher/login")) return NextResponse.next();
+
+    const teacherToken = req.cookies.get("teacherToken")?.value;
+
+    if (!teacherToken) {
+      console.log("❌ No teacher token found, redirecting to teacher login");
+      return NextResponse.redirect(new URL("/teacher/login", req.url));
+    }
+
+    try {
+      jwt.verify(teacherToken, jwtSecret);
+      console.log("✅ Teacher token verified");
+      return NextResponse.next();
+    } catch (err) {
+      console.error("❌ Invalid teacher token:", err);
+      return NextResponse.redirect(new URL("/teacher/login", req.url));
+    }
+  }
+
+  // Default — allow all other routes
+  return NextResponse.next();
 }
 
 export const config = {
-  // Apply middleware to all /admin routes except /admin/login
-  matcher: ["/admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/teacher/:path*",
+  ],
 };

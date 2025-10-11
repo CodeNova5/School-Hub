@@ -76,7 +76,11 @@ export default function TeacherRegistrationPage() {
     <div className="max-w-lg mx-auto mt-10 bg-white text-black p-8 rounded-2xl shadow">
       <h1 className="text-2xl font-bold text-center mb-6">Register Teacher</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        autoComplete="off"
+        className="space-y-4"
+      >
         {/* Full Name */}
         <div>
           <label htmlFor="fullName" className="block mb-1 font-medium">
@@ -90,6 +94,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
+            autoComplete="off"
           />
         </div>
 
@@ -105,6 +110,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
+            autoComplete="off"
           >
             <option value="">Select Gender</option>
             <option value="Male">Male</option>
@@ -126,6 +132,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
+            autoComplete="off"
           />
         </div>
 
@@ -143,6 +150,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
+            autoComplete="off"
           />
         </div>
 
@@ -159,6 +167,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
+            autoComplete="off"
           />
         </div>
 
@@ -175,6 +184,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
+            autoComplete="off"
           />
         </div>
 
@@ -189,6 +199,7 @@ export default function TeacherRegistrationPage() {
             value={form.assignedClass}
             onChange={handleChange}
             className="w-full border rounded-lg p-2 focus:ring focus:ring-blue-300"
+            autoComplete="off"
           >
             <option value="">-- Select Class (optional) --</option>
 
@@ -242,6 +253,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded mb-2"
             required
+            autoComplete="new-password"
           />
 
           <input
@@ -252,6 +264,7 @@ export default function TeacherRegistrationPage() {
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
+            autoComplete="new-password"
           />
 
           {/* Toggle show password */}

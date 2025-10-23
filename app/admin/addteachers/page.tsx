@@ -45,10 +45,21 @@ export default function TeacherRegistrationPage() {
     setLoading(true);
     setMessage("");
 
-    const res = await fetch("/api/teachers", {
+    const res = await fetch("/api/teacher", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        type: "register", // 👈 important
+        fullName: form.fullName,
+        gender: form.gender,
+        email: form.email,
+        username: form.username,
+        address: form.address,
+        phoneNumber: form.phoneNumber,
+        assignedClass: form.assignedClass,
+        password: form.password,
+        
+      }),
     });
 
     const data = await res.json();

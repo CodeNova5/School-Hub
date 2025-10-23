@@ -18,11 +18,16 @@ export default function TeacherLoginPage() {
     setLoading(true);
     setMessage("");
 
-    const res = await fetch("/api/teacher-login", {
+    const res = await fetch("/api/teacher", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({
+        type: "login",
+        emailOrUsername: form.emailOrUsername,
+        password: form.password,
+      }),
     });
+
 
     const data = await res.json();
     setLoading(false);

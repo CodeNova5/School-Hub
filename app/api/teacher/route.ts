@@ -3,14 +3,17 @@ import { dbConnect } from "@/lib/dbConnect";
 import Teacher from "@/models/Teacher";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
+import { schoolDetails } from "@/data";
 
 export async function POST(req: Request) {
   try {
     await dbConnect();
-
     const { type, ...data } = await req.json();
 
-    // 🧩 Teacher Registration
+    // ===============================
+    // 1️⃣ REGISTER TEACHER
+    // ===============================
     if (type === "register") {
       const {
         fullName,
@@ -23,23 +26,20 @@ export async function POST(req: Request) {
         password,
       } = data;
 
-      // Validation
-      if (!username || username.length < 6) {
-        return NextResponse.json(
-          { success: false, message: "Username must be at least 6 characters" },
-          { status: 400 }
-        );
-      }
+      if (!username || username.length < 6)
+        return NextResponse.json({ success: false, message: "Username must be at least 6 characters" }, { status: 400 });
 
       const existingEmail = await Teacher.findOne({ email });
-      if (existingEmail) {
-        return NextResponse.json(
-          { success: false, message: "Email already registered" },
-          { status: 400 }
-        );
-      }
+      if (existingEmail)
+        return NextResponse.json({ success: false, message: "Email already registered" }, { status: 400 });
 
       const hashedPassword = await bcrypt.hash(password, 10);
+      const activationToken = jwt.sign(
+        { email },
+        process.env.JWT_SECRET!,
+        { expiresIn: "1d" }
+      );
+
       const newTeacher = new Teacher({
         fullName,
         gender,
@@ -49,17 +49,69 @@ export async function POST(req: Request) {
         phoneNumber,
         assignedClass,
         password: hashedPassword,
+        status: "pending",
+        activationToken,
       });
 
       await newTeacher.save();
 
+      // Send activation email
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+
+      const activationLink = `${schoolDetails.website}/api/teacher?type=activate&token=${activationToken}`;
+
+      await transporter.sendMail({
+        from: `"Tecrust School Hub" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: "Activate your Teacher Portal",
+        html: `
+          <h2>Welcome, ${fullName}!</h2>
+          <p>Click the button below to activate your teacher portal:</p>
+          <a href="${activationLink}" style="background:#4CAF50;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;">Activate Portal</a>
+          <p>This link will expire in 24 hours.</p>
+        `,
+      });
+
       return NextResponse.json({
         success: true,
-        message: "Teacher registered successfully",
+        message: "✅ Registration successful! Please check your email to activate your portal.",
       });
     }
 
-    // 🧩 Teacher Login
+    // ===============================
+    // 2️⃣ ACTIVATE TEACHER ACCOUNT
+    // ===============================
+    else if (type === "activate") {
+      const { token } = data;
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        const teacher = await Teacher.findOne({ email: decoded.email });
+
+        if (!teacher)
+          return NextResponse.json({ success: false, message: "Invalid activation link" }, { status: 400 });
+
+        if (teacher.status === "activated")
+          return NextResponse.json({ success: true, message: "Account already activated" });
+
+        teacher.status = "activated";
+        teacher.activationToken = null;
+        await teacher.save();
+
+        return NextResponse.json({ success: true, message: "Your account has been activated. You can now log in." });
+      } catch (err) {
+        return NextResponse.json({ success: false, message: "Activation link expired or invalid" }, { status: 400 });
+      }
+    }
+
+    // ===============================
+    // 3️⃣ LOGIN TEACHER
+    // ===============================
     else if (type === "login") {
       const { emailOrUsername, password } = data;
 
@@ -67,22 +119,19 @@ export async function POST(req: Request) {
         $or: [{ email: emailOrUsername }, { username: emailOrUsername }],
       });
 
-      if (!teacher) {
-        return NextResponse.json(
-          { success: false, message: "Teacher not found" },
-          { status: 404 }
-        );
-      }
+      if (!teacher)
+        return NextResponse.json({ success: false, message: "Teacher not found" }, { status: 404 });
+
+      if (teacher.status !== "activated")
+        return NextResponse.json({
+          success: false,
+          message: "Please check your email to activate your account.",
+        }, { status: 403 });
 
       const isMatch = await bcrypt.compare(password, teacher.password);
-      if (!isMatch) {
-        return NextResponse.json(
-          { success: false, message: "Invalid credentials" },
-          { status: 401 }
-        );
-      }
+      if (!isMatch)
+        return NextResponse.json({ success: false, message: "Invalid credentials" }, { status: 401 });
 
-      // Generate JWT
       const token = jwt.sign(
         { id: teacher._id, role: "teacher" },
         process.env.JWT_SECRET!,
@@ -110,18 +159,15 @@ export async function POST(req: Request) {
       return res;
     }
 
-    // 🧩 Handle unknown type
+    // ===============================
+    // 4️⃣ INVALID TYPE
+    // ===============================
     else {
-      return NextResponse.json(
-        { success: false, message: "Invalid request type" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: "Invalid request type" }, { status: 400 });
     }
+
   } catch (error: any) {
-    console.error("Error in teacher route:", error);
-    return NextResponse.json(
-      { success: false, message: "Server error", error: error.message },
-      { status: 500 }
-    );
+    console.error("Teacher route error:", error);
+    return NextResponse.json({ success: false, message: "Server error", error: error.message }, { status: 500 });
   }
 }

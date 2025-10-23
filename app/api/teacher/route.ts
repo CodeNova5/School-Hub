@@ -170,4 +170,44 @@ export async function POST(req: Request) {
     console.error("Teacher route error:", error);
     return NextResponse.json({ success: false, message: "Server error", error: error.message }, { status: 500 });
   }
+
+}
+
+
+export async function GET(req: Request) {
+  try {
+    await dbConnect();
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+    const token = searchParams.get("token");
+
+    if (type === "activate") {
+      try {
+        const decoded: any = jwt.verify(token!, process.env.JWT_SECRET!);
+        const teacher = await Teacher.findOne({ email: decoded.email });
+
+        if (!teacher) {
+          return NextResponse.json({ success: false, message: "Invalid activation link" }, { status: 400 });
+        }
+
+        if (teacher.status === "activated") {
+          return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
+        }
+
+        teacher.status = "activated";
+        teacher.activationToken = null;
+        await teacher.save();
+
+        // (Optional) Redirect to success page
+        return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
+      } catch (err) {
+        return NextResponse.json({ success: false, message: "Activation link expired or invalid" }, { status: 400 });
+      }
+    } else {
+      return NextResponse.json({ success: false, message: "Invalid request" }, { status: 400 });
+    }
+  } catch (error: any) {
+    console.error("Activation error:", error);
+    return NextResponse.json({ success: false, message: "Server error", error: error.message }, { status: 500 });
+  }
 }

@@ -1,23 +1,33 @@
-import { Schema, model, models } from "mongoose";
+import { Schema, models, model } from "mongoose";
 
 const StudentSchema = new Schema(
   {
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     fullName: { type: String, required: true },
-    gender: { type: String, enum: ["Male", "Female"], required: true },
     email: { type: String, required: true, unique: true },
-    address: { type: String },
-    phone: { type: String },
-    className: { type: String, required: true },
+    classLevel: { type: String, required: true }, // e.g. "JSS1", "SS3"
     admissionNumber: { type: String, unique: true },
-    parentName: { type: String },
-    parentEmail: { type: String },
-    parentPhone: { type: String },
-    status: {
-      type: String,
-      enum: ["active", "graduated", "pending"],
-      default: "active",
+    dateOfBirth: Date,
+    gender: { type: String, enum: ["Male", "Female"] },
+    guardian: {
+      name: String,
+      phone: String,
+      email: String,
     },
-    password: { type: String }, // optional for portal login later
+    address: String,
+    attendance: [
+      {
+        date: Date,
+        present: Boolean,
+      },
+    ],
+    subjects: [
+      {
+        name: String,
+        score: Number,
+        grade: String,
+      },
+    ],
   },
   { timestamps: true }
 );

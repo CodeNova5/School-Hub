@@ -8,7 +8,6 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <li><a href="/teacher/students" className="hover:text-yellow-300">My Students</a></li>
           <li><a href="/teacher/announcements" className="hover:text-yellow-300">Announcements</a></li>
           <li><a href="/teacher/settings" className="hover:text-yellow-300">Settings</a></li>
-          <li><a href="/teacher/addstudent" className="hover:text-yellow-300">Add Student</a></li>
         </ul>
       </aside>
       <main className="flex-1 bg-gray-50 p-8">{children}</main>

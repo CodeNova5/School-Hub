@@ -18,7 +18,7 @@ export default function TeacherLoginPage() {
     setLoading(true);
     setMessage("");
 
-    const res = await fetch("/api/teacher?type=login", {
+    const res = await fetch("/api/teacher-login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),

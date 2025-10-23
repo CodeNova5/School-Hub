@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 
-export const runtime = "nodejs"; // ✅ Ensures Node runtime (for jwt)
+export const runtime = "nodejs"; // ✅ Fixes secret mismatch issue
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const jwtSecret = process.env.JWT_SECRET;
 
+  const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
     console.error("❌ JWT_SECRET missing in middleware");
     return NextResponse.redirect(new URL("/admin/login", req.url));
@@ -38,9 +38,7 @@ export function middleware(req: NextRequest) {
   if (pathname.startsWith("/teacher")) {
     if (pathname.startsWith("/teacher/login")) return NextResponse.next();
 
-    // 🔸 Use consistent token name — match your backend login logic
-    const teacherToken =
-      req.cookies.get("teacher_token")?.value || req.cookies.get("teacherToken")?.value;
+    const teacherToken = req.cookies.get("teacherToken")?.value;
 
     if (!teacherToken) {
       console.log("❌ No teacher token found, redirecting to teacher login");

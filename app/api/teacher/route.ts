@@ -6,6 +6,9 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { schoolDetails } from "@/data";
 
+export const runtime = "nodejs"; // ✅ Fixes secret mismatch issue
+
+
 export async function POST(req: Request) {
   try {
     await dbConnect();

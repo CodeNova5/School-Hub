@@ -9,6 +9,8 @@ const TeacherSchema = new Schema(
     address: { type: String, required: true },
     phoneNumber: { type: String, required: true },
     assignedClass: { type: String }, // optional
+    status: { type: String, enum: ["active", "inactive", "pending"], default: "pending" },
+    activationToken: { type: String }, // for email verification
     password: { type: String, required: true }, // will be auto-generated or set later
   },
   { timestamps: true }

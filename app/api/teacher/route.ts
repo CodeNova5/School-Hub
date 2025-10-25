@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     // 2️⃣ ACTIVATE TEACHER ACCOUNT
     // ===============================
     else if (type === "activate") {
-      const { token } = await req.json();
+      const { token } = data;
 
       if (!token)
         return NextResponse.json({ success: false, message: "Missing token" }, { status: 400 });

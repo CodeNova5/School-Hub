@@ -32,6 +32,10 @@ export default function ActivateTeacherPage() {
         if (data.success) {
           setStatus("Your account has been activated successfully! 🎉");
           setColor("text-green-600");
+          // Optionally, redirect to login page after a delay
+          setTimeout(() => {
+            window.location.href = "/teacher/login";
+          }, 2000);
         } else {
           setStatus(data.message || "Activation failed.");
           setColor("text-red-500");

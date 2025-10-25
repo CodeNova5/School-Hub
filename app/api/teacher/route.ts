@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { schoolDetails } from "@/data";
+import Student from "@/models/Student";
 
 export const runtime = "nodejs"; // ✅ Fixes secret mismatch issue
 
@@ -163,8 +164,70 @@ export async function POST(req: Request) {
       return res;
     }
 
+
+
     // ===============================
-    // 4️⃣ INVALID TYPE
+    // 4️⃣ ADD STUDENT (Teacher)
+    // ===============================
+    else if (type === "addStudent") {
+      const {
+        fullName,
+        gender,
+        email,
+        address,
+        phone,
+        className,
+        parentName,
+        parentPhone,
+        parentEmail,
+        teacherId,
+      } = data;
+
+      if (!fullName || !gender || !className) {
+        return NextResponse.json(
+          { success: false, message: "Missing required fields" },
+          { status: 400 }
+        );
+      }
+
+      await dbConnect();
+
+      // prevent duplicates
+      const existing = await Student.findOne({ email });
+      if (existing)
+        return NextResponse.json(
+          { success: false, message: "Student already exists" },
+          { status: 400 }
+        );
+
+      // generate admission number automatically
+      const admissionNumber = `STU-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const newStudent = await Student.create({
+        fullName,
+        gender,
+        email,
+        address,
+        phone,
+        className,
+        parentName,
+        parentPhone,
+        parentEmail,
+        addedByTeacher: teacherId,
+        admissionNumber,
+        status: "active",
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "✅ Student added successfully",
+        student: newStudent,
+      });
+    }
+
+
+    // ===============================
+    //  INVALID TYPE
     // ===============================
     else {
       return NextResponse.json({ success: false, message: "Invalid request type" }, { status: 400 });

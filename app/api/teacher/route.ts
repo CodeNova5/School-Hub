@@ -91,26 +91,25 @@ export async function POST(req: Request) {
     // 2️⃣ ACTIVATE TEACHER ACCOUNT
     // ===============================
     else if (type === "activate") {
-      const { token } = data;
-      try {
-        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-        const teacher = await Teacher.findOne({ email: decoded.email });
+      const { token } = await req.json();
 
-        if (!teacher)
-          return NextResponse.json({ success: false, message: "Invalid activation link" }, { status: 400 });
+      if (!token)
+        return NextResponse.json({ success: false, message: "Missing token" }, { status: 400 });
 
-        if (teacher.status === "activated")
-          return NextResponse.json({ success: true, message: "Account already activated" });
+      const teacher = await Teacher.findById(token);
+      if (!teacher)
+        return NextResponse.json({ success: false, message: "Invalid activation link" }, { status: 404 });
 
-        teacher.status = "activated";
-        teacher.activationToken = null;
-        await teacher.save();
-
-        return NextResponse.json({ success: true, message: "Your account has been activated. You can now log in." });
-      } catch (err) {
-        return NextResponse.json({ success: false, message: "Activation link expired or invalid" }, { status: 400 });
+      if (teacher.status === "activated") {
+        return NextResponse.json({ success: true, message: "Account already activated" });
       }
+
+      teacher.status = "activated";
+      await teacher.save();
+
+      return NextResponse.json({ success: true, message: "Account activated successfully" });
     }
+
 
     // ===============================
     // 3️⃣ LOGIN TEACHER
@@ -176,59 +175,3 @@ export async function POST(req: Request) {
 
 }
 
-
-export async function GET(req: Request) {
-  try {
-    await dbConnect();
-    const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type");
-    const token = searchParams.get("token");
-
-    if (type !== "activate") {
-      return NextResponse.json({ success: false, message: "Invalid request type" }, { status: 400 });
-    }
-
-    if (!token) {
-      return NextResponse.json({ success: false, message: "Missing activation token" }, { status: 400 });
-    }
-
-    // Ensure JWT secret exists
-    if (!process.env.JWT_SECRET) {
-      console.error("Missing JWT_SECRET");
-      return NextResponse.json({ success: false, message: "Server configuration error" }, { status: 500 });
-    }
-
-    try {
-      const decoded: any = jwt.verify(token, process.env.JWT_SECRET);
-      // require activationToken to match stored token for extra safety
-      const teacher = await Teacher.findOne({ email: decoded.email, activationToken: token });
-
-      if (!teacher) {
-        return NextResponse.json({ success: false, message: "Invalid or already-used activation link" }, { status: 400 });
-      }
-
-      if (teacher.status === "activated") {
-        return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
-      }
-
-      teacher.status = "activated";
-      teacher.activationToken = null;
-      await teacher.save();
-
-      return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
-    } catch (err: any) {
-      // Distinguish JWT errors for clearer messages
-      if (err.name === "TokenExpiredError") {
-        return NextResponse.json({ success: false, message: "Activation link expired" }, { status: 400 });
-      }
-      if (err.name === "JsonWebTokenError") {
-        return NextResponse.json({ success: false, message: "Invalid activation token" }, { status: 400 });
-      }
-      console.error("Activation verification error:", err);
-      return NextResponse.json({ success: false, message: "Activation failed" }, { status: 400 });
-    }
-  } catch (error: any) {
-    console.error("Activation error:", error);
-    return NextResponse.json({ success: false, message: "Server error", error: error.message }, { status: 500 });
-  }
-}

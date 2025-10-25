@@ -18,7 +18,7 @@ export default function ActivateTeacherPage() {
       }
 
       try {
-        const res = await fetch(`/api/teachers?type=activate`, {
+        const res = await fetch(`/api/teacher?type=activate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),

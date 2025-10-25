@@ -184,30 +184,48 @@ export async function GET(req: Request) {
     const type = searchParams.get("type");
     const token = searchParams.get("token");
 
-    if (type === "activate") {
-      try {
-        const decoded: any = jwt.verify(token!, process.env.JWT_SECRET!);
-        const teacher = await Teacher.findOne({ email: decoded.email });
+    if (type !== "activate") {
+      return NextResponse.json({ success: false, message: "Invalid request type" }, { status: 400 });
+    }
 
-        if (!teacher) {
-          return NextResponse.json({ success: false, message: "Invalid activation link" }, { status: 400 });
-        }
+    if (!token) {
+      return NextResponse.json({ success: false, message: "Missing activation token" }, { status: 400 });
+    }
 
-        if (teacher.status === "activated") {
-          return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
-        }
+    // Ensure JWT secret exists
+    if (!process.env.JWT_SECRET) {
+      console.error("Missing JWT_SECRET");
+      return NextResponse.json({ success: false, message: "Server configuration error" }, { status: 500 });
+    }
 
-        teacher.status = "activated";
-        teacher.activationToken = null;
-        await teacher.save();
+    try {
+      const decoded: any = jwt.verify(token, process.env.JWT_SECRET);
+      // require activationToken to match stored token for extra safety
+      const teacher = await Teacher.findOne({ email: decoded.email, activationToken: token });
 
-        // (Optional) Redirect to success page
-        return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
-      } catch (err) {
-        return NextResponse.json({ success: false, message: "Activation link expired or invalid" }, { status: 400 });
+      if (!teacher) {
+        return NextResponse.json({ success: false, message: "Invalid or already-used activation link" }, { status: 400 });
       }
-    } else {
-      return NextResponse.json({ success: false, message: "Invalid request" }, { status: 400 });
+
+      if (teacher.status === "activated") {
+        return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
+      }
+
+      teacher.status = "activated";
+      teacher.activationToken = null;
+      await teacher.save();
+
+      return NextResponse.redirect(`${schoolDetails.website}/teacher/login`);
+    } catch (err: any) {
+      // Distinguish JWT errors for clearer messages
+      if (err.name === "TokenExpiredError") {
+        return NextResponse.json({ success: false, message: "Activation link expired" }, { status: 400 });
+      }
+      if (err.name === "JsonWebTokenError") {
+        return NextResponse.json({ success: false, message: "Invalid activation token" }, { status: 400 });
+      }
+      console.error("Activation verification error:", err);
+      return NextResponse.json({ success: false, message: "Activation failed" }, { status: 400 });
     }
   } catch (error: any) {
     console.error("Activation error:", error);

@@ -96,15 +96,17 @@ export async function POST(req: Request) {
       if (!token)
         return NextResponse.json({ success: false, message: "Missing token" }, { status: 400 });
 
-      const teacher = await Teacher.findById(token);
+      // token is a JWT stored in activationToken field — find by that field
+      const teacher = await Teacher.findOne({ activationToken: token });
       if (!teacher)
         return NextResponse.json({ success: false, message: "Invalid activation link" }, { status: 404 });
 
-      if (teacher.status === "activated") {
+      if (teacher.status === "active") {
         return NextResponse.json({ success: true, message: "Account already activated" });
       }
 
-      teacher.status = "activated";
+      teacher.status = "active"; // match schema enum
+      teacher.activationToken = undefined; // clear token after activation
       await teacher.save();
 
       return NextResponse.json({ success: true, message: "Account activated successfully" });

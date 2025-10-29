@@ -164,10 +164,46 @@ export async function POST(req: Request) {
       return res;
     }
 
+    // ===============================
+    // 4️⃣ GET TEACHER PROFILE
+    // ===============================
+    else if (type === "getProfile") {
+      const token = req.headers.get("cookie")?.split("teacherToken=")[1]?.split(";")[0];
+
+      if (!token) {
+        return NextResponse.json(
+          { success: false, message: "Not authenticated" },
+          { status: 401 }
+        );
+      }
+
+      try {
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        const teacher = await Teacher.findById(decoded.id).select("-password");
+
+        if (!teacher) {
+          return NextResponse.json(
+            { success: false, message: "Teacher not found" },
+            { status: 404 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          teacher,
+        });
+      } catch (err) {
+        console.error("JWT verification failed:", err);
+        return NextResponse.json(
+          { success: false, message: "Invalid or expired token" },
+          { status: 403 }
+        );
+      }
+    }
 
 
     // ===============================
-    // 4️⃣ ADD STUDENT (Teacher)
+    // 5️⃣ ADD STUDENT
     // ===============================
     else if (type === "addStudent") {
       const {

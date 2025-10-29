@@ -1,10 +1,16 @@
-import { Schema, model, models } from "mongoose";
+// models/Student.ts
+import mongoose from "mongoose";
 
-const StudentSchema = new Schema(
+const AttendanceSchema = new mongoose.Schema({
+  date: { type: Date, required: true },
+  status: { type: String, enum: ["Present", "Absent", "Late"], default: "Present" },
+});
+
+const StudentSchema = new mongoose.Schema(
   {
     fullName: { type: String, required: true },
-    gender: { type: String, enum: ["Male", "Female"], required: true },
-    email: { type: String, unique: true, sparse: true },
+    gender: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
     address: { type: String },
     phone: { type: String },
     className: { type: String, required: true },
@@ -12,10 +18,24 @@ const StudentSchema = new Schema(
     parentName: { type: String },
     parentPhone: { type: String },
     parentEmail: { type: String },
-    addedByTeacher: { type: String }, // teacher id or name
-    status: { type: String, enum: ["active", "pending"], default: "active" },
+    addedByTeacher: { type: mongoose.Schema.Types.ObjectId, ref: "Teacher" },
+    status: { type: String, enum: ["active", "inactive"], default: "active" },
+
+    // New fields 👇
+    attendance: [AttendanceSchema],
+    averageAttendance: { type: Number, default: 0 },
+    results: [
+      {
+        subject: String,
+        testScore: Number,
+        examScore: Number,
+        total: Number,
+        grade: String,
+      },
+    ],
   },
   { timestamps: true }
 );
 
-export default models.Student || model("Student", StudentSchema);
+export default mongoose.models.Student ||
+  mongoose.model("Student", StudentSchema);

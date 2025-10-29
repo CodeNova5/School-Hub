@@ -188,9 +188,12 @@ export async function POST(req: Request) {
           );
         }
 
+        const students = await Student.find({ className: teacher.assignedClass });
+
         return NextResponse.json({
           success: true,
           teacher,
+          students,
         });
       } catch (err) {
         console.error("JWT verification failed:", err);
@@ -271,6 +274,54 @@ export async function POST(req: Request) {
         message: "✅ Student added successfully",
         student: newStudent,
       });
+    }
+
+    else if (type === "attendance") {
+      try {
+        const token = req.headers.get("cookie")?.split("teacherToken=")[1]?.split(";")[0];
+        if (!token)
+          return NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 });
+
+        const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
+        if (!decoded.id)
+          return NextResponse.json({ success: false, message: "Invalid token" }, { status: 403 });
+
+        const { studentId, status } = await req.json();
+
+        if (!studentId || !status)
+          return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
+
+        const student = await Student.findById(studentId);
+        if (!student)
+          return NextResponse.json({ success: false, message: "Student not found" }, { status: 404 });
+
+        // Prevent duplicate attendance for the same day
+        const today = new Date().toISOString().split("T")[0];
+        const existingRecord = student.attendance.find(
+          (a: any) => a.date.toISOString().split("T")[0] === today
+        );
+        if (existingRecord)
+          return NextResponse.json({ success: false, message: "Attendance already recorded for today" });
+
+        // Add new attendance record
+        student.attendance.push({ date: new Date(), status });
+
+        // Calculate attendance percentage
+        const total = student.attendance.length;
+        const presentCount = student.attendance.filter((a: any) => a.status === "Present").length;
+        student.averageAttendance = Math.round((presentCount / total) * 100);
+
+        await student.save();
+
+        return NextResponse.json({
+          success: true,
+          message: "Attendance recorded successfully",
+          averageAttendance: student.averageAttendance,
+        });
+      } catch (error: any) {
+        console.error("Attendance error:", error);
+        return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+      }
     }
 
 

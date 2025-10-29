@@ -286,7 +286,7 @@ export async function POST(req: Request) {
         if (!decoded.id)
           return NextResponse.json({ success: false, message: "Invalid token" }, { status: 403 });
 
-        const { studentId, status } = await req.json();
+        const { studentId, status } = data;
 
         if (!studentId || !status)
           return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });

@@ -286,43 +286,54 @@ export async function POST(req: Request) {
         if (!decoded.id)
           return NextResponse.json({ success: false, message: "Invalid token" }, { status: 403 });
 
-        const { studentId, status } = data;
+        const { records, date } = data;
+        if (!records || !Array.isArray(records) || records.length === 0)
+          return NextResponse.json({ success: false, message: "No attendance records provided" }, { status: 400 });
 
-        if (!studentId || !status)
-          return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
+        const targetDate = date ? new Date(date) : new Date();
+        const targetDateString = targetDate.toISOString().split("T")[0];
 
-        const student = await Student.findById(studentId);
-        if (!student)
-          return NextResponse.json({ success: false, message: "Student not found" }, { status: 404 });
+        let updatedCount = 0;
 
-        // Prevent duplicate attendance for the same day
-        const today = new Date().toISOString().split("T")[0];
-        const existingRecord = student.attendance.find(
-          (a: any) => a.date.toISOString().split("T")[0] === today
-        );
-        if (existingRecord)
-          return NextResponse.json({ success: false, message: "Attendance already recorded for today" });
+        for (const record of records) {
+          const { studentId, status } = record;
+          if (!studentId || !status) continue;
 
-        // Add new attendance record
-        student.attendance.push({ date: new Date(), status });
+          const student = await Student.findById(studentId);
+          if (!student) continue;
 
-        // Calculate attendance percentage
-        const total = student.attendance.length;
-        const presentCount = student.attendance.filter((a: any) => a.status === "Present").length;
-        student.averageAttendance = Math.round((presentCount / total) * 100);
+          // Check if attendance for this date already exists
+          const existingRecordIndex = student.attendance.findIndex(
+            (a: any) => a.date.toISOString().split("T")[0] === targetDateString
+          );
 
-        await student.save();
+          if (existingRecordIndex !== -1) {
+            // Update existing record
+            student.attendance[existingRecordIndex].status = status;
+          } else {
+            // Add new record
+            student.attendance.push({ date: targetDate, status });
+          }
+
+          // Recalculate attendance %
+          const total = student.attendance.length;
+          const presentCount = student.attendance.filter((a: any) => a.status === "Present").length;
+          student.averageAttendance = Math.round((presentCount / total) * 100);
+
+          await student.save();
+          updatedCount++;
+        }
 
         return NextResponse.json({
           success: true,
-          message: "Attendance recorded successfully",
-          averageAttendance: student.averageAttendance,
+          message: `✅ Attendance saved for ${updatedCount} students (${targetDateString})`,
         });
       } catch (error: any) {
         console.error("Attendance error:", error);
         return NextResponse.json({ success: false, message: error.message }, { status: 500 });
       }
     }
+
 
 
     // ===============================

@@ -127,7 +127,7 @@ export async function POST(req: Request) {
       if (!teacher)
         return NextResponse.json({ success: false, message: "Teacher not found" }, { status: 404 });
 
-      if (teacher.status !== "activate")
+      if (teacher.status !== "active")
         return NextResponse.json({
           success: false,
           message: "Please check your email to activate your account.",

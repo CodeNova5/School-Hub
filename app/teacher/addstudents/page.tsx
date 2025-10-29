@@ -16,21 +16,27 @@ export default function AddStudentPage() {
 
   const [message, setMessage] = useState("");
   const [teacher, setTeacher] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
 
   useEffect(() => {
     async function fetchTeacher() {
-      const res = await fetch("/api/teachers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "getProfile" }),
-      });
-      const data = await res.json();
-      if (data.success) setTeacher(data.teacher);
+      try {
+        const res = await fetch("/api/teacher", {
+          // Fix API endpoint
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "getProfile" }),
+        });
+        const data = await res.json();
+        if (data.success) setTeacher(data.teacher);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
     }
     fetchTeacher();
   }, []);
-
-
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -118,9 +124,10 @@ export default function AddStudentPage() {
           <input
             name="className"
             onChange={handleChange}
-            value={teacher.assignedClass || ""}
+            value={teacher?.assignedClass || ""} // Add null check
             required
             className="w-full border rounded p-2"
+            disabled={isLoading} // Disable input while loading
           />
         </div>
 

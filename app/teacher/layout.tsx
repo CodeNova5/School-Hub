@@ -1,3 +1,4 @@
+
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
@@ -10,7 +11,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
           <li><a href="/teacher/settings" className="hover:text-yellow-300">Settings</a></li>
         </ul>
       </aside>
-      <main className="flex-1 bg-gray-50 p-8">{children}</main>
+      <main className="flex-1 bg-gray-50 text-black p-8">{children}</main>
     </div>
   );
 }

@@ -3,17 +3,17 @@ import { useState, useEffect } from "react";
 
 export default function AddStudentPage() {
 
- const [form, setForm] = useState({
-  fullName: "",
-  gender: "",
-  email: "",
-  address: "",
-  phone: "",
-  className: "",
-  parentName: "",
-  parentPhone: "",
-  parentEmail: "",
-});
+  const [form, setForm] = useState({
+    fullName: "",
+    gender: "",
+    email: "",
+    address: "",
+    phone: "",
+    className: "",
+    parentName: "",
+    parentPhone: "",
+    parentEmail: "",
+  });
 
   const [message, setMessage] = useState("");
   const [teacher, setTeacher] = useState<any>(null);
@@ -29,7 +29,13 @@ export default function AddStudentPage() {
           body: JSON.stringify({ type: "getProfile" }),
         });
         const data = await res.json();
-        if (data.success) setTeacher(data.teacher);
+        if (data.success)  { 
+          setTeacher(data.teacher);
+          setForm((prevForm) => ({
+            ...prevForm,
+            className: data.teacher.assignedClass || "",
+          }));
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -46,28 +52,28 @@ export default function AddStudentPage() {
   };
 
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!teacher?.assignedClass) {
-    setMessage("Error: No assigned class found for this teacher");
-    return;
-  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!teacher?.assignedClass) {
+      setMessage("Error: No assigned class found for this teacher");
+      return;
+    }
 
-  setMessage("Processing...");
+    setMessage("Processing...");
 
-  const res = await fetch("/api/teacher", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      type: "addStudent",
-      ...form,
-      teacherId: teacher?._id,
-    }),
-  });
+    const res = await fetch("/api/teacher", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "addStudent",
+        ...form,
+        teacherId: teacher?._id,
+      }),
+    });
 
-  const data = await res.json();
-  setMessage(data.message);
-};
+    const data = await res.json();
+    setMessage(data.message);
+  };
 
 
   return (
@@ -135,12 +141,13 @@ const handleSubmit = async (e: React.FormEvent) => {
           <label className="block text-sm font-medium mb-1">Class Name</label>
           <input
             name="className"
+            value={form.className}
             onChange={handleChange}
-            value={teacher?.assignedClass || ""} // Add null check
             required
             className="w-full border rounded p-2"
-            disabled={isLoading} // Disable input while loading
+            disabled={isLoading}
           />
+
         </div>
 
         {/* Parent / Guardian Info */}

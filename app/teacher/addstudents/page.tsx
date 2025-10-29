@@ -155,7 +155,7 @@ const handleSubmit = async (e: React.FormEvent) => {
                 Full Name
               </label>
               <input
-                name="parentFullName"
+                name="parentName"
                 placeholder="Parent or Guardian full name"
                 onChange={handleChange}
                 required

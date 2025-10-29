@@ -2,17 +2,18 @@
 import { useState, useEffect } from "react";
 
 export default function AddStudentPage() {
-  const [form, setForm] = useState({
-    fullName: "",
-    gender: "",
-    email: "",
-    address: "",
-    phone: "",
-    className: "",
-    parentFullName: "",
-    parentPhone: "",
-    parentEmail: "",
-  });
+
+ const [form, setForm] = useState({
+  fullName: "",
+  gender: "",
+  email: "",
+  address: "",
+  phone: "",
+  className: "",
+  parentName: "",
+  parentPhone: "",
+  parentEmail: "",
+});
 
   const [message, setMessage] = useState("");
   const [teacher, setTeacher] = useState<any>(null);
@@ -44,19 +45,30 @@ export default function AddStudentPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage("Processing...");
 
-    const res = await fetch("/api/teacher", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "addStudent", ...form }),
-    });
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!teacher?.assignedClass) {
+    setMessage("Error: No assigned class found for this teacher");
+    return;
+  }
 
-    const data = await res.json();
-    setMessage(data.message);
-  };
+  setMessage("Processing...");
+
+  const res = await fetch("/api/teacher", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "addStudent",
+      ...form,
+      teacherId: teacher?._id,
+    }),
+  });
+
+  const data = await res.json();
+  setMessage(data.message);
+};
+
 
   return (
     <div className="max-w-lg mx-auto mt-10 text-black bg-white shadow-lg rounded-xl p-8">

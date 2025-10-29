@@ -219,13 +219,25 @@ export async function POST(req: Request) {
         teacherId,
       } = data;
 
-      if (!fullName || !gender || !className) {
+      if (!fullName) {
         return NextResponse.json(
-          { success: false, message: "Missing required fields" },
+          { success: false, message: "Missing FullName" },
           { status: 400 }
         );
       }
 
+      if (!gender) {
+        return NextResponse.json(
+          { success: false, message: "Missing Gender" },
+          { status: 400 }
+        );
+      }
+      if (!className) {
+        return NextResponse.json(
+          { success: false, message: "Missing Class Name" },
+          { status: 400 }
+        );
+      }
       await dbConnect();
 
       // prevent duplicates

@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import AttendanceModal from "../components/AttendanceModal";
-
+import AttendanceManager from "../components/AttendanceManager";
 export default function TeacherDashboard() {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,11 +59,7 @@ export default function TeacherDashboard() {
       </table>
 
       {selectedStudent && (
-        <AttendanceModal
-          student={selectedStudent}
-          onClose={() => setSelectedStudent(null)}
-          onSuccess={() => window.location.reload()}
-        />
+         <AttendanceManager />
       )}
     </div>
   );

@@ -37,6 +37,7 @@ export function middleware(req: NextRequest) {
   // 🔹 Handle Teacher routes
   if (pathname.startsWith("/teacher")) {
     if (pathname.startsWith("/teacher/login")) return NextResponse.next();
+     if (pathname.startsWith("/teacher/activate")) return NextResponse.next();
 
     const teacherToken = req.cookies.get("teacherToken")?.value;
 

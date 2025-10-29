@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         },
       });
 
-      const activationLink = `${schoolDetails.website}/api/teacher?type=activate&token=${activationToken}`;
+      const activationLink = `${schoolDetails.website}/teacher/activate?token=${activationToken}`;
 
       await transporter.sendMail({
         from: `"Tecrust School Hub" <${process.env.SMTP_USER}>`,
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
       if (!teacher)
         return NextResponse.json({ success: false, message: "Teacher not found" }, { status: 404 });
 
-      if (teacher.status !== "activated")
+      if (teacher.status !== "activate")
         return NextResponse.json({
           success: false,
           message: "Please check your email to activate your account.",

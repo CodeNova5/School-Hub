@@ -2,28 +2,16 @@
 import { useState, useEffect } from "react";
 import AttendanceModal from "./AttendanceModal";
 
-export default function AttendanceManager() {
-  const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function AttendanceManager({ students: initialStudents }: { students?: any[] }) {
+  const [students, setStudents] = useState<any[]>(initialStudents ?? []);
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
   const [attendanceDate, setAttendanceDate] = useState(new Date());
   const [message, setMessage] = useState("");
 
+  // keep internal students in sync if the parent updates the prop
   useEffect(() => {
-    async function fetchStudents() {
-     const res = await fetch("/api/teacher", {
-          // Fix API endpoint
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "getProfile" }),
-        });
-    
-      const data = await res.json();
-      if (data.success) setStudents(data.students);
-      setLoading(false);
-    }
-    fetchStudents();
-  }, []);
+    setStudents(initialStudents ?? []);
+  }, [initialStudents]);
 
   // 📅 Format date nicely
   function formatDate(date: Date) {
@@ -69,7 +57,8 @@ export default function AttendanceManager() {
     else setMessage("❌ Error saving attendance.");
   }
 
-  if (loading) return <p>Loading students...</p>;
+  // If parent provided no students yet, show a friendly message
+  if (!students || students.length === 0) return <p className="p-4">No students available.</p>;
 
   return (
     <div className="p-8">

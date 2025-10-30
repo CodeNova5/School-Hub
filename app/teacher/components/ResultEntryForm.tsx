@@ -1,20 +1,33 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { subjectsByDepartment } from "@/lib/subjectMap";
 
 export default function ResultEntryForm({ student }: { student: any }) {
-  const [results, setResults] = useState<any>(
-    subjectsByDepartment[student.department].map((subject) => ({
-      subject,
-      welcomeTest: 0,
-      midTerm: 0,
-      vetting: 0,
-      exam: 0,
-      total: 0,
-      grade: "",
-    }))
-  );
+  const [results, setResults] = useState<any>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const existingResults = student.results || [];
+    const subjects = subjectsByDepartment[student.department] || [];
+
+    // Merge existing results with default ones (in case new subjects were added)
+    const merged = subjects.map((subject: string) => {
+      const found = existingResults.find((r: any) => r.subject === subject);
+      return (
+        found || {
+          subject,
+          welcomeTest: 0,
+          midTerm: 0,
+          vetting: 0,
+          exam: 0,
+          total: 0,
+          grade: "",
+        }
+      );
+    });
+
+    setResults(merged);
+  }, [student]);
 
   const calculateGrade = (total: number) => {
     if (total >= 70) return "A";
@@ -25,14 +38,17 @@ export default function ResultEntryForm({ student }: { student: any }) {
     return "F";
   };
 
-  const handleChange = (index: number, field: string, value: number) => {
+  const handleChange = (index: number, field: string, value: string) => {
+    const numericValue = Math.max(0, parseInt(value || "0", 10)); // clean number (no 010)
     const updated = [...results];
-    updated[index][field] = value;
+    updated[index][field] = numericValue;
+
     const total =
       Number(updated[index].welcomeTest) +
       Number(updated[index].midTerm) +
       Number(updated[index].vetting) +
       Number(updated[index].exam);
+
     updated[index].total = total;
     updated[index].grade = calculateGrade(total);
     setResults(updated);
@@ -80,8 +96,8 @@ export default function ResultEntryForm({ student }: { student: any }) {
                   <input
                     type="number"
                     value={r[f]}
-                    onChange={(e) => handleChange(i, f, Number(e.target.value))}
-                    className="border w-16 p-1 rounded"
+                    onChange={(e) => handleChange(i, f, e.target.value)}
+                    className="border w-16 p-1 rounded text-center"
                     max={f === "exam" ? 50 : f === "midTerm" ? 20 : 10}
                     min={0}
                   />

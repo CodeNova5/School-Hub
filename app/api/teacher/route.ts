@@ -275,6 +275,9 @@ export async function POST(req: Request) {
         student: newStudent,
       });
     }
+    // ===============================
+    // 6️⃣ ATTENDANCE
+    // ===============================
 
     else if (type === "attendance") {
       try {
@@ -334,6 +337,36 @@ export async function POST(req: Request) {
       }
     }
 
+    // ===============================
+    // 7️⃣ ADD STUDENT RESULT
+    // ===============================
+    else if (type === "addResult") {
+      const { studentId, subject, score, grade } = data;
+      if (!studentId || !subject || score === undefined)
+        return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
+
+      const student = await Student.findById(studentId);
+      if (!student)
+        return NextResponse.json({ success: false, message: "Student not found" }, { status: 404 });
+
+      if (!student.results) student.results = [];
+
+      // If subject already exists, update it
+      const existing = student.results.find((r: any) => r.subject === subject);
+      if (existing) {
+        existing.score = score;
+        existing.grade = grade;
+      } else {
+        student.results.push({ subject, score, grade });
+      }
+
+      await student.save();
+
+      return NextResponse.json({
+        success: true,
+        message: `✅ ${subject} result saved with grade ${grade}`,
+      });
+    }
 
 
     // ===============================

@@ -132,6 +132,11 @@ export default function TeacherDashboard() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 overflow-auto">
           <div className="relative bg-white w-full max-w-5xl rounded-xl shadow-lg p-6">
 
+
+
+            <h2 className="text-2xl font-bold mb-4">
+              Enter Results for {selectedStudent.fullName}
+            </h2>
             {/* ❌ Cancel icon fixed at top-right */}
             <button
               onClick={() => setShowResultForm(false)}
@@ -139,13 +144,8 @@ export default function TeacherDashboard() {
             >
               <X size={24} />
             </button>
-
-            <h2 className="text-2xl font-bold mb-4">
-              Enter Results for {selectedStudent.fullName}
-            </h2>
-
             <ResultEntryForm student={selectedStudent} />
-
+            <button onClick={() => setShowResultForm(false)} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600" > Close </button>
           </div>
         </div>
       )}

@@ -16,10 +16,10 @@ export default function ResultEntryForm({ student }: { student: any }) {
       return (
         found || {
           subject,
-          welcomeTest: 0,
-          midTerm: 0,
-          vetting: 0,
-          exam: 0,
+          welcomeTest: null,
+          midTerm: null,
+          vetting: null,
+          exam: null,
           total: 0,
           grade: "",
         }

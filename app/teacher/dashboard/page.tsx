@@ -4,6 +4,7 @@ import AttendanceManager from "../components/AttendanceManager";
 export default function TeacherDashboard() {
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(true);
   useEffect(() => {
     async function fetchStudents() {
       const res = await fetch("/api/teacher", {
@@ -25,16 +26,38 @@ export default function TeacherDashboard() {
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">My Class Students</h1>
-      <div className="mb-6 p-4 bg-gradient-to-r from-white to-gray-50 rounded-lg shadow-sm border">
-        <h2 className="text-xl font-semibold mb-2">Instructions to Manage Attendance</h2>
-        <ul className="list-disc list-inside text-gray-700">
-          <li>Select a student from the table below to view and manage their attendance records.</li>
-          <li>You can add new attendance entries, edit existing ones, or delete them as needed.</li>
-          <li>The average attendance percentage is automatically calculated based on the records.</li>
-          <li>Ensure to save any changes you make to keep the records up to date.</li>
-        </ul>
-        <AttendanceManager students={students} />
-      </div>
+      {loading ? null : (
+        <>
+          <div
+        className="fixed inset-0 bg-black bg-opacity-60 z-40"
+        style={{ pointerEvents: "auto" }}
+          />
+          <div
+        className="fixed inset-0 flex items-center justify-center z-50"
+        style={{ overflowY: "auto" }}
+          >
+        <div className="relative bg-gradient-to-r from-white to-gray-50 rounded-lg shadow-lg border w-full max-w-xl mx-auto p-6">
+          <button
+            className="absolute top-4 right-4 px-4 py-2 bg-red-500 text-white rounded font-semibold shadow hover:bg-red-600"
+            onClick={() => {
+          document.body.style.overflow = "";
+          setShowModal(false);
+            }}
+          >
+            Cancel
+          </button>
+          <h2 className="text-xl font-semibold mb-2">Instructions to Manage Attendance</h2>
+          <ul className="list-disc list-inside text-gray-700 mb-4">
+            <li>Select a student from the table below to view and manage their attendance records.</li>
+            <li>You can add new attendance entries, edit existing ones, or delete them as needed.</li>
+            <li>The average attendance percentage is automatically calculated based on the records.</li>
+            <li>Ensure to save any changes you make to keep the records up to date.</li>
+          </ul>
+          <AttendanceManager students={students} />
+        </div>
+          </div>
+        </>
+      )}
       <table className="w-full border">
         <thead>
           <tr className="bg-gray-100 text-left">

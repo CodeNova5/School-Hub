@@ -1,0 +1,36 @@
+// lib/subjectMap.ts
+export const subjectsByDepartment: Record<string, string[]> = {
+  Science: [
+    "Mathematics",
+    "English",
+    "Physics",
+    "Chemistry",
+    "Biology",
+    "Economics",
+    "Marketing",
+    "Civic Education",
+    "Further Mathematics",
+    "Chess",
+  ],
+  Arts: [
+    "Mathematics",
+    "English",
+    "Economics",
+    "Marketing",
+    "Yoruba",
+    "Literature-in-English",
+    "Civic Education",
+    "Chess",
+  ],
+  Commercial: [
+    "Mathematics",
+    "English",
+    "Biology",
+    "Marketing",
+    "Civic Education",
+    "Economics",
+    "Account",
+    "Commerce",
+    "Chess",
+  ],
+};

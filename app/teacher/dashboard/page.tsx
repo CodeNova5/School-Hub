@@ -1,12 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import AttendanceManager from "../components/AttendanceManager";
+import ResultEntryForm from "../components/ResultEntryForm"; // ✅ Import new result component
 
 interface Student {
   _id: string;
   fullName: string;
   admissionNumber: string;
   gender: string;
+  department?: string;
   averageAttendance?: number;
   email?: string;
   address?: string;
@@ -23,8 +25,6 @@ export default function TeacherDashboard() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showResultForm, setShowResultForm] = useState(false);
-  const [result, setResult] = useState({ subject: "", score: "" });
-  const [grade, setGrade] = useState("");
 
   // ✅ Fetch Students
   useEffect(() => {
@@ -41,42 +41,6 @@ export default function TeacherDashboard() {
     fetchStudents();
   }, []);
 
-  // ✅ Grade Calculator
-  const calculateGrade = (score: number) => {
-    if (score >= 70) return "A";
-    if (score >= 60) return "B";
-    if (score >= 50) return "C";
-    if (score >= 45) return "D";
-    if (score >= 40) return "E";
-    return "F";
-  };
-
-  const handleScoreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setResult({ ...result, score: val });
-    const grade = calculateGrade(Number(val));
-    setGrade(grade);
-  };
-
-  const handleSubmitResult = async () => {
-    if (!selectedStudent) return;
-    const res = await fetch("/api/teacher", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "addResult",
-        studentId: selectedStudent._id,
-        subject: result.subject,
-        score: Number(result.score),
-        grade,
-      }),
-    });
-    const data = await res.json();
-    alert(data.message || "Result submitted");
-    setShowResultForm(false);
-    setResult({ subject: "", score: "" });
-  };
-
   if (loading) return <p className="p-4">Loading...</p>;
 
   return (
@@ -84,21 +48,22 @@ export default function TeacherDashboard() {
       <h1 className="text-3xl font-bold mb-6">My Class Students</h1>
 
       <div className="mb-6 p-4 bg-gradient-to-r from-white to-gray-50 rounded-lg shadow-sm border">
-        <h2 className="text-xl font-semibold mb-2">Instructions to Manage Attendance</h2>
+        <h2 className="text-xl font-semibold mb-2">Instructions to Manage Students</h2>
         <ul className="list-disc list-inside text-gray-700">
-          <li>Click “View Profile” to see student info.</li>
-          <li>Click “Add Result” to enter subject scores and grades.</li>
-          <li>Use the attendance component below to mark or adjust attendance.</li>
+          <li>Click “View Profile” to see detailed student information.</li>
+          <li>Click “Enter Results” to record test and exam scores by subject.</li>
+          <li>Use the attendance manager below to mark or edit attendance.</li>
         </ul>
         <AttendanceManager students={students} />
       </div>
 
-      <table className="w-full border">
+      <table className="w-full border text-sm">
         <thead>
           <tr className="bg-gray-100 text-left">
             <th className="p-3">Name</th>
             <th className="p-3">Admission No</th>
             <th className="p-3">Gender</th>
+            <th className="p-3">Department</th>
             <th className="p-3">Attendance %</th>
             <th className="p-3">Actions</th>
           </tr>
@@ -109,6 +74,7 @@ export default function TeacherDashboard() {
               <td className="p-3">{stu.fullName}</td>
               <td className="p-3">{stu.admissionNumber}</td>
               <td className="p-3">{stu.gender}</td>
+              <td className="p-3">{stu.department || "—"}</td>
               <td className="p-3">{stu.averageAttendance ?? 0}%</td>
               <td className="p-3 space-x-2">
                 <button
@@ -127,7 +93,7 @@ export default function TeacherDashboard() {
                   }}
                   className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
                 >
-                  Add Result
+                  Enter Results
                 </button>
               </td>
             </tr>
@@ -146,6 +112,7 @@ export default function TeacherDashboard() {
               <p><strong>Phone:</strong> {selectedStudent.phone}</p>
               <p><strong>Address:</strong> {selectedStudent.address}</p>
               <p><strong>Class:</strong> {selectedStudent.className}</p>
+              <p><strong>Department:</strong> {selectedStudent.department}</p>
               <p><strong>Parent Name:</strong> {selectedStudent.parentName}</p>
               <p><strong>Parent Phone:</strong> {selectedStudent.parentPhone}</p>
               <p><strong>Parent Email:</strong> {selectedStudent.parentEmail}</p>
@@ -162,40 +129,18 @@ export default function TeacherDashboard() {
 
       {/* 🧮 Result Entry Modal */}
       {showResultForm && selectedStudent && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white w-full max-w-md rounded-xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold mb-4">Add Result for {selectedStudent.fullName}</h2>
-            <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Subject"
-                value={result.subject}
-                onChange={(e) => setResult({ ...result, subject: e.target.value })}
-                className="w-full border p-2 rounded"
-              />
-              <input
-                type="number"
-                placeholder="Score (0–100)"
-                value={result.score}
-                onChange={handleScoreChange}
-                className="w-full border p-2 rounded"
-              />
-              {grade && (
-                <p className="text-lg">
-                  Grade: <span className="font-bold">{grade}</span>
-                </p>
-              )}
-              <button
-                onClick={handleSubmitResult}
-                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-              >
-                Submit
-              </button>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 overflow-auto">
+          <div className="bg-white w-full max-w-5xl rounded-xl shadow-lg p-6">
+            <h2 className="text-2xl font-bold mb-4">
+              Enter Results for {selectedStudent.fullName}
+            </h2>
+            <ResultEntryForm student={selectedStudent} /> {/* ✅ Use new component */}
+            <div className="mt-4 text-right">
               <button
                 onClick={() => setShowResultForm(false)}
-                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
               >
-                Cancel
+                Close
               </button>
             </div>
           </div>

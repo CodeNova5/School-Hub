@@ -10,6 +10,7 @@ export default function AddStudentPage() {
     address: "",
     phone: "",
     className: "",
+    department: "",
     parentName: "",
     parentPhone: "",
     parentEmail: "",
@@ -149,7 +150,20 @@ export default function AddStudentPage() {
           />
 
         </div>
-
+        <div>
+          <label className="block text-sm font-medium mb-1">Department</label>
+          <select
+            name="department"
+            onChange={handleChange}
+            required
+            className="w-full border rounded p-2"
+          >
+            <option value="">Select Department</option>
+            <option>Science</option>
+            <option>Arts</option>
+            <option>Commercial</option>
+          </select>
+        </div>
         {/* Parent / Guardian Info */}
         <div className="mt-6 border-t pt-4">
           <h2 className="text-lg font-semibold mb-2 text-blue-700">

@@ -216,6 +216,7 @@ export async function POST(req: Request) {
         address,
         phone,
         className,
+        department,
         parentName,
         parentPhone,
         parentEmail,
@@ -261,6 +262,7 @@ export async function POST(req: Request) {
         address,
         phone,
         className,
+        department,
         parentName,
         parentPhone,
         parentEmail,
@@ -341,32 +343,25 @@ export async function POST(req: Request) {
     // 7️⃣ ADD STUDENT RESULT
     // ===============================
     else if (type === "addResult") {
-      const { studentId, subject, score, grade } = data;
-      if (!studentId || !subject || score === undefined)
-        return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
+      try {
+        const { studentId, results } = data;
+        const student = await Student.findById(studentId);
+        if (!student)
+          return NextResponse.json({ success: false, message: "Student not found" });
 
-      const student = await Student.findById(studentId);
-      if (!student)
-        return NextResponse.json({ success: false, message: "Student not found" }, { status: 404 });
+        student.results = results;
+        await student.save();
 
-      if (!student.results) student.results = [];
-
-      // If subject already exists, update it
-      const existing = student.results.find((r: any) => r.subject === subject);
-      if (existing) {
-        existing.score = score;
-        existing.grade = grade;
-      } else {
-        student.results.push({ subject, score, grade });
+        return NextResponse.json({
+          success: true,
+          message: "Results saved successfully",
+        });
+      } catch (err: any) {
+        console.error("Result save error:", err);
+        return NextResponse.json({ success: false, message: err.message }, { status: 500 });
       }
-
-      await student.save();
-
-      return NextResponse.json({
-        success: true,
-        message: `✅ ${subject} result saved with grade ${grade}`,
-      });
     }
+
 
 
     // ===============================

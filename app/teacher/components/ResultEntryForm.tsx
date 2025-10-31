@@ -18,10 +18,10 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
       return (
         found || {
           subject,
-          welcomeTest: null,
-          midTerm: null,
-          vetting: null,
-          exam: null,
+          welcomeTest: 0,
+          midTerm: 0,
+          vetting: 0,
+          exam: 0,
           total: 0,
           grade: "",
         }
@@ -93,14 +93,13 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
   };
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow-md border mt-10 relative">
-      <Modal
+       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={`Enter Results for ${student.fullName}`}
         maxWidth="max-w-5xl"
       >
-        <Toaster position="top-right" />
+        <Toaster position="bottom-center" />
 
         <table className="w-full border mb-4 text-sm">
           <thead>
@@ -125,7 +124,7 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
                       value={r[f]}
                       onChange={(e) => handleChange(i, f, e.target.value)}
                       className="border w-16 p-1 rounded text-center focus:ring focus:ring-blue-300"
-                      max={f === "exam" ? 50 : f === "midTerm" ? 20 : 10}
+                      max={f === "exam" ? 50 : f === "midTerm" ? 20 : 10} min={0}
                     />
                   </td>
                 ))}
@@ -146,6 +145,6 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
           </button>
         </div>
       </Modal>
-    </div>
+  
   );
 }

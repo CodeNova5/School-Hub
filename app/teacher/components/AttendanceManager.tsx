@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Modal from "@/components/Modal";
 import AttendanceModal from "./AttendanceModal";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function AttendanceSection({ students: initialStudents }: { students?: any[] }) {
   const [showModal, setShowModal] = useState(false);
@@ -50,8 +51,12 @@ export default function AttendanceSection({ students: initialStudents }: { stude
     });
 
     const data = await res.json();
-    if (data.success) setMessage("✅ Attendance saved successfully!");
-    else setMessage("❌ Error saving attendance.");
+    if (data.success) {
+      toast.success("Attendance saved successfully!");
+    }
+    else {
+      toast.error(data.message || "Error saving attendance.");
+    }
   }
 
   return (

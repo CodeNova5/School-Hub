@@ -24,7 +24,7 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [showResultForm, setShowResultForm] = useState(false);
+
 
   // ✅ Fetch Students
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function TeacherDashboard() {
                 <button
                   onClick={() => {
                     setSelectedStudent(stu);
-                    setShowResultForm(true);
+                    
                   }}
                   className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
                 >
@@ -128,7 +128,7 @@ export default function TeacherDashboard() {
       )}
 
       {/* 🧮 Result Entry Modal */}
-      {showResultForm && selectedStudent && (
+      {selectedStudent && (
         <ResultEntryForm modal={true} student={selectedStudent} />
       )}
     </div>

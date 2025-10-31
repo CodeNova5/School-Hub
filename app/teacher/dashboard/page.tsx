@@ -132,20 +132,14 @@ export default function TeacherDashboard() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 overflow-auto">
           <div className="relative bg-white w-full max-w-5xl rounded-xl shadow-lg p-6">
 
-
-
-            <h2 className="text-2xl font-bold mb-4">
-              Enter Results for {selectedStudent.fullName}
-            </h2>
             {/* ❌ Cancel icon fixed at top-right */}
             <button
               onClick={() => setShowResultForm(false)}
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
             >
-              <X size={24} />
+              <X size={30} />
             </button>
             <ResultEntryForm student={selectedStudent} />
-            <button onClick={() => setShowResultForm(false)} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600" > Close </button>
           </div>
         </div>
       )}

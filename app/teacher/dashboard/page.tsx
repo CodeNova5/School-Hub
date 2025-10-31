@@ -129,19 +129,7 @@ export default function TeacherDashboard() {
 
       {/* 🧮 Result Entry Modal */}
       {showResultForm && selectedStudent && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 overflow-auto">
-          <div className="relative bg-white w-full max-w-5xl rounded-xl shadow-lg p-6">
-
-            {/* ❌ Cancel icon fixed at top-right */}
-            <button
-              onClick={() => setShowResultForm(false)}
-              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
-            >
-              <X size={30} />
-            </button>
-            <ResultEntryForm student={selectedStudent} />
-          </div>
-        </div>
+        <ResultEntryForm student={selectedStudent} />
       )}
     </div>
   );

@@ -7,7 +7,7 @@ import Modal from "@/components/Modal";
 export default function ResultEntryForm({ student, modal }: { student: any, modal?: boolean }) {
   const [results, setResults] = useState<any>([]);
   const [saving, setSaving] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(modal || false);
 
   useEffect(() => {
     const existingResults = student.results || [];

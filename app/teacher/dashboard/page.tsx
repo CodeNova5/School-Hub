@@ -129,7 +129,7 @@ export default function TeacherDashboard() {
 
       {/* 🧮 Result Entry Modal */}
       {showResultForm && selectedStudent && (
-        <ResultEntryForm student={selectedStudent} />
+        <ResultEntryForm modal={true} student={selectedStudent} />
       )}
     </div>
   );

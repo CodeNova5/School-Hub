@@ -4,7 +4,7 @@ import { subjectsByDepartment } from "@/lib/subjectMap";
 import toast, { Toaster } from "react-hot-toast";
 import Modal from "@/components/Modal";
 
-export default function ResultEntryForm({ student }: { student: any }) {
+export default function ResultEntryForm({ student, modal }: { student: any, modal?: boolean }) {
   const [results, setResults] = useState<any>([]);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -94,19 +94,9 @@ export default function ResultEntryForm({ student }: { student: any }) {
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-md border mt-10 relative">
-      {/* Button to open modal */}
-      <div className="flex justify-center">
-        <button
-          onClick={() => setModalOpen(true)}
-          className="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 transition"
-        >
-          Enter Results
-        </button>
-      </div>
-
       {/* Reusable Modal */}
       <Modal
-        isOpen={modalOpen}
+        isOpen={modal ? true : modalOpen}
         onClose={() => setModalOpen(false)}
         title={`Enter Results for ${student.fullName}`}
         maxWidth="max-w-5xl"

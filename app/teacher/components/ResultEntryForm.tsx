@@ -4,7 +4,7 @@ import { subjectsByDepartment } from "@/lib/subjectMap";
 import toast, { Toaster } from "react-hot-toast";
 import Modal from "@/components/Modal";
 
-export default function ResultEntryForm({ student, modal }: { student: any, modal?: boolean }) {
+export default function ResultEntryForm({ student, modal }: { student: any; modal?: boolean }) {
   const [results, setResults] = useState<any>([]);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(modal || false);
@@ -43,7 +43,6 @@ export default function ResultEntryForm({ student, modal }: { student: any, moda
   const handleChange = (index: number, field: string, value: string) => {
     let numericValue = Math.max(0, parseInt(value || "", 10));
 
-    // Enforce limits
     const limits: any = {
       welcomeTest: 10,
       midTerm: 20,
@@ -82,6 +81,7 @@ export default function ResultEntryForm({ student, modal }: { student: any, moda
         results,
       }),
     });
+
     const data = await res.json();
     setSaving(false);
 
@@ -94,9 +94,8 @@ export default function ResultEntryForm({ student, modal }: { student: any, moda
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-md border mt-10 relative">
-      {/* Reusable Modal */}
       <Modal
-        isOpen={modal ? true : modalOpen}
+        isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title={`Enter Results for ${student.fullName}`}
         maxWidth="max-w-5xl"

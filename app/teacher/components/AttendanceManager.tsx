@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Modal from "@/components/Modal";
 import AttendanceModal from "./AttendanceModal";
 
 export default function AttendanceSection({ students: initialStudents }: { students?: any[] }) {
@@ -12,12 +13,6 @@ export default function AttendanceSection({ students: initialStudents }: { stude
   useEffect(() => {
     setStudents(initialStudents ?? []);
   }, [initialStudents]);
-
-  // disable background scroll when modal is open
-  useEffect(() => {
-    if (showModal) document.body.style.overflow = "hidden";
-    else document.body.style.overflow = "";
-  }, [showModal]);
 
   function formatDate(date: Date) {
     return date.toLocaleDateString("en-GB", {
@@ -71,114 +66,107 @@ export default function AttendanceSection({ students: initialStudents }: { stude
         </button>
       </div>
 
-      {/* --- Attendance Modal --- */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-auto">
-          <div className="bg-white w-full max-w-5xl rounded-xl shadow-lg p-6 relative">
+      {/* --- Reusable Modal Component --- */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={`Attendance for ${formatDate(attendanceDate)}`}
+        maxWidth="max-w-5xl"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              className="border p-2 rounded"
+              value={attendanceDate.toISOString().split("T")[0]}
+              onChange={handleDateChange}
+            />
             <button
-              onClick={() => setShowModal(false)}
-              className="absolute top-4 right-4 text-gray-600 hover:text-gray-800 text-2xl font-bold"
+              onClick={() => setAttendanceDate(new Date())}
+              className="bg-gray-200 px-3 py-1 rounded"
             >
-              &times;
+              Today
             </button>
-
-            <h1 className="text-2xl font-bold mb-6">
-              Attendance for {formatDate(attendanceDate)}
-            </h1>
-
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
-              <div className="flex items-center gap-3">
-                <input
-                  type="date"
-                  className="border p-2 rounded"
-                  value={attendanceDate.toISOString().split("T")[0]}
-                  onChange={handleDateChange}
-                />
-                <button
-                  onClick={() => setAttendanceDate(new Date())}
-                  className="bg-gray-200 px-3 py-1 rounded"
-                >
-                  Today
-                </button>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center mb-3">
-              <button
-                onClick={markAllPresent}
-                className="bg-green-600 text-white px-4 py-2 rounded"
-              >
-                Mark All Present
-              </button>
-
-              <button
-                onClick={handleSubmit}
-                className="bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                Save Attendance
-              </button>
-            </div>
-
-            {message && (
-              <p className="text-center mb-4 text-sm text-gray-600">{message}</p>
-            )}
-
-            {students.length === 0 ? (
-              <p className="p-4 text-center text-gray-500">
-                No students available.
-              </p>
-            ) : (
-              <table className="w-full border">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-3 text-left">Name</th>
-                    <th className="p-3 text-left">Gender</th>
-                    <th className="p-3 text-left">Status</th>
-                    <th className="p-3 text-left">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {students.map((stu) => (
-                    <tr key={stu._id} className="border-b">
-                      <td className="p-3">{stu.fullName}</td>
-                      <td className="p-3">{stu.gender}</td>
-                      <td className="p-3">{stu.status || "Not Marked"}</td>
-                      <td className="p-3">
-                        <select
-                          value={stu.status || ""}
-                          onChange={(e) => {
-                            const newStatus = e.target.value;
-                            setStudents((prev) =>
-                              prev.map((s) =>
-                                s._id === stu._id
-                                  ? { ...s, status: newStatus }
-                                  : s
-                              )
-                            );
-                          }}
-                          className="border p-1 rounded"
-                        >
-                          <option value="">Select</option>
-                          <option value="Present">Present</option>
-                          <option value="Absent">Absent</option>
-                          <option value="Late">Late</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-
-            {selectedStudent && (
-              <AttendanceModal
-                student={selectedStudent}
-                onClose={() => setSelectedStudent(null)}
-              />
-            )}
           </div>
         </div>
-      )}
+
+        <div className="flex justify-between items-center mb-3">
+          <button
+            onClick={markAllPresent}
+            className="bg-green-600 text-white px-4 py-2 rounded"
+          >
+            Mark All Present
+          </button>
+
+          <button
+            onClick={handleSubmit}
+            className="bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Save Attendance
+          </button>
+        </div>
+
+        {message && (
+          <p className="text-center mb-4 text-sm text-gray-600">{message}</p>
+        )}
+
+        {students.length === 0 ? (
+          <p className="p-4 text-center text-gray-500">
+            No students available.
+          </p>
+        ) : (
+          <table className="w-full border">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="p-3 text-left w-16">#</th>
+                <th className="p-3 text-left">Name</th>
+                <th className="p-3 text-left">Gender</th>
+                <th className="p-3 text-left">Status</th>
+                <th className="p-3 text-left">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((stu, index) => (
+                <tr key={stu._id} className="border-b">
+                  <td className="p-3 font-medium">{index + 1}</td>
+                  <td className="p-3">{stu.fullName}</td>
+                  <td className="p-3">{stu.gender}</td>
+                  <td className="p-3">{stu.status || "Not Marked"}</td>
+                  <td className="p-3">
+                    <select
+                      value={stu.status || ""}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        setStudents((prev) =>
+                          prev.map((s) =>
+                            s._id === stu._id
+                              ? { ...s, status: newStatus }
+                              : s
+                          )
+                        );
+                      }}
+                      className="border p-1 rounded"
+                    >
+                      <option value="">Select</option>
+                      <option value="Present">Present</option>
+                      <option value="Absent">Absent</option>
+                      <option value="Late">Late</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+        )}
+
+        {selectedStudent && (
+          <AttendanceModal
+            student={selectedStudent}
+            onClose={() => setSelectedStudent(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

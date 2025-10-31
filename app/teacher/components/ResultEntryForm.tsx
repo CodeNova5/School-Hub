@@ -4,7 +4,15 @@ import { subjectsByDepartment } from "@/lib/subjectMap";
 import toast, { Toaster } from "react-hot-toast";
 import Modal from "@/components/Modal";
 
-export default function ResultEntryForm({ student, modal }: { student: any; modal?: boolean }) {
+export default function ResultEntryForm({
+  student,
+  modal,
+  onClose,
+}: {
+  student: any;
+  modal?: boolean;
+  onClose?: () => void;
+}) {
   const [results, setResults] = useState<any>([]);
   const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(modal || false);
@@ -27,7 +35,6 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
         }
       );
     });
-
     setResults(merged);
   }, [student]);
 
@@ -41,7 +48,8 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
   };
 
   const handleChange = (index: number, field: string, value: string) => {
-    let numericValue = Math.max(0, parseInt(value || "", 10));
+    let numericValue = parseInt(value || "0", 10);
+    if (isNaN(numericValue)) numericValue = 0;
 
     const limits: any = {
       welcomeTest: 10,
@@ -60,10 +68,10 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
     updated[index][field] = numericValue;
 
     const total =
-      Number(updated[index].welcomeTest) +
-      Number(updated[index].midTerm) +
-      Number(updated[index].vetting) +
-      Number(updated[index].exam);
+      (updated[index].welcomeTest || 0) +
+      (updated[index].midTerm || 0) +
+      (updated[index].vetting || 0) +
+      (updated[index].exam || 0);
 
     updated[index].total = total;
     updated[index].grade = calculateGrade(total);
@@ -81,7 +89,6 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
         results,
       }),
     });
-
     const data = await res.json();
     setSaving(false);
 
@@ -92,59 +99,62 @@ export default function ResultEntryForm({ student, modal }: { student: any; moda
     }
   };
 
+  const handleClose = () => {
+    setModalOpen(false);
+    if (onClose) onClose();
+  };
+
   return (
-       <Modal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={`Enter Results for ${student.fullName}`}
-        maxWidth="max-w-5xl"
-      >
-        <Toaster position="bottom-center" />
-
-        <table className="w-full border mb-4 text-sm">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2 text-left">Subject</th>
-              <th className="p-2">Welcome Test (10)</th>
-              <th className="p-2">Mid Term (20)</th>
-              <th className="p-2">Vetting (10)</th>
-              <th className="p-2">Exam (50)</th>
-              <th className="p-2">Total</th>
-              <th className="p-2">Grade</th>
+    <Modal
+      isOpen={modalOpen}
+      onClose={handleClose}
+      title={`Enter Results for ${student.fullName}`}
+      maxWidth="max-w-5xl"
+    >
+      <Toaster position="bottom-center" />
+      <table className="w-full border mb-4 text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="p-2 text-left">Subject</th>
+            <th className="p-2">Welcome Test (10)</th>
+            <th className="p-2">Mid Term (20)</th>
+            <th className="p-2">Vetting (10)</th>
+            <th className="p-2">Exam (50)</th>
+            <th className="p-2">Total</th>
+            <th className="p-2">Grade</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((r: any, i: number) => (
+            <tr key={i}>
+              <td className="p-2">{r.subject}</td>
+              {["welcomeTest", "midTerm", "vetting", "exam"].map((f) => (
+                <td key={f} className="p-2">
+                  <input
+                    type="number"
+                    value={r[f] ?? 0}
+                    onChange={(e) => handleChange(i, f, e.target.value)}
+                    className="border w-16 p-1 rounded text-center focus:ring focus:ring-blue-300"
+                    max={f === "exam" ? 50 : f === "midTerm" ? 20 : 10}
+                  />
+                </td>
+              ))}
+              <td className="p-2">{r.total}</td>
+              <td className="p-2 font-semibold">{r.grade}</td>
             </tr>
-          </thead>
-          <tbody>
-            {results.map((r: any, i: number) => (
-              <tr key={i}>
-                <td className="p-2">{r.subject}</td>
-                {["welcomeTest", "midTerm", "vetting", "exam"].map((f) => (
-                  <td key={f} className="p-2">
-                    <input
-                      type="number"
-                      value={r[f]}
-                      onChange={(e) => handleChange(i, f, e.target.value)}
-                      className="border w-16 p-1 rounded text-center focus:ring focus:ring-blue-300"
-                      max={f === "exam" ? 50 : f === "midTerm" ? 20 : 10} min={0}
-                    />
-                  </td>
-                ))}
-                <td className="p-2">{r.total}</td>
-                <td className="p-2 font-semibold">{r.grade}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          ))}
+        </tbody>
+      </table>
 
-        <div className="text-right">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            {saving ? "Saving..." : "Save Results"}
-          </button>
-        </div>
-      </Modal>
-  
+      <div className="text-right">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+        >
+          {saving ? "Saving..." : "Save Results"}
+        </button>
+      </div>
+    </Modal>
   );
 }

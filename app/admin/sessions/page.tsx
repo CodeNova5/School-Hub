@@ -37,6 +37,7 @@ export default function SessionsPage() {
       .order('start_date', { ascending: false });
 
     if (data) setSessions(data);
+    else console.log(error);
   }
 
   async function fetchTerms() {

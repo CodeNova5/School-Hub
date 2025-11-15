@@ -9,6 +9,12 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
+  "overrides": {
+    "@types/react": "18.2.15",
+    "@types/react-dom": "18.2.7",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
     "@next/swc-wasm-nodejs": "13.5.1",
@@ -69,7 +75,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/react": "^19.2.5",
-    "@types/react-dom": "^19.2.3"
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7"
   }
 }

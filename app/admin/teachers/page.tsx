@@ -113,46 +113,34 @@ export default function TeachersPage() {
       const savingToast = toast.loading('Creating teacher account...');
 
       try {
-        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
+        const res = await fetch("/api/create-teacher", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password,
+            teacherData,
+            selectedClasses
+          }),
         });
 
-        if (authError) throw authError;
+        const json = await res.json();
 
-        const { data: teacher, error: teacherError } = await supabase
-          .from('teachers')
-          .insert({
-            ...teacherData,
-            user_id: authData.user.id,
-          })
-          .select()
-          .single();
-
-        if (teacherError) {
-          await supabase.auth.admin.deleteUser(authData.user.id);
-          throw teacherError;
+        if (!res.ok) {
+          toast.error(json.error || "Failed to create teacher", { id: savingToast });
+          return;
         }
 
-        if (selectedClasses.length > 0) {
-          const classAssignments = selectedClasses.map((classId) => ({
-            teacher_id: teacher.id,
-            class_id: classId,
-            session_id: null,
-          }));
-
-          await supabase.from('teacher_classes').insert(classAssignments);
-        }
-
-        toast.success('Teacher created successfully!', { id: savingToast });
+        toast.success("Teacher created successfully!", { id: savingToast });
         setIsDialogOpen(false);
         setSelectedClasses([]);
         fetchTeachers();
+
       } catch (error: any) {
-        toast.error(error.message || 'Failed to create teacher', { id: savingToast });
+        toast.error(error.message || "Failed to create teacher", { id: savingToast });
       }
     }
+
   }
 
   async function handleDelete(id: string, userId?: string) {

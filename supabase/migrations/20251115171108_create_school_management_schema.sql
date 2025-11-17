@@ -369,6 +369,7 @@ CREATE POLICY "Authenticated users can manage subject assignments"
   WITH CHECK (true);
 
 -- Students table
+-- Students table
 CREATE TABLE IF NOT EXISTS students (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id text UNIQUE NOT NULL,
@@ -380,12 +381,19 @@ CREATE TABLE IF NOT EXISTS students (
   gender text DEFAULT '',
   address text DEFAULT '',
   class_id uuid REFERENCES classes(id) ON DELETE SET NULL,
+  department text CHECK (department IN ('Science', 'Arts', 'Commercial')),
   parent_name text DEFAULT '',
   parent_email text DEFAULT '',
   parent_phone text DEFAULT '',
   admission_date date DEFAULT CURRENT_DATE,
   photo_url text DEFAULT '',
   status text DEFAULT 'active',
+
+  -- New fields to match MongoDB model
+  attendance jsonb DEFAULT '[]',          -- Array of {date, status}
+  average_attendance numeric DEFAULT 0,   -- Average attendance %
+  results jsonb DEFAULT '[]',             -- Array of {subject, welcomeTest, midTerm, vetting, exam, total, grade}
+
   created_at timestamptz DEFAULT now()
 );
 

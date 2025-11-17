@@ -50,8 +50,8 @@ export default function HomePage() {
               <Link href="/admin">
                 <Button variant="outline" size="sm">Admin</Button>
               </Link>
-              <Link href="/teacher">
-                <Button variant="outline" size="sm">Teacher</Button>
+              <Link href="/teacher/login">
+                <Button variant="outline" size="sm">Teacher Login</Button>
               </Link>
             </div>
           </div>

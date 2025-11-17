@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Teacher } from '@/lib/types';
+import { Teacher, Class } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -21,12 +21,15 @@ import { toast } from 'sonner';
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
 
   useEffect(() => {
     fetchTeachers();
+    fetchClasses();
   }, []);
 
   async function fetchTeachers() {
@@ -38,15 +41,34 @@ export default function TeachersPage() {
     if (data) setTeachers(data);
   }
 
+  async function fetchClasses() {
+    const { data } = await supabase.from('classes').select('*').order('name');
+    if (data) setClasses(data);
+  }
+
+  async function loadTeacherClasses(teacherId: string) {
+    const { data } = await supabase
+      .from('teacher_classes')
+      .select('class_id')
+      .eq('teacher_id', teacherId);
+
+    if (data) {
+      setSelectedClasses(data.map((tc) => tc.class_id));
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
 
     const teacherData = {
       staff_id: formData.get('staff_id') as string,
       first_name: formData.get('first_name') as string,
       last_name: formData.get('last_name') as string,
-      email: formData.get('email') as string,
+      email,
       phone: formData.get('phone') as string,
       qualification: formData.get('qualification') as string,
       specialization: formData.get('specialization') as string,
@@ -62,26 +84,78 @@ export default function TeachersPage() {
 
       if (error) {
         toast.error('Failed to update teacher');
-      } else {
-        toast.success('Teacher updated successfully');
-        setIsDialogOpen(false);
-        setEditingTeacher(null);
-        fetchTeachers();
+        return;
       }
-    } else {
-      const { error } = await supabase.from('teachers').insert(teacherData);
 
-      if (error) {
-        toast.error('Failed to create teacher');
-      } else {
-        toast.success('Teacher created successfully');
+      await supabase.from('teacher_classes').delete().eq('teacher_id', editingTeacher.id);
+
+      if (selectedClasses.length > 0) {
+        const classAssignments = selectedClasses.map((classId) => ({
+          teacher_id: editingTeacher.id,
+          class_id: classId,
+          session_id: null,
+        }));
+
+        await supabase.from('teacher_classes').insert(classAssignments);
+      }
+
+      toast.success('Teacher updated successfully');
+      setIsDialogOpen(false);
+      setEditingTeacher(null);
+      setSelectedClasses([]);
+      fetchTeachers();
+    } else {
+      if (!password) {
+        toast.error('Password is required for new teachers');
+        return;
+      }
+
+      const savingToast = toast.loading('Creating teacher account...');
+
+      try {
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+        });
+
+        if (authError) throw authError;
+
+        const { data: teacher, error: teacherError } = await supabase
+          .from('teachers')
+          .insert({
+            ...teacherData,
+            user_id: authData.user.id,
+          })
+          .select()
+          .single();
+
+        if (teacherError) {
+          await supabase.auth.admin.deleteUser(authData.user.id);
+          throw teacherError;
+        }
+
+        if (selectedClasses.length > 0) {
+          const classAssignments = selectedClasses.map((classId) => ({
+            teacher_id: teacher.id,
+            class_id: classId,
+            session_id: null,
+          }));
+
+          await supabase.from('teacher_classes').insert(classAssignments);
+        }
+
+        toast.success('Teacher created successfully!', { id: savingToast });
         setIsDialogOpen(false);
+        setSelectedClasses([]);
         fetchTeachers();
+      } catch (error: any) {
+        toast.error(error.message || 'Failed to create teacher', { id: savingToast });
       }
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: string, userId?: string) {
     if (!confirm('Are you sure you want to delete this teacher?')) return;
 
     const { error } = await supabase.from('teachers').delete().eq('id', id);
@@ -89,22 +163,33 @@ export default function TeachersPage() {
     if (error) {
       toast.error('Failed to delete teacher');
     } else {
+      if (userId) {
+        await supabase.auth.admin.deleteUser(userId);
+      }
       toast.success('Teacher deleted successfully');
       fetchTeachers();
     }
   }
 
-  function openEditDialog(teacher: Teacher) {
+  async function openEditDialog(teacher: Teacher) {
     setEditingTeacher(teacher);
+    await loadTeacherClasses(teacher.id);
     setIsDialogOpen(true);
   }
 
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingTeacher(null);
+    setSelectedClasses([]);
   }
 
-  const filteredTeachers = teachers.filter(teacher =>
+  function toggleClassSelection(classId: string) {
+    setSelectedClasses((prev) =>
+      prev.includes(classId) ? prev.filter((id) => id !== classId) : [...prev, classId]
+    );
+  }
+
+  const filteredTeachers = teachers.filter((teacher) =>
     `${teacher.first_name} ${teacher.last_name} ${teacher.staff_id}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase())
@@ -170,13 +255,24 @@ export default function TeachersPage() {
                     required
                   />
                 </div>
+                {!editingTeacher && (
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      placeholder="Create a password"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Teacher will use this to log in
+                    </p>
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    defaultValue={editingTeacher?.phone}
-                  />
+                  <Input id="phone" name="phone" defaultValue={editingTeacher?.phone} />
                 </div>
                 <div>
                   <Label htmlFor="qualification">Qualification</Label>
@@ -198,11 +294,26 @@ export default function TeachersPage() {
                 </div>
                 <div>
                   <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    name="address"
-                    defaultValue={editingTeacher?.address}
-                  />
+                  <Input id="address" name="address" defaultValue={editingTeacher?.address} />
+                </div>
+                <div>
+                  <Label>Assign Classes</Label>
+                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                    {classes.map((cls) => (
+                      <label key={cls.id} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedClasses.includes(cls.id)}
+                          onChange={() => toggleClassSelection(cls.id)}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-sm">{cls.name}</span>
+                      </label>
+                    ))}
+                    {classes.length === 0 && (
+                      <p className="text-sm text-gray-500">No classes available</p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="status">Status</Label>
@@ -248,7 +359,8 @@ export default function TeachersPage() {
                   <div className="flex items-start gap-4">
                     <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
                       <span className="text-lg font-semibold text-green-700">
-                        {teacher.first_name[0]}{teacher.last_name[0]}
+                        {teacher.first_name[0]}
+                        {teacher.last_name[0]}
                       </span>
                     </div>
                     <div className="flex-1">
@@ -256,23 +368,22 @@ export default function TeachersPage() {
                         {teacher.first_name} {teacher.last_name}
                       </h3>
                       <p className="text-sm text-gray-600">{teacher.staff_id}</p>
-                      <Badge className="mt-2" variant={teacher.status === 'active' ? 'default' : 'secondary'}>
+                      <Badge
+                        className="mt-2"
+                        variant={teacher.status === 'active' ? 'default' : 'secondary'}
+                      >
                         {teacher.status}
                       </Badge>
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(teacher)}
-                    >
+                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(teacher)}>
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(teacher.id)}
+                      onClick={() => handleDelete(teacher.id, teacher.user_id || undefined)}
                     >
                       <Trash2 className="h-4 w-4 text-red-600" />
                     </Button>

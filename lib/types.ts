@@ -36,6 +36,7 @@ export interface Subject {
 
 export interface Teacher {
   id: string;
+  user_id?: string;
   staff_id: string;
   first_name: string;
   last_name: string;

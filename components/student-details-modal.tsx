@@ -40,9 +40,6 @@ export function StudentDetailsModal({
   const [attendancePeriod, setAttendancePeriod] = useState<
     'daily' | 'weekly' | 'monthly' | 'term' | 'session'
   >('monthly');
-
-  if (!student) return null;
-
   // ⬇️ NEW: Fetch real attendance for this student
   const [realAttendance, setRealAttendance] = useState<any[]>([]);
 
@@ -58,6 +55,10 @@ export function StudentDetailsModal({
 
     loadAttendance();
   }, [student?.id]);
+  
+  if (!student) return null;
+
+
 
 
   const currentSession = sessions.find(s => s.is_current);

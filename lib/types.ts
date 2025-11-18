@@ -29,8 +29,10 @@ export interface Class {
 export interface Subject {
   id: string;
   name: string;
-  code: string;
-  description: string;
+  education_level: 'Pre-Primary' | 'Primary' | 'JSS' | 'SSS';
+  department?: 'Science' | 'Arts' | 'Commercial';
+  religion?: 'Christian' | 'Muslim';
+  is_optional: boolean;
   created_at: string;
 }
 

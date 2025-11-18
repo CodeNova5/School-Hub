@@ -217,9 +217,9 @@ export default function StudentsPage() {
                     defaultValue={editingStudent?.department || ''}
                   >
                     <option value="">Select department</option>
-                    <option value="science">Science</option>
-                    <option value="arts">Arts</option>
-                    <option value="commercial">Commercial</option>
+                    <option value="Science">Science</option>
+                    <option value="Arts">Arts</option>
+                    <option value="Commercial">Commercial</option>
                   </select>
                 </div>
                 <div>

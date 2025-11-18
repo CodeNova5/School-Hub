@@ -48,6 +48,22 @@ export default function StudentsPage() {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const photoFile = formData.get("photo_file") as File | null;
+    let photoUrl = editingStudent?.photo_url || "";
+
+    if (photoFile && photoFile.size > 0) {
+      const uploadForm = new FormData();
+      uploadForm.append("file", photoFile);
+      uploadForm.append("student_id", formData.get("student_id") as string);
+
+      const res = await fetch("/api/upload-student-photo", {
+        method: "POST",
+        body: uploadForm,
+      });
+
+      const result = await res.json();
+      photoUrl = result.url;
+    }
 
     const studentData = {
       student_id: formData.get('student_id') as string,
@@ -57,6 +73,8 @@ export default function StudentsPage() {
       phone: formData.get('phone') as string,
       gender: formData.get('gender') as string,
       address: formData.get('address') as string,
+      date_of_birth: formData.get('date_of_birth') as string || null,
+      photo_url: photoUrl,
       class_id: formData.get('class_id') as string || null,
       department: formData.get('department') as string,
       parent_name: formData.get('parent_name') as string,
@@ -163,6 +181,18 @@ export default function StudentsPage() {
                   <Label htmlFor="phone">Phone</Label>
                   <Input id="phone" name="phone" defaultValue={editingStudent?.phone} />
                 </div>
+
+                {/* NEW: date_of_birth and photo_url fields */}
+                <div>
+                  <Label htmlFor="date_of_birth">Date of Birth</Label>
+                  <Input id="date_of_birth" name="date_of_birth" type="date" defaultValue={editingStudent?.date_of_birth ? new Date(editingStudent.date_of_birth).toISOString().slice(0, 10) : ''} />
+                </div>
+                <div>
+                  <Label htmlFor="photo_file">Photo</Label>
+                  <Input id="photo_file" name="photo_file" type="file" accept="image/*" />
+                </div>
+
+
                 <div>
                   <Label htmlFor="gender">Gender</Label>
                   <select id="gender" name="gender" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.gender || ''}>
@@ -180,8 +210,12 @@ export default function StudentsPage() {
                 </div>
                 <div>
                   <Label htmlFor="department">Department</Label>
-                  <Input id="department" name="department" defaultValue={editingStudent?.department} />
-                  <select id="department" name="department" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.department || ''}>
+                  <select
+                    id="department"
+                    name="department"
+                    className="w-full h-10 px-3 border rounded-md"
+                    defaultValue={editingStudent?.department || ''}
+                  >
                     <option value="">Select department</option>
                     <option value="science">Science</option>
                     <option value="arts">Arts</option>

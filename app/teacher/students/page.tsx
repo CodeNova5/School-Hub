@@ -78,8 +78,33 @@ export default function TeacherStudentsPage() {
         supabase.from('terms').select('*').order('start_date', { ascending: false }),
         supabase.from('classes').select('*').order('name'),
       ]);
-
       if (studentsRes.data) setStudents(studentsRes.data);
+
+      const studentList = studentsRes.data || [];
+
+      const { data: attendance } = await supabase
+        .from("attendance")
+        .select("*")
+        .in("student_id", studentList.map(s => s.id));
+
+      const studentsWithAttendance = studentList.map(student => {
+        const records = attendance?.filter(a => a.student_id === student.id) || [];
+        const total = records.length;
+
+        const present = records.filter(
+          r => r.status === "present" || r.status === "late" || r.status === "excused"
+        ).length;
+
+        const average_attendance = total === 0 ? 0 : Math.round((present / total) * 100);
+
+        return {
+          ...student,
+          average_attendance, // override empty field
+          total_attendance: total
+        };
+      });
+
+      setStudents(studentsWithAttendance);
       if (sessionsRes.data) setSessions(sessionsRes.data);
       if (termsRes.data) setTerms(termsRes.data);
       if (classesRes.data) setClasses(classesRes.data);

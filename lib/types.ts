@@ -53,6 +53,23 @@ export interface Teacher {
   created_at: string;
 }
 
+export interface AttendanceEntry {
+  date: string;
+  status: 'present' | 'absent' | 'late' | 'excused';
+}
+
+export interface Result {
+  subject: string;
+  welcomeTest: number;
+  midTerm: number;
+  vetting: number;
+  exam: number;
+  total: number;
+  grade: string;
+  session_id: string;
+  term_id: string;
+}
+
 export interface Student {
   id: string;
   student_id: string;
@@ -64,12 +81,35 @@ export interface Student {
   gender: string;
   address: string;
   class_id?: string;
+  department?: string;
   parent_name: string;
   parent_email: string;
   parent_phone: string;
   admission_date: string;
-  photo_url: string;
-  status: 'active' | 'graduated' | 'withdrawn';
+  photo_url?: string;
+  status: 'active' | 'graduated' | 'withdrawn' | 'suspended';
+  attendance: AttendanceEntry[];
+  average_attendance: number;
+  results: Result[];
+  created_at: string;
+}
+
+export interface Session {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+  created_at: string;
+}
+
+export interface Term {
+  id: string;
+  name: string;
+  session_id: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
   created_at: string;
 }
 

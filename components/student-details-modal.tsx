@@ -55,7 +55,7 @@ export function StudentDetailsModal({
 
     loadAttendance();
   }, [student?.id]);
-  
+
   if (!student) return null;
 
 
@@ -129,6 +129,33 @@ export function StudentDetailsModal({
                       <User className="h-4 w-4 text-gray-500" />
                       <span className="capitalize">{student.gender}</span>
                     </div>
+                    {/* New: Department */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span className="capitalize">Department: {student.department}</span>
+                    </div>
+
+                    {/* New: Date of Birth */}
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span>
+                        DOB: {student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span>
+                        Age:{' '}
+                        {student.date_of_birth
+                          ? Math.floor(
+                            (new Date().getTime() - new Date(student.date_of_birth).getTime()) /
+                            (1000 * 60 * 60 * 24 * 365.25)
+                          )
+                          : 'N/A'}
+                      </span>
+                    </div>
+
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="h-4 w-4 text-gray-500" />
                       <span>Admitted: {new Date(student.admission_date).toLocaleDateString()}</span>

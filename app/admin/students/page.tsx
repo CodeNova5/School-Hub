@@ -58,6 +58,7 @@ export default function StudentsPage() {
       gender: formData.get('gender') as string,
       address: formData.get('address') as string,
       class_id: formData.get('class_id') as string || null,
+      department: formData.get('department') as string,
       parent_name: formData.get('parent_name') as string,
       parent_email: formData.get('parent_email') as string,
       parent_phone: formData.get('parent_phone') as string,
@@ -175,6 +176,16 @@ export default function StudentsPage() {
                   <select id="class_id" name="class_id" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.class_id || ''}>
                     <option value="">Select class</option>
                     {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="department">Department</Label>
+                  <Input id="department" name="department" defaultValue={editingStudent?.department} />
+                  <select id="department" name="department" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.department || ''}>
+                    <option value="">Select department</option>
+                    <option value="science">Science</option>
+                    <option value="arts">Arts</option>
+                    <option value="commercial">Commercial</option>
                   </select>
                 </div>
                 <div>

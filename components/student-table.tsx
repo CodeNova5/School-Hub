@@ -51,7 +51,7 @@ export function StudentTable({ students, onViewDetails, onEditStudent }: Student
           <TableRow>
             <TableHead>Student</TableHead>
             <TableHead>Student ID</TableHead>
-            <TableHead>Class</TableHead>
+            <TableHead>Department</TableHead>
             <TableHead>Parent Contact</TableHead>
             <TableHead>Attendance</TableHead>
             <TableHead>Status</TableHead>

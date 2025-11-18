@@ -8,6 +8,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { supabase } from '@/lib/supabase';
+import { useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
@@ -41,6 +43,23 @@ export function StudentDetailsModal({
 
   if (!student) return null;
 
+  // ⬇️ NEW: Fetch real attendance for this student
+  const [realAttendance, setRealAttendance] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadAttendance() {
+      const { data } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("student_id", student?.id);
+
+      setRealAttendance(data || []);
+    }
+
+    loadAttendance();
+  }, [student?.id]);
+
+
   const currentSession = sessions.find(s => s.is_current);
   const currentTerm = terms.find(t => t.is_current);
 
@@ -54,7 +73,7 @@ export function StudentDetailsModal({
   );
 
   const filteredAttendance = filterAttendanceByPeriod(
-    student.attendance || [],
+    realAttendance,
     attendancePeriod
   );
 

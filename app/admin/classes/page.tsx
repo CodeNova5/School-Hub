@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Class, Teacher } from "@/lib/types";
+import { Class } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -17,17 +17,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-
-/**
- * Bulk Class Creator
- *
- * - Choose levels (multi)
- * - For each selected level show available class rows (e.g., Primary 1..6)
- * - Choose which specific class rows to create
- * - Optionally choose suffixes (A/B/C or none)
- * - Optionally assign a teacher (applies to all created classes)
- * - Creates classes rows and class_teachers rows
- */
 
 /* ---------- Constants ---------- */
 const LEVELS = {
@@ -55,17 +44,12 @@ const LEVELS = {
 
 const SUFFIXES = ["", "A", "B", "C"]; // "" means no suffix
 
-/* ---------- Component ---------- */
 export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
-  type SimpleTeacher = { id: any; name: string; email?: string };
-  const [teachers, setTeachers] = useState<SimpleTeacher[]>([]);
+  const [teachers, setTeachers] = useState<{ id: string; name: string }[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Form state
   const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, Set<string>>>({});
-  // NEW: map of "levelKey|option" => set of suffixes
   const [classVariants, setClassVariants] = useState<Record<string, Set<string>>>({});
   const [selectedTeacher, setSelectedTeacher] = useState<string>("");
 
@@ -82,14 +66,16 @@ export default function ClassesPage() {
   }
 
   async function fetchTeachers() {
-    // Fetch active teachers from teachers table (adjust column names as needed)
-    const { data } = await supabase.from("teachers").select("id,first_name,last_name,email").eq("status", "active");
+    const { data } = await supabase
+      .from("teachers")
+      .select("id,first_name,last_name")
+      .eq("status", "active");
+
     if (data) {
       setTeachers(
         data.map((t: any) => ({
           id: t.id,
           name: `${t.first_name} ${t.last_name}`,
-          email: t.email,
         }))
       );
     }
@@ -97,24 +83,23 @@ export default function ClassesPage() {
 
   /* ---------- helpers ---------- */
   function toggleLevel(levelKey: string) {
-    setSelectedOptions((prev) => {
-      if (!prev[levelKey]) prev[levelKey] = new Set();
-      return { ...prev };
-    });
-
-    setSelectedLevels((prev) =>
-      prev.includes(levelKey) ? prev.filter((l) => l !== levelKey) : [...prev, levelKey]
-    );
-  }
-
-  function toggleOption(levelKey: string, option: string) {
-    setSelectedOptions((prev) => {
-      const next = { ...prev };
-      if (!next[levelKey]) next[levelKey] = new Set();
-      if (next[levelKey].has(option)) next[levelKey].delete(option);
-      else next[levelKey].add(option);
-      return next;
-    });
+    if (selectedLevels.includes(levelKey)) {
+      // deselect level: remove level and all its options from classVariants
+      const nextVariants = { ...classVariants };
+      LEVELS[levelKey].options.forEach((opt) => {
+        delete nextVariants[`${levelKey}|${opt}`];
+      });
+      setClassVariants(nextVariants);
+      setSelectedLevels(selectedLevels.filter((l) => l !== levelKey));
+    } else {
+      // select level: add all options with no suffix
+      const nextVariants = { ...classVariants };
+      LEVELS[levelKey].options.forEach((opt) => {
+        nextVariants[`${levelKey}|${opt}`] = new Set([""]);
+      });
+      setClassVariants(nextVariants);
+      setSelectedLevels([...selectedLevels, levelKey]);
+    }
   }
 
   function toggleClassVariant(levelKey: string, option: string, suffix: string) {
@@ -139,12 +124,9 @@ export default function ClassesPage() {
   /* ---------- submit ---------- */
   async function handleCreateClasses() {
     const classesToInsert: any[] = [];
-
     for (const key in classVariants) {
       const [levelKey, option] = key.split("|");
       const levelDef = (LEVELS as any)[levelKey];
-      if (!levelDef) continue;
-
       const suffixes = Array.from(classVariants[key]);
       for (const suffix of suffixes) {
         const name = suffix ? `${option} ${suffix}` : option;
@@ -158,7 +140,7 @@ export default function ClassesPage() {
     }
 
     if (classesToInsert.length === 0) {
-      toast.error("No classes selected to create.");
+      toast.error("No classes selected.");
       return;
     }
 
@@ -166,14 +148,13 @@ export default function ClassesPage() {
     const creatingToast = toast.loading(`Creating ${classesToInsert.length} classes...`);
 
     try {
-      const { data: inserted, error: insertError } = await supabase
+      const { data: inserted, error } = await supabase
         .from("classes")
         .insert(classesToInsert)
         .select("*");
 
-      if (insertError) {
-        console.error("Insert error:", insertError);
-        toast.error(insertError.message || "Failed to create classes.");
+      if (error) {
+        toast.error(error.message || "Failed to create classes.");
         setIsSaving(false);
         return;
       }
@@ -183,32 +164,23 @@ export default function ClassesPage() {
           class_id: c.id,
           teacher_id: selectedTeacher,
         }));
-
         const { error: assignErr } = await supabase.from("class_teachers").insert(assignments);
-        if (assignErr) {
-          console.error("Assignment error:", assignErr);
-          toast.error("Classes created but failed to assign teacher.");
-          await fetchClasses();
-          setIsSaving(false);
-          return;
-        }
+        if (assignErr) toast.error("Classes created but teacher assignment failed.");
       }
 
       toast.success(`Created ${inserted?.length} classes.`, { id: creatingToast });
       setSelectedLevels([]);
-      setSelectedOptions({});
       setClassVariants({});
       setSelectedTeacher("");
       fetchClasses();
     } catch (err) {
       console.error(err);
-      toast.error("Unexpected error creating classes.");
+      toast.error("Unexpected error.");
     } finally {
       setIsSaving(false);
     }
   }
 
-  /* ---------- render ---------- */
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
@@ -221,8 +193,7 @@ export default function ClassesPage() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Classes
+                <Plus className="mr-2 h-4 w-4" /> Add Classes
               </Button>
             </DialogTrigger>
 
@@ -232,7 +203,7 @@ export default function ClassesPage() {
               </DialogHeader>
 
               <div className="space-y-4">
-                {/* Levels chooser */}
+                {/* Levels */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Select education levels</CardTitle>
@@ -255,36 +226,26 @@ export default function ClassesPage() {
                   </CardContent>
                 </Card>
 
-                {/* Options per selected level */}
+                {/* Options & suffixes */}
                 {selectedLevels.map((levelKey) => {
                   const meta = (LEVELS as any)[levelKey];
-                  const opts = meta.options;
                   return (
                     <Card key={levelKey}>
                       <CardHeader>
                         <CardTitle>{meta.label} — Choose classes & suffixes</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {opts.map((opt: string) => (
+                        {meta.options.map((opt: string) => (
                           <div key={opt} className="border rounded p-3">
                             <div className="font-medium mb-2">{opt}</div>
                             <div className="flex gap-4 ml-4">
-                              {/* No suffix */}
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <Checkbox
-                                  checked={!!classVariants[`${levelKey}|${opt}`]?.has("")}
-                                  onCheckedChange={() => toggleClassVariant(levelKey, opt, "")}
-                                />
-                                <span className="text-sm">No suffix</span>
-                              </label>
-                              {/* A, B, C */}
-                              {["A", "B", "C"].map((s) => (
+                              {SUFFIXES.map((s) => (
                                 <label key={s} className="flex items-center gap-2 cursor-pointer">
                                   <Checkbox
                                     checked={!!classVariants[`${levelKey}|${opt}`]?.has(s)}
                                     onCheckedChange={() => toggleClassVariant(levelKey, opt, s)}
                                   />
-                                  <span className="text-sm">{s}</span>
+                                  <span className="text-sm">{s || "No suffix"}</span>
                                 </label>
                               ))}
                             </div>
@@ -310,7 +271,7 @@ export default function ClassesPage() {
                       <option value="">-- No teacher --</option>
                       {teachers.map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.name} {t.email ? `(${t.email})` : ""}
+                          {t.name}
                         </option>
                       ))}
                     </select>
@@ -321,14 +282,15 @@ export default function ClassesPage() {
                   <div className="text-sm text-gray-600">
                     Will create <strong>{summaryCount}</strong> class{summaryCount !== 1 ? "es" : ""}.
                   </div>
-
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => {
-                      setSelectedLevels([]);
-                      setSelectedOptions({});
-                      setClassVariants({});
-                      setSelectedTeacher("");
-                    }}>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedLevels([]);
+                        setClassVariants({});
+                        setSelectedTeacher("");
+                      }}
+                    >
                       Reset
                     </Button>
                     <Button onClick={handleCreateClasses} disabled={isSaving || summaryCount === 0}>
@@ -341,19 +303,22 @@ export default function ClassesPage() {
           </Dialog>
         </div>
 
-        {/* existing classes list */}
+        {/* Existing classes */}
         <div className="grid gap-6 md:grid-cols-3">
           {classes.map((cls) => (
             <Card key={cls.id}>
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="text-xl font-bold">{cls.name}</h3>
-                    <p className="text-gray-600">{cls.level}</p>
-                    <p className="text-sm text-gray-500 mt-2">{cls.level_of_education} {cls.suffix ? `· ${cls.suffix}` : ""}</p>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => {
-                    // delete class — quick action (confirm)
+              <CardContent className="p-6 flex justify-between items-start">
+                <div>
+                  <h3 className="text-xl font-bold">{cls.name}</h3>
+                  <p className="text-gray-600">{cls.level}</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {cls.level_of_education} {cls.suffix ? `· ${cls.suffix}` : ""}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
                     if (!confirm(`Delete class ${cls.name}?`)) return;
                     supabase.from("classes").delete().eq("id", cls.id).then(({ error }) => {
                       if (error) toast.error("Failed to delete class");
@@ -362,10 +327,10 @@ export default function ClassesPage() {
                         fetchClasses();
                       }
                     });
-                  }}>
-                    <Trash2 className="h-4 w-4 text-red-600" />
-                  </Button>
-                </div>
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-red-600" />
+                </Button>
               </CardContent>
             </Card>
           ))}

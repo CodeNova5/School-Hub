@@ -19,7 +19,10 @@ export interface Term {
 
 export interface Class {
   suffix: any;
-  level_of_education: any;
+  education_level: string;
+  class_group: string;
+  teacher_id?: string;
+  teacher_name?: string;
   id: string;
   name: string;
   level: string;

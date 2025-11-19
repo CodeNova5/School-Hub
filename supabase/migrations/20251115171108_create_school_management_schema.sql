@@ -249,11 +249,32 @@ CREATE POLICY "Authenticated users can manage terms"
 CREATE TABLE IF NOT EXISTS classes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
-  level text NOT NULL,
-  capacity integer DEFAULT 30,
-  session_id uuid REFERENCES sessions(id) ON DELETE SET NULL,
-  created_at timestamptz DEFAULT now()
+  level text NOT NULL,  -- e.g.: Primary 1, JSS 2
+  level_of_education text CHECK (
+    level_of_education IN (
+      'Pre-Primary Education',
+      'Primary Education',
+      'Junior Secondary Education',
+      'Senior Secondary Education'
+    )
+  ),
+  suffix text DEFAULT '',  -- e.g.: A, B, C
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(name, suffix)
 );
+
+ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can view classes"
+  ON classes FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can manage classes"
+  ON classes FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
 
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 
@@ -327,9 +348,9 @@ CREATE TABLE IF NOT EXISTS class_teachers (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
   teacher_id uuid REFERENCES teachers(id) ON DELETE CASCADE,
-  session_id uuid REFERENCES sessions(id) ON DELETE CASCADE,
   created_at timestamptz DEFAULT now(),
-  UNIQUE(class_id, session_id)
+
+  UNIQUE(class_id) -- only one teacher per class
 );
 
 ALTER TABLE class_teachers ENABLE ROW LEVEL SECURITY;

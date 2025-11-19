@@ -2,9 +2,9 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Edit, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Class, Teacher } from "@/lib/types";
 import {
@@ -14,27 +14,62 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const LEVELS: Record<string, string[]> = {
-  "Pre-Primary": ["Creche", "Nursery 1", "Nursery 2", "Kindergarten 1", "Kindergarten 2"],
-  Primary: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
-  "Junior Secondary": ["JSS 1", "JSS 2", "JSS 3"],
-  "Senior Secondary": ["SSS 1", "SSS 2", "SSS 3"],
+/**
+ * Bulk Class Creator
+ *
+ * - Choose levels (multi)
+ * - For each selected level show available class rows (e.g., Primary 1..6)
+ * - Choose which specific class rows to create
+ * - Optionally choose suffixes (A/B/C or none)
+ * - Optionally assign a teacher (applies to all created classes)
+ * - Creates classes rows and class_teachers rows
+ */
+
+/* ---------- Constants ---------- */
+const LEVELS = {
+  "pre-primary": {
+    label: "Pre-Primary Education",
+    options: ["Creche", "Nursery 1", "Nursery 2", "Kindergarten 1", "Kindergarten 2"],
+    levelOfEducation: "Pre-Primary Education",
+  },
+  primary: {
+    label: "Primary Education",
+    options: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
+    levelOfEducation: "Primary Education",
+  },
+  jss: {
+    label: "Junior Secondary Education",
+    options: ["JSS 1", "JSS 2", "JSS 3"],
+    levelOfEducation: "Junior Secondary Education",
+  },
+  sss: {
+    label: "Senior Secondary Education",
+    options: ["SSS 1", "SSS 2", "SSS 3"],
+    levelOfEducation: "Senior Secondary Education",
+  },
 };
 
-const SUFFIXES = ["", "A", "B", "C"];
+const SUFFIXES = ["", "A", "B", "C"]; // "" means no suffix
 
+/* ---------- Component ---------- */
 export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  type SimpleTeacher = { id: any; name: string; email?: string };
+  const [teachers, setTeachers] = useState<SimpleTeacher[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingClass, setEditingClass] = useState<Class | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<string>("");
-  const [selectedSuffixes, setSelectedSuffixes] = useState<Record<string, string>>({});
-  const [assignedTeachers, setAssignedTeachers] = useState<Record<string, string>>({});
+
+  // Form state
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([]);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, Set<string>>>({});
+  // NEW: map of "levelKey|option" => set of suffixes
+  const [classVariants, setClassVariants] = useState<Record<string, Set<string>>>({});
+  const [selectedTeacher, setSelectedTeacher] = useState<string>("");
+
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     fetchClasses();
@@ -47,216 +82,290 @@ export default function ClassesPage() {
   }
 
   async function fetchTeachers() {
-    const { data } = await supabase.from("teachers").select("*").order("first_name");
-    if (data) setTeachers(data);
+    // Fetch active teachers from teachers table (adjust column names as needed)
+    const { data } = await supabase.from("teachers").select("id,first_name,last_name,email").eq("status", "active");
+    if (data) {
+      setTeachers(
+        data.map((t: any) => ({
+          id: t.id,
+          name: `${t.first_name} ${t.last_name}`,
+          email: t.email,
+        }))
+      );
+    }
   }
 
-  function resetDialog() {
-    setEditingClass(null);
-    setSelectedLevel("");
-    setSelectedSuffixes({});
-    setAssignedTeachers({});
+  /* ---------- helpers ---------- */
+  function toggleLevel(levelKey: string) {
+    setSelectedOptions((prev) => {
+      if (!prev[levelKey]) prev[levelKey] = new Set();
+      return { ...prev };
+    });
+
+    setSelectedLevels((prev) =>
+      prev.includes(levelKey) ? prev.filter((l) => l !== levelKey) : [...prev, levelKey]
+    );
   }
 
-  function openEditDialog(cls: Class) {
-    setEditingClass(cls);
-    setSelectedLevel(cls.level);
-    setIsDialogOpen(true);
+  function toggleOption(levelKey: string, option: string) {
+    setSelectedOptions((prev) => {
+      const next = { ...prev };
+      if (!next[levelKey]) next[levelKey] = new Set();
+      if (next[levelKey].has(option)) next[levelKey].delete(option);
+      else next[levelKey].add(option);
+      return next;
+    });
   }
 
-  function closeDialog() {
-    setIsDialogOpen(false);
-    resetDialog();
+  function toggleClassVariant(levelKey: string, option: string, suffix: string) {
+    const key = `${levelKey}|${option}`;
+    setClassVariants((prev) => {
+      const next = { ...prev };
+      if (!next[key]) next[key] = new Set();
+      if (next[key].has(suffix)) next[key].delete(suffix);
+      else next[key].add(suffix);
+      return next;
+    });
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedLevel) {
-      toast.error("Please select a level of education");
+  const summaryCount = useMemo(() => {
+    let count = 0;
+    for (const key in classVariants) {
+      count += classVariants[key].size;
+    }
+    return count;
+  }, [classVariants]);
+
+  /* ---------- submit ---------- */
+  async function handleCreateClasses() {
+    const classesToInsert: any[] = [];
+
+    for (const key in classVariants) {
+      const [levelKey, option] = key.split("|");
+      const levelDef = (LEVELS as any)[levelKey];
+      if (!levelDef) continue;
+
+      const suffixes = Array.from(classVariants[key]);
+      for (const suffix of suffixes) {
+        const name = suffix ? `${option} ${suffix}` : option;
+        classesToInsert.push({
+          name,
+          level: option,
+          level_of_education: levelDef.levelOfEducation,
+          suffix: suffix || "",
+        });
+      }
+    }
+
+    if (classesToInsert.length === 0) {
+      toast.error("No classes selected to create.");
       return;
     }
 
-    const classesToInsert = LEVELS[selectedLevel].map((clsName) => {
-      const suffix = selectedSuffixes[clsName] || "";
-      return {
-        name: `${clsName}${suffix ? ` ${suffix}` : ""}`,
-        level: selectedLevel,
-      };
-    });
+    setIsSaving(true);
+    const creatingToast = toast.loading(`Creating ${classesToInsert.length} classes...`);
 
     try {
-      if (editingClass) {
-        const { error } = await supabase
-          .from("classes")
-          .update({ name: classesToInsert[0].name, level: selectedLevel })
-          .eq("id", editingClass.id);
+      const { data: inserted, error: insertError } = await supabase
+        .from("classes")
+        .insert(classesToInsert)
+        .select("*");
 
-        if (error) throw error;
-
-        // Assign teacher if selected
-        const teacherId = assignedTeachers[classesToInsert[0].name];
-        if (teacherId) {
-          await supabase.from("class_teachers").upsert({
-            class_id: editingClass.id,
-            teacher_id: teacherId,
-          });
-        }
-
-        toast.success("Class updated successfully");
-      } else {
-        // Insert multiple classes at once
-        const { data, error } = await supabase.from("classes").insert(classesToInsert).select();
-        if (error) throw error;
-
-        // Assign teachers
-        for (const cls of data || []) {
-          const teacherId = assignedTeachers[cls.name];
-          if (teacherId) {
-            await supabase.from("class_teachers").insert({
-              class_id: cls.id,
-              teacher_id: teacherId,
-            });
-          }
-        }
-
-        toast.success("Classes created successfully");
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        toast.error(insertError.message || "Failed to create classes.");
+        setIsSaving(false);
+        return;
       }
 
-      closeDialog();
+      if (selectedTeacher && inserted && inserted.length > 0) {
+        const assignments = inserted.map((c: any) => ({
+          class_id: c.id,
+          teacher_id: selectedTeacher,
+        }));
+
+        const { error: assignErr } = await supabase.from("class_teachers").insert(assignments);
+        if (assignErr) {
+          console.error("Assignment error:", assignErr);
+          toast.error("Classes created but failed to assign teacher.");
+          await fetchClasses();
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      toast.success(`Created ${inserted?.length} classes.`, { id: creatingToast });
+      setSelectedLevels([]);
+      setSelectedOptions({});
+      setClassVariants({});
+      setSelectedTeacher("");
       fetchClasses();
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save class(es)");
+      toast.error("Unexpected error creating classes.");
+    } finally {
+      setIsSaving(false);
     }
-  };
+  }
 
+  /* ---------- render ---------- */
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Classes</h1>
-            <p className="text-gray-600 mt-1">Manage school classes</p>
+            <p className="text-gray-600 mt-1">Create classes in bulk by level & suffix</p>
           </div>
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => resetDialog()}>
-                <Plus className="mr-2 h-4 w-4" /> Add Class
+              <Button onClick={() => setIsDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Classes
               </Button>
             </DialogTrigger>
 
-            <DialogContent>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingClass ? "Edit Class" : "Create New Classes"}</DialogTitle>
+                <DialogTitle>Create Multiple Classes</DialogTitle>
               </DialogHeader>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <Label>Level of Education</Label>
-                  <Select value={selectedLevel} onValueChange={(val) => setSelectedLevel(val)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.keys(LEVELS).map((level) => (
-                        <SelectItem key={level} value={level}>
-                          {level}
-                        </SelectItem>
+              <div className="space-y-4">
+                {/* Levels chooser */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Select education levels</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(LEVELS).map(([key, meta]: any) => (
+                        <label key={key} className="flex items-center gap-2 cursor-pointer">
+                          <Checkbox
+                            checked={selectedLevels.includes(key)}
+                            onCheckedChange={() => toggleLevel(key)}
+                          />
+                          <div>
+                            <div className="font-medium">{meta.label}</div>
+                            <div className="text-sm text-gray-500">{meta.options.join(", ")}</div>
+                          </div>
+                        </label>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                {selectedLevel && (
-                  <div className="space-y-2">
-                    {LEVELS[selectedLevel].map((clsName) => (
-                      <div key={clsName} className="flex items-center gap-4">
-                        <p className="flex-1">{clsName}</p>
+                {/* Options per selected level */}
+                {selectedLevels.map((levelKey) => {
+                  const meta = (LEVELS as any)[levelKey];
+                  const opts = meta.options;
+                  return (
+                    <Card key={levelKey}>
+                      <CardHeader>
+                        <CardTitle>{meta.label} — Choose classes & suffixes</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {opts.map((opt: string) => (
+                          <div key={opt} className="border rounded p-3">
+                            <div className="font-medium mb-2">{opt}</div>
+                            <div className="flex gap-4 ml-4">
+                              {/* No suffix */}
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <Checkbox
+                                  checked={!!classVariants[`${levelKey}|${opt}`]?.has("")}
+                                  onCheckedChange={() => toggleClassVariant(levelKey, opt, "")}
+                                />
+                                <span className="text-sm">No suffix</span>
+                              </label>
+                              {/* A, B, C */}
+                              {["A", "B", "C"].map((s) => (
+                                <label key={s} className="flex items-center gap-2 cursor-pointer">
+                                  <Checkbox
+                                    checked={!!classVariants[`${levelKey}|${opt}`]?.has(s)}
+                                    onCheckedChange={() => toggleClassVariant(levelKey, opt, s)}
+                                  />
+                                  <span className="text-sm">{s}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
 
-                        {/* Suffix selection */}
-                        <Select
-                          value={selectedSuffixes[clsName] || ""}
-                          onValueChange={(val) =>
-                            setSelectedSuffixes((prev) => ({ ...prev, [clsName]: val }))
-                          }
-                        >
-                          <SelectTrigger className="w-24">
-                            <SelectValue placeholder="Suffix" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SUFFIXES.map((s) => (
-                              <SelectItem key={s} value={s}>
-                                {s || "None"}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                {/* Teacher assignment */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Assign Teacher (optional)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Label>Assign a teacher to all created classes</Label>
+                    <select
+                      value={selectedTeacher}
+                      onChange={(e) => setSelectedTeacher(e.target.value)}
+                      className="mt-2 w-full px-3 py-2 border rounded-md"
+                    >
+                      <option value="">-- No teacher --</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} {t.email ? `(${t.email})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </CardContent>
+                </Card>
 
-                        {/* Teacher assignment */}
-                        <Select
-                          value={assignedTeachers[clsName] || ""}
-                          onValueChange={(val) =>
-                            setAssignedTeachers((prev) => ({ ...prev, [clsName]: val }))
-                          }
-                        >
-                          <SelectTrigger className="w-40">
-                            <SelectValue placeholder="Assign Teacher" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teachers.map((t) => (
-                              <SelectItem key={t.id} value={t.id}>
-                                {t.first_name} {t.last_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ))}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Will create <strong>{summaryCount}</strong> class{summaryCount !== 1 ? "es" : ""}.
                   </div>
-                )}
 
-                <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
-                    {editingClass ? "Update" : "Create"}
-                  </Button>
-                  <Button type="button" variant="outline" onClick={closeDialog}>
-                    Cancel
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => {
+                      setSelectedLevels([]);
+                      setSelectedOptions({});
+                      setClassVariants({});
+                      setSelectedTeacher("");
+                    }}>
+                      Reset
+                    </Button>
+                    <Button onClick={handleCreateClasses} disabled={isSaving || summaryCount === 0}>
+                      Create ({summaryCount})
+                    </Button>
+                  </div>
                 </div>
-              </form>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
 
+        {/* existing classes list */}
         <div className="grid gap-6 md:grid-cols-3">
           {classes.map((cls) => (
             <Card key={cls.id}>
               <CardContent className="p-6">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-xl font-bold">{cls.name}</h3>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(cls)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        if (!confirm("Are you sure you want to delete this class?")) return;
-                        const { error } = await supabase.from("classes").delete().eq("id", cls.id);
-                        if (error) toast.error("Failed to delete class");
-                        else {
-                          toast.success("Class deleted successfully");
-                          fetchClasses();
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
+                  <div>
+                    <h3 className="text-xl font-bold">{cls.name}</h3>
+                    <p className="text-gray-600">{cls.level}</p>
+                    <p className="text-sm text-gray-500 mt-2">{cls.level_of_education} {cls.suffix ? `· ${cls.suffix}` : ""}</p>
                   </div>
+                  <Button variant="ghost" size="icon" onClick={() => {
+                    // delete class — quick action (confirm)
+                    if (!confirm(`Delete class ${cls.name}?`)) return;
+                    supabase.from("classes").delete().eq("id", cls.id).then(({ error }) => {
+                      if (error) toast.error("Failed to delete class");
+                      else {
+                        toast.success("Class deleted");
+                        fetchClasses();
+                      }
+                    });
+                  }}>
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
                 </div>
-                <p className="text-gray-600">{cls.level}</p>
               </CardContent>
             </Card>
           ))}

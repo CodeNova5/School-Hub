@@ -55,14 +55,40 @@ export default function ClassesPage() {
 
   const [isSaving, setIsSaving] = useState(false);
 
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [editLevel, setEditLevel] = useState("");
+  const [editBaseClass, setEditBaseClass] = useState("");
+  const [editSuffix, setEditSuffix] = useState("");
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+
   useEffect(() => {
     fetchClasses();
     fetchTeachers();
   }, []);
 
   async function fetchClasses() {
-    const { data } = await supabase.from("classes").select("*").order("name");
-    if (data) setClasses(data);
+    const { data, error } = await supabase
+      .from("classes")
+      .select(`
+      *,
+      class_teachers ( teacher_id, teachers ( first_name, last_name )),
+      students ( id ),
+      subjects ( id )
+    `)
+      .order("name");
+
+    if (data) {
+      const formatted = data.map((cls: any) => ({
+        ...cls,
+        teacherName: cls.class_teachers?.teachers
+          ? `${cls.class_teachers.teachers.first_name} ${cls.class_teachers.teachers.last_name}`
+          : "No teacher",
+        studentCount: cls.students?.length || 0,
+        subjectCount: cls.subjects?.length || 0,
+      }));
+      setClasses(formatted);
+    }
   }
 
   async function fetchTeachers() {
@@ -181,6 +207,29 @@ export default function ClassesPage() {
     }
   }
 
+  async function handleUpdateClass() {
+    if (!selectedClass) return;
+
+    const { error } = await supabase
+      .from("classes")
+      .update({
+        level: editBaseClass,
+        base_class: editBaseClass,
+        suffix: editSuffix || null,
+      })
+      .eq("id", selectedClass.id);
+
+    if (error) {
+      toast.error("Failed to update class");
+      return;
+    }
+
+    toast.success("Class updated");
+    setIsEditOpen(false);
+    fetchClasses(); // refresh list
+  }
+
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
@@ -196,6 +245,102 @@ export default function ClassesPage() {
                 <Plus className="mr-2 h-4 w-4" /> Add Classes
               </Button>
             </DialogTrigger>
+
+            <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Class Details</DialogTitle>
+                </DialogHeader>
+
+                {selectedClass && (
+                  <div className="space-y-3">
+                    <p><strong>Class:</strong> {selectedClass.name}</p>
+                    <p><strong>Teacher:</strong> {selectedClass.teacherName}</p>
+                    <p><strong>Total Students:</strong> {selectedClass.studentCount}</p>
+                    <p><strong>Total Subjects:</strong> {selectedClass.subjectCount}</p>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+            {/* EDIT CLASS MODAL */}
+            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Edit Class</DialogTitle>
+                </DialogHeader>
+
+                {selectedClass && (
+                  <div className="space-y-4">
+                    {/* Level of Education */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Level of Education</label>
+                      <select
+                        className="w-full border p-2 rounded"
+                        value={editLevel}
+                        onChange={(e) => setEditLevel(e.target.value)}
+                      >
+                        <option value="">Select level</option>
+                        {Object.entries(LEVELS).map(([key, meta]) => (
+                          <option key={key} value={meta.label}>{meta.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Base Class */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Base Class</label>
+                      <select
+                        className="w-full border p-2 rounded"
+                        value={editBaseClass}
+                        onChange={(e) => setEditBaseClass(e.target.value)}
+                      >
+                        <option value="">Select base class</option>
+                        {Object.entries(LEVELS)
+                          .filter(([_, meta]) => meta.label === editLevel)
+                          .flatMap(([key, meta]) =>
+                            meta.options.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))
+                          )}
+                      </select>
+                    </div>
+
+                    {/* Suffix */}
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Suffix (optional)</label>
+                      <select
+                        className="w-full border p-2 rounded"
+                        value={editSuffix}
+                        onChange={(e) => setEditSuffix(e.target.value)}
+                      >
+                        <option value="">No suffix</option>
+                        <option value="A">A</option>
+                        <option value="B">B</option>
+                        <option value="C">C</option>
+                      </select>
+                    </div>
+
+                    {/* Auto-generated name preview */}
+                    <div className="bg-gray-100 p-3 rounded text-sm">
+                      <strong>Final Class Name:</strong> {editBaseClass}
+                      {editSuffix ? ` ${editSuffix}` : ""}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex justify-end gap-3 mt-4">
+                      <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleUpdateClass} disabled={!editBaseClass || !editLevel}>
+                        Save Changes
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
+
 
             <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
@@ -308,32 +453,73 @@ export default function ClassesPage() {
           {classes.map((cls) => (
             <Card key={cls.id}>
               <CardContent className="p-6 flex justify-between items-start">
-                <div>
+                <div className="space-y-1">
                   <h3 className="text-xl font-bold">{cls.name}</h3>
-                  <p className="text-gray-600">{cls.level}</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    {cls.level_of_education} {cls.suffix ? `· ${cls.suffix}` : ""}
+
+                  {/* Teacher */}
+                  <p className="text-gray-700">{cls.teacherName}</p>
+
+                  {/* Students */}
+                  <p className="flex items-center gap-2 text-gray-600 text-sm">
+                    <span>👥</span> {cls.studentCount} Students
                   </p>
+
+                  {/* Subjects */}
+                  <p className="flex items-center gap-2 text-gray-600 text-sm">
+                    <span>📚</span> {cls.subjectCount} Subjects
+                  </p>
+
+                  {/* View Details button */}
+                  <Button
+                    variant="outline"
+                    className="mt-3 w-full"
+                    onClick={() => {
+                      setSelectedClass(cls);
+                      setIsViewOpen(true);
+                    }}
+                  >
+                    View Details
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    if (!confirm(`Delete class ${cls.name}?`)) return;
-                    supabase.from("classes").delete().eq("id", cls.id).then(({ error }) => {
-                      if (error) toast.error("Failed to delete class");
-                      else {
-                        toast.success("Class deleted");
-                        fetchClasses();
-                      }
-                    });
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </Button>
+
+                {/* Edit + Delete */}
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setSelectedClass(cls);
+                      setEditLevel(cls.level_of_education);
+                      setEditBaseClass(cls.level);     // base_class stored as "level" in your code
+                      setEditSuffix(cls.suffix || "");
+                      setIsEditOpen(true);
+                    }}
+
+                  >
+                    ✏️
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (!confirm(`Delete ${cls.name}?`)) return;
+                      supabase.from("classes").delete().eq("id", cls.id).then(({ error }) => {
+                        if (error) toast.error("Failed to delete class");
+                        else {
+                          toast.success("Class deleted");
+                          fetchClasses();
+                        }
+                      });
+                    }}
+                  >
+                    🗑️
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
+
         </div>
 
         {classes.length === 0 && (

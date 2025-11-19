@@ -22,7 +22,9 @@ export interface Class {
   level_of_education: string;
   class_group: string;
   teacher_id?: string;
-  teacher_name?: string;
+  teacherName?: string;
+  studentCount?: number;
+  subjectCount?: number;
   id: string;
   name: string;
   level: string;

@@ -40,7 +40,7 @@ const LEVELS = {
     options: ["SSS 1", "SSS 2", "SSS 3"],
     levelOfEducation: "Senior Secondary Education",
   },
-};
+} as const;
 
 const SUFFIXES = ["", "A", "B", "C"]; // "" means no suffix
 
@@ -86,7 +86,7 @@ export default function ClassesPage() {
     if (selectedLevels.includes(levelKey)) {
       // deselect level: remove level and all its options from classVariants
       const nextVariants = { ...classVariants };
-      LEVELS[levelKey].options.forEach((opt) => {
+      LEVELS[levelKey as keyof typeof LEVELS].options.forEach((opt) => {
         delete nextVariants[`${levelKey}|${opt}`];
       });
       setClassVariants(nextVariants);
@@ -94,7 +94,7 @@ export default function ClassesPage() {
     } else {
       // select level: add all options with no suffix
       const nextVariants = { ...classVariants };
-      LEVELS[levelKey].options.forEach((opt) => {
+      LEVELS[levelKey as keyof typeof LEVELS].options.forEach((opt) => {
         nextVariants[`${levelKey}|${opt}`] = new Set([""]);
       });
       setClassVariants(nextVariants);
@@ -126,7 +126,7 @@ export default function ClassesPage() {
     const classesToInsert: any[] = [];
     for (const key in classVariants) {
       const [levelKey, option] = key.split("|");
-      const levelDef = (LEVELS as any)[levelKey];
+      const levelDef = LEVELS[levelKey as keyof typeof LEVELS];
       const suffixes = Array.from(classVariants[key]);
       for (const suffix of suffixes) {
         const name = suffix ? `${option} ${suffix}` : option;

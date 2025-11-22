@@ -41,7 +41,9 @@ export interface Subject {
   department?: 'Science' | 'Arts' | 'Commercial';
   religion?: 'Christian' | 'Muslim';
   is_optional: boolean;
+  teacher_id?: string;
   created_at: string;
+  teacherName?: string;
 }
 
 export interface Teacher {

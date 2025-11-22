@@ -18,19 +18,20 @@ export interface Term {
 }
 
 export interface Class {
-  suffix: any;
-  level_of_education: string;
-  class_group: string;
-  teacher_id?: string;
-  teacherName?: string;
-  studentCount?: number;
-  subjectCount?: number;
   id: string;
   name: string;
   level: string;
   capacity: number;
+  room_number?: string;
+  class_teacher_id?: string;
+  academic_year?: string;
+  department?: 'Science' | 'Arts' | 'Commercial';
+  stream?: string;
   session_id?: string;
   created_at: string;
+  teacherName?: string;
+  studentCount?: number;
+  subjectCount?: number;
 }
 
 export interface Subject {

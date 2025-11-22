@@ -54,19 +54,21 @@ export default function TeacherStudentsPage() {
         return;
       }
 
-      const { data: teacherClassesData } = await supabase
-        .from('teacher_classes')
-        .select('class_id')
-        .eq('teacher_id', teacher.id);
+      // NEW: Load classes where this teacher is assigned
+      const { data: assignedClasses, error: classErr } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("class_teacher_id", teacher.id);
 
-      const classIds = teacherClassesData?.map((tc) => tc.class_id) || [];
+      const classIds = assignedClasses?.map(c => c.id) || [];
       setTeacherClasses(classIds);
 
       if (classIds.length === 0) {
-        toast.error('No classes assigned to you');
+        toast.error("No class assigned to you");
         setIsLoading(false);
         return;
       }
+
 
       const [studentsRes, sessionsRes, termsRes, classesRes] = await Promise.all([
         supabase

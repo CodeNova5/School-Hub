@@ -5,15 +5,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Subject, Class } from '@/lib/types';
+import { Subject, Class, Teacher } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { Search, BookOpen } from 'lucide-react';
+import { Search, BookOpen, Users, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 
+interface SubjectWithClasses extends Subject {
+  applicableClasses: Class[];
+}
+
 export default function TeacherSubjectsPage() {
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<SubjectWithClasses[]>([]);
+  const [myClasses, setMyClasses] = useState<Class[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [filterLevel, setFilterLevel] = useState('');
@@ -50,30 +55,82 @@ export default function TeacherSubjectsPage() {
         return;
       }
 
-      const { data: subjectClassesData } = await supabase
-        .from('subject_classes')
-        .select('subject_id')
-        .in('class_id', classIds);
-
-      const subjectIds = subjectClassesData?.map((sc) => sc.subject_id) || [];
-
-      if (subjectIds.length > 0) {
-        const { data: subjectsData } = await supabase
-          .from('subjects')
-          .select('*')
-          .in('id', subjectIds)
-          .order('name');
-
-        if (subjectsData) setSubjects(subjectsData);
-      }
-
       const { data: classesData } = await supabase
         .from('classes')
         .select('*')
         .in('id', classIds)
-        .order('name');
+        .order('level');
 
-      if (classesData) setClasses(classesData);
+      if (classesData) {
+        setMyClasses(classesData);
+
+        const educationLevels = Array.from(new Set(classesData.map((c) => c.level)));
+        const educationLevelCategories = educationLevels.map((level) => {
+          if (level.startsWith('Nursery') || level.startsWith('KG')) return 'Pre-Primary';
+          if (level.startsWith('Primary')) return 'Primary';
+          if (level.startsWith('JSS')) return 'JSS';
+          if (level.startsWith('SSS')) return 'SSS';
+          return level;
+        });
+
+        const uniqueLevelCategories = Array.from(new Set(educationLevelCategories));
+
+        let subjectsQuery = supabase
+          .from('subjects')
+          .select('*')
+          .in('education_level', uniqueLevelCategories);
+
+        const sssClasses = classesData.filter((c) => c.level.startsWith('SSS'));
+        if (sssClasses.length > 0) {
+          const departments = Array.from(new Set(sssClasses.map((c) => c.department).filter(Boolean)));
+          if (departments.length > 0) {
+            subjectsQuery = subjectsQuery.or(
+              `education_level.neq.SSS,and(education_level.eq.SSS,department.in.(${departments.join(',')}))`
+            );
+          }
+        }
+
+        const { data: subjectsData } = await subjectsQuery.order('education_level').order('name');
+
+        if (subjectsData) {
+          const subjectsWithClasses = subjectsData.map((subject) => {
+            let applicableClasses: Class[] = [];
+
+            if (subject.education_level === 'SSS') {
+              applicableClasses = classesData.filter(
+                (c) => c.level.startsWith('SSS') && c.department === subject.department
+              );
+            } else {
+              applicableClasses = classesData.filter((c) => {
+                const classCategory =
+                  c.level.startsWith('Nursery') || c.level.startsWith('KG')
+                    ? 'Pre-Primary'
+                    : c.level.startsWith('Primary')
+                    ? 'Primary'
+                    : c.level.startsWith('JSS')
+                    ? 'JSS'
+                    : c.level.startsWith('SSS')
+                    ? 'SSS'
+                    : '';
+                return classCategory === subject.education_level;
+              });
+            }
+
+            return {
+              ...subject,
+              applicableClasses,
+            };
+          });
+
+          setSubjects(subjectsWithClasses);
+        }
+      }
+
+      const { data: teachersData } = await supabase
+        .from('teachers')
+        .select('*')
+        .eq('status', 'active');
+      if (teachersData) setTeachers(teachersData);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
     } finally {
@@ -103,11 +160,14 @@ export default function TeacherSubjectsPage() {
   };
 
   const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
-    const level = subject.education_level;
-    if (!acc[level]) acc[level] = [];
-    acc[level].push(subject);
+    let groupKey: string = subject.education_level;
+    if (subject.education_level === 'SSS' && subject.department) {
+      groupKey = `SSS - ${subject.department}`;
+    }
+    if (!acc[groupKey]) acc[groupKey] = [];
+    acc[groupKey].push(subject);
     return acc;
-  }, {} as Record<string, Subject[]>);
+  }, {} as Record<string, SubjectWithClasses[]>);
 
   if (isLoading) {
     return (
@@ -123,9 +183,27 @@ export default function TeacherSubjectsPage() {
     <DashboardLayout role="teacher">
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold">Subjects</h1>
-          <p className="text-gray-600 mt-1">View subjects for your assigned classes</p>
+          <h1 className="text-3xl font-bold">My Subjects</h1>
+          <p className="text-gray-600 mt-1">
+            Subjects for your assigned classes ({myClasses.length} classes)
+          </p>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>My Classes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {myClasses.map((cls) => (
+                <Badge key={cls.id} variant="outline" className="text-sm">
+                  {cls.name} - {cls.level}
+                  {cls.department && ` (${cls.department})`}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -163,6 +241,9 @@ export default function TeacherSubjectsPage() {
             <CardContent className="p-12 text-center">
               <BookOpen className="h-12 w-12 mx-auto text-gray-300 mb-4" />
               <p className="text-gray-500">No subjects found</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Subjects will appear here once the admin assigns them to your education levels
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -170,7 +251,9 @@ export default function TeacherSubjectsPage() {
             <Card key={level}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Badge className={getLevelColor(level)}>{level}</Badge>
+                  <Badge className={getLevelColor(levelSubjects[0].education_level)}>
+                    {level}
+                  </Badge>
                   <span className="text-sm font-normal text-gray-600">
                     ({levelSubjects.length} subjects)
                   </span>
@@ -178,38 +261,70 @@ export default function TeacherSubjectsPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {levelSubjects.map((subject) => (
-                    <div
-                      key={subject.id}
-                      className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                          <BookOpen className="h-5 w-5 text-orange-600" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold">{subject.name}</h3>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {subject.department && (
-                              <Badge variant="outline" className="text-xs">
-                                {subject.department}
-                              </Badge>
-                            )}
-                            {subject.religion && (
-                              <Badge variant="outline" className="text-xs">
-                                {subject.religion}
-                              </Badge>
-                            )}
-                            {subject.is_optional && (
-                              <Badge variant="secondary" className="text-xs">
-                                Optional
-                              </Badge>
-                            )}
+                  {levelSubjects.map((subject) => {
+                    const teacher = teachers.find((t) => t.id === subject.teacher_id);
+                    return (
+                      <Card key={subject.id} className="hover:shadow-lg transition-shadow">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3 mb-3">
+                            <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                              <BookOpen className="h-5 w-5 text-orange-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-base mb-2 break-words">
+                                {subject.name}
+                              </h3>
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {subject.department && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {subject.department}
+                                  </Badge>
+                                )}
+                                {subject.religion && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {subject.religion}
+                                  </Badge>
+                                )}
+                                {subject.is_optional && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Optional
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+
+                          {teacher && (
+                            <div className="flex items-center gap-2 text-xs text-gray-600 mb-3 p-2 bg-gray-50 rounded">
+                              <UserIcon className="h-3 w-3 flex-shrink-0" />
+                              <div>
+                                <p className="font-medium">Subject Teacher</p>
+                                <p className="truncate">
+                                  {teacher.first_name} {teacher.last_name}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="border-t pt-3">
+                            <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+                              <Users className="h-3 w-3 flex-shrink-0" />
+                              <span className="font-medium">
+                                Applies to {subject.applicableClasses.length} of your classes:
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {subject.applicableClasses.map((cls) => (
+                                <Badge key={cls.id} variant="secondary" className="text-xs">
+                                  {cls.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>

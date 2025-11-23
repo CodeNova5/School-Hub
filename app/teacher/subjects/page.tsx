@@ -64,23 +64,14 @@ export default function TeacherSubjectsPage() {
       if (classesData) {
         setMyClasses(classesData);
 
-        const educationLevels = Array.from(new Set(classesData.map((c) => c.level)));
-        const educationLevelCategories = educationLevels.map((level) => {
-          if (level.startsWith('Nursery') || level.startsWith('KG')) return 'Pre-Primary';
-          if (level.startsWith('Primary')) return 'Primary';
-          if (level.startsWith('JSS')) return 'JSS';
-          if (level.startsWith('SSS')) return 'SSS';
-          return level;
-        });
-
-        const uniqueLevelCategories = Array.from(new Set(educationLevelCategories));
+        const uniqueLevelCategories = Array.from(new Set(classesData.map((c) => c.education_level)));
 
         let subjectsQuery = supabase
           .from('subjects')
           .select('*')
           .in('education_level', uniqueLevelCategories);
 
-        const sssClasses = classesData.filter((c) => c.level.startsWith('SSS'));
+        const sssClasses = classesData.filter((c) => c.education_level === 'SSS');
         if (sssClasses.length > 0) {
           const departments = Array.from(new Set(sssClasses.map((c) => c.department).filter(Boolean)));
           if (departments.length > 0) {
@@ -98,22 +89,10 @@ export default function TeacherSubjectsPage() {
 
             if (subject.education_level === 'SSS') {
               applicableClasses = classesData.filter(
-                (c) => c.level.startsWith('SSS') && c.department === subject.department
+                (c) => c.education_level === 'SSS' && c.department === subject.department
               );
             } else {
-              applicableClasses = classesData.filter((c) => {
-                const classCategory =
-                  c.level.startsWith('Nursery') || c.level.startsWith('KG')
-                    ? 'Pre-Primary'
-                    : c.level.startsWith('Primary')
-                    ? 'Primary'
-                    : c.level.startsWith('JSS')
-                    ? 'JSS'
-                    : c.level.startsWith('SSS')
-                    ? 'SSS'
-                    : '';
-                return classCategory === subject.education_level;
-              });
+              applicableClasses = classesData.filter((c) => c.education_level === subject.education_level);
             }
 
             return {

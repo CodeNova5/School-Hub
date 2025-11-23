@@ -66,31 +66,28 @@ export default function TeacherClassesPage() {
               .eq('class_id', cls.id)
               .eq('status', 'active');
 
-            const classCategory = cls.level.startsWith('Nursery') || cls.level.startsWith('KG')
-              ? 'Pre-Primary'
-              : cls.level.startsWith('Primary')
-              ? 'Primary'
-              : cls.level.startsWith('JSS')
-              ? 'JSS'
-              : cls.level.startsWith('SSS')
-              ? 'SSS'
-              : '';
+            const { data: subjectClassesData } = await supabase
+              .from('subject_classes')
+              .select('subject_id')
+              .eq('class_id', cls.id);
 
-            let subjectsQuery = supabase
-              .from('subjects')
-              .select('*')
-              .eq('education_level', classCategory);
+            const subjectIds = subjectClassesData?.map((sc) => sc.subject_id) || [];
 
-            if (classCategory === 'SSS' && cls.department) {
-              subjectsQuery = subjectsQuery.eq('department', cls.department);
+            let subjects: Subject[] = [];
+            if (subjectIds.length > 0) {
+              const { data: subjectsData } = await supabase
+                .from('subjects')
+                .select('*')
+                .in('id', subjectIds)
+                .order('name');
+
+              subjects = subjectsData || [];
             }
-
-            const { data: subjectsData } = await subjectsQuery.order('name');
 
             return {
               ...cls,
               studentCount: studentCount || 0,
-              subjects: subjectsData || [],
+              subjects,
             };
           })
         );
@@ -104,12 +101,19 @@ export default function TeacherClassesPage() {
     }
   }
 
-  const getLevelColor = (level: string) => {
-    if (level.startsWith('Nursery') || level.startsWith('KG')) return 'bg-pink-100 text-pink-700';
-    if (level.startsWith('Primary')) return 'bg-blue-100 text-blue-700';
-    if (level.startsWith('JSS')) return 'bg-green-100 text-green-700';
-    if (level.startsWith('SSS')) return 'bg-purple-100 text-purple-700';
-    return 'bg-gray-100 text-gray-700';
+  const getLevelColor = (educationLevel: string) => {
+    switch (educationLevel) {
+      case 'Pre-Primary':
+        return 'bg-pink-100 text-pink-700';
+      case 'Primary':
+        return 'bg-blue-100 text-blue-700';
+      case 'JSS':
+        return 'bg-green-100 text-green-700';
+      case 'SSS':
+        return 'bg-purple-100 text-purple-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
   };
 
   if (isLoading) {
@@ -158,7 +162,7 @@ export default function TeacherClassesPage() {
                         </div>
                       </CardTitle>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        <Badge className={getLevelColor(cls.level)}>{cls.level}</Badge>
+                        <Badge className={getLevelColor(cls.education_level)}>{cls.level}</Badge>
                         {cls.department && (
                           <Badge variant="outline">{cls.department}</Badge>
                         )}

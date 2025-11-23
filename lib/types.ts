@@ -21,6 +21,7 @@ export interface Class {
   id: string;
   name: string;
   level: string;
+  education_level: 'Pre-Primary' | 'Primary' | 'JSS' | 'SSS';
   capacity: number;
   room_number?: string;
   class_teacher_id?: string;

@@ -50,6 +50,7 @@ export function Sidebar({ role }: SidebarProps) {
     { href: '/teacher/classes', label: 'Classes', icon: <School className="h-5 w-5" /> },
     { href: '/teacher/students', label: 'Students', icon: <Users className="h-5 w-5" /> },
     { href: '/teacher/subjects', label: 'Subjects', icon: <BookOpen className="h-5 w-5" /> },
+    { href: '/teacher/results', label: 'Results', icon: <GraduationCap className="h-5 w-5" /> },
     { href: '/teacher/assignments', label: 'Assignments', icon: <FileText className="h-5 w-5" /> },
     { href: '/teacher/attendance', label: 'Attendance', icon: <ClipboardList className="h-5 w-5" /> },
     { href: '/teacher/calendar', label: 'Calendar', icon: <Calendar className="h-5 w-5" /> },

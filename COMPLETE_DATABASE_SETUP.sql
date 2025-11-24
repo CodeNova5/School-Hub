@@ -591,3 +591,38 @@ ON CONFLICT (subject_id, class_id) DO NOTHING;
 -- ✓ Automatic subject-class linking triggers active
 -- ✓ All existing data linked correctly
 -- ============================================================================
+
+CREATE TABLE IF NOT EXISTS student_results (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  student_id uuid REFERENCES students(id) ON DELETE CASCADE,
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
+  class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
+  teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
+
+  session_id uuid REFERENCES sessions(id) ON DELETE CASCADE,
+  term_id uuid REFERENCES terms(id) ON DELETE CASCADE,
+
+  welcome_test numeric DEFAULT 0,
+  mid_term numeric DEFAULT 0,
+  vetting numeric DEFAULT 0,
+  exam numeric DEFAULT 0,
+
+  total numeric GENERATED ALWAYS AS (
+    welcome_test + mid_term + vetting + exam
+  ) STORED,
+
+  grade text,
+  remarks text,
+
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE student_results ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow teachers/admin"
+  ON student_results
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);

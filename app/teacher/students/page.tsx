@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
+import { StudentSubjectsModal } from '@/components/student-subjects-modal';
 import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
@@ -23,6 +24,7 @@ export default function TeacherStudentsPage() {
   const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -153,6 +155,11 @@ export default function TeacherStudentsPage() {
   function handleViewDetails(student: Student) {
     setSelectedStudent(student);
     setIsModalOpen(true);
+  }
+
+  function handleManageSubjects(student: Student) {
+    setSelectedStudent(student);
+    setIsSubjectsModalOpen(true);
   }
 
   function handleExport() {
@@ -332,7 +339,11 @@ export default function TeacherStudentsPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <StudentTable students={filteredStudents} onViewDetails={handleViewDetails} />
+            <StudentTable
+              students={filteredStudents}
+              onViewDetails={handleViewDetails}
+              onManageSubjects={handleManageSubjects}
+            />
           </CardContent>
         </Card>
 
@@ -342,6 +353,12 @@ export default function TeacherStudentsPage() {
           terms={terms}
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
+        />
+
+        <StudentSubjectsModal
+          student={selectedStudent}
+          open={isSubjectsModalOpen}
+          onClose={() => setIsSubjectsModalOpen(false)}
         />
       </div>
     </DashboardLayout>

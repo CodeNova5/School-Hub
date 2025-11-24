@@ -1,493 +1,231 @@
--- =====================================================
--- COMPLETE DATABASE QUERIES FOR SCHOOL MANAGEMENT SYSTEM
--- =====================================================
+-- ============================================================================
+-- STUDENT SUBJECTS AND RESULTS ENHANCEMENT
+-- ============================================================================
+-- Run this SQL in Supabase SQL Editor after running COMPLETE_DATABASE_SETUP.sql
+-- ============================================================================
 
--- =====================================================
--- 1. CLASSES QUERIES
--- =====================================================
+-- ============================================================================
+-- 1. STUDENT_SUBJECTS TABLE
+-- Tracks which subjects each student is offering (for subject selection)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS student_subjects (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid REFERENCES students(id) ON DELETE CASCADE,
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
+  session_id uuid REFERENCES sessions(id) ON DELETE CASCADE,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(student_id, subject_id, session_id)
+);
 
--- Get all classes with statistics
-SELECT
-  c.id,
-  c.name,
-  c.level,
-  c.capacity,
-  c.room_number,
-  c.department,
-  c.stream,
-  c.academic_year,
-  COUNT(DISTINCT s.id) FILTER (WHERE s.status = 'active') as student_count,
-  COUNT(DISTINCT tc.teacher_id) as teacher_count,
-  COUNT(DISTINCT sc.subject_id) as subject_count,
-  t.first_name || ' ' || t.last_name as class_teacher_name
-FROM classes c
-LEFT JOIN students s ON s.class_id = c.id
-LEFT JOIN teacher_classes tc ON tc.class_id = c.id
-LEFT JOIN subject_classes sc ON sc.class_id = c.id
-LEFT JOIN teachers t ON t.id = c.class_teacher_id
-GROUP BY c.id, c.name, c.level, c.capacity, c.room_number, c.department, c.stream, c.academic_year, t.first_name, t.last_name
-ORDER BY c.level, c.name;
+ALTER TABLE student_subjects ENABLE ROW LEVEL SECURITY;
 
--- Get classes by education level
-SELECT * FROM classes
-WHERE level IN ('Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6')
-ORDER BY level;
+DROP POLICY IF EXISTS "Anyone can read student_subjects" ON student_subjects;
+CREATE POLICY "Anyone can read student_subjects" ON student_subjects FOR SELECT TO authenticated USING (true);
 
--- Get SSS classes by department
-SELECT * FROM classes
-WHERE level IN ('SSS 1', 'SSS 2', 'SSS 3')
-AND department = 'Science'
-ORDER BY level;
+DROP POLICY IF EXISTS "Teachers can manage student_subjects" ON student_subjects;
+CREATE POLICY "Teachers can manage student_subjects" ON student_subjects FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Get class capacity utilization
-SELECT
-  c.id,
-  c.name,
-  c.level,
-  c.capacity,
-  COUNT(s.id) FILTER (WHERE s.status = 'active') as enrolled,
-  c.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active') as available_spots,
-  ROUND((COUNT(s.id) FILTER (WHERE s.status = 'active')::numeric / c.capacity) * 100, 2) as utilization_percentage
-FROM classes c
-LEFT JOIN students s ON s.class_id = c.id
-GROUP BY c.id, c.name, c.level, c.capacity
-ORDER BY utilization_percentage DESC;
+CREATE INDEX IF NOT EXISTS idx_student_subjects_student ON student_subjects(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_subjects_subject ON student_subjects(subject_id);
+CREATE INDEX IF NOT EXISTS idx_student_subjects_session ON student_subjects(session_id);
 
--- =====================================================
--- 2. SUBJECTS QUERIES
--- =====================================================
+-- ============================================================================
+-- 2. UPDATE RESULTS TABLE STRUCTURE
+-- Store detailed test scores instead of just final marks
+-- ============================================================================
 
--- Get all subjects with assigned classes
-SELECT
-  s.id,
-  s.name,
-  s.education_level,
-  s.department,
-  s.religion,
-  s.is_optional,
-  COUNT(DISTINCT sc.class_id) as assigned_classes_count,
-  STRING_AGG(DISTINCT c.name, ', ') as class_names
-FROM subjects s
-LEFT JOIN subject_classes sc ON sc.subject_id = s.id
-LEFT JOIN classes c ON c.id = sc.class_id
-GROUP BY s.id, s.name, s.education_level, s.department, s.religion, s.is_optional
-ORDER BY s.education_level, s.name;
+-- Drop existing results table if it exists and recreate with new structure
+DROP TABLE IF EXISTS results CASCADE;
 
--- Get subjects for a specific class
-SELECT
-  s.id,
-  s.name,
-  s.education_level,
-  s.department,
-  s.religion,
-  s.is_optional
-FROM subjects s
-INNER JOIN subject_classes sc ON sc.subject_id = s.id
-WHERE sc.class_id = 'YOUR_CLASS_ID_HERE'
-ORDER BY s.name;
+CREATE TABLE results (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid REFERENCES students(id) ON DELETE CASCADE,
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
+  class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
+  session_id uuid REFERENCES sessions(id) ON DELETE CASCADE,
+  term_id uuid REFERENCES terms(id) ON DELETE CASCADE,
 
--- Get subjects by education level and department
-SELECT * FROM subjects
-WHERE education_level = 'SSS'
-AND department = 'Science'
-ORDER BY name;
+  -- Test scores
+  welcome_test numeric DEFAULT 0 CHECK (welcome_test >= 0 AND welcome_test <= 10),
+  mid_term_test numeric DEFAULT 0 CHECK (mid_term_test >= 0 AND mid_term_test <= 20),
+  vetting numeric DEFAULT 0 CHECK (vetting >= 0 AND vetting <= 10),
+  exam numeric DEFAULT 0 CHECK (exam >= 0 AND exam <= 60),
 
--- Get optional subjects
-SELECT * FROM subjects
-WHERE is_optional = true
-ORDER BY education_level, name;
+  -- Calculated fields
+  total numeric DEFAULT 0,
+  grade text DEFAULT '',
+  remark text DEFAULT '',
 
--- Get subjects by religion
-SELECT * FROM subjects
-WHERE religion = 'Christian'
-ORDER BY education_level, name;
+  -- Teacher and principal comments (stored per student per term, not per subject)
+  class_teacher_remark text DEFAULT '',
+  class_teacher_name text DEFAULT '',
+  class_teacher_signature text DEFAULT '',
+  principal_remark text DEFAULT '',
+  principal_signature text DEFAULT '',
 
--- =====================================================
--- 3. STUDENTS QUERIES
--- =====================================================
+  -- Next term begins date
+  next_term_begins date,
 
--- Get all active students with class info
-SELECT
-  s.id,
-  s.student_id,
-  s.first_name,
-  s.last_name,
-  s.email,
-  s.phone,
-  s.gender,
-  s.department,
-  s.class_id,
-  c.name as class_name,
-  c.level as class_level,
-  s.parent_name,
-  s.parent_email,
-  s.parent_phone,
-  s.average_attendance,
-  s.status,
-  s.admission_date
-FROM students s
-LEFT JOIN classes c ON c.id = s.class_id
-WHERE s.status = 'active'
-ORDER BY s.first_name, s.last_name;
+  -- Class position and statistics
+  position integer,
+  total_students integer,
+  class_average numeric,
 
--- Get students by class
-SELECT
-  s.student_id,
-  s.first_name,
-  s.last_name,
-  s.email,
-  s.average_attendance,
-  s.status
-FROM students s
-WHERE s.class_id = 'YOUR_CLASS_ID_HERE'
-AND s.status = 'active'
-ORDER BY s.last_name, s.first_name;
+  -- Metadata
+  entered_by uuid REFERENCES teachers(id) ON DELETE SET NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
 
--- Get student with full details including results and attendance
-SELECT
-  s.*,
-  c.name as class_name,
-  c.level as class_level,
-  c.department as class_department
-FROM students s
-LEFT JOIN classes c ON c.id = s.class_id
-WHERE s.id = 'YOUR_STUDENT_ID_HERE';
+  UNIQUE(student_id, subject_id, term_id)
+);
 
--- Get students admitted in current month
-SELECT
-  COUNT(*) as new_students,
-  s.class_id,
-  c.name as class_name
-FROM students s
-LEFT JOIN classes c ON c.id = s.class_id
-WHERE DATE_TRUNC('month', s.admission_date) = DATE_TRUNC('month', CURRENT_DATE)
-GROUP BY s.class_id, c.name;
+ALTER TABLE results ENABLE ROW LEVEL SECURITY;
 
--- Get students by attendance percentage range
-SELECT
-  s.student_id,
-  s.first_name,
-  s.last_name,
-  s.average_attendance,
-  c.name as class_name
-FROM students s
-LEFT JOIN classes c ON c.id = s.class_id
-WHERE s.average_attendance >= 80
-ORDER BY s.average_attendance DESC;
+DROP POLICY IF EXISTS "Anyone can read results" ON results;
+CREATE POLICY "Anyone can read results" ON results FOR SELECT TO authenticated USING (true);
 
--- Get student results for a specific session and term
-SELECT
-  s.student_id,
-  s.first_name,
-  s.last_name,
-  result_item->>'subject' as subject,
-  (result_item->>'welcomeTest')::numeric as welcome_test,
-  (result_item->>'midTerm')::numeric as mid_term,
-  (result_item->>'vetting')::numeric as vetting,
-  (result_item->>'exam')::numeric as exam,
-  (result_item->>'total')::numeric as total,
-  result_item->>'grade' as grade
-FROM students s,
-LATERAL jsonb_array_elements(s.results) as result_item
-WHERE result_item->>'session_id' = 'YOUR_SESSION_ID_HERE'
-AND result_item->>'term_id' = 'YOUR_TERM_ID_HERE'
-ORDER BY s.last_name, s.first_name, result_item->>'subject';
+DROP POLICY IF EXISTS "Teachers can manage results" ON results;
+CREATE POLICY "Teachers can manage results" ON results FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- Get students with low attendance (below 75%)
-SELECT
-  s.student_id,
-  s.first_name,
-  s.last_name,
-  s.average_attendance,
-  c.name as class_name,
-  s.parent_name,
-  s.parent_phone,
-  s.parent_email
-FROM students s
-LEFT JOIN classes c ON c.id = s.class_id
-WHERE s.average_attendance < 75
-AND s.status = 'active'
-ORDER BY s.average_attendance ASC;
+CREATE INDEX IF NOT EXISTS idx_results_student ON results(student_id);
+CREATE INDEX IF NOT EXISTS idx_results_subject ON results(subject_id);
+CREATE INDEX IF NOT EXISTS idx_results_class ON results(class_id);
+CREATE INDEX IF NOT EXISTS idx_results_term ON results(term_id);
+CREATE INDEX IF NOT EXISTS idx_results_session ON results(session_id);
 
--- =====================================================
--- 4. TEACHERS QUERIES
--- =====================================================
+-- ============================================================================
+-- 3. TRIGGER TO AUTO-CALCULATE TOTAL AND GRADE
+-- ============================================================================
 
--- Get all teachers with their assigned classes
-SELECT
-  t.id,
-  t.staff_id,
-  t.first_name,
-  t.last_name,
-  t.email,
-  t.phone,
-  t.specialization,
-  t.status,
-  COUNT(DISTINCT tc.class_id) as assigned_classes_count,
-  STRING_AGG(DISTINCT c.name, ', ') as class_names
-FROM teachers t
-LEFT JOIN teacher_classes tc ON tc.teacher_id = t.id
-LEFT JOIN classes c ON c.id = tc.class_id
-GROUP BY t.id, t.staff_id, t.first_name, t.last_name, t.email, t.phone, t.specialization, t.status
-ORDER BY t.last_name, t.first_name;
+CREATE OR REPLACE FUNCTION calculate_result_totals()
+RETURNS TRIGGER AS $$
+DECLARE
+  calculated_total numeric;
+  calculated_grade text;
+  calculated_remark text;
+BEGIN
+  -- Calculate total
+  calculated_total := COALESCE(NEW.welcome_test, 0) +
+                      COALESCE(NEW.mid_term_test, 0) +
+                      COALESCE(NEW.vetting, 0) +
+                      COALESCE(NEW.exam, 0);
 
--- Get teachers assigned to a specific class
-SELECT
-  t.id,
-  t.staff_id,
-  t.first_name,
-  t.last_name,
-  t.email,
-  t.specialization
-FROM teachers t
-INNER JOIN teacher_classes tc ON tc.teacher_id = t.id
-WHERE tc.class_id = 'YOUR_CLASS_ID_HERE'
-AND t.status = 'active'
-ORDER BY t.last_name, t.first_name;
+  NEW.total := calculated_total;
 
--- Get classes assigned to a specific teacher
-SELECT
-  c.id,
-  c.name,
-  c.level,
-  c.department,
-  COUNT(DISTINCT s.id) FILTER (WHERE s.status = 'active') as student_count
-FROM classes c
-INNER JOIN teacher_classes tc ON tc.class_id = c.id
-LEFT JOIN students s ON s.class_id = c.id
-WHERE tc.teacher_id = 'YOUR_TEACHER_ID_HERE'
-GROUP BY c.id, c.name, c.level, c.department
-ORDER BY c.level, c.name;
+  -- Calculate grade and remark based on total
+  IF calculated_total >= 75 THEN
+    calculated_grade := 'A1';
+    calculated_remark := 'Excellent';
+  ELSIF calculated_total >= 70 THEN
+    calculated_grade := 'B2';
+    calculated_remark := 'Very Good';
+  ELSIF calculated_total >= 65 THEN
+    calculated_grade := 'B3';
+    calculated_remark := 'Good';
+  ELSIF calculated_total >= 60 THEN
+    calculated_grade := 'C4';
+    calculated_remark := 'Credit';
+  ELSIF calculated_total >= 55 THEN
+    calculated_grade := 'C5';
+    calculated_remark := 'Credit';
+  ELSIF calculated_total >= 50 THEN
+    calculated_grade := 'C6';
+    calculated_remark := 'Credit';
+  ELSIF calculated_total >= 45 THEN
+    calculated_grade := 'D7';
+    calculated_remark := 'Pass';
+  ELSIF calculated_total >= 40 THEN
+    calculated_grade := 'E8';
+    calculated_remark := 'Pass';
+  ELSE
+    calculated_grade := 'F9';
+    calculated_remark := 'Fail';
+  END IF;
 
--- Get class teachers (teachers assigned as main class teacher)
-SELECT
-  t.id,
-  t.staff_id,
-  t.first_name,
-  t.last_name,
-  c.name as class_name,
-  c.level as class_level,
-  COUNT(DISTINCT s.id) FILTER (WHERE s.status = 'active') as student_count
-FROM teachers t
-INNER JOIN classes c ON c.class_teacher_id = t.id
-LEFT JOIN students s ON s.class_id = c.id
-WHERE t.status = 'active'
-GROUP BY t.id, t.staff_id, t.first_name, t.last_name, c.name, c.level
-ORDER BY t.last_name, t.first_name;
+  NEW.grade := calculated_grade;
+  NEW.remark := calculated_remark;
+  NEW.updated_at := now();
 
--- =====================================================
--- 5. SESSIONS AND TERMS QUERIES
--- =====================================================
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
--- Get current session and terms
-SELECT
-  s.id as session_id,
-  s.name as session_name,
-  s.start_date as session_start,
-  s.end_date as session_end,
-  t.id as term_id,
-  t.name as term_name,
-  t.start_date as term_start,
-  t.end_date as term_end,
-  t.is_current as is_current_term
-FROM sessions s
-LEFT JOIN terms t ON t.session_id = s.id
-WHERE s.is_current = true
-ORDER BY t.start_date;
+DROP TRIGGER IF EXISTS trigger_calculate_result_totals ON results;
+CREATE TRIGGER trigger_calculate_result_totals
+  BEFORE INSERT OR UPDATE OF welcome_test, mid_term_test, vetting, exam ON results
+  FOR EACH ROW
+  EXECUTE FUNCTION calculate_result_totals();
 
--- Get all sessions with term counts
-SELECT
-  s.id,
-  s.name,
-  s.start_date,
-  s.end_date,
-  s.is_current,
-  COUNT(t.id) as term_count
-FROM sessions s
-LEFT JOIN terms t ON t.session_id = s.id
-GROUP BY s.id, s.name, s.start_date, s.end_date, s.is_current
-ORDER BY s.start_date DESC;
+-- ============================================================================
+-- 4. FUNCTION TO GET STUDENT CLASS POSITION
+-- ============================================================================
 
--- Get terms for a specific session
-SELECT
-  t.id,
-  t.name,
-  t.start_date,
-  t.end_date,
-  t.is_current
-FROM terms t
-WHERE t.session_id = 'YOUR_SESSION_ID_HERE'
-ORDER BY t.start_date;
-
--- =====================================================
--- 6. STATISTICS AND ANALYTICS QUERIES
--- =====================================================
-
--- Get overall school statistics
-SELECT
-  (SELECT COUNT(*) FROM students WHERE status = 'active') as total_active_students,
-  (SELECT COUNT(*) FROM students WHERE status = 'suspended') as suspended_students,
-  (SELECT COUNT(*) FROM teachers WHERE status = 'active') as total_active_teachers,
-  (SELECT COUNT(*) FROM classes) as total_classes,
-  (SELECT COUNT(*) FROM subjects) as total_subjects,
-  (SELECT ROUND(AVG(average_attendance), 2) FROM students WHERE status = 'active') as avg_attendance_percentage;
-
--- Get class-wise student distribution
-SELECT
-  c.level,
-  c.name,
-  c.capacity,
-  COUNT(s.id) FILTER (WHERE s.status = 'active') as enrolled_students,
-  c.capacity - COUNT(s.id) FILTER (WHERE s.status = 'active') as available_spots
-FROM classes c
-LEFT JOIN students s ON s.class_id = c.id
-GROUP BY c.id, c.level, c.name, c.capacity
-ORDER BY c.level, c.name;
-
--- Get education level distribution
-SELECT
-  CASE
-    WHEN c.level IN ('Nursery 1', 'Nursery 2', 'KG 1', 'KG 2') THEN 'Pre-Primary'
-    WHEN c.level LIKE 'Primary%' THEN 'Primary'
-    WHEN c.level LIKE 'JSS%' THEN 'JSS'
-    WHEN c.level LIKE 'SSS%' THEN 'SSS'
-  END as education_level,
-  COUNT(DISTINCT c.id) as class_count,
-  COUNT(DISTINCT s.id) FILTER (WHERE s.status = 'active') as student_count,
-  COUNT(DISTINCT tc.teacher_id) as teacher_count
-FROM classes c
-LEFT JOIN students s ON s.class_id = c.id
-LEFT JOIN teacher_classes tc ON tc.class_id = c.id
-GROUP BY education_level
-ORDER BY
-  CASE education_level
-    WHEN 'Pre-Primary' THEN 1
-    WHEN 'Primary' THEN 2
-    WHEN 'JSS' THEN 3
-    WHEN 'SSS' THEN 4
-  END;
-
--- Get gender distribution
-SELECT
-  s.gender,
-  COUNT(*) as count,
-  ROUND((COUNT(*)::numeric / (SELECT COUNT(*) FROM students WHERE status = 'active')) * 100, 2) as percentage
-FROM students s
-WHERE s.status = 'active'
-GROUP BY s.gender;
-
--- Get attendance statistics by class
-SELECT
-  c.name as class_name,
-  c.level,
-  COUNT(s.id) as student_count,
-  ROUND(AVG(s.average_attendance), 2) as avg_class_attendance,
-  COUNT(*) FILTER (WHERE s.average_attendance >= 80) as students_above_80_percent,
-  COUNT(*) FILTER (WHERE s.average_attendance < 75) as students_below_75_percent
-FROM classes c
-LEFT JOIN students s ON s.class_id = c.id AND s.status = 'active'
-GROUP BY c.id, c.name, c.level
-ORDER BY avg_class_attendance DESC;
-
--- =====================================================
--- 7. USEFUL MAINTENANCE QUERIES
--- =====================================================
-
--- Update student average attendance (run when needed)
-UPDATE students
-SET average_attendance = (
-  SELECT ROUND(
-    (COUNT(*) FILTER (WHERE (value->>'status')::text = 'present') * 100.0 / COUNT(*))::numeric,
-    2
-  )
-  FROM jsonb_array_elements(students.attendance)
+CREATE OR REPLACE FUNCTION get_student_position(
+  p_student_id uuid,
+  p_term_id uuid
 )
-WHERE jsonb_array_length(attendance) > 0;
+RETURNS TABLE(
+  position integer,
+  total_score numeric,
+  total_students integer,
+  average_percentage numeric
+) AS $$
+DECLARE
+  student_total numeric;
+  student_count integer;
+  student_position integer;
+  student_avg numeric;
+BEGIN
+  -- Get student's total score for the term
+  SELECT SUM(r.total)
+  INTO student_total
+  FROM results r
+  WHERE r.student_id = p_student_id
+    AND r.term_id = p_term_id;
 
--- Find students without a class assignment
-SELECT
-  s.student_id,
-  s.first_name,
-  s.last_name,
-  s.email,
-  s.status
-FROM students s
-WHERE s.class_id IS NULL
-AND s.status = 'active';
+  -- Get student's position (based on total scores)
+  WITH class_totals AS (
+    SELECT
+      r.student_id,
+      SUM(r.total) as total_score
+    FROM results r
+    INNER JOIN students s ON s.id = r.student_id
+    WHERE r.term_id = p_term_id
+      AND s.class_id = (SELECT class_id FROM students WHERE id = p_student_id)
+    GROUP BY r.student_id
+  )
+  SELECT
+    COUNT(*) + 1,
+    COUNT(DISTINCT ct.student_id)
+  INTO student_position, student_count
+  FROM class_totals ct
+  WHERE ct.total_score > student_total;
 
--- Find classes without a class teacher
-SELECT
-  c.id,
-  c.name,
-  c.level,
-  COUNT(s.id) FILTER (WHERE s.status = 'active') as student_count
-FROM classes c
-LEFT JOIN students s ON s.class_id = c.id
-WHERE c.class_teacher_id IS NULL
-GROUP BY c.id, c.name, c.level
-ORDER BY student_count DESC;
+  -- Calculate average percentage
+  WITH subject_count AS (
+    SELECT COUNT(*) as num_subjects
+    FROM results
+    WHERE student_id = p_student_id
+      AND term_id = p_term_id
+  )
+  SELECT
+    CASE
+      WHEN sc.num_subjects > 0
+      THEN (student_total / (sc.num_subjects * 100.0)) * 100
+      ELSE 0
+    END
+  INTO student_avg
+  FROM subject_count sc;
 
--- Find subjects not assigned to any class
-SELECT
-  s.id,
-  s.name,
-  s.education_level,
-  s.department
-FROM subjects s
-LEFT JOIN subject_classes sc ON sc.subject_id = s.id
-WHERE sc.id IS NULL
-ORDER BY s.education_level, s.name;
+  RETURN QUERY SELECT student_position, student_total, student_count, student_avg;
+END;
+$$ LANGUAGE plpgsql;
 
--- =====================================================
--- 8. DATA EXPORT QUERIES
--- =====================================================
-
--- Export student contact list
-SELECT
-  s.student_id,
-  s.first_name || ' ' || s.last_name as full_name,
-  s.email as student_email,
-  s.phone as student_phone,
-  c.name as class,
-  c.level,
-  s.parent_name,
-  s.parent_email,
-  s.parent_phone,
-  s.address
-FROM students s
-LEFT JOIN classes c ON c.id = s.class_id
-WHERE s.status = 'active'
-ORDER BY c.level, s.last_name, s.first_name;
-
--- Export teacher contact list
-SELECT
-  t.staff_id,
-  t.first_name || ' ' || t.last_name as full_name,
-  t.email,
-  t.phone,
-  t.specialization,
-  t.qualification,
-  STRING_AGG(DISTINCT c.name, ', ') as assigned_classes
-FROM teachers t
-LEFT JOIN teacher_classes tc ON tc.teacher_id = t.id
-LEFT JOIN classes c ON c.id = tc.class_id
-WHERE t.status = 'active'
-GROUP BY t.id, t.staff_id, t.first_name, t.last_name, t.email, t.phone, t.specialization, t.qualification
-ORDER BY t.last_name, t.first_name;
-
--- Export class roster with student details
-SELECT
-  c.name as class_name,
-  c.level,
-  s.student_id,
-  s.first_name,
-  s.last_name,
-  s.gender,
-  s.email,
-  s.phone,
-  s.average_attendance,
-  s.admission_date
-FROM classes c
-LEFT JOIN students s ON s.class_id = c.id
-WHERE s.status = 'active'
-ORDER BY c.level, c.name, s.last_name, s.first_name;
+-- ============================================================================
+-- DONE!
+-- ============================================================================
+-- ✓ student_subjects table created for tracking student subject selections
+-- ✓ results table recreated with detailed score columns
+-- ✓ Auto-calculation trigger for total and grade
+-- ✓ Function to calculate student position in class
+-- ============================================================================

@@ -42,7 +42,7 @@ export function StudentDetailsModal({
   >('monthly');
   // ⬇️ NEW: Fetch real attendance for this student
   const [realAttendance, setRealAttendance] = useState<any[]>([]);
-
+  const [studentResults, setStudentResults] = useState<any[]>([]);
   useEffect(() => {
     async function loadAttendance() {
       const { data } = await supabase
@@ -83,6 +83,32 @@ export function StudentDetailsModal({
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName[0]}${lastName[0]}`.toUpperCase();
   };
+
+  useEffect(() => {
+    if (!student?.id || !activeSessionId || !activeTermId) {
+      setStudentResults([]);
+      return;
+    }
+
+    async function loadResults() {
+      const { data, error } = await supabase
+        .from("results")
+        .select("*")
+        .eq("student_id", student?.id)
+        .eq("session_id", activeSessionId)
+        .eq("term_id", activeTermId);
+
+      if (error) {
+        console.error("Error fetching results:", error);
+        setStudentResults([]);
+      } else {
+        setStudentResults(data || []);
+      }
+    }
+
+    loadResults();
+  }, [student?.id, activeSessionId, activeTermId]);
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -276,7 +302,7 @@ export function StudentDetailsModal({
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <ResultsTable results={filteredResults} />
+                  <ResultsTable results={studentResults} />
                 </CardContent>
               </Card>
             </TabsContent>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Student, Session, Term } from '@/lib/types';

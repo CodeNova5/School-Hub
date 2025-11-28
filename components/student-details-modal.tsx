@@ -43,6 +43,9 @@ export function StudentDetailsModal({
   // ⬇️ NEW: Fetch real attendance for this student
   const [realAttendance, setRealAttendance] = useState<any[]>([]);
   const [studentResults, setStudentResults] = useState<any[]>([]);
+  
+  if (!student) return null;
+
   useEffect(() => {
     async function loadAttendance() {
       const { data } = await supabase
@@ -56,8 +59,6 @@ export function StudentDetailsModal({
     loadAttendance();
   }, [student?.id]);
 
-  if (!student) return null;
-
 
 
 
@@ -66,12 +67,9 @@ export function StudentDetailsModal({
 
   const activeSessionId = selectedSessionId || currentSession?.id || '';
   const activeTermId = selectedTermId || currentTerm?.id || '';
+ 
+  const filteredResults = studentResults;
 
-  const filteredResults = filterStudentResultsBySessionAndTerm(
-    student.results || [],
-    activeSessionId,
-    activeTermId
-  );
 
   const filteredAttendance = filterAttendanceByPeriod(
     realAttendance,
@@ -85,25 +83,26 @@ export function StudentDetailsModal({
   };
 
   useEffect(() => {
-    if (!student?.id || !activeSessionId || !activeTermId) {
-      setStudentResults([]);
-      return;
-    }
-
     async function loadResults() {
+      if (!student?.id || !activeSessionId || !activeTermId) {
+        setStudentResults([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("results")
         .select("*")
-        .eq("student_id", student?.id)
+        .eq("student_id", student.id)
         .eq("session_id", activeSessionId)
         .eq("term_id", activeTermId);
 
       if (error) {
         console.error("Error fetching results:", error);
         setStudentResults([]);
-      } else {
-        setStudentResults(data || []);
+        return;
       }
+
+      setStudentResults(data || []);
     }
 
     loadResults();

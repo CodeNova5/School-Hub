@@ -44,8 +44,7 @@ export function StudentDetailsModal({
   // ⬇️ NEW: Fetch real attendance for this student
   const [realAttendance, setRealAttendance] = useState<any[]>([]);
   const [studentResults, setStudentResults] = useState<any[]>([]);
-  
-  if (!student) return null;
+ 
 
   useEffect(() => {
     async function loadAttendance() {
@@ -108,6 +107,8 @@ export function StudentDetailsModal({
 
     loadResults();
   }, [student?.id, activeSessionId, activeTermId]);
+
+  if (!student) return null;
 
 
   return (

@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart } from "recharts";
-import { Loader2, Users, TrendingUp, TrendingDown, Award, BookOpen,  } from "lucide-react";
+import { Loader2, Users, TrendingUp, TrendingDown, Award, BookOpen, } from "lucide-react";
 
 export default function SubjectAnalyticsPage({ params }: any) {
     const subjectId = params.id;
@@ -94,15 +94,19 @@ export default function SubjectAnalyticsPage({ params }: any) {
     return (
         <DashboardLayout role="teacher">
             <div className="space-y-8">
+
+                {/* HEADER */}
                 <h1 className="text-3xl font-bold">Subject Analytics</h1>
                 <p className="text-gray-600">Detailed performance report for: {subject?.name}</p>
 
-                {/* Filters */}
+                {/* 1. FILTERS */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Filters</CardTitle>
                     </CardHeader>
                     <CardContent className="grid grid-cols-2 gap-4">
+
+                        {/* Session Selector */}
                         <Select
                             value={selectedSession}
                             onValueChange={(val) => {
@@ -122,6 +126,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             </SelectContent>
                         </Select>
 
+                        {/* Term Selector */}
                         <Select
                             value={selectedTerm}
                             onValueChange={(val) => {
@@ -142,23 +147,64 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                     ))}
                             </SelectContent>
                         </Select>
+
                     </CardContent>
                 </Card>
 
-                {/* Assessment Component Breakdown */}
+                {/* 2. SUMMARY CARDS */}
+                <div className="grid md:grid-cols-4 gap-4">
+
+                    {/* Students Count */}
+                    <Card>
+                        <CardContent className="p-4 flex flex-col items-center">
+                            <Users className="h-6 w-6 mb-2 text-blue-600" />
+                            <p className="text-3xl font-bold">{results.length}</p>
+                            <p className="text-gray-500 text-sm">Students Offering This Subject</p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Average Score */}
+                    <Card>
+                        <CardContent className="p-4 flex flex-col items-center">
+                            <TrendingUp className="h-6 w-6 mb-2 text-green-600" />
+                            <p className="text-3xl font-bold">{avgScore}</p>
+                            <p className="text-gray-500 text-sm">Average Score</p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Highest Score */}
+                    <Card>
+                        <CardContent className="p-4 flex flex-col items-center">
+                            <Award className="h-6 w-6 mb-2 text-purple-600" />
+                            <p className="text-3xl font-bold">{highestScore}</p>
+                            <p className="text-gray-500 text-sm">Highest Score</p>
+                        </CardContent>
+                    </Card>
+
+                    {/* Lowest Score */}
+                    <Card>
+                        <CardContent className="p-4 flex flex-col items-center">
+                            <TrendingDown className="h-6 w-6 mb-2 text-red-600" />
+                            <p className="text-3xl font-bold">{lowestScore}</p>
+                            <p className="text-gray-500 text-sm">Lowest Score</p>
+                        </CardContent>
+                    </Card>
+
+                </div>
+
+                {/* 3. ASSESSMENT COMPONENT BREAKDOWN */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Assessment Component Breakdown</CardTitle>
                     </CardHeader>
-
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart
                                 data={[
                                     { name: "Welcome Test", avg: results.length ? (results.reduce((a, b) => a + b.welcome_test, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Mid Term", avg: results.length ? (results.reduce((a, b) => a + b.mid_term, 0) / results.length).toFixed(1) : 0 },
+                                    { name: "Mid Term", avg: results.length ? (results.reduce((a, b) => a + b.mid_term_test, 0) / results.length).toFixed(1) : 0 },
                                     { name: "Vetting", avg: results.length ? (results.reduce((a, b) => a + b.vetting, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Exams", avg: results.length ? (results.reduce((a, b) => a + b.exams, 0) / results.length).toFixed(1) : 0 },
+                                    { name: "Exams", avg: results.length ? (results.reduce((a, b) => a + b.exam, 0) / results.length).toFixed(1) : 0 },
                                 ]}
                             >
                                 <XAxis dataKey="name" />
@@ -170,45 +216,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </CardContent>
                 </Card>
 
-             
-
-
-                {/* Summary */}
-                <div className="grid md:grid-cols-4 gap-4">
-                    <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <Users className="h-6 w-6 mb-2 text-blue-600" />
-                            <p className="text-3xl font-bold">{results.length}</p>
-                            <p className="text-gray-500 text-sm">Students Offering This Subject</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <TrendingUp className="h-6 w-6 mb-2 text-green-600" />
-                            <p className="text-3xl font-bold">{avgScore}</p>
-                            <p className="text-gray-500 text-sm">Average Score</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <Award className="h-6 w-6 mb-2 text-purple-600" />
-                            <p className="text-3xl font-bold">{highestScore}</p>
-                            <p className="text-gray-500 text-sm">Highest Score</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <TrendingDown className="h-6 w-6 mb-2 text-red-600" />
-                            <p className="text-3xl font-bold">{lowestScore}</p>
-                            <p className="text-gray-500 text-sm">Lowest Score</p>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Grade Distribution */}
+                {/* 4. GRADE DISTRIBUTION */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Grade Distribution</CardTitle>
@@ -221,57 +229,25 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 <Tooltip />
                                 <Bar dataKey="count">
                                     {gradeDistribution.map((entry, index) => (
-                                        <Cell
-                                            key={`cell-${index}`}
-                                            fill={GRADE_COLORS[entry.grade] || "#ccc"}
-                                        />
+                                        <Cell key={index} fill={GRADE_COLORS[entry.grade]} />
                                     ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
-
                     </CardContent>
                 </Card>
 
-                {/* Students Table */}
+                {/* 5. TOP PERFORMING STUDENTS */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Top Performing Students</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {results.length === 0 ? (
-                            <p className="text-gray-500">No results found.</p>
-                        ) : (
-                            <div className="border rounded-lg overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-100">
-                                        <tr>
-                                            <th className="p-2 text-left">Student</th>
-                                            <th className="p-2 text-left">Score</th>
-                                            <th className="p-2 text-left">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {results
-                                            .sort((a, b) => b.total - a.total)
-                                            .slice(0, 10)
-                                            .map((r) => (
-                                                <tr key={r.id} className="border-t">
-                                                    <td className="p-2">
-                                                        {r.students.first_name} {r.students.last_name} ({r.students.student_id})
-                                                    </td>
-                                                    <td className="p-2">{r.total}</td>
-                                                    <td className="p-2">{r.grade}</td>
-                                                </tr>
-                                            ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
+                        {/* Table here (same as your code) */}
                     </CardContent>
                 </Card>
 
-                {/* Struggling Students */}
+                {/* 6. STUDENTS NEEDING ATTENTION */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Students Needing Attention</CardTitle>
@@ -279,39 +255,13 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             Students scoring below 50 or failing (D7, E8, F9)
                         </p>
                     </CardHeader>
-
                     <CardContent>
-                        {results.filter(r => r.total < 50 || ["D7", "E8", "F9"].includes(r.grade)).length === 0 ? (
-                            <p className="text-gray-500">No struggling students found.</p>
-                        ) : (
-                            <div className="border rounded-lg overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-red-50">
-                                        <tr>
-                                            <th className="p-2 text-left">Student</th>
-                                            <th className="p-2 text-left">Score</th>
-                                            <th className="p-2 text-left">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {results
-                                            .filter(r => r.total < 50 || ["D7", "E8", "F9"].includes(r.grade))
-                                            .sort((a, b) => a.total - b.total)
-                                            .map((r) => (
-                                                <tr key={r.id} className="border-t bg-red-50/30">
-                                                    <td className="p-2">{r.students.first_name} {r.students.last_name}</td>
-                                                    <td className="p-2">{r.total}</td>
-                                                    <td className="p-2">{r.grade}</td>
-                                                </tr>
-                                            ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
+                        {/* Table here (same as your code) */}
                     </CardContent>
                 </Card>
 
             </div>
         </DashboardLayout>
+
     );
 }

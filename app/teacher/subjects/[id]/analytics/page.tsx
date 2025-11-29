@@ -457,7 +457,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                                 src={
                                                                     r.students.photo_url
                                                                         ? r.students.photo_url
-                                                                        : r.students.gender === "Male"
+                                                                        : r.students.gender === "male"
                                                                             ? "/male-avatar.jpg"
                                                                             : "/female-avatar.jpg"
                                                                 }
@@ -522,7 +522,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                                 src={
                                                                     r.students.photo_url
                                                                         ? r.students.photo_url
-                                                                        : r.students.gender === "Male"
+                                                                        : r.students.gender === "male"
                                                                             ? "/male-avatar.jpg"
                                                                             : "/female-avatar.jpg"
                                                                 }
@@ -592,7 +592,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                     <thead className="bg-gray-100">
                                         <tr>
                                             <th className="p-2 text-left">Term</th>
-                                            <th className="p-2 text-left">Student</th>
+                                            <th className="p-2 text-left">Profile</th>
+                                            <th className="p-2 text-left">Name</th>
                                             <th className="p-2 text-left">Score</th>
                                         </tr>
                                     </thead>
@@ -600,6 +601,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                         {topStudentsPerTerm.map((t: any) => (
                                             <tr key={t.term_id} className="border-t">
                                                 <td className="p-2">{t.term_name}</td>
+                                                <td className="p-2">
                                                 <Avatar>
                                                     <AvatarImage
                                                         src={
@@ -612,6 +614,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                     />
 
                                                 </Avatar>
+                                                </td>
                                                 <td className="p-2">{t.name} ({t.student_id})</td>
                                                 <td className="p-2">{t.total}</td>
                                             </tr>

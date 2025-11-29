@@ -260,18 +260,27 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                             .sort((a, b) => b.total - a.total)
                                             .slice(0, 10)
                                             .map((r) => (
-                                                
+
 
                                                 <tr key={r.id} className="border-t">
                                                     <td className="p-2 flex items-center gap-3">
                                                         <span className="w-6 text-sm text-right text-gray-600">
                                                             {results.filter(s => s.total > r.total).length + 1}.
                                                         </span>
+
                                                         <img
-                                                            src={r.students.avatar || r.students.photo || r.students.image || "/images/default-avatar.png"}
+                                                            src={
+                                                                r.students.photo_url ||
+                                                                (r.students.gender
+                                                                    ? r.students.gender.toLowerCase() === "male"
+                                                                        ? "/images/male-avatar.jpg"
+                                                                        : "/images/female-avatar.jpg"
+                                                                    : "/images/default-avatar.png")
+                                                            }
                                                             alt={`${r.students.first_name} ${r.students.last_name}`}
                                                             className="h-8 w-8 rounded-full object-cover"
                                                         />
+
                                                         <div>
                                                             <div className="font-medium">
                                                                 {r.students.first_name} {r.students.last_name}
@@ -291,6 +300,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 </Card>
 
                 {/* 6. STUDENTS NEEDING ATTENTION */}
+
                 <Card>
                     <CardHeader>
                         <CardTitle>Students Needing Attention</CardTitle>
@@ -318,7 +328,26 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                             .sort((a, b) => a.total - b.total)
                                             .map((r) => (
                                                 <tr key={r.id} className="border-t bg-red-50/30">
-                                                    <td className="p-2">{r.students.first_name} {r.students.last_name}</td>
+                                                    <td className="p-2 flex items-center gap-3">
+                                                        <img
+                                                            src={
+                                                                r.students.photo_url ||
+                                                                (r.students.gender
+                                                                    ? r.students.gender.toLowerCase() === "male"
+                                                                        ? "/images/male-avatar.jpg"
+                                                                        : "/images/female-avatar.jpg"
+                                                                    : "/images/default-avatar.png")
+                                                            }
+                                                            alt={`${r.students.first_name} ${r.students.last_name}`}
+                                                            className="h-8 w-8 rounded-full object-cover"
+                                                        />
+                                                        <div>
+                                                            <div className="font-medium">
+                                                                {r.students.first_name} {r.students.last_name}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">({r.students.student_id})</div>
+                                                        </div>
+                                                    </td>
                                                     <td className="p-2">{r.total}</td>
                                                     <td className="p-2">{r.grade}</td>
                                                 </tr>
@@ -329,6 +358,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         )}
                     </CardContent>
                 </Card>
+
 
             </div>
         </DashboardLayout>

@@ -73,8 +73,8 @@ export interface AttendanceEntry {
 
 export interface Result {
   subject: string;
-  welcomeTest: number;
-  midTerm: number;
+  welcome_test: number;
+  mid_term_test: number;
   vetting: number;
   exam: number;
   total: number;

@@ -12,7 +12,6 @@ import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Save, Printer, ArrowLeft, Loader2 } from 'lucide-react';
-import Image from 'next/image';
 
 interface SubjectScore {
   subject_id: string;
@@ -109,8 +108,9 @@ async function loadData() {
       return;
     }
 
-    const initialScores = (subjectsData as any[]).map((subject: any) => ({
-      subject_id: subject.subject_id,
+    // Create initial empty scores
+    const initialScores: SubjectScore[] = (subjectsData as any[]).map((subject: any) => ({
+      subject_id: subject.subject_id ?? subject.id,
       subject_name: subject.name,
       welcome_test: 0,
       mid_term_test: 0,
@@ -120,6 +120,48 @@ async function loadData() {
       grade: "",
       remark: "",
     }));
+
+    // Load existing results for the same session & term (if available) and merge them into initialScores
+    if (sessionData?.id && termData?.id) {
+      const { data: existingResults } = await supabase
+        .from('results')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('session_id', sessionData.id)
+        .eq('term_id', termData.id);
+
+      if (existingResults && existingResults.length > 0) {
+        // Set remarks/nextTermBegins from the first existing record (they are per-term fields)
+        const first = existingResults[0];
+        setClassTeacherRemark(first.class_teacher_remark || "");
+        setPrincipalRemark(first.principal_remark || "");
+        setNextTermBegins(first.next_term_begins || "");
+
+        // Map existing results into initialScores
+        for (const res of existingResults) {
+          const idx = initialScores.findIndex((s) => s.subject_id === res.subject_id);
+          if (idx >= 0) {
+            const welcome = clampNumber(res.welcome_test ?? 0, 0, 10);
+            const mid = clampNumber(res.mid_term_test ?? 0, 0, 20);
+            const vetting = clampNumber(res.vetting ?? 0, 0, 10);
+            const exam = clampNumber(res.exam ?? 0, 0, 60);
+            const total = Number(welcome + mid + vetting + exam);
+            const { grade, remark } = calculateGrade(total);
+            initialScores[idx] = {
+              subject_id: res.subject_id,
+              subject_name: initialScores[idx].subject_name,
+              welcome_test: welcome,
+              mid_term_test: mid,
+              vetting,
+              exam,
+              total,
+              grade,
+              remark: res.remark ?? remark,
+            };
+          }
+        }
+      }
+    }
 
     setScores(initialScores);
 
@@ -137,6 +179,12 @@ async function loadData() {
   }
 }
 
+// Helper to clamp numbers to max allowed
+function clampNumber(value: number, min: number, max: number) {
+  if (isNaN(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
 function calculateGrade(total: number): { grade: string; remark: string } {
   if (total >= 75) return { grade: 'A1', remark: 'Excellent' };
   if (total >= 70) return { grade: 'B2', remark: 'Very Good' };
@@ -151,11 +199,22 @@ function calculateGrade(total: number): { grade: string; remark: string } {
 
 function updateScore(index: number, field: keyof SubjectScore, value: string) {
   const newScores = [...scores];
-  const numValue = parseFloat(value) || 0;
+  let numValue = parseFloat(value);
+  if (isNaN(numValue)) numValue = 0;
+
+  // enforce limits per field
+  const limits: Record<string, number> = {
+    welcome_test: 10,
+    mid_term_test: 20,
+    vetting: 10,
+    exam: 60,
+  };
+  const max = limits[field as string] ?? 100;
+  const clamped = clampNumber(numValue, 0, max);
 
   newScores[index] = {
     ...newScores[index],
-    [field]: numValue,
+    [field]: clamped,
   };
 
   if (['welcome_test', 'mid_term_test', 'vetting', 'exam'].includes(field)) {
@@ -190,22 +249,20 @@ async function handleSave() {
     const user = await getCurrentUser();
     const teacher = user ? await getTeacherByUserId(user.id) : null;
 
-    await supabase
-      .from('results')
-      .delete()
-      .eq('student_id', studentId)
-      .eq('term_id', term.id);
-
+    // Build records including computed totals and grade/remark
     const records = scores.map(score => ({
       student_id: studentId,
       subject_id: score.subject_id,
       class_id: student?.class_id,
       session_id: session.id,
       term_id: term.id,
-      welcome_test: score.welcome_test,
-      mid_term_test: score.mid_term_test,
-      vetting: score.vetting,
-      exam: score.exam,
+      welcome_test: clampNumber(score.welcome_test, 0, 10),
+      mid_term_test: clampNumber(score.mid_term_test, 0, 20),
+      vetting: clampNumber(score.vetting, 0, 10),
+      exam: clampNumber(score.exam, 0, 60),
+      total: score.total,
+      grade: score.grade,
+      remark: score.remark,
       class_teacher_remark: classTeacherRemark,
       class_teacher_name: teacher ? `${teacher.first_name} ${teacher.last_name}` : '',
       principal_remark: principalRemark,
@@ -213,16 +270,31 @@ async function handleSave() {
       entered_by: teacher?.id,
     }));
 
-    const { error } = await supabase
+    // Try to upsert (preferred) — requires unique constraint on student+subject+session+term
+    const { error: upsertError } = await supabase
       .from('results')
-      .insert(records);
+      .upsert(records, { onConflict: 'student_id,subject_id,session_id,term_id' });
 
-    if (error) throw error;
+    if (upsertError) {
+      // fallback: delete and insert — ensures no duplicates if upsert fails
+      await supabase
+        .from('results')
+        .delete()
+        .eq('student_id', studentId)
+        .eq('term_id', term.id)
+        .eq('session_id', session.id);
+
+      const { error } = await supabase
+        .from('results')
+        .insert(records);
+
+      if (error) throw error;
+    }
 
     toast.success('Results saved successfully');
     router.push('/teacher/results');
   } catch (error: any) {
-    toast.error('Failed to save results: ' + error.message);
+    toast.error('Failed to save results: ' + (error?.message || String(error)));
   } finally {
     setIsSaving(false);
   }

@@ -48,7 +48,7 @@ export function ResultsTable({ results }: ResultsTableProps) {
             ) : (
               results.map((result, index) => (
                 <TableRow key={index}>
-                  <TableCell className="font-medium">{result.subject}</TableCell>
+                  <TableCell className="font-medium">{result.subject_name}</TableCell>
                   <TableCell className="text-center">{result.welcome_test}</TableCell>
                   <TableCell className="text-center">{result.mid_term_test}</TableCell>
                   <TableCell className="text-center">{result.vetting}</TableCell>

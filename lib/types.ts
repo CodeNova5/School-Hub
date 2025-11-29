@@ -72,7 +72,7 @@ export interface AttendanceEntry {
 }
 
 export interface Result {
-  subject: string;
+  subject_name: string;
   welcome_test: number;
   mid_term_test: number;
   vetting: number;

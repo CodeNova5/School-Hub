@@ -253,6 +253,7 @@ async function handleSave() {
     const records = scores.map(score => ({
       student_id: studentId,
       subject_id: score.subject_id,
+      subject_name: score.subject_name, // <--- added field
       class_id: student?.class_id,
       session_id: session.id,
       term_id: term.id,

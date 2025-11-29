@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { Loader2, Users, TrendingUp, TrendingDown, Award, BookOpen, } from "lucide-react";
-import { AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 export default function SubjectAnalyticsPage({ params }: any) {
     const subjectId = params.id;
 
@@ -447,8 +447,12 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                             {results.filter(s => s.total > r.total).length + 1}.
                                                         </span>
 
+                                                        <Avatar>
                                                         <AvatarImage src={r.students.photo_url} />
-
+                                                        <AvatarFallback className="bg-blue-100 text-blue-700">
+                                                            {r.students.first_name.charAt(0)}{r.students.last_name.charAt(0)}
+                                                        </AvatarFallback>
+                                                        </Avatar>
                                                         <div>
                                                             <div className="font-medium">
                                                                 {r.students.first_name} {r.students.last_name}

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 import { Loader2, Users, TrendingUp, TrendingDown, Award, BookOpen, } from "lucide-react";
-
+import { AvatarImage } from "@/components/ui/avatar";
 export default function SubjectAnalyticsPage({ params }: any) {
     const subjectId = params.id;
 
@@ -447,18 +447,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                             {results.filter(s => s.total > r.total).length + 1}.
                                                         </span>
 
-                                                        <img
-                                                            src={
-                                                                r.students.photo_url ||
-                                                                (r.students.gender
-                                                                    ? r.students.gender.toLowerCase() === "male"
-                                                                        ? "/images/male-avatar.jpg"
-                                                                        : "/images/female-avatar.jpg"
-                                                                    : "/images/default-avatar.png")
-                                                            }
-                                                            alt={`${r.students.first_name} ${r.students.last_name}`}
-                                                            className="h-8 w-8 rounded-full object-cover"
-                                                        />
+                                                        <AvatarImage src={r.students.photo_url} />
 
                                                         <div>
                                                             <div className="font-medium">

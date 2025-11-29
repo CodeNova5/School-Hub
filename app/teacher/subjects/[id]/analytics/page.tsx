@@ -73,7 +73,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
     async function loadResults(subId: string, sessionId?: string, termId?: string) {
         let query: any = supabase
             .from("results")
-            .select(`*, students(first_name, last_name, student_id, gender)`)
+            .select(`*, students(first_name, last_name, student_id, gender, photo_url)`)
             .eq("subject_id", subId);
 
         if (sessionId) query = query.eq("session_id", sessionId);
@@ -190,7 +190,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             total,
             term_id,
             terms (name),
-            students (first_name, last_name, student_id)
+            students (first_name, last_name, student_id, photo_url, gender)
         `)
             .eq("subject_id", subId);
 
@@ -448,10 +448,21 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                         </span>
 
                                                         <Avatar>
-                                                        <AvatarImage src={r.students.photo_url} />
-                                                        <AvatarFallback className="bg-blue-100 text-blue-700">
-                                                            {r.students.first_name.charAt(0)}{r.students.last_name.charAt(0)}
-                                                        </AvatarFallback>
+                                                            <AvatarImage
+                                                                src={
+                                                                    r.students.photo_url
+                                                                        ? r.students.photo_url
+                                                                        : r.students.gender === "Male"
+                                                                            ? "/male-avatar.jpg"
+                                                                            : "/female-avatar.jpg"
+                                                                }
+                                                            />
+
+                                                            <AvatarFallback className="bg-blue-100 text-blue-700">
+                                                                {r.students.first_name.charAt(0)}
+                                                                {r.students.last_name.charAt(0)}
+                                                            </AvatarFallback>
+
                                                         </Avatar>
                                                         <div>
                                                             <div className="font-medium">
@@ -471,8 +482,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </CardContent>
                 </Card>
 
-                {/* 6. STUDENTS NEEDING ATTENTION */}
 
+                {/* 6. STUDENTS NEEDING ATTENTION */}
                 <Card>
                     <CardHeader>
                         <CardTitle>Students Needing Attention</CardTitle>
@@ -501,18 +512,23 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                             .map((r) => (
                                                 <tr key={r.id} className="border-t bg-red-50/30">
                                                     <td className="p-2 flex items-center gap-3">
-                                                        <img
-                                                            src={
-                                                                r.students.photo_url ||
-                                                                (r.students.gender
-                                                                    ? r.students.gender.toLowerCase() === "male"
-                                                                        ? "/images/male-avatar.jpg"
-                                                                        : "/images/female-avatar.jpg"
-                                                                    : "/images/default-avatar.png")
-                                                            }
-                                                            alt={`${r.students.first_name} ${r.students.last_name}`}
-                                                            className="h-8 w-8 rounded-full object-cover"
-                                                        />
+                                                        <Avatar>
+                                                            <AvatarImage
+                                                                src={
+                                                                    r.students.photo_url
+                                                                        ? r.students.photo_url
+                                                                        : r.students.gender === "Male"
+                                                                            ? "/male-avatar.jpg"
+                                                                            : "/female-avatar.jpg"
+                                                                }
+                                                            />
+
+                                                            <AvatarFallback className="bg-blue-100 text-blue-700">
+                                                                {r.students.first_name.charAt(0)}
+                                                                {r.students.last_name.charAt(0)}
+                                                            </AvatarFallback>
+
+                                                        </Avatar>
                                                         <div>
                                                             <div className="font-medium">
                                                                 {r.students.first_name} {r.students.last_name}
@@ -579,6 +595,23 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                         {topStudentsPerTerm.map((t: any) => (
                                             <tr key={t.term_id} className="border-t">
                                                 <td className="p-2">{t.term_name}</td>
+                                                <Avatar>
+                                                    <AvatarImage
+                                                        src={
+                                                            t.students.photo_url
+                                                                ? t.students.photo_url
+                                                                : t.students.gender === "Male"
+                                                                    ? "/male-avatar.jpg"
+                                                                    : "/female-avatar.jpg"
+                                                        }
+                                                    />
+
+                                                    <AvatarFallback className="bg-blue-100 text-blue-700">
+                                                        {t.students.first_name.charAt(0)}
+                                                        {t.students.last_name.charAt(0)}
+                                                    </AvatarFallback>
+
+                                                </Avatar>
                                                 <td className="p-2">{t.name} ({t.student_id})</td>
                                                 <td className="p-2">{t.total}</td>
                                             </tr>

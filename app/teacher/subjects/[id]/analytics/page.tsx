@@ -182,6 +182,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
         setHistoryData(formatted);
     }
 
+
     async function loadTopStudentsPerTerm(subId: string) {
         const { data } = await supabase
             .from("results")
@@ -208,8 +209,12 @@ export default function SubjectAnalyticsPage({ params }: any) {
         const formatted = Object.values(map).map((r: any) => ({
             term_id: r.term_id,
             term_name: r.terms?.name,
-            name: `${r.students.first_name} ${r.students.last_name}`,
-            student_id: r.students.student_id,
+            // include students object and top-level photo/gender so renderer can use them
+            students: r.students || null,
+            student_name: `${r.students?.first_name || ""} ${r.students?.last_name || ""}`.trim(),
+            student_id: r.students?.student_id || "",
+            photo_url: r.students?.photo_url || "",
+            gender: r.students?.gender || "",
             total: r.total,
         }));
 
@@ -598,18 +603,13 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                 <Avatar>
                                                     <AvatarImage
                                                         src={
-                                                            t.students.photo_url
-                                                                ? t.students.photo_url
-                                                                : t.students.gender === "Male"
-                                                                    ? "/male-avatar.jpg"
-                                                                    : "/female-avatar.jpg"
+                                                            t.photo_url ||
+                                                            (t.gender?.toLowerCase() === "male"
+                                                                ? "/images/male-avatar.jpg"
+                                                                : "/images/female-avatar.jpg") ||
+                                                            "/images/default-avatar.png"
                                                         }
                                                     />
-
-                                                    <AvatarFallback className="bg-blue-100 text-blue-700">
-                                                        {t.students.first_name.charAt(0)}
-                                                        {t.students.last_name.charAt(0)}
-                                                    </AvatarFallback>
 
                                                 </Avatar>
                                                 <td className="p-2">{t.name} ({t.student_id})</td>

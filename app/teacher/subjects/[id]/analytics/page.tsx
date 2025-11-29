@@ -243,7 +243,50 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         <CardTitle>Top Performing Students</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {/* Table here (same as your code) */}
+                        {results.length === 0 ? (
+                            <p className="text-gray-500">No results found.</p>
+                        ) : (
+                            <div className="border rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="p-2 text-left">Student</th>
+                                            <th className="p-2 text-left">Score</th>
+                                            <th className="p-2 text-left">Grade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {results
+                                            .sort((a, b) => b.total - a.total)
+                                            .slice(0, 10)
+                                            .map((r) => (
+                                                
+
+                                                <tr key={r.id} className="border-t">
+                                                    <td className="p-2 flex items-center gap-3">
+                                                        <span className="w-6 text-sm text-right text-gray-600">
+                                                            {results.filter(s => s.total > r.total).length + 1}.
+                                                        </span>
+                                                        <img
+                                                            src={r.students.avatar || r.students.photo || r.students.image || "/images/default-avatar.png"}
+                                                            alt={`${r.students.first_name} ${r.students.last_name}`}
+                                                            className="h-8 w-8 rounded-full object-cover"
+                                                        />
+                                                        <div>
+                                                            <div className="font-medium">
+                                                                {r.students.first_name} {r.students.last_name}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">({r.students.student_id})</div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-2">{r.total}</td>
+                                                    <td className="p-2">{r.grade}</td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -255,8 +298,35 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             Students scoring below 50 or failing (D7, E8, F9)
                         </p>
                     </CardHeader>
+
                     <CardContent>
-                        {/* Table here (same as your code) */}
+                        {results.filter(r => r.total < 50 || ["D7", "E8", "F9"].includes(r.grade)).length === 0 ? (
+                            <p className="text-gray-500">No struggling students found.</p>
+                        ) : (
+                            <div className="border rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-red-50">
+                                        <tr>
+                                            <th className="p-2 text-left">Student</th>
+                                            <th className="p-2 text-left">Score</th>
+                                            <th className="p-2 text-left">Grade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {results
+                                            .filter(r => r.total < 50 || ["D7", "E8", "F9"].includes(r.grade))
+                                            .sort((a, b) => a.total - b.total)
+                                            .map((r) => (
+                                                <tr key={r.id} className="border-t bg-red-50/30">
+                                                    <td className="p-2">{r.students.first_name} {r.students.last_name}</td>
+                                                    <td className="p-2">{r.total}</td>
+                                                    <td className="p-2">{r.grade}</td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 

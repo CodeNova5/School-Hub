@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { Loader2, Users, TrendingUp, TrendingDown, Award, BookOpen, } from "lucide-react";
+import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, } from "recharts";
+import { Users, TrendingUp, TrendingDown, Award, } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Input } from "@/components/ui/input";
 export default function SubjectAnalyticsPage({ params }: any) {
     const subjectId = params.id;
 
@@ -24,6 +24,11 @@ export default function SubjectAnalyticsPage({ params }: any) {
     const [termTrend, setTermTrend] = useState<any[]>([]);
     const [genderStats, setGenderStats] = useState<any>(null);
     const [highestPerTerm, setHighestPerTerm] = useState<any[]>([]);
+    const [studentBreakdown, setStudentBreakdown] = useState<any[]>([]);
+    const [scoreFilter, setScoreFilter] = useState<number>(0);
+    const [genderFilter, setGenderFilter] = useState<string>("all");
+    const [searchQuery, setSearchQuery] = useState<string>("");
+
     // NEW STATES
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [topStudentsPerTerm, setTopStudentsPerTerm] = useState<any[]>([]);
@@ -68,7 +73,41 @@ export default function SubjectAnalyticsPage({ params }: any) {
         await loadTopStudentsPerTerm(subjectId);
         await loadGenderComparison(subjectId);
 
+
     }
+
+    async function loadStudentBreakdown(subId: string, sessionId: string, termId: string) {
+        const { data } = await supabase
+            .from("results")
+            .select(`
+            *,
+            students (first_name, last_name, student_id, gender)
+        `)
+            .eq("subject_id", subId)
+            .eq("session_id", sessionId)
+            .eq("term_id", termId);
+
+        if (!data) return;
+
+        // Sort highest → lowest
+        const sorted = data
+            .map((r: any) => ({
+                id: r.id,
+                name: `${r.students.first_name} ${r.students.last_name}`,
+                student_id: r.students.student_id,
+                gender: r.students.gender,
+                welcome_test: r.welcome_test ?? 0,
+                mid_term: r.mid_term ?? 0,
+                vetting: r.vetting ?? 0,
+                exams: r.exams ?? 0,
+                total: r.total ?? 0,
+                grade: r.grade,
+            }))
+            .sort((a: any, b: any) => b.total - a.total);
+
+        setStudentBreakdown(sorted);
+    }
+
 
     async function loadResults(subId: string, sessionId?: string, termId?: string) {
         let query: any = supabase
@@ -149,6 +188,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
             male: males.length ? (males.reduce((a: any, b: any) => a + b.total, 0) / males.length).toFixed(1) : 0,
             female: females.length ? (females.reduce((a: any, b: any) => a + b.total, 0) / females.length).toFixed(1) : 0,
         });
+        if (sessionId && termId) {
+            await loadStudentBreakdown(subId, sessionId, termId);
+        }
 
         setIsLoading(false);
     }
@@ -376,6 +418,95 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
                 </div>
 
+                {/* 🔥 STUDENT RESULT BREAKDOWN */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Student Performance Breakdown</CardTitle>
+                        <p className="text-gray-500 text-sm">
+                            Ordered by total score (highest → lowest)
+                        </p>
+                    </CardHeader>
+
+                    <CardContent>
+
+                        {/* 🔍 Filters */}
+                        <div className="flex gap-4 mb-4">
+
+                            <Input
+                                placeholder="Search by name or ID"
+                                className="w-1/3"
+                                value={searchQuery}
+                                onChange={(e: any) => setSearchQuery(e.target.value)}
+                            />
+
+                            <select
+                                className="border rounded p-2"
+                                value={genderFilter}
+                                onChange={(e) => setGenderFilter(e.target.value)}
+                            >
+                                <option value="all">All Genders</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                            </select>
+
+                            <select
+                                className="border rounded p-2"
+                                value={scoreFilter}
+                                onChange={(e) => setScoreFilter(Number(e.target.value))}
+                            >
+                                <option value={0}>All Scores</option>
+                                <option value={40}>40+ (Pass)</option>
+                                <option value={70}>70+ (Top)</option>
+                                <option value={85}>85+ (Excellent)</option>
+                            </select>
+                        </div>
+
+                        {/* 📊 Table */}
+                        <div className="border rounded-lg overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-100">
+                                    <tr>
+                                        <th className="p-2 text-left">#</th>
+                                        <th className="p-2 text-left">Student</th>
+                                        <th className="p-2 text-left">Welcome</th>
+                                        <th className="p-2 text-left">Mid-Term</th>
+                                        <th className="p-2 text-left">Vetting</th>
+                                        <th className="p-2 text-left">Exams</th>
+                                        <th className="p-2 text-left">Total</th>
+                                        <th className="p-2 text-left">Grade</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {studentBreakdown
+                                        .filter((s) =>
+                                            s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                            s.student_id.toLowerCase().includes(searchQuery.toLowerCase())
+                                        )
+                                        .filter((s) =>
+                                            genderFilter === "all" ? true : s.gender?.toLowerCase() === genderFilter
+                                        )
+                                        .filter((s) => s.total >= scoreFilter)
+                                        .map((s, index) => (
+                                            <tr key={s.id} className="border-t">
+                                                <td className="p-2">{index + 1}</td>
+                                                <td className="p-2">
+                                                    {s.name} ({s.student_id})
+                                                </td>
+                                                <td className="p-2">{s.welcome_test}</td>
+                                                <td className="p-2">{s.mid_term}</td>
+                                                <td className="p-2">{s.vetting}</td>
+                                                <td className="p-2">{s.exams}</td>
+                                                <td className="p-2 font-semibold">{s.total}</td>
+                                                <td className="p-2 font-bold">{s.grade}</td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* 3. ASSESSMENT COMPONENT BREAKDOWN */}
                 <Card>
                     <CardHeader>
@@ -602,18 +733,18 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                             <tr key={t.term_id} className="border-t">
                                                 <td className="p-2">{t.term_name}</td>
                                                 <td className="p-2">
-                                                <Avatar>
-                                                    <AvatarImage
-                                                        src={
-                                                            t.photo_url ||
-                                                            (t.gender?.toLowerCase() === "male"
-                                                                ? "/images/male-avatar.jpg"
-                                                                : "/images/female-avatar.jpg") ||
-                                                            "/images/default-avatar.png"
-                                                        }
-                                                    />
+                                                    <Avatar>
+                                                        <AvatarImage
+                                                            src={
+                                                                t.photo_url ||
+                                                                (t.gender?.toLowerCase() === "male"
+                                                                    ? "/images/male-avatar.jpg"
+                                                                    : "/images/female-avatar.jpg") ||
+                                                                "/images/default-avatar.png"
+                                                            }
+                                                        />
 
-                                                </Avatar>
+                                                    </Avatar>
                                                 </td>
                                                 <td className="p-2">{t.name} ({t.student_id})</td>
                                                 <td className="p-2">{t.total}</td>

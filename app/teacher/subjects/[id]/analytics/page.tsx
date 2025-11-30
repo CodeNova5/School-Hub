@@ -70,7 +70,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
         loadResults(subjectId, currentSession?.id, currentTerm?.id);
         await loadHistoricalPerformance(subjectId);
-        await loadTopStudentsPerTerm(subjectId);
         await loadGenderComparison(subjectId);
 
 
@@ -95,11 +94,12 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 id: r.id,
                 name: `${r.students.first_name} ${r.students.last_name}`,
                 student_id: r.students.student_id,
+                photo_url: r.students.photo_url,
                 gender: r.students.gender,
                 welcome_test: r.welcome_test ?? 0,
-                mid_term: r.mid_term ?? 0,
+                mid_term: r.mid_term_test ?? 0,
                 vetting: r.vetting ?? 0,
-                exams: r.exams ?? 0,
+                exams: r.exam ?? 0,
                 total: r.total ?? 0,
                 grade: r.grade,
             }))
@@ -222,45 +222,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
         }));
 
         setHistoryData(formatted);
-    }
-
-
-    async function loadTopStudentsPerTerm(subId: string) {
-        const { data } = await supabase
-            .from("results")
-            .select(`
-            id,
-            total,
-            term_id,
-            terms (name),
-            students (first_name, last_name, student_id, photo_url, gender)
-        `)
-            .eq("subject_id", subId);
-
-        if (!data) return;
-
-        const map: Record<string, any> = {}; // term_id → top result
-
-        data.forEach((r: any) => {
-            const termId = r.term_id;
-            if (!map[termId] || r.total > map[termId].total) {
-                map[termId] = r;
-            }
-        });
-
-        const formatted = Object.values(map).map((r: any) => ({
-            term_id: r.term_id,
-            term_name: r.terms?.name,
-            // include students object and top-level photo/gender so renderer can use them
-            students: r.students || null,
-            student_name: `${r.students?.first_name || ""} ${r.students?.last_name || ""}`.trim(),
-            student_id: r.students?.student_id || "",
-            photo_url: r.students?.photo_url || "",
-            gender: r.students?.gender || "",
-            total: r.total,
-        }));
-
-        setTopStudentsPerTerm(formatted);
     }
 
     async function loadGenderComparison(subId: string) {
@@ -491,7 +452,27 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                             <tr key={s.id} className="border-t">
                                                 <td className="p-2">{index + 1}</td>
                                                 <td className="p-2">
-                                                    {s.name} ({s.student_id})
+                                                    {/* Student Info with Avatar */}
+
+                                                    <div className="flex items-center gap-3">
+                                                        <Avatar>
+                                                            <AvatarImage
+                                                                src={
+                                                                    s.photo_url
+                                                                        ? s.photo_url
+                                                                        : s.gender === "male"
+                                                                            ? "/male-avatar.jpg"
+                                                                            : "/female-avatar.jpg"
+                                                                }
+                                                            />
+                                                        </Avatar>
+                                                        <div>
+                                                            <div className="font-medium">
+                                                                {s.name}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">({s.student_id})</div>
+                                                        </div>
+                                                    </div>
                                                 </td>
                                                 <td className="p-2">{s.welcome_test}</td>
                                                 <td className="p-2">{s.mid_term}</td>
@@ -549,72 +530,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-
-                {/* 5. TOP PERFORMING STUDENTS */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Top Performing Students</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {results.length === 0 ? (
-                            <p className="text-gray-500">No results found.</p>
-                        ) : (
-                            <div className="border rounded-lg overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-100">
-                                        <tr>
-                                            <th className="p-2 text-left">Student</th>
-                                            <th className="p-2 text-left">Score</th>
-                                            <th className="p-2 text-left">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {results
-                                            .sort((a, b) => b.total - a.total)
-                                            .slice(0, 10)
-                                            .map((r) => (
-
-
-                                                <tr key={r.id} className="border-t">
-                                                    <td className="p-2 flex items-center gap-3">
-                                                        <span className="w-6 text-sm text-right text-gray-600">
-                                                            {results.filter(s => s.total > r.total).length + 1}.
-                                                        </span>
-
-                                                        <Avatar>
-                                                            <AvatarImage
-                                                                src={
-                                                                    r.students.photo_url
-                                                                        ? r.students.photo_url
-                                                                        : r.students.gender === "male"
-                                                                            ? "/male-avatar.jpg"
-                                                                            : "/female-avatar.jpg"
-                                                                }
-                                                            />
-
-                                                            <AvatarFallback className="bg-blue-100 text-blue-700">
-                                                                {r.students.first_name.charAt(0)}
-                                                                {r.students.last_name.charAt(0)}
-                                                            </AvatarFallback>
-
-                                                        </Avatar>
-                                                        <div>
-                                                            <div className="font-medium">
-                                                                {r.students.first_name} {r.students.last_name}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500">({r.students.student_id})</div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-2">{r.total}</td>
-                                                    <td className="p-2">{r.grade}</td>
-                                                </tr>
-                                            ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
                     </CardContent>
                 </Card>
 

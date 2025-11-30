@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, } from "recharts";
+import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Users, TrendingUp, TrendingDown, Award, } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -23,15 +23,14 @@ export default function SubjectAnalyticsPage({ params }: any) {
     const [sessionTrend, setSessionTrend] = useState<any[]>([]);
     const [termTrend, setTermTrend] = useState<any[]>([]);
     const [genderStats, setGenderStats] = useState<any>(null);
-    const [highestPerTerm, setHighestPerTerm] = useState<any[]>([]);
     const [studentBreakdown, setStudentBreakdown] = useState<any[]>([]);
     const [scoreFilter, setScoreFilter] = useState<number>(0);
     const [genderFilter, setGenderFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState<string>("");
+    const [highestPerTerm, setHighestPerTerm] = useState<any[]>([]);
 
     // NEW STATES
     const [historyData, setHistoryData] = useState<any[]>([]);
-    const [topStudentsPerTerm, setTopStudentsPerTerm] = useState<any[]>([]);
     const [genderComparison, setGenderComparison] = useState<any[]>([]);
 
     const GRADE_COLORS: Record<string, string> = {
@@ -69,7 +68,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
         setSelectedTerm(currentTerm?.id || "");
 
         loadResults(subjectId, currentSession?.id, currentTerm?.id);
-        await loadHistoricalPerformance(subjectId);
         await loadGenderComparison(subjectId);
 
 
@@ -80,7 +78,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             .from("results")
             .select(`
             *,
-            students (first_name, last_name, student_id, gender)
+            students (first_name, last_name, student_id, gender, photo_url)
         `)
             .eq("subject_id", subId)
             .eq("session_id", sessionId)
@@ -193,35 +191,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
         }
 
         setIsLoading(false);
-    }
-
-    async function loadHistoricalPerformance(subId: string) {
-        const { data } = await supabase
-            .from("results")
-            .select(`
-            total,
-            sessions (id, name)
-        `)
-            .eq("subject_id", subId);
-
-        if (!data) return;
-
-        const map: Record<string, number[]> = {};
-
-        data.forEach((r: any) => {
-            const sessionName = r.sessions?.name;
-            if (!sessionName) return;
-
-            if (!map[sessionName]) map[sessionName] = [];
-            map[sessionName].push(r.total);
-        });
-
-        const formatted = Object.keys(map).map((session) => ({
-            session,
-            avg: (map[session].reduce((a, b) => a + b, 0) / map[session].length).toFixed(1),
-        }));
-
-        setHistoryData(formatted);
     }
 
     async function loadGenderComparison(subId: string) {
@@ -591,80 +560,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                     <td className="p-2">{r.grade}</td>
                                                 </tr>
                                             ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* 7. HISTORICAL PERFORMANCE OVER SESSIONS */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Historical Performance (All Sessions)</CardTitle>
-                        <p className="text-gray-500 text-sm">Average student performance across past sessions</p>
-                    </CardHeader>
-
-                    <CardContent>
-                        {historyData.length === 0 ? (
-                            <p className="text-gray-500">No historical records found.</p>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={300}>
-                                <LineChart data={historyData}>
-                                    <XAxis dataKey="session" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <BarChart />
-                                    <Bar dataKey="avg" fill="#3b82f6" />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* 8. HIGHEST SCORING STUDENT PER TERM */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Highest Scoring Student Per Term</CardTitle>
-                        <p className="text-gray-500 text-sm">Top performer for each term historically</p>
-                    </CardHeader>
-
-                    <CardContent>
-                        {topStudentsPerTerm.length === 0 ? (
-                            <p className="text-gray-500">No data found.</p>
-                        ) : (
-                            <div className="border rounded-lg overflow-hidden">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-gray-100">
-                                        <tr>
-                                            <th className="p-2 text-left">Term</th>
-                                            <th className="p-2 text-left">Profile</th>
-                                            <th className="p-2 text-left">Name</th>
-                                            <th className="p-2 text-left">Score</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {topStudentsPerTerm.map((t: any) => (
-                                            <tr key={t.term_id} className="border-t">
-                                                <td className="p-2">{t.term_name}</td>
-                                                <td className="p-2">
-                                                    <Avatar>
-                                                        <AvatarImage
-                                                            src={
-                                                                t.photo_url ||
-                                                                (t.gender?.toLowerCase() === "male"
-                                                                    ? "/images/male-avatar.jpg"
-                                                                    : "/images/female-avatar.jpg") ||
-                                                                "/images/default-avatar.png"
-                                                            }
-                                                        />
-
-                                                    </Avatar>
-                                                </td>
-                                                <td className="p-2">{t.name} ({t.student_id})</td>
-                                                <td className="p-2">{t.total}</td>
-                                            </tr>
-                                        ))}
                                     </tbody>
                                 </table>
                             </div>

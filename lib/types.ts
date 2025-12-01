@@ -41,6 +41,7 @@ export interface Subject {
   education_level: 'Pre-Primary' | 'Primary' | 'JSS' | 'SSS';
   department?: 'Science' | 'Arts' | 'Commercial';
   religion?: 'Christian' | 'Muslim';
+  student_count?: number;
   is_optional: boolean;
   teacher_id?: string;
   created_at: string;

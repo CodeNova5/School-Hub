@@ -71,8 +71,8 @@ export default function TeacherClassesPage() {
 
         // Gender distribution
         const genderCount = {
-          male: studentsData?.filter(s => s.gender === "Male").length || 0,
-          female: studentsData?.filter(s => s.gender === "Female").length || 0,
+          male: studentsData?.filter(s => s.gender === "male").length || 0,
+          female: studentsData?.filter(s => s.gender === "female").length || 0,
         };
 
         // Subjects in class
@@ -168,10 +168,10 @@ export default function TeacherClassesPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8">
+      <div className="space-y-8 w-full max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold">My Classes</h1>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {classes.map(cls => (
             <Card key={cls.id} className="hover:shadow-lg transition">
               <CardHeader>

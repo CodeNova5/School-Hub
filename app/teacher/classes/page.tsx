@@ -265,7 +265,7 @@ export default function TeacherClassesPage() {
                     {cls.subjects.map(sub => (
                       <Link
                         key={sub.id}
-                        href={`/teacher/subjects/${sub.id}`}
+                        href={`/teacher/subjects/analytics/${sub.id}`}
                         className="block"
                       >
                         <div

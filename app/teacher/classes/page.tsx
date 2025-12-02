@@ -220,11 +220,10 @@ export default function TeacherClassesPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="w-full space-y-8">
+      <div className="space-y-8">
         <h1 className="text-3xl font-bold mb-4">My Classes</h1>
 
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-2 w-full">
-
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {classes.map(cls => (
             <Card key={cls.id} className="hover:shadow-lg transition w-full">
               <CardHeader>

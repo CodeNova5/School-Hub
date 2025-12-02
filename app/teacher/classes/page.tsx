@@ -165,7 +165,7 @@ export default function TeacherClassesPage() {
         }
 
         // Subject performance mini chart
-        const subjectPerformance = subjects.map(sub => {
+        const subjectPerformance = classSubjects.map(sub => {
           const subs = results?.filter(r => r.subject_id === sub.id) || [];
           const avg = subs.length
             ? Number((subs.reduce((a, b) => a + b.total, 0) / subs.length).toFixed(1))
@@ -177,7 +177,7 @@ export default function TeacherClassesPage() {
         finalData.push({
           ...cls,
           studentCount: studentIds.length,
-          subjects,
+          subjects: classSubjects,
           avgScore,
           passRate,
           topStudent,

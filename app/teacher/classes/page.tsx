@@ -7,13 +7,16 @@ import { Users, Trophy, TrendingUp, PieChart, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
-import { Class, Subject } from "@/lib/types";
+import Link from "next/link";
 
 // Types for analytics
-interface ClassWithAnalytics extends Class {
+interface ClassWithAnalytics {
+  id: string;
+  name: string;
+  level: string;
+  education_level: string;
   studentCount: number;
-  subjects: Subject[];
+  subjects: any[];
   avgScore: number;
   passRate: number;
   topStudent: string | null;
@@ -33,10 +36,15 @@ export default function TeacherClassesPage() {
     setIsLoading(true);
 
     try {
-      const user = await getCurrentUser();
+      const user = (await supabase.auth.getUser()).data.user;
       if (!user) return toast.error("Please log in");
 
-      const teacher = await getTeacherByUserId(user.id);
+      const { data: teacher } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
       if (!teacher) return toast.error("Teacher profile not found");
 
       const { data: teacherClasses } = await supabase
@@ -57,40 +65,44 @@ export default function TeacherClassesPage() {
       const finalData: ClassWithAnalytics[] = [];
 
       for (const cls of classesData) {
-        // Students
-        const { data: studentsData } = await supabase
+
+        // Fetch students
+        const { data: students } = await supabase
           .from("students")
           .select("id, gender")
           .eq("class_id", cls.id)
           .eq("status", "active");
 
-        const studentIds = studentsData?.map(s => s.id) || [];
+        const studentIds = students?.map(s => s.id) || [];
 
-        // Count
-        const studentCount = studentIds.length;
-
-        // Gender distribution
         const genderCount = {
-          male: studentsData?.filter(s => s.gender === "male").length || 0,
-          female: studentsData?.filter(s => s.gender === "female").length || 0,
+          male: students?.filter(s => s.gender === "male").length || 0,
+          female: students?.filter(s => s.gender === "female").length || 0
         };
 
-        // Subjects in class
+        // Fetch subjects
         const { data: subjectLinks } = await supabase
           .from("subject_classes")
-          .select("subject_id")
+          .select("subject_id, is_optional")
           .eq("class_id", cls.id);
 
         const subjectIds = subjectLinks?.map(s => s.subject_id) || [];
+
+        const optionalMap = Object.fromEntries(
+          subjectLinks?.map(s => [s.subject_id, s.is_optional]) || []
+        );
 
         const { data: subjectList } = await supabase
           .from("subjects")
           .select("*")
           .in("id", subjectIds);
 
-        const subjects: Subject[] = subjectList || [];
+        const subjects = (subjectList || []).map(s => ({
+          ...s,
+          is_optional: optionalMap[s.id] || false
+        }));
 
-        // Results
+        // Fetch results
         const { data: results } = await supabase
           .from("results")
           .select("*")
@@ -100,15 +112,19 @@ export default function TeacherClassesPage() {
         let passRate = 0;
         let topStudent = null;
 
-        if (results && results.length > 0) {
-          const allScores = results.map(r => r.total);
-          const passes = results.filter(r => r.total >= 50).length;
+        if (results?.length) {
+          const totals = results.map(r => r.total);
 
-          avgScore = Number((allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1));
-          passRate = Number(((passes / allScores.length) * 100).toFixed(1));
+          avgScore = Number(
+            (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1)
+          );
 
-          // Top student
+          passRate = Number(
+            ((results.filter(r => r.total >= 50).length / results.length) * 100).toFixed(1)
+          );
+
           const best = results.reduce((a, b) => (a.total > b.total ? a : b));
+
           const { data: topStudentData } = await supabase
             .from("students")
             .select("first_name, last_name")
@@ -118,43 +134,38 @@ export default function TeacherClassesPage() {
           topStudent = `${topStudentData?.first_name} ${topStudentData?.last_name}`;
         }
 
-        // Avg performance per subject
-        let subjectPerformance: { name: string; avg: number }[] = [];
-
-        subjects.forEach(sub => {
-          const filtered = results?.filter(r => r.subject_id === sub.id) || [];
-          const avg = filtered.length
-            ? Number(
-                (
-                  filtered.reduce((a, b) => a + b.total, 0) / filtered.length
-                ).toFixed(1)
-              )
+        // Subject performance mini chart
+        const subjectPerformance = subjects.map(sub => {
+          const subs = results?.filter(r => r.subject_id === sub.id) || [];
+          const avg = subs.length
+            ? Number((subs.reduce((a, b) => a + b.total, 0) / subs.length).toFixed(1))
             : 0;
-          subjectPerformance.push({ name: sub.name, avg });
+
+          return { name: sub.name, avg };
         });
 
         finalData.push({
           ...cls,
-          studentCount,
+          studentCount: studentIds.length,
           subjects,
           avgScore,
           passRate,
           topStudent,
           genderCount,
-          subjectPerformance,
+          subjectPerformance
         });
       }
 
       setClasses(finalData);
-    } catch (err: any) {
-      toast.error("Failed to load classes: " + err.message);
+    } catch (err) {
+      console.log(err);
     }
 
     setIsLoading(false);
   }
 
-  const getLevelColor = (educationLevel: string) => {
-    switch (educationLevel) {
+  const getLevelColor = (level: string) => {
+    switch (level) {
       case "Primary":
         return "bg-blue-100 text-blue-700";
       case "JSS":
@@ -168,14 +179,16 @@ export default function TeacherClassesPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8 w-full max-w-full mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold">My Classes</h1>
+      <div className="w-full space-y-8">
+        
+        <h1 className="text-3xl font-bold mb-4">My Classes</h1>
 
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-2 w-full">
+
           {classes.map(cls => (
-            <Card key={cls.id} className="hover:shadow-lg transition">
+            <Card key={cls.id} className="hover:shadow-lg transition w-full">
               <CardHeader>
-                <CardTitle className="flex justify-between">
+                <CardTitle className="flex justify-between items-center">
                   <span>{cls.name}</span>
                   <Badge className={getLevelColor(cls.education_level)}>
                     {cls.level}
@@ -184,8 +197,10 @@ export default function TeacherClassesPage() {
               </CardHeader>
 
               <CardContent className="space-y-6">
+
                 {/* Stats Row */}
                 <div className="grid grid-cols-4 gap-4">
+                  
                   <div className="p-3 rounded bg-blue-50">
                     <p className="text-xs">Students</p>
                     <p className="font-bold">{cls.studentCount}</p>
@@ -193,21 +208,22 @@ export default function TeacherClassesPage() {
 
                   <div className="p-3 rounded bg-green-50">
                     <p className="text-xs">Avg Score</p>
-                    <p className="font-bold">{cls.avgScore || 0}%</p>
+                    <p className="font-bold">{cls.avgScore}%</p>
                   </div>
 
                   <div className="p-3 rounded bg-yellow-50">
                     <p className="text-xs">Pass Rate</p>
-                    <p className="font-bold">{cls.passRate || 0}%</p>
+                    <p className="font-bold">{cls.passRate}%</p>
                   </div>
 
                   <div className="p-3 rounded bg-purple-50">
                     <p className="text-xs">Top</p>
                     <p className="font-bold truncate">{cls.topStudent || "—"}</p>
                   </div>
+
                 </div>
 
-                {/* Gender distribution */}
+                {/* Gender Distribution */}
                 <Card className="p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <PieChart className="w-4 h-4" />
@@ -220,7 +236,7 @@ export default function TeacherClassesPage() {
                   </div>
                 </Card>
 
-                {/* Subject performance */}
+                {/* Subject Performance */}
                 <Card className="p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <TrendingUp className="w-4 h-4" />
@@ -237,24 +253,52 @@ export default function TeacherClassesPage() {
                   </div>
                 </Card>
 
-                {/* Subject List */}
+                {/* SUBJECT LIST WITH ACTIONS */}
                 <Card className="p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <BookOpen className="w-4 h-4" />
-                    <span className="text-sm font-medium">Subjects</span>
+                    <span className="text-sm font-medium">Subjects (Clickable)</span>
                   </div>
 
-                  <div className="max-h-32 overflow-y-auto text-sm space-y-1">
+                  <div className="max-h-40 overflow-y-auto space-y-2">
+
                     {cls.subjects.map(sub => (
-                      <div key={sub.id} className="py-1 px-2 bg-gray-50 rounded">
-                        {sub.name}
-                      </div>
+                      <Link
+                        key={sub.id}
+                        href={`/teacher/subjects/${sub.id}`}
+                        className="block"
+                      >
+                        <div
+                          className="
+                          p-2 rounded border
+                          hover:bg-blue-50 hover:border-blue-300 
+                          cursor-pointer transition 
+                          flex justify-between items-center
+                        "
+                          title={`${cls.studentCount} students taking this subject`}
+                        >
+                          <span>{sub.name}</span>
+
+                          <Badge
+                            className={
+                              sub.is_optional
+                                ? "bg-yellow-100 text-yellow-700"
+                                : "bg-green-100 text-green-700"
+                            }
+                          >
+                            {sub.is_optional ? "Optional" : "Compulsory"}
+                          </Badge>
+                        </div>
+                      </Link>
                     ))}
+
                   </div>
                 </Card>
+
               </CardContent>
             </Card>
           ))}
+
         </div>
       </div>
     </DashboardLayout>

@@ -27,6 +27,8 @@ interface ClassWithAnalytics {
 export default function TeacherClassesPage() {
   const [classes, setClasses] = useState<ClassWithAnalytics[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [subjects, setSubjects] = useState<any[]>([]);
+
 
   useEffect(() => {
     loadClasses();
@@ -80,27 +82,55 @@ export default function TeacherClassesPage() {
           female: students?.filter(s => s.gender === "female").length || 0
         };
 
-        // Fetch subjects
-        const { data: subjectLinks } = await supabase
-          .from("subject_classes")
-          .select("subject_id, is_optional")
-          .eq("class_id", cls.id);
+        //-----------------------------------------------------
+        // NEW SUBJECT FETCH LOGIC (same as TeacherSubjectsPage)
+        //-----------------------------------------------------
+        const teacherClasses = classesData;
 
-        const subjectIds = subjectLinks?.map(s => s.subject_id) || [];
-
-        const optionalMap = Object.fromEntries(
-          subjectLinks?.map(s => [s.subject_id, s.is_optional]) || []
+        // 1. Get unique education-level categories for teacher
+        const uniqueLevels = Array.from(
+          new Set(teacherClasses.map(c => c.education_level))
         );
 
-        const { data: subjectList } = await supabase
+        // 2. Base subjects query
+        let subjectsQuery = supabase
           .from("subjects")
           .select("*")
-          .in("id", subjectIds);
+          .in("education_level", uniqueLevels);
 
-        const subjects = (subjectList || []).map(s => ({
-          ...s,
-          is_optional: optionalMap[s.id] || false
-        }));
+        // 3. Handle SSS department logic
+        const sssClasses = teacherClasses.filter(c => c.education_level === "SSS");
+
+        if (sssClasses.length > 0) {
+          const departments = Array.from(
+            new Set(sssClasses.map(c => c.department).filter(Boolean))
+          );
+
+          if (departments.length > 0) {
+            subjectsQuery = subjectsQuery.or(
+              `education_level.neq.SSS,and(education_level.eq.SSS,department.in.(${departments.join(",")}))`
+            );
+          }
+        }
+
+        // 4. Final subject list
+        const { data: subjectList } = await subjectsQuery;
+
+        // 5. Assign subjects applicable to THIS class only
+        const classSubjects = (subjectList || [])
+          .filter(sub => {
+            // Pre-primary, primary, JSS → only match level
+            if (sub.education_level !== "SSS") {
+              return sub.education_level === cls.education_level;
+            }
+            // SSS → match department
+            return sub.department === cls.department;
+          })
+          .map(sub => ({
+            ...sub,
+            is_optional: sub.is_optional || false
+          }));
+
 
         // Fetch results
         const { data: results } = await supabase

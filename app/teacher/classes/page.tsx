@@ -159,6 +159,7 @@ export default function TeacherClassesPage() {
       setClasses(finalData);
     } catch (err) {
       console.log(err);
+      toast.error("Failed to load classes");
     }
 
     setIsLoading(false);
@@ -177,10 +178,19 @@ export default function TeacherClassesPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <DashboardLayout role="teacher">
+        <div className="flex items-center justify-center h-96">
+          <p className="text-gray-500">Loading your classes...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout role="teacher">
       <div className="w-full space-y-8">
-        
         <h1 className="text-3xl font-bold mb-4">My Classes</h1>
 
         <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-2 w-full">
@@ -200,27 +210,22 @@ export default function TeacherClassesPage() {
 
                 {/* Stats Row */}
                 <div className="grid grid-cols-4 gap-4">
-                  
                   <div className="p-3 rounded bg-blue-50">
                     <p className="text-xs">Students</p>
                     <p className="font-bold">{cls.studentCount}</p>
                   </div>
-
                   <div className="p-3 rounded bg-green-50">
                     <p className="text-xs">Avg Score</p>
                     <p className="font-bold">{cls.avgScore}%</p>
                   </div>
-
                   <div className="p-3 rounded bg-yellow-50">
                     <p className="text-xs">Pass Rate</p>
                     <p className="font-bold">{cls.passRate}%</p>
                   </div>
-
                   <div className="p-3 rounded bg-purple-50">
                     <p className="text-xs">Top</p>
                     <p className="font-bold truncate">{cls.topStudent || "—"}</p>
                   </div>
-
                 </div>
 
                 {/* Gender Distribution */}
@@ -229,7 +234,6 @@ export default function TeacherClassesPage() {
                     <PieChart className="w-4 h-4" />
                     <span className="text-sm font-medium">Gender Distribution</span>
                   </div>
-
                   <div className="flex justify-between text-sm">
                     <span>Male: {cls.genderCount.male}</span>
                     <span>Female: {cls.genderCount.female}</span>
@@ -242,7 +246,6 @@ export default function TeacherClassesPage() {
                     <TrendingUp className="w-4 h-4" />
                     <span className="text-sm font-medium">Subject Performance</span>
                   </div>
-
                   <div className="space-y-1">
                     {cls.subjectPerformance.map(sub => (
                       <div className="flex justify-between text-sm" key={sub.name}>
@@ -253,45 +256,38 @@ export default function TeacherClassesPage() {
                   </div>
                 </Card>
 
-                {/* SUBJECT LIST WITH ACTIONS */}
-                <Card className="p-3">
+                {/* Subjects Section with Clickable Actions */}
+                <Card className="p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <BookOpen className="w-4 h-4" />
-                    <span className="text-sm font-medium">Subjects (Clickable)</span>
+                    <BookOpen className="w-4 h-4 text-gray-600" />
+                    <span className="text-sm font-medium">Subjects (Click to view analytics)</span>
                   </div>
-
-                  <div className="max-h-40 overflow-y-auto space-y-2">
-
+                  <div className="max-h-52 overflow-y-auto space-y-2">
                     {cls.subjects.map(sub => (
                       <Link
                         key={sub.id}
                         href={`/teacher/subjects/analytics/${sub.id}`}
-                        className="block"
+                        className="block w-full"
                       >
                         <div
                           className="
-                          p-2 rounded border
-                          hover:bg-blue-50 hover:border-blue-300 
-                          cursor-pointer transition 
-                          flex justify-between items-center
-                        "
+                            p-2 rounded border flex justify-between items-center
+                            hover:bg-blue-50 hover:border-blue-300 transition cursor-pointer
+                          "
                           title={`${cls.studentCount} students taking this subject`}
                         >
                           <span>{sub.name}</span>
-
                           <Badge
-                            className={
-                              sub.is_optional
-                                ? "bg-yellow-100 text-yellow-700"
-                                : "bg-green-100 text-green-700"
-                            }
+                            className={sub.is_optional ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}
                           >
                             {sub.is_optional ? "Optional" : "Compulsory"}
                           </Badge>
                         </div>
                       </Link>
                     ))}
-
+                    {cls.subjects.length === 0 && (
+                      <p className="text-gray-500 text-sm text-center py-2">No subjects assigned yet</p>
+                    )}
                   </div>
                 </Card>
 

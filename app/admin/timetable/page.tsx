@@ -440,91 +440,64 @@ export default function TimetablePage() {
                         </CardContent>
                     </Card>
                 )}
+                <Button size="sm" onClick={() => setEditTimesDialogOpen(true)}>
+                    Edit Day Times
+                </Button>
 
-                {/* EDIT PERIOD TIMES DIALOG */}
-                <Dialog open={isTimeDialogOpen} onOpenChange={setIsTimeDialogOpen}>
-                    <DialogContent className="max-h-[90vh] overflow-y-auto w-[700px]">
+                <Dialog open={editTimesDialogOpen} onOpenChange={setEditTimesDialogOpen}>
+                    <DialogContent className="max-h-[80vh] overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>Edit Period Times (Applies to All Classes)</DialogTitle>
+                            <DialogTitle>Edit Period Times</DialogTitle>
                         </DialogHeader>
 
-                        <form
-                            onSubmit={async (e) => {
-                                e.preventDefault();
-                                const form = new FormData(e.currentTarget);
-
-                                const updates = PERIODS.flatMap((p) =>
-                                    DAYS.map((d) => ({
-                                        day_of_week: d,
-                                        period_number: p,
-                                        start_time: form.get(`start_${d}_${p}`) as string,
-                                        end_time: form.get(`end_${d}_${p}`) as string,
-                                    }))
-                                );
-
-                                const { error } = await supabase.from("period_times").upsert(updates, {
-                                    onConflict: "day_of_week,period_number",
-                                });
-
-                                if (error) toast.error(error.message);
-                                else {
-                                    toast.success("Period times updated");
-                                    fetchPeriodTimes();
-                                    setIsTimeDialogOpen(false);
-                                }
-                            }}
-                            className="space-y-4"
-                        >
-                            <div className="overflow-auto">
-                                <table className="w-full table-auto border-collapse text-sm">
-                                    <thead>
-                                        <tr>
-                                            <th className="border px-2 py-1 bg-gray-50">Period</th>
-                                            {DAYS.map((d) => (
-                                                <th key={d} className="border px-2 py-1 bg-gray-50">{d}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {PERIODS.map((p) => (
-                                            <tr key={p}>
-                                                <td className="border px-2 py-1 font-medium w-24">Period {p}</td>
-                                                {DAYS.map((d) => {
-                                                    const time = periodTimes.find(t => t.day_of_week === d && t.period_number === p);
-                                                    return (
-                                                        <td key={d} className="border px-2 py-1">
-                                                            <div className="flex flex-col gap-1">
-                                                                <input
-                                                                    type="time"
-                                                                    name={`start_${d}_${p}`}
-                                                                    defaultValue={time?.start_time || ""}
-                                                                    className="border rounded-md h-8 px-1"
-                                                                    required
-                                                                />
-                                                                <input
-                                                                    type="time"
-                                                                    name={`end_${d}_${p}`}
-                                                                    defaultValue={time?.end_time || ""}
-                                                                    className="border rounded-md h-8 px-1"
-                                                                    required
-                                                                />
-                                                            </div>
-                                                        </td>
-                                                    );
-                                                })}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                        <div className="space-y-4">
+                            <div>
+                                <Label>Period</Label>
+                                <select
+                                    className="w-full border rounded-md h-10 px-2"
+                                    value={periodForm.period}
+                                    onChange={(e) => setPeriodForm(prev => ({ ...prev, period: Number(e.target.value) }))}
+                                >
+                                    {Array.from({ length: 10 }, (_, i) => i + 1).map(p => (
+                                        <option key={p} value={p}>Period {p}</option>
+                                    ))}
+                                </select>
                             </div>
 
-                            <div className="flex gap-2 justify-end pt-4">
-                                <Button type="submit">Save Times</Button>
-                                <Button variant="outline" type="button" onClick={() => setIsTimeDialogOpen(false)}>Cancel</Button>
+                            <div>
+                                <Label>Start Time</Label>
+                                <Input
+                                    type="time"
+                                    value={periodForm.start_time}
+                                    onChange={(e) => setPeriodForm(prev => ({ ...prev, start_time: e.target.value }))}
+                                />
                             </div>
-                        </form>
+
+                            <div>
+                                <Label>End Time</Label>
+                                <Input
+                                    type="time"
+                                    value={periodForm.end_time}
+                                    onChange={(e) => setPeriodForm(prev => ({ ...prev, end_time: e.target.value }))}
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    checked={periodForm.applyAll}
+                                    onCheckedChange={(checked) => setPeriodForm(prev => ({ ...prev, applyAll: Boolean(checked) }))}
+                                />
+                                <span>Apply to all days</span>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <Button className="flex-1" onClick={handlePeriodTimesSubmit}>Save</Button>
+                                <Button variant="outline" onClick={() => setEditTimesDialogOpen(false)}>Cancel</Button>
+                            </div>
+                        </div>
                     </DialogContent>
                 </Dialog>
+
             </div>
         </DashboardLayout>
     );

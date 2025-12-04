@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -30,8 +31,46 @@ export default function TimetablePage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingEntry, setEditingEntry] = useState<any | null>(null);
 
-    const [periodTimes, setPeriodTimes] = useState<any[]>([]);
     const [isTimeDialogOpen, setIsTimeDialogOpen] = useState(false);
+    const [periodTimes, setPeriodTimes] = useState<any[]>([]);
+    const [editTimesDialogOpen, setEditTimesDialogOpen] = useState(false);
+    const [periodForm, setPeriodForm] = useState<{ period: number; start_time: string; end_time: string; applyAll: boolean }>({ period: 1, start_time: '', end_time: '', applyAll: true });
+
+    useEffect(() => {
+        fetchPeriodTimes();
+    }, []);
+
+
+    async function handlePeriodTimesSubmit() {
+        if (periodForm.applyAll) {
+            const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+            const inserts = days.map(day => ({
+                day_of_week: day,
+                period_number: periodForm.period,
+                start_time: periodForm.start_time,
+                end_time: periodForm.end_time,
+            }));
+            const { error } = await supabase
+                .from("period_times")
+                .upsert(inserts, { onConflict: "day_of_week,period_number" });
+            if (error) toast.error(error.message);
+            else toast.success("Times updated for all days");
+        } else {
+            const { error } = await supabase
+                .from("period_times")
+                .upsert([{
+                    day_of_week: "Monday", // or selected day
+                    period_number: periodForm.period,
+                    start_time: periodForm.start_time,
+                    end_time: periodForm.end_time,
+                }], { onConflict: "day_of_week,period_number" });
+            if (error) toast.error(error.message);
+            else toast.success("Time updated");
+        }
+
+        fetchPeriodTimes();
+        setEditTimesDialogOpen(false);
+    }
 
     useEffect(() => {
         fetchAll();

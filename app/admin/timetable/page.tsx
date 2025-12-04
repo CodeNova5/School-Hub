@@ -57,6 +57,28 @@ export default function TimetablePage() {
     setIsDialogOpen(false);
   }
 
+  // Open editor for a specific class/day/period (find existing entry or prepare empty)
+  function openCellEditor(classId: string, day: string, period: number) {
+    const found = entries.find(
+      (e) =>
+        (e.class_id || e.classes?.id) === classId &&
+        e.day_of_week === day &&
+        Number(e.period_number) === Number(period)
+    );
+    setEditingEntry(
+      found || {
+        day_of_week: day,
+        period_number: period,
+        class_id: classId,
+        subject_id: "",
+        teacher_id: "",
+        start_time: "",
+        end_time: "",
+      }
+    );
+    setIsDialogOpen(true);
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -252,58 +274,128 @@ export default function TimetablePage() {
           />
         </div>
 
-        {/* TIMETABLE GRID */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((entry) => (
-            <Card key={entry.id}>
-              <CardHeader className="pb-2">
-                <CardTitle>
-                  {entry.day_of_week} — Period {entry.period_number}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>
-                  <span className="text-gray-600">Class:</span>{" "}
-                  <strong>{entry.classes?.name}</strong>
-                </p>
-                <p>
-                  <span className="text-gray-600">Subject:</span>{" "}
-                  <strong>{entry.subjects?.name}</strong>
-                </p>
-                <p>
-                  <span className="text-gray-600">Teacher:</span>{" "}
-                  <strong>
-                    {entry.teachers?.first_name} {entry.teachers?.last_name}
-                  </strong>
-                </p>
-                <p className="text-gray-600 text-xs">
-                  {entry.start_time} - {entry.end_time}
-                </p>
+        {/* TIMETABLE: each class is its own section with a table (days as columns, periods as rows) */}
+        <div className="space-y-6">
+          {classes.map((cls) => {
+            // build a quick map for this class: day -> period -> entry
+            const classEntries = entries.filter(
+              (e) => (e.class_id || e.classes?.id) === (cls.id || cls.id)
+            );
+            const entryMap: Record<string, Record<number, any>> = {};
+            classEntries.forEach((en) => {
+              entryMap[en.day_of_week] = entryMap[en.day_of_week] || {};
+              entryMap[en.day_of_week][Number(en.period_number)] = en;
+            });
 
-                <div className="flex gap-1 pt-2">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(entry)}>
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteEntry(entry.id)}
-                  >
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+            return (
+              <Card key={cls.id}>
+                <CardHeader className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>{cls.name}</CardTitle>
+                    <p className="text-sm text-gray-500">{cls.level}</p>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <Button size="sm" onClick={() => openCellEditor(cls.id, DAYS[0], 1)}>
+                      Add / Edit
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="overflow-auto">
+                  <table className="w-full table-auto border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        <th className="border px-2 py-1 bg-gray-50">Period</th>
+                        {DAYS.map((d) => (
+                          <th key={d} className="border px-2 py-1 bg-gray-50">
+                            {d}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {PERIODS.map((p) => {
+                        // try to find a representative time for this period (any day)
+                        const anyEntry = classEntries.find((ce) => Number(ce.period_number) === p);
+                        const timeLabel = anyEntry
+                          ? `${anyEntry.start_time || ""}${anyEntry.start_time && anyEntry.end_time ? " - " : ""}${anyEntry.end_time || ""}`
+                          : "";
+
+                        return (
+                          <tr key={p}>
+                            <td className="border px-2 py-1 font-medium w-36">
+                              <div>Period {p}</div>
+                              {timeLabel && <div className="text-xs text-gray-500">{timeLabel}</div>}
+                            </td>
+                            {DAYS.map((d) => {
+                              const cellEntry = entryMap[d]?.[p];
+                              return (
+                                <td key={d} className="border px-2 py-1 align-top">
+                                  {cellEntry ? (
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div>
+                                        <div className="font-medium">{cellEntry.subjects?.name || cellEntry.subject_name || "—"}</div>
+                                        <div className="text-xs text-gray-500">
+                                          {cellEntry.teachers?.first_name
+                                            ? `${cellEntry.teachers.first_name} ${cellEntry.teachers.last_name || ""}`
+                                            : cellEntry.teacher_name || ""}
+                                        </div>
+                                        {cellEntry.start_time || cellEntry.end_time ? (
+                                          <div className="text-xs text-gray-400 mt-1">
+                                            {cellEntry.start_time || ""}{cellEntry.start_time && cellEntry.end_time ? " - " : ""}{cellEntry.end_time || ""}
+                                          </div>
+                                        ) : null}
+                                      </div>
+
+                                      <div className="flex flex-col gap-1 ml-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => openCellEditor(cls.id, d, p)}
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => cellEntry && deleteEntry(cellEntry.id)}
+                                        >
+                                          <Trash2 className="w-4 h-4 text-red-600" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-500">Empty</span>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => openCellEditor(cls.id, d, p)}
+                                      >
+                                        Add
+                                      </Button>
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
-        {filtered.length === 0 && (
-          <Card>
-            <CardContent className="p-12 text-center text-gray-500">
-              No timetable entries found
-            </CardContent>
-          </Card>
-        )}
+        {classes.length === 0 && (
+           <Card>
+             <CardContent className="p-12 text-center text-gray-500">
+               No timetable entries found
+             </CardContent>
+           </Card>
+         )}
       </div>
     </DashboardLayout>
   );

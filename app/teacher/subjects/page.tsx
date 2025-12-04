@@ -313,7 +313,7 @@ export default function TeacherSubjectsPage() {
                           <div className="border-t pt-3">
                             <a
                               href={`/teacher/subjects/${subject.id}/analytics`}
-                              className="text-blue-600 text-sm font-medium hover:underline mt-3 inline-block"
+                              className="text-blue-600 text-sm font-medium hover:underline mt-3 inline-block text-decoration-none"
                             >
                               View Analytics →
                             </a>

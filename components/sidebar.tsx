@@ -38,6 +38,7 @@ export function Sidebar({ role }: SidebarProps) {
     { href: '/admin/sessions', label: 'Sessions & Terms', icon: <Calendar className="h-5 w-5" /> },
     { href: '/admin/classes', label: 'Classes', icon: <School className="h-5 w-5" /> },
     { href: '/admin/subjects', label: 'Subjects', icon: <BookOpen className="h-5 w-5" /> },
+    { href: '/admin/timetable', label: 'Timetable', icon: <FileText className="h-5 w-5" /> },
     { href: '/admin/students', label: 'Students', icon: <Users className="h-5 w-5" /> },
     { href: '/admin/teachers', label: 'Teachers', icon: <GraduationCap className="h-5 w-5" /> },
     { href: '/admin/admissions', label: 'Admissions', icon: <ClipboardList className="h-5 w-5" /> },

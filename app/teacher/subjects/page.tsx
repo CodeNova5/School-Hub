@@ -21,8 +21,8 @@ export default function TeacherSubjectsPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [filterLevel, setFilterLevel] = useState('');
-
+  const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterOptional, setFilterOptional] = useState('');
   useEffect(() => {
     loadData();
   }, []);
@@ -118,9 +118,19 @@ export default function TeacherSubjectsPage() {
   }
 
   const filteredSubjects = subjects.filter((subject) => {
-    const matchesSearch = subject.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLevel = !filterLevel || subject.education_level === filterLevel;
-    return matchesSearch && matchesLevel;
+    const matchesSearch =
+      subject.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesDepartment =
+      !filterDepartment ||
+      subject.department === filterDepartment;
+
+    const matchesOptional =
+      !filterOptional ||
+      (filterOptional === 'optional' && subject.is_optional) ||
+      (filterOptional === 'mandatory' && !subject.is_optional);
+
+    return matchesSearch && matchesDepartment && matchesOptional;
   });
 
   const getLevelColor = (level: string) => {
@@ -189,7 +199,9 @@ export default function TeacherSubjectsPage() {
             <CardTitle>Search & Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
+
+              {/* Search */}
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -200,20 +212,33 @@ export default function TeacherSubjectsPage() {
                 />
               </div>
 
+              {/* Department Filter */}
               <select
-                value={filterLevel}
-                onChange={(e) => setFilterLevel(e.target.value)}
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
                 className="px-3 py-2 border rounded-md"
               >
-                <option value="">All Levels</option>
-                <option value="Pre-Primary">Pre-Primary</option>
-                <option value="Primary">Primary</option>
-                <option value="JSS">JSS</option>
-                <option value="SSS">SSS</option>
+                <option value="">All Departments</option>
+                <option value="Science">Science</option>
+                <option value="Commercial">Commercial</option>
+                <option value="Art">Art</option>
               </select>
+
+              {/* Optional/Mandatory Filter */}
+              <select
+                value={filterOptional}
+                onChange={(e) => setFilterOptional(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="">All Subjects</option>
+                <option value="optional">Optional Only</option>
+                <option value="mandatory">Mandatory Only</option>
+              </select>
+
             </div>
           </CardContent>
         </Card>
+
 
         {Object.keys(groupedSubjects).length === 0 ? (
           <Card>
@@ -286,19 +311,13 @@ export default function TeacherSubjectsPage() {
                           )}
 
                           <div className="border-t pt-3">
-                            <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
-                              <Users className="h-3 w-3 flex-shrink-0" />
-                              <span className="font-medium">
-                                Applies to {subject.applicableClasses.length} of your classes:
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                              {subject.applicableClasses.map((cls) => (
-                                <Badge key={cls.id} variant="secondary" className="text-xs">
-                                  {cls.name}
-                                </Badge>
-                              ))}
-                            </div>
+                            <a
+                              href={`/teacher/subjects/${subject.id}/analytics`}
+                              className="text-blue-600 text-sm font-medium hover:underline mt-3 inline-block"
+                            >
+                              View Analytics →
+                            </a>
+
                           </div>
                         </CardContent>
                       </Card>

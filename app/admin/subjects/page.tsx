@@ -394,9 +394,7 @@ export default function SubjectsPage() {
                   </div>
                 )}
 
-                {selectedLevel &&
-                  (selectedLevel !== 'SSS' || selectedDepartment) &&
-                  !editingSubject && (
+                {selectedLevel && !editingSubject && (
                     <div>
                       <Label htmlFor="subject">Subject</Label>
                       <select

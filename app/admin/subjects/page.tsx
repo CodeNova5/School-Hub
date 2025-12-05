@@ -305,15 +305,19 @@ export default function SubjectsPage() {
     }
   };
 
-  const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
-    let groupKey: string = subject.education_level;
-    if (subject.education_level === 'SSS' && subject.department) {
-      groupKey = `SSS - ${subject.department}`;
-    }
-    if (!acc[groupKey]) acc[groupKey] = [];
-    acc[groupKey].push(subject);
-    return acc;
-  }, {} as Record<string, Subject[]>);
+ const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
+  let groupKey: string;
+
+  if (subject.education_level === 'SSS') {
+    groupKey = subject.department ? `SSS - ${subject.department}` : 'SSS - All';
+  } else {
+    groupKey = subject.education_level;
+  }
+
+  if (!acc[groupKey]) acc[groupKey] = [];
+  acc[groupKey].push(subject);
+  return acc;
+}, {} as Record<string, Subject[]>);
 
   const availableSubjectsForSelection = getAvailableSubjects();
 

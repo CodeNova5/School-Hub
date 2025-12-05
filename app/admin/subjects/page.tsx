@@ -163,6 +163,11 @@ export default function SubjectsPage() {
       predefinedKey = `SSS-${selectedDepartment}`;
     }
 
+    if (selectedLevel === 'SSS' && !selectedDepartment) {
+      predefinedKey = 'SSS-All';
+    }
+     
+
     const allPredefined =
       PREDEFINED_SUBJECTS[predefinedKey as keyof typeof PREDEFINED_SUBJECTS] || [];
 

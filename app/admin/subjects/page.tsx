@@ -177,9 +177,10 @@ export default function SubjectsPage() {
       .filter(
         (s) =>
           s.education_level === selectedLevel &&
-          (selectedLevel !== 'SSS' || s.department === selectedDepartment)
+          (selectedDepartment ? s.department === selectedDepartment : true)
       )
       .map((s) => s.name);
+
 
     return allPredefined.filter((name) => !existingSubjects.includes(name));
   }
@@ -200,10 +201,6 @@ export default function SubjectsPage() {
       return;
     }
 
-    if (selectedLevel === 'SSS' && !selectedDepartment) {
-      toast.error('Please select a department for SSS subjects');
-      return;
-    }
 
     const subjectData = {
       name: subjectName,
@@ -370,9 +367,10 @@ export default function SubjectsPage() {
                   )}
                 </div>
 
+                // In the form section
                 {selectedLevel === 'SSS' && (
                   <div>
-                    <Label htmlFor="department">Department</Label>
+                    <Label htmlFor="department">Department (Optional)</Label>
                     <select
                       id="department"
                       value={selectedDepartment}
@@ -382,19 +380,15 @@ export default function SubjectsPage() {
                         setCustomSubjectName('');
                       }}
                       className="w-full px-3 py-2 border rounded-md"
-                      required
-                      disabled={!!editingSubject}
                     >
-                      <option value="">Select Department</option>
+                      <option value="">No Department</option>
                       <option value="Science">Science</option>
                       <option value="Arts">Arts</option>
                       <option value="Commercial">Commercial</option>
                     </select>
-                    {editingSubject && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Department cannot be changed when editing
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Department is optional; leave empty to apply to all SSS subjects.
+                    </p>
                   </div>
                 )}
 

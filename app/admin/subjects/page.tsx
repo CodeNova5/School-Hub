@@ -367,7 +367,7 @@ export default function SubjectsPage() {
                   )}
                 </div>
 
-                // In the form section
+               
                 {selectedLevel === 'SSS' && (
                   <div>
                     <Label htmlFor="department">Department (Optional)</Label>

@@ -1,6 +1,6 @@
 // Timetable UI full code — updated
 // Hides single subject when departmental mode is active
-
+"use client";
 import React, { useEffect, useMemo, useState } from "react";
 
 import { DashboardLayout } from "@/components/dashboard-layout";

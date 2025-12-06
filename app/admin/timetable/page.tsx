@@ -1,5 +1,3 @@
-// Timetable UI full code — updated
-// Hides single subject when departmental mode is active
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 
@@ -56,7 +54,7 @@ export default function TimetablePage() {
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-  const [isCompactTableOpen, setIsCompactTableOpen] = useState(false); // new
+  // ...existing code...
 
   useEffect(() => {
     fetchAll();
@@ -350,7 +348,6 @@ export default function TimetablePage() {
 
     setClassTimetable(map);
     setIsTableModalOpen(true);
-    setIsCompactTableOpen(true);
   }
 
   const filtered = groupedEntries.filter((g) => `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase()));
@@ -489,101 +486,6 @@ export default function TimetablePage() {
           ))}
         </div>
 
-        {/* Timetable modal */}
-        <Dialog open={isCompactTableOpen} onOpenChange={setIsCompactTableOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
-            <DialogHeader>
-              <DialogTitle>
-                Timetable for {classes.find((c) => c.id === selectedClass)?.name}
-              </DialogTitle>
-            </DialogHeader>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full border border-gray-200">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border p-3 text-left">Period</th>
-                    {DAYS.map((day) => (
-                      <th key={day} className="border p-3 text-center">{day}</th>
-                    ))}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {PERIODS.map((period) => (
-                    <tr key={period}>
-                      <td className="border p-3 font-medium text-center">Period {period}</td>
-
-                      {DAYS.map((day) => {
-                        const entry = entries.find(
-                          (e) => e.class_id === selectedClass && e.day_of_week === day && e.period_number === period
-                        );
-
-                        if (!entry) {
-                          return (
-                            <td
-                              key={day}
-                              className="border p-3 text-center text-gray-400 cursor-pointer hover:bg-gray-100"
-                              onClick={() => openAdd(day, period, selectedClass)}
-                            />
-                          );
-                        }
-
-                        return (
-                          <td key={day} className="border p-3 align-top">
-                            <div className="space-y-1">
-                              {/* Subject(s) */}
-                              <p className="font-semibold">{entry.subject_display || ""}</p>
-
-                              {/* Teacher */}
-                              {entry.teacher_display && (
-                                <p className="text-xs text-gray-600 truncate" title={entry.teacher_display}>
-                                  {entry.teacher_display}
-                                </p>
-                              )}
-
-                              <div className="flex gap-1 pt-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openEdit(entry.rows?.[0] || null)}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    if (!confirm("Delete all rows for this class/day/period?")) return;
-                                    const ids = (entry.rows || []).map((r: any) => r.id);
-                                    Promise.all(
-                                      ids.map((id: string) =>
-                                        supabase.from("timetable_entries").delete().eq("id", id)
-                                      )
-                                    ).then(() => {
-                                      toast.success("Deleted successfully");
-                                      fetchAll();
-                                    });
-                                  }}
-                                >
-                                  <Trash2 className="w-4 h-4 text-red-600" />
-                                </Button>
-                              </div>
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-
-
         {filtered.length === 0 && (
           <Card>
             <CardContent className="p-12 text-center text-gray-500">No timetable entries found</CardContent>
@@ -614,8 +516,12 @@ export default function TimetablePage() {
                       <div>{period.label}</div>
                       <div className="text-gray-500 text-xs">{period.start}-{period.end}</div>
                     </td>
-                    {DAYS_SHORT.map((day) => (
-                      <td key={day} className="border px-2 py-1 text-center">
+                    {DAYS_SHORT.map((day, idx) => (
+                      <td
+                        key={day}
+                        className="border px-2 py-1 text-center cursor-pointer hover:bg-gray-50"
+                        onClick={() => openAdd(DAYS[idx], Number(period.id), selectedClass)}
+                      >
                         <div>{classTimetable[period.id]?.[day]?.subject ?? ""}</div>
                         <div className="text-xs text-gray-600">{classTimetable[period.id]?.[day]?.teacher ?? ""}</div>
                       </td>
@@ -630,4 +536,3 @@ export default function TimetablePage() {
     </DashboardLayout >
   );
 }
-

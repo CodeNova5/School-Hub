@@ -350,6 +350,7 @@ export default function TimetablePage() {
 
     setClassTimetable(map);
     setIsTableModalOpen(true);
+    setIsCompactTableOpen(true);
   }
 
   const filtered = groupedEntries.filter((g) => `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase()));

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Dialog,
@@ -39,7 +39,6 @@ const TIMETABLE_PERIODS = [
 ];
 
 export default function TimetablePage() {
-  // ...existing code...
   const [entries, setEntries] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
@@ -58,8 +57,12 @@ export default function TimetablePage() {
   }, []);
 
   async function fetchAll() {
+    // fetch timetable entries with joined subjects (including department) and teachers and classes
     const [timetableRes, classRes, subjectRes, teacherRes] = await Promise.all([
-      supabase.from("timetable_entries").select("*, classes(name), subjects(name), teachers(first_name, last_name)").order("period_number"),
+      supabase
+        .from("timetable_entries")
+        .select("*, classes(name, level), subjects(name, department), teachers(first_name, last_name)")
+        .order("period_number", { ascending: true }),
       supabase.from("classes").select("*").order("name"),
       supabase.from("subjects").select("*").order("name"),
       supabase.from("teachers").select("*").order("first_name"),
@@ -81,19 +84,43 @@ export default function TimetablePage() {
     setIsDialogOpen(false);
   }
 
+  // Helper: get subject options by department (including subjects with null department for non-SSS)
+  function subjectsByDepartment(dept?: string) {
+    return subjects.filter((s) => {
+      if (!dept) return !s.department; // for non-departmental, match subjects with no department
+      return s.department === dept;
+    });
+  }
+
+  // Helper: produce 3-letter code from subject name
+  function shortCode(name: string | undefined | null) {
+    if (!name) return "";
+    const cleaned = name.trim();
+    if (cleaned.length <= 3) return cleaned.toUpperCase();
+    return cleaned.slice(0, 3).toUpperCase();
+  }
+
+  // Submit handler: supports departmental mode (inserts up to 3 rows) or single entry
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
 
-    const payload = {
-      day_of_week: data.get("day_of_week") as string,
-      period_number: Number(data.get("period_number")),
-      class_id: data.get("class_id") as string,
-      subject_id: data.get("subject_id") as string,
-      teacher_id: data.get("teacher_id") as string,
-    };
+    const day_of_week = (data.get("day_of_week") as string) || "";
+    const period_number = Number(data.get("period_number"));
+    const class_id = data.get("class_id") as string;
 
+    const departmentalMode = data.get("departmental") === "on";
+
+    // If editing an individual row: update that row
     if (editingEntry) {
+      const payload = {
+        day_of_week,
+        period_number,
+        class_id,
+        subject_id: data.get("subject_id") as string,
+        teacher_id: data.get("teacher_id") as string,
+      };
+
       const { error } = await supabase
         .from("timetable_entries")
         .update(payload)
@@ -105,12 +132,72 @@ export default function TimetablePage() {
         closeDialog();
         fetchAll();
       }
-    } else {
+      return;
+    }
+
+    // CREATE
+    if (!departmentalMode) {
+      // Single-row insertion
+      const payload = {
+        day_of_week,
+        period_number,
+        class_id,
+        subject_id: data.get("subject_id") as string,
+        teacher_id: data.get("teacher_id") as string,
+      };
+
       const { error } = await supabase.from("timetable_entries").insert(payload);
 
-      if (error) toast.error(error.message);
+      if (error) toast.error(error.message || "Failed to create entry");
       else {
         toast.success("Entry added");
+        closeDialog();
+        fetchAll();
+      }
+    } else {
+      // Departmental mode: possibly insert up to 3 rows (Science, Arts, Commercial)
+      const inserts: any[] = [];
+      const sciSub = data.get("science_subject_id") as string;
+      const artSub = data.get("arts_subject_id") as string;
+      const comSub = data.get("commercial_subject_id") as string;
+
+      const sciTeacher = data.get("science_teacher_id") as string;
+      const artTeacher = data.get("arts_teacher_id") as string;
+      const comTeacher = data.get("commercial_teacher_id") as string;
+
+      if (sciSub) inserts.push({
+        day_of_week,
+        period_number,
+        class_id,
+        subject_id: sciSub,
+        teacher_id: sciTeacher || null,
+      });
+      if (artSub) inserts.push({
+        day_of_week,
+        period_number,
+        class_id,
+        subject_id: artSub,
+        teacher_id: artTeacher || null,
+      });
+      if (comSub) inserts.push({
+        day_of_week,
+        period_number,
+        class_id,
+        subject_id: comSub,
+        teacher_id: comTeacher || null,
+      });
+
+      if (inserts.length === 0) {
+        toast.error("Choose at least one department subject to add");
+        return;
+      }
+
+      // Insert all rows in one request
+      const { error } = await supabase.from("timetable_entries").insert(inserts);
+
+      if (error) toast.error(error.message || "Failed to create departmental entries");
+      else {
+        toast.success("Departmental entries added");
         closeDialog();
         fetchAll();
       }
@@ -129,30 +216,155 @@ export default function TimetablePage() {
     }
   }
 
-  // New: show timetable modal for a specific class
+  // Build groupedEntries for grid: coalesce multiple rows with same class/day/period
+  const groupedEntries = useMemo(() => {
+    // key: `${class_id}||${day_of_week}||${period_number}`
+    const map: Record<string, any> = {};
+
+    entries.forEach((en) => {
+      const key = `${en.class_id}||${en.day_of_week}||${en.period_number}`;
+      if (!map[key]) {
+        map[key] = {
+          id: key, // synthetic id
+          class_id: en.class_id,
+          class_name: en.classes?.name,
+          day_of_week: en.day_of_week,
+          period_number: en.period_number,
+          start_time: en.start_time,
+          end_time: en.end_time,
+          raw: [],
+        };
+      }
+      map[key].raw.push(en);
+    });
+
+    // transform raw rows into combined subject string and combined teachers string
+    const results = Object.values(map).map((g) => {
+      // try to order by departments Science, Arts, Commercial
+      const order = ["Science", "Arts", "Commercial"];
+
+      // collect departmental codes
+      const deptMap: Record<string, string> = {};
+      const teacherMap: Record<string, string> = {};
+
+      g.raw.forEach((r: any) => {
+        const subjName = r.subjects?.name || "";
+        const subjDept = r.subjects?.department || ""; // may be null for non-dept
+        const code = shortCode(subjName);
+        // If subject has a department, use that to place it
+        if (subjDept) deptMap[subjDept] = code;
+        else {
+          // Non-departmental subject — place under a special key like "_single"
+          deptMap["_single"] = subjName;
+        }
+
+        const teacherName = r.teachers ? `${r.teachers.first_name} ${r.teachers.last_name}` : "";
+        // For departmental rows we map teacher by department if subject has one; else append to single
+        if (subjDept) teacherMap[subjDept] = teacherName;
+        else teacherMap["_single"] = teacherName;
+      });
+
+      // Construct combined subject display
+      let combined = "";
+      if (deptMap["_single"]) {
+        // non-departmental single subject (normal behaviour)
+        combined = deptMap["_single"];
+      } else {
+        // departmental combined string in order Science / Arts / Commercial, include only those present
+        const parts: string[] = [];
+        order.forEach((d) => {
+          if (deptMap[d]) parts.push(deptMap[d]);
+        });
+        combined = parts.join(" / ");
+      }
+
+      // combine teacher names similarly (join with " / ")
+      let teachersCombined = "";
+      if (teacherMap["_single"]) {
+        teachersCombined = teacherMap["_single"];
+      } else {
+        const tparts: string[] = [];
+        order.forEach((d) => {
+          if (teacherMap[d]) tparts.push(teacherMap[d]);
+        });
+        teachersCombined = tparts.join(" / ");
+      }
+
+      return {
+        ...g,
+        subject_display: combined,
+        teacher_display: teachersCombined,
+        rows: g.raw,
+      };
+    });
+
+    // return sorted by day & period (optional)
+    results.sort((a: any, b: any) => {
+      if (a.day_of_week === b.day_of_week) return a.period_number - b.period_number;
+      return DAYS.indexOf(a.day_of_week) - DAYS.indexOf(b.day_of_week);
+    });
+
+    return results;
+  }, [entries]);
+
+  // show timetable modal for a specific class
   async function showTimetable(classId: string) {
     setSelectedClass(classId);
 
     const { data } = await supabase
       .from("timetable_entries")
-      .select("*, subjects(name), teachers(first_name,last_name)")
+      .select("*, subjects(name, department), teachers(first_name,last_name)")
       .eq("class_id", classId);
 
     if (!data) return;
 
-    // build map keyed by period id with day keys
+    // build map keyed by period id with day keys containing combined strings
     const map: Record<number | string, Record<string, any>> = {};
     TIMETABLE_PERIODS.forEach((p) => {
       if (!p.break) map[p.id] = { mon: null, tue: null, wed: null, thu: null, fri: null };
     });
 
+    // group entries by period and day
+    const tempGroup: Record<string, any[]> = {}; // key = `${period}||${dayKey}`
     data.forEach((entry) => {
       const dow = (entry.day_of_week || "").toString();
       const dayKey = dow.toLowerCase().slice(0, 3); // mon, tue, ...
-      if (!map[entry.period_number]) map[entry.period_number] = {};
-      map[entry.period_number][dayKey] = {
-        subject: entry.subjects?.name,
-        teacher: entry.teachers ? `${entry.teachers.first_name} ${entry.teachers.last_name}` : null,
+      const key = `${entry.period_number}||${dayKey}`;
+      tempGroup[key] = tempGroup[key] || [];
+      tempGroup[key].push(entry);
+    });
+
+    // transform groups into combined strings and set into map
+    Object.entries(tempGroup).forEach(([k, rows]) => {
+      const [periodIdStr, dayKey] = k.split("||");
+      const periodId = isNaN(Number(periodIdStr)) ? periodIdStr : Number(periodIdStr);
+
+      // order departments
+      const order = ["Science", "Arts", "Commercial"];
+      const deptMap: Record<string, string> = {};
+      rows.forEach((r: any) => {
+        const sname = r.subjects?.name || "";
+        const sdept = r.subjects?.department || "";
+        const code = shortCode(sname);
+        if (sdept) deptMap[sdept] = code;
+        else deptMap["_single"] = sname;
+      });
+
+      let display = "";
+      if (deptMap["_single"]) {
+        display = deptMap["_single"];
+      } else {
+        const parts: string[] = [];
+        order.forEach((d) => {
+          if (deptMap[d]) parts.push(deptMap[d]);
+        });
+        display = parts.join(" / ");
+      }
+
+      if (!map[periodId]) map[periodId] = {};
+      map[periodId][dayKey] = {
+        subject: display,
+        rows,
       };
     });
 
@@ -160,10 +372,9 @@ export default function TimetablePage() {
     setIsTableModalOpen(true);
   }
 
-  const filtered = entries.filter((e) =>
-    `${e.classes?.name} ${e.subjects?.name}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
+  // filtered grouped entries used for the cards grid
+  const filtered = groupedEntries.filter((g) =>
+    `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -173,7 +384,7 @@ export default function TimetablePage() {
         <div className="flex justify-between items-start gap-4">
           <div>
             <h1 className="text-3xl font-bold">Timetable</h1>
-            <p className="text-gray-600">Manage school timetable entries</p>
+            <p className="text-gray-600">Manage school timetable entries (supports departmental periods for SSS)</p>
           </div>
 
           <div className="flex flex-col gap-2 items-end">
@@ -271,32 +482,38 @@ export default function TimetablePage() {
                       </select>
                     </div>
 
-                    {/* Subject */}
+                    {/* Departmental toggle - show only when class is SSS */}
+                    {/* We can't know the selected class on initial render; we'll show the toggle always,
+                        but when the chosen class is not SSS, departmental mode will still insert single rows */}
+                    <div className="flex items-center gap-3">
+                      <input id="departmental" name="departmental" type="checkbox" className="h-4 w-4" />
+                      <Label htmlFor="departmental">Departmental Period (Science / Arts / Commercial)</Label>
+                    </div>
+
+                    {/* Single subject picker (used when Departmental not checked OR editing single rows) */}
                     <div>
-                      <Label>Subject</Label>
+                      <Label>Subject (single)</Label>
                       <select
                         name="subject_id"
                         className="w-full border rounded-md h-10 px-2"
                         defaultValue={editingEntry?.subject_id || ""}
-                        required
+                        {...(editingEntry ? { required: true } : {})}
                       >
                         <option value="">Select subject</option>
                         {subjects.map((s) => (
                           <option key={s.id} value={s.id}>
-                            {s.name}
+                            {s.name} {s.department ? `— ${s.department}` : ""}
                           </option>
                         ))}
                       </select>
                     </div>
 
-                    {/* Teacher */}
                     <div>
-                      <Label>Teacher</Label>
+                      <Label>Teacher (single)</Label>
                       <select
                         name="teacher_id"
                         className="w-full border rounded-md h-10 px-2"
                         defaultValue={editingEntry?.teacher_id || ""}
-                        required
                       >
                         <option value="">Select teacher</option>
                         {teachers.map((t) => (
@@ -305,6 +522,79 @@ export default function TimetablePage() {
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Departmental fields - Science */}
+                    <div className="border p-3 rounded">
+                      <div className="mb-2 font-semibold">Departmental Subjects (choose any)</div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <Label>Science Subject</Label>
+                          <select name="science_subject_id" className="w-full border rounded-md h-10 px-2">
+                            <option value="">No Science Subject</option>
+                            {subjectsByDepartment("Science").map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <Label className="mt-2">Science Teacher</Label>
+                          <select name="science_teacher_id" className="w-full border rounded-md h-10 px-2">
+                            <option value="">No teacher</option>
+                            {teachers.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.first_name} {t.last_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <Label>Arts Subject</Label>
+                          <select name="arts_subject_id" className="w-full border rounded-md h-10 px-2">
+                            <option value="">No Arts Subject</option>
+                            {subjectsByDepartment("Arts").map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <Label className="mt-2">Arts Teacher</Label>
+                          <select name="arts_teacher_id" className="w-full border rounded-md h-10 px-2">
+                            <option value="">No teacher</option>
+                            {teachers.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.first_name} {t.last_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <Label>Commercial Subject</Label>
+                          <select name="commercial_subject_id" className="w-full border rounded-md h-10 px-2">
+                            <option value="">No Commercial Subject</option>
+                            {subjectsByDepartment("Commercial").map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          <Label className="mt-2">Commercial Teacher</Label>
+                          <select name="commercial_teacher_id" className="w-full border rounded-md h-10 px-2">
+                            <option value="">No teacher</option>
+                            {teachers.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.first_name} {t.last_name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Buttons */}
@@ -346,30 +636,37 @@ export default function TimetablePage() {
               <CardContent className="space-y-2 text-sm">
                 <p>
                   <span className="text-gray-600">Class:</span>{" "}
-                  <strong>{entry.classes?.name}</strong>
+                  <strong>{entry.class_name}</strong>
                 </p>
                 <p>
                   <span className="text-gray-600">Subject:</span>{" "}
-                  <strong>{entry.subjects?.name}</strong>
+                  <strong>{entry.subject_display || ""}</strong>
                 </p>
                 <p>
                   <span className="text-gray-600">Teacher:</span>{" "}
-                  <strong>
-                    {entry.teachers?.first_name} {entry.teachers?.last_name}
-                  </strong>
+                  <strong>{entry.teacher_display || ""}</strong>
                 </p>
                 <p className="text-gray-600 text-xs">
                   {entry.start_time} - {entry.end_time}
                 </p>
 
                 <div className="flex gap-1 pt-2">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(entry)}>
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(entry.rows?.[0] || null)}>
                     <Edit className="w-4 h-4" />
                   </Button>
+                  {/* When user clicks delete here we will delete all rows for that grouped entry.
+                      You may want to change this to delete one by one instead. */}
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteEntry(entry.id)}
+                    onClick={() => {
+                      // delete all underlying rows in this grouped entry
+                      if (!confirm("Delete all rows for this class/day/period?")) return;
+                      const ids = (entry.rows || []).map((r: any) => r.id);
+                      Promise.all(ids.map((id: string) => supabase.from("timetable_entries").delete().eq("id", id)))
+                        .then(() => { toast.success("Deleted"); fetchAll(); })
+                        .catch(() => toast.error("Failed to delete"));
+                    }}
                   >
                     <Trash2 className="w-4 h-4 text-red-600" />
                   </Button>

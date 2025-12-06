@@ -1,21 +1,17 @@
-"use client";
+// Timetable UI full code — updated
+// Hides single subject when departmental mode is active
+
+import React, { useEffect, useMemo, useState } from "react";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
@@ -43,8 +39,19 @@ export default function TimetablePage() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
+
+  // form state (controlled) — so we can hide/show fields dynamically
+  const [formDay, setFormDay] = useState("");
+  const [formPeriod, setFormPeriod] = useState<number | "">("");
+  const [formClassId, setFormClassId] = useState<string>("");
+  const [departmentalMode, setDepartmentalMode] = useState(false);
+  const [formSubjectId, setFormSubjectId] = useState<string>("");
+  const [formScienceSubjectId, setFormScienceSubjectId] = useState<string>("");
+  const [formArtsSubjectId, setFormArtsSubjectId] = useState<string>("");
+  const [formCommercialSubjectId, setFormCommercialSubjectId] = useState<string>("");
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
@@ -55,7 +62,6 @@ export default function TimetablePage() {
   }, []);
 
   async function fetchAll() {
-    // fetch entries joined to subjects and classes (subjects will include teacher_id)
     const [timetableRes, classRes, subjectRes, teacherRes] = await Promise.all([
       supabase
         .from("timetable_entries")
@@ -72,8 +78,32 @@ export default function TimetablePage() {
     if (teacherRes.data) setTeachers(teacherRes.data);
   }
 
-  function openEdit(entry: any) {
-    setEditingEntry(entry);
+  // open add dialog (reset form)
+  function openAddDialog() {
+    setEditingEntry(null);
+    setFormDay("");
+    setFormPeriod("");
+    setFormClassId("");
+    setDepartmentalMode(false);
+    setFormSubjectId("");
+    setFormScienceSubjectId("");
+    setFormArtsSubjectId("");
+    setFormCommercialSubjectId("");
+    setIsDialogOpen(true);
+  }
+
+  // open edit for a single underlying row (editingEntry should be a specific row)
+  function openEdit(entryRow: any) {
+    if (!entryRow) return;
+    setEditingEntry(entryRow);
+    setFormDay(entryRow.day_of_week || "");
+    setFormPeriod(entryRow.period_number || "");
+    setFormClassId(entryRow.class_id || "");
+    setDepartmentalMode(false); // editing one row -> single subject
+    setFormSubjectId(entryRow.subject_id || "");
+    setFormScienceSubjectId("");
+    setFormArtsSubjectId("");
+    setFormCommercialSubjectId("");
     setIsDialogOpen(true);
   }
 
@@ -96,29 +126,29 @@ export default function TimetablePage() {
     return cleaned.slice(0, 3).toUpperCase();
   }
 
-  // find teacher by subject.teacher_id
   function teacherForSubject(subject: any) {
     if (!subject?.teacher_id) return "";
     const t = teachers.find((x) => x.id === subject.teacher_id);
     return t ? `${t.first_name} ${t.last_name}` : "";
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const day_of_week = (data.get("day_of_week") as string) || "";
-    const period_number = Number(data.get("period_number"));
-    const class_id = data.get("class_id") as string;
-    const departmentalMode = data.get("departmental") === "on";
+  // Submit handler uses controlled form state
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
 
-    // editing single row: update subject_id only (teacher removed)
+    if (!formDay || !formPeriod || !formClassId) {
+      toast.error("Please select day, period and class");
+      return;
+    }
+
+    // editing single row
     if (editingEntry) {
-      const payload = {
-        day_of_week,
-        period_number,
-        class_id,
-        subject_id: data.get("subject_id") as string,
-        // teacher_id intentionally not included
+      const payload: any = {
+        day_of_week: formDay,
+        period_number: Number(formPeriod),
+        class_id: formClassId,
+        subject_id: formSubjectId || null,
+        department: null,
       };
 
       const { error } = await supabase
@@ -132,48 +162,48 @@ export default function TimetablePage() {
         closeDialog();
         fetchAll();
       }
+
       return;
     }
 
+    // CREATE
     if (!departmentalMode) {
       const payload: any = {
-        day_of_week,
-        period_number,
-        class_id,
-        subject_id: data.get("subject_id") as string,
+        day_of_week: formDay,
+        period_number: Number(formPeriod),
+        class_id: formClassId,
+        subject_id: formSubjectId || null,
+        department: null,
       };
 
       const { error } = await supabase.from("timetable_entries").insert(payload);
-
       if (error) toast.error(error.message || "Failed to create entry");
       else {
         toast.success("Entry added");
         closeDialog();
         fetchAll();
       }
-    } else {
-      const inserts: any[] = [];
-      const sciSub = data.get("science_subject_id") as string;
-      const artSub = data.get("arts_subject_id") as string;
-      const comSub = data.get("commercial_subject_id") as string;
 
-      if (sciSub) inserts.push({ day_of_week, period_number, class_id, subject_id: sciSub });
-      if (artSub) inserts.push({ day_of_week, period_number, class_id, subject_id: artSub });
-      if (comSub) inserts.push({ day_of_week, period_number, class_id, subject_id: comSub });
+      return;
+    }
 
-      if (inserts.length === 0) {
-        toast.error("Choose at least one department subject to add");
-        return;
-      }
+    // Departmental mode — create up to 3 rows with department set
+    const inserts: any[] = [];
+    if (formScienceSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formScienceSubjectId, department: "Science" });
+    if (formArtsSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formArtsSubjectId, department: "Arts" });
+    if (formCommercialSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formCommercialSubjectId, department: "Commercial" });
 
-      const { error } = await supabase.from("timetable_entries").insert(inserts);
+    if (inserts.length === 0) {
+      toast.error("Choose at least one department subject to add");
+      return;
+    }
 
-      if (error) toast.error(error.message || "Failed to create departmental entries");
-      else {
-        toast.success("Departmental entries added");
-        closeDialog();
-        fetchAll();
-      }
+    const { error } = await supabase.from("timetable_entries").insert(inserts);
+    if (error) toast.error(error.message || "Failed to create departmental entries");
+    else {
+      toast.success("Departmental entries added");
+      closeDialog();
+      fetchAll();
     }
   }
 
@@ -187,20 +217,13 @@ export default function TimetablePage() {
     }
   }
 
-  // group rows by class/day/period and produce subject_display and teacher_display using subject.teacher_id
+  // groupedEntries to combine departmental rows into single cell display
   const groupedEntries = useMemo(() => {
     const map: Record<string, any> = {};
     entries.forEach((en) => {
       const key = `${en.class_id}||${en.day_of_week}||${en.period_number}`;
       if (!map[key]) {
-        map[key] = {
-          id: key,
-          class_id: en.class_id,
-          class_name: en.classes?.name,
-          day_of_week: en.day_of_week,
-          period_number: en.period_number,
-          raw: [],
-        };
+        map[key] = { id: key, class_id: en.class_id, class_name: en.classes?.name, day_of_week: en.day_of_week, period_number: en.period_number, raw: [] };
       }
       map[key].raw.push(en);
     });
@@ -213,7 +236,7 @@ export default function TimetablePage() {
 
       g.raw.forEach((r: any) => {
         const subjName = r.subjects?.name || "";
-        const subjDept = r.subjects?.department || "";
+        const subjDept = r.subjects?.department || r.department || "";
         const code = shortCode(subjName);
 
         if (subjDept) {
@@ -228,33 +251,13 @@ export default function TimetablePage() {
       });
 
       let combined = "";
-      if (deptMap["_single"]) {
-        combined = deptMap["_single"];
-      } else {
-        const parts: string[] = [];
-        order.forEach((d) => {
-          if (deptMap[d]) parts.push(deptMap[d]);
-        });
-        combined = parts.join(" / ");
-      }
+      if (deptMap["_single"]) combined = deptMap["_single"];
+      else combined = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
 
       let teachersCombined = "";
-      if (teacherMap["_single"]) {
-        teachersCombined = teacherMap["_single"];
-      } else {
-        const tparts: string[] = [];
-        order.forEach((d) => {
-          if (teacherMap[d]) tparts.push(teacherMap[d]);
-        });
-        teachersCombined = tparts.join(" / ");
-      }
+      if (teacherMap["_single"]) teachersCombined = teacherMap["_single"]; else teachersCombined = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
 
-      return {
-        ...g,
-        subject_display: combined,
-        teacher_display: teachersCombined,
-        rows: g.raw,
-      };
+      return { ...g, subject_display: combined, teacher_display: teachersCombined, rows: g.raw };
     });
 
     results.sort((a: any, b: any) => {
@@ -275,13 +278,9 @@ export default function TimetablePage() {
 
     if (!data) return;
 
-    // build map keyed by period id with day keys
     const map: Record<number | string, Record<string, any>> = {};
-    TIMETABLE_PERIODS.forEach((p) => {
-      if (!p.break) map[p.id] = { mon: null, tue: null, wed: null, thu: null, fri: null };
-    });
+    TIMETABLE_PERIODS.forEach((p) => { if (!p.break) map[p.id] = { mon: null, tue: null, wed: null, thu: null, fri: null }; });
 
-    // group entries by period/day
     const tempGroup: Record<string, any[]> = {};
     data.forEach((entry) => {
       const dow = (entry.day_of_week || "").toString();
@@ -294,14 +293,13 @@ export default function TimetablePage() {
     Object.entries(tempGroup).forEach(([k, rows]) => {
       const [periodIdStr, dayKey] = k.split("||");
       const periodId = isNaN(Number(periodIdStr)) ? periodIdStr : Number(periodIdStr);
-
       const order = ["Science", "Arts", "Commercial"];
       const deptMap: Record<string, string> = {};
       const teacherMap: Record<string, string> = {};
 
       rows.forEach((r: any) => {
         const sname = r.subjects?.name || "";
-        const sdept = r.subjects?.department || "";
+        const sdept = r.subjects?.department || r.department || "";
         const code = shortCode(sname);
         if (sdept) {
           deptMap[sdept] = code;
@@ -313,42 +311,24 @@ export default function TimetablePage() {
       });
 
       let display = "";
-      if (deptMap["_single"]) {
-        display = deptMap["_single"];
-      } else {
-        const parts: string[] = [];
-        order.forEach((d) => {
-          if (deptMap[d]) parts.push(deptMap[d]);
-        });
-        display = parts.join(" / ");
-      }
+      if (deptMap["_single"]) display = deptMap["_single"]; else display = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
 
       let teacherDisplay = "";
-      if (teacherMap["_single"]) {
-        teacherDisplay = teacherMap["_single"];
-      } else {
-        const tparts: string[] = [];
-        order.forEach((d) => {
-          if (teacherMap[d]) tparts.push(teacherMap[d]);
-        });
-        teacherDisplay = tparts.join(" / ");
-      }
+      if (teacherMap["_single"]) teacherDisplay = teacherMap["_single"]; else teacherDisplay = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
 
       if (!map[periodId]) map[periodId] = {};
-      map[periodId][dayKey] = {
-        subject: display,
-        teacher: teacherDisplay,
-        rows,
-      };
+      map[periodId][dayKey] = { subject: display, teacher: teacherDisplay, rows };
     });
 
     setClassTimetable(map);
     setIsTableModalOpen(true);
   }
 
-  const filtered = groupedEntries.filter((g) =>
-    `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = groupedEntries.filter((g) => `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase()));
+
+  // helper: determine if selected class (in the add dialog) is SSS so we can enable departmental mode checkbox
+  const selectedClassLevel = classes.find((c) => c.id === formClassId)?.level || "";
+  const isSelectedClassSSS = selectedClassLevel.startsWith("SSS");
 
   return (
     <DashboardLayout role="admin">
@@ -356,118 +336,107 @@ export default function TimetablePage() {
         <div className="flex justify-between items-start gap-4">
           <div>
             <h1 className="text-3xl font-bold">Timetable</h1>
-            <p className="text-gray-600">Manage school timetable entries (teacher assigned via subject)</p>
+            <p className="text-gray-600">Manage school timetable entries (departmental periods supported)</p>
           </div>
 
           <div className="flex flex-col gap-2 items-end">
             <div className="flex gap-2 items-center">
-              <select
-                className="border rounded-md h-10 px-2"
-                value={selectedClass || ""}
-                onChange={(e) => setSelectedClass(e.target.value)}
-              >
+              <select className="border rounded-md h-10 px-2" value={selectedClass || ""} onChange={(e) => setSelectedClass(e.target.value)}>
                 <option value="">Select a class</option>
-                {classes.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </option>
-                ))}
+                {classes.map((cls) => (<option key={cls.id} value={cls.id}>{cls.name}</option>))}
               </select>
 
-              <Button
-                onClick={() => selectedClass && showTimetable(selectedClass)}
-                disabled={!selectedClass}
-              >
-                View Timetable
-              </Button>
+              <Button onClick={() => selectedClass && showTimetable(selectedClass)} disabled={!selectedClass}>View Timetable</Button>
             </div>
 
             <div className="flex gap-2">
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => setEditingEntry(null)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Entry
-                  </Button>
+                  <Button onClick={openAddDialog}><Plus className="h-4 w-4 mr-2" />Add Entry</Button>
                 </DialogTrigger>
 
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>{editingEntry ? "Edit Entry" : "Add Timetable Entry"}</DialogTitle>
-                  </DialogHeader>
+                  <DialogHeader><DialogTitle>{editingEntry ? "Edit Entry" : "Add Timetable Entry"}</DialogTitle></DialogHeader>
 
-                  <form onSubmit={handleSubmit} className="space-y-4">
+                  <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
                     <div>
                       <Label>Day of Week</Label>
-                      <select name="day_of_week" className="w-full border rounded-md h-10 px-2" defaultValue={editingEntry?.day_of_week || ""} required>
+                      <select value={formDay} onChange={(e) => setFormDay(e.target.value)} className="w-full border rounded-md h-10 px-2" required>
                         <option value="">Select day</option>
-                        {DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+                        {DAYS.map((d) => (<option key={d} value={d}>{d}</option>))}
                       </select>
                     </div>
 
                     <div>
                       <Label>Period</Label>
-                      <select name="period_number" className="w-full border rounded-md h-10 px-2" defaultValue={editingEntry?.period_number || ""} required>
+                      <select value={formPeriod} onChange={(e) => setFormPeriod(Number(e.target.value))} className="w-full border rounded-md h-10 px-2" required>
                         <option value="">Select period</option>
-                        {PERIODS.map((p) => <option key={p} value={p}>Period {p}</option>)}
+                        {PERIODS.map((p) => (<option key={p} value={p}>Period {p}</option>))}
                       </select>
                     </div>
 
                     <div>
                       <Label>Class</Label>
-                      <select name="class_id" className="w-full border rounded-md h-10 px-2" defaultValue={editingEntry?.class_id || ""} required>
+                      <select value={formClassId} onChange={(e) => { setFormClassId(e.target.value); /* reset departmental choice when class changes */ setDepartmentalMode(false); }} className="w-full border rounded-md h-10 px-2" required>
                         <option value="">Select class</option>
-                        {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {classes.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
                       </select>
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <input id="departmental" name="departmental" type="checkbox" className="h-4 w-4" />
+                      <input id="departmental" name="departmental" type="checkbox" className="h-4 w-4" checked={departmentalMode} onChange={(e) => setDepartmentalMode(e.target.checked)} disabled={!isSelectedClassSSS} />
                       <Label htmlFor="departmental">Departmental Period (Science / Arts / Commercial)</Label>
+                      {!isSelectedClassSSS && <div className="text-xs text-gray-500 ml-2">(Available only for SSS classes)</div>}
                     </div>
 
-                    {/* Single subject picker */}
-                    <div>
-                      <Label>Subject (single)</Label>
-                      <select name="subject_id" className="w-full border rounded-md h-10 px-2" defaultValue={editingEntry?.subject_id || ""}>
-                        <option value="">Select subject</option>
-                        {subjects.map((s) => <option key={s.id} value={s.id}>{s.name} {s.department ? `— ${s.department}` : ""}</option>)}
-                      </select>
-                    </div>
-
-                    {/* Departmental pickers */}
-                    <div className="border p-3 rounded">
-                      <div className="mb-2 font-semibold">Departmental Subjects (choose any)</div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* when departmentalMode is true we hide single subject picker */}
+                    {!departmentalMode && (
+                      <>
                         <div>
-                          <Label>Science Subject</Label>
-                          <select name="science_subject_id" className="w-full border rounded-md h-10 px-2">
-                            <option value="">No Science Subject</option>
-                            {subjectsByDepartment("Science").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          <Label>Subject (single)</Label>
+                          <select value={formSubjectId} onChange={(e) => setFormSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                            <option value="">Select subject</option>
+                            {subjects.map((s) => (<option key={s.id} value={s.id}>{s.name}{s.department ? ` — ${s.department}` : ''}</option>))}
                           </select>
                         </div>
+                      </>
+                    )}
 
-                        <div>
-                          <Label>Arts Subject</Label>
-                          <select name="arts_subject_id" className="w-full border rounded-md h-10 px-2">
-                            <option value="">No Arts Subject</option>
-                            {subjectsByDepartment("Arts").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                          </select>
-                        </div>
+                    {/* Departmental pickers (visible when departmentalMode true) */}
+                    {departmentalMode && (
+                      <div className="border p-3 rounded">
+                        <div className="mb-2 font-semibold">Departmental Subjects (choose any)</div>
 
-                        <div>
-                          <Label>Commercial Subject</Label>
-                          <select name="commercial_subject_id" className="w-full border rounded-md h-10 px-2">
-                            <option value="">No Commercial Subject</option>
-                            {subjectsByDepartment("Commercial").map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                          </select>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <Label>Science Subject</Label>
+                            <select value={formScienceSubjectId} onChange={(e) => setFormScienceSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                              <option value="">No Science Subject</option>
+                              {subjectsByDepartment("Science").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <Label>Arts Subject</Label>
+                            <select value={formArtsSubjectId} onChange={(e) => setFormArtsSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                              <option value="">No Arts Subject</option>
+                              {subjectsByDepartment("Arts").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <Label>Commercial Subject</Label>
+                            <select value={formCommercialSubjectId} onChange={(e) => setFormCommercialSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                              <option value="">No Commercial Subject</option>
+                              {subjectsByDepartment("Commercial").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                            </select>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
 
                     <div className="flex gap-2">
-                      <Button className="flex-1" type="submit">{editingEntry ? "Update" : "Create"}</Button>
+                      <Button className="flex-1" type="button" onClick={() => handleSubmit()}>{editingEntry ? "Update" : "Create"}</Button>
                       <Button variant="outline" type="button" onClick={closeDialog}>Cancel</Button>
                     </div>
                   </form>
@@ -555,3 +524,4 @@ export default function TimetablePage() {
     </DashboardLayout>
   );
 }
+

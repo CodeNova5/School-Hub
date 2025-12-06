@@ -112,6 +112,33 @@ export default function TimetablePage() {
     setIsDialogOpen(false);
   }
 
+  // add: openAdd pre-fills the add form for clicked empty cell and opens the dialog
+  function openAdd(day: string, period: number) {
+    // ensure we're creating a new entry (not editing)
+    setEditingEntry(null);
+
+    // prefill form values
+    setFormDay(day);
+    setFormPeriod(period);
+
+    // if the user has already selected a class in the UI, prefill it
+    if (selectedClass) {
+      setFormClassId(selectedClass);
+    } else {
+      setFormClassId("");
+    }
+
+    // reset subject fields / departmental mode
+    setDepartmentalMode(false);
+    setFormSubjectId("");
+    setFormScienceSubjectId("");
+    setFormArtsSubjectId("");
+    setFormCommercialSubjectId("");
+
+    // open dialog
+    setIsDialogOpen(true);
+  }
+
   function subjectsByDepartment(dept?: string) {
     return subjects.filter((s) => {
       if (!dept) return !s.department;
@@ -474,9 +501,13 @@ export default function TimetablePage() {
 
                     if (!entry) {
                       return (
-                        <Card>
-                          <CardContent className="p-12 text-center text-gray-500">No timetable entries found</CardContent>
-                        </Card>
+                        <td
+                          key={day}
+                          className="border p-3 text-center text-gray-400 cursor-pointer hover:bg-gray-100"
+                          onClick={() => openAdd(day, period)}
+                        >
+
+                        </td>
                       );
                     }
 

@@ -125,3 +125,12 @@ DROP INDEX IF EXISTS uq_timetable_teacher_period;
 
 -- drop teacher column from timetable_entries
 ALTER TABLE timetable_entries DROP COLUMN IF EXISTS teacher_id;
+
+DROP INDEX IF EXISTS uq_timetable_class_period;
+ALTER TABLE timetable_entries
+ADD COLUMN department text
+CHECK (
+  department IS NULL OR department = ANY (ARRAY['Science','Arts','Commercial'])
+);
+CREATE UNIQUE INDEX uq_timetable_class_period_department
+ON timetable_entries (day_of_week, period_number, class_id, COALESCE(department, 'NONE'));

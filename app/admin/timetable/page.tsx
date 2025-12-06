@@ -378,12 +378,9 @@ export default function TimetablePage() {
             </div>
 
             <div className="flex gap-2">
+              <Button onClick={openAddDialog}><Plus className="mr-2" />Add Entry</Button>
+
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <Button onClick={openAddDialog}>
-                  <Plus className="h-4 w-4 mr-2" />Add Entry
-                </Button>
-
-
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle>{editingEntry ? "Edit Entry" : "Add Timetable Entry"}</DialogTitle></DialogHeader>
 

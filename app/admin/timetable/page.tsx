@@ -451,32 +451,94 @@ export default function TimetablePage() {
           <Input placeholder="Search by class or subject..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((entry) => (
-            <Card key={entry.id}>
-              <CardHeader className="pb-2">
-                <CardTitle>{entry.day_of_week} — Period {entry.period_number}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p><span className="text-gray-600">Class:</span> <strong>{entry.class_name}</strong></p>
-                <p><span className="text-gray-600">Subject:</span> <strong>{entry.subject_display || ""}</strong></p>
-                <p><span className="text-gray-600">Teacher:</span> <strong>{entry.teacher_display || ""}</strong></p>
-                <div className="flex gap-1 pt-2">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(entry.rows?.[0] || null)}><Edit className="w-4 h-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => {
-                    if (!confirm("Delete all rows for this class/day/period?")) return;
-                    const ids = (entry.rows || []).map((r: any) => r.id);
-                    Promise.all(ids.map((id: string) => supabase.from("timetable_entries").delete().eq("id", id)))
-                      .then(() => { toast.success("Deleted"); fetchAll(); })
-                      .catch(() => toast.error("Failed to delete"));
-                  }}>
-                    <Trash2 className="w-4 h-4 text-red-600" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="min-w-full border border-gray-200">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="border p-3 text-left">Period</th>
+                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(day => (
+                  <th key={day} className="border p-3 text-center">{day}</th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(period => (
+                <tr key={period}>
+                  <td className="border p-3 font-medium text-center">Period {period}</td>
+
+                  {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(day => {
+                    const entry = filtered.find(e =>
+                      e.day_of_week === day && e.period_number === period
+                    );
+
+                    if (!entry) {
+                      return (
+                        <Card>
+                          <CardContent className="p-12 text-center text-gray-500">No timetable entries found</CardContent>
+                        </Card>
+                      );
+                    }
+
+                    return (
+                      <td key={day} className="border p-3 align-top">
+                        <div className="space-y-1">
+
+                          {/* Subject(s) */}
+                          <p className="font-semibold">
+                            {entry.subject_display || ""}
+                          </p>
+
+                          {/* Class */}
+                          <p className="text-xs text-gray-600">
+                            {entry.class_name}
+                          </p>
+
+                          {/* Teacher */}
+                          {entry.teacher_display && (
+                            <p className="text-xs text-gray-600">
+                              {entry.teacher_display}
+                            </p>
+                          )}
+
+                          <div className="flex gap-1 pt-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEdit(entry.rows?.[0] || null)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                if (!confirm("Delete all rows for this class/day/period?")) return;
+                                const ids = (entry.rows || []).map((r: any) => r.id);
+                                Promise.all(
+                                  ids.map((id: string) =>
+                                    supabase.from("timetable_entries").delete().eq("id", id)
+                                  )
+                                ).then(() => {
+                                  toast.success("Deleted successfully");
+                                  fetchAll();
+                                });
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+
 
         {filtered.length === 0 && (
           <Card>
@@ -494,7 +556,7 @@ export default function TimetablePage() {
               <thead>
                 <tr className="bg-gray-100">
                   <th className="border px-2 py-1">Period</th>
-                  {DAYS_SHORT.map((d, i) => (<th key={d} className="border px-2 py-1">{DAYS[i].slice(0,3)}</th>))}
+                  {DAYS_SHORT.map((d, i) => (<th key={d} className="border px-2 py-1">{DAYS[i].slice(0, 3)}</th>))}
                 </tr>
               </thead>
               <tbody>
@@ -521,7 +583,7 @@ export default function TimetablePage() {
           </DialogContent>
         </Dialog>
       </div>
-    </DashboardLayout>
+    </DashboardLayout >
   );
 }
 

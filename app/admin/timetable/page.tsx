@@ -413,14 +413,13 @@ export default function TimetablePage() {
                       {!isSelectedClassSSS && <div className="text-xs text-gray-500 ml-2">(Available only for SSS classes)</div>}
                     </div>
 
-                    {/* when departmentalMode is true we hide single subject picker */}
-                    {!departmentalMode && (
+                     {!departmentalMode && (
                       <>
                         <div>
-                          <Label>Subject (single)</Label>
+                          <Label>Subjects</Label>
                           <select value={formSubjectId} onChange={(e) => setFormSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
                             <option value="">Select subject</option>
-                            {subjects.map((s) => (<option key={s.id} value={s.id}>{s.name}{s.department ? ` — ${s.department}` : ''}</option>))}
+                            {subjectsByDepartment().map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
                           </select>
                         </div>
                       </>

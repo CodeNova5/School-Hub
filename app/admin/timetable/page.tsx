@@ -56,6 +56,7 @@ export default function TimetablePage() {
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+  const [isCompactTableOpen, setIsCompactTableOpen] = useState(false); // new
 
   useEffect(() => {
     fetchAll();
@@ -490,7 +491,7 @@ export default function TimetablePage() {
         </div>
 
         {/* Timetable modal */}
-        <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
+        <Dialog open={isCompactTableOpen} onOpenChange={setIsCompactTableOpen}>
           <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
             <DialogHeader>
               <DialogTitle>

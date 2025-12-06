@@ -119,3 +119,9 @@ CREATE TABLE IF NOT EXISTS timetable_entries ( id uuid PRIMARY KEY DEFAULT gen_r
 
 ALTER TABLE timetable_entries
 ADD COLUMN department_subjects text;  -- stores 'PHY/GOV/ACC'
+
+-- drop teacher unique index (prevents double-booking teachers)
+DROP INDEX IF EXISTS uq_timetable_teacher_period;
+
+-- drop teacher column from timetable_entries
+ALTER TABLE timetable_entries DROP COLUMN IF EXISTS teacher_id;

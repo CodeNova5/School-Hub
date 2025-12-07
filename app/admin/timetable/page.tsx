@@ -167,8 +167,67 @@ export default function TimetablePage() {
       return;
     }
 
-    // editing single row
+    // EDITING MODE
     if (editingEntry) {
+      // If switching to departmental mode:
+      if (departmentalMode) {
+        // 1️⃣ Delete the original single entry
+        await supabase
+          .from("timetable_entries")
+          .delete()
+          .eq("id", editingEntry.id);
+
+        // 2️⃣ Build new departmental rows
+        const inserts: any[] = [];
+        if (formScienceSubjectId)
+          inserts.push({
+            day_of_week: formDay,
+            period_number: Number(formPeriod),
+            class_id: formClassId,
+            subject_id: formScienceSubjectId,
+            department: "Science",
+          });
+
+        if (formArtsSubjectId)
+          inserts.push({
+            day_of_week: formDay,
+            period_number: Number(formPeriod),
+            class_id: formClassId,
+            subject_id: formArtsSubjectId,
+            department: "Arts",
+          });
+
+        if (formCommercialSubjectId)
+          inserts.push({
+            day_of_week: formDay,
+            period_number: Number(formPeriod),
+            class_id: formClassId,
+            subject_id: formCommercialSubjectId,
+            department: "Commercial",
+          });
+
+        if (inserts.length === 0) {
+          toast.error("Pick at least one departmental subject");
+          return;
+        }
+
+        // 3️⃣ Insert the new departmental rows
+        const { error } = await supabase
+          .from("timetable_entries")
+          .insert(inserts);
+
+        if (error) toast.error(error.message || "Failed to update entry");
+        else {
+          toast.success("Entry updated");
+          closeDialog();
+          await fetchAll();
+          if (formClassId) await showTimetable(formClassId);
+        }
+
+        return; // EXIT — do not run the rest
+      }
+
+      // Normal single update (regular → regular)
       const payload: any = {
         day_of_week: formDay,
         period_number: Number(formPeriod),
@@ -192,6 +251,7 @@ export default function TimetablePage() {
 
       return;
     }
+
 
     // CREATE
     if (!departmentalMode) {

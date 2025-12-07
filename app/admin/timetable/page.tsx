@@ -157,6 +157,62 @@ export default function TimetablePage() {
     const t = teachers.find((x) => x.id === subject.teacher_id);
     return t ? `${t.first_name} ${t.last_name}` : "";
   }
+  async function teacherHasClashDetailed(
+    teacherIds: string[],
+    day: string,
+    period: number,
+    classId: string,
+    ignoreId?: string
+  ) {
+    if (teacherIds.length === 0) return null;
+
+    const { data, error } = await supabase
+      .from("timetable_entries")
+      .select(`
+      id,
+      class_id,
+      subjects (
+        name,
+        teacher_id,
+        teacher:teacher_id (
+          first_name,
+          last_name
+        )
+      )
+    `)
+      .eq("day_of_week", day)
+      .eq("period_number", period);
+
+    if (error || !data) return null;
+
+    for (const row of data) {
+      if (ignoreId && row.id === ignoreId) continue;
+
+      // subjects is returned as an array, so take the first element
+      const subjectObj = Array.isArray(row.subjects)
+        ? row.subjects[0]
+        : row.subjects;
+
+      if (!subjectObj) continue;
+
+      const teacherId = subjectObj.teacher_id;
+
+      if (teacherId && teacherIds.includes(teacherId)) {
+        const teacherArr = subjectObj.teacher ?? [];
+        const teacherObj = teacherArr[0] || {};
+
+        return {
+          className: classes.find((c) => c.id === row.class_id)?.name,
+          subjectName: subjectObj.name,
+          teacherName: `${teacherObj.first_name || ""} ${teacherObj.last_name || ""}`.trim(),
+        };
+      }
+    }
+
+    return null;
+  }
+
+
 
   // Submit handler uses controlled form state
   async function handleSubmit(e?: React.FormEvent) {
@@ -227,6 +283,33 @@ export default function TimetablePage() {
         return; // EXIT — do not run the rest
       }
 
+      // Find teacher for chosen subject
+      const selectedSubject = subjects.find((s) => s.id === formSubjectId);
+      const teacherId = selectedSubject?.teacher_id || null;
+
+      if (teacherId) {
+        const clash = await teacherHasClashDetailed(
+          [teacherId],
+          formDay,
+          Number(formPeriod),
+          formClassId,
+          editingEntry?.id || undefined
+        );
+
+        if (clash) {
+          toast.error(
+            `Clash detected!\n\n` +
+            `${clash.teacherName} is already teaching:\n` +
+            `• Subject: ${clash.subjectName}\n` +
+            `• Class: ${clash.className}\n` +
+            `• Period: ${formPeriod} on ${formDay}`
+          );
+          return;
+        }
+
+      }
+
+
       // Normal single update (regular → regular)
       const payload: any = {
         day_of_week: formDay,
@@ -273,6 +356,46 @@ export default function TimetablePage() {
       }
 
       return;
+    }
+
+    // Collect teacher IDs for all selected departmental subjects
+    const teacherIds: string[] = [];
+    
+
+    if (formScienceSubjectId) {
+      const s = subjects.find((x) => x.id === formScienceSubjectId);
+      if (s?.teacher_id) teacherIds.push(s.teacher_id);
+    }
+    if (formArtsSubjectId) {
+      const s = subjects.find((x) => x.id === formArtsSubjectId);
+      if (s?.teacher_id) teacherIds.push(s.teacher_id);
+    }
+    if (formCommercialSubjectId) {
+      const s = subjects.find((x) => x.id === formCommercialSubjectId);
+      if (s?.teacher_id) teacherIds.push(s.teacher_id);
+    }
+
+    // Check clash for any teacher in the set
+    if (teacherIds.length > 0) {
+      const clash = await teacherHasClashDetailed(
+        teacherIds,
+        formDay,
+        Number(formPeriod),
+        formClassId,
+        editingEntry?.id || undefined
+      );
+
+      if (clash) {
+        toast.error(
+          `Clash detected!\n\n` +
+          `${clash.teacherName} is already teaching:\n` +
+          `• Subject: ${clash.subjectName}\n` +
+          `• Class: ${clash.className}\n` +
+          `• Period: ${formPeriod} on ${formDay}`
+        );
+        return;
+      }
+
     }
 
     // Departmental mode — create up to 3 rows with department set

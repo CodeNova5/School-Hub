@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
+import { Printer, Download } from "lucide-react";
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -638,13 +639,8 @@ export default function TimetablePage() {
                     <DialogTitle>
                       {editingEntry ? "Edit Entry" : "Add Timetable Entry"}
                     </DialogTitle>
-                    <div className="flex gap-2 mt-2">
-                    <Button variant="outline" onClick={handlePrint}>Print</Button>
-                    <Button variant="outline" onClick={exportPDF}>Export PDF</Button>
-                    <Button variant="outline" onClick={exportExcel}>Export Excel</Button>
-                  </div>
                   </DialogHeader>
-                
+
 
                   <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
                     <div>
@@ -789,6 +785,18 @@ export default function TimetablePage() {
           <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
             <DialogHeader>
               <DialogTitle>Timetable for {classes.find((c) => c.id === selectedClass)?.name}</DialogTitle>
+              <div className="flex gap-2 mt-2">
+                <Button variant="outline" onClick={handlePrint}>
+                   <Printer className="h-4 w-4 mr-2" />
+                  Print
+                </Button>
+                <Button className="background-black text-white" onClick={exportPDF}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export as PDF</Button>
+                <Button className="background-black text-white" onClick={exportExcel}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export as Excel</Button>
+              </div>
             </DialogHeader>
 
             <div id="timetable-area">

@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -634,12 +634,17 @@ export default function TimetablePage() {
 
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>{editingEntry ? "Edit Entry" : "Add Timetable Entry"}</DialogTitle></DialogHeader>
-                  <div className="flex gap-2 mt-2">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingEntry ? "Edit Entry" : "Add Timetable Entry"}
+                    </DialogTitle>
+                    <div className="flex gap-2 mt-2">
                     <Button variant="outline" onClick={handlePrint}>Print</Button>
                     <Button variant="outline" onClick={exportPDF}>Export PDF</Button>
                     <Button variant="outline" onClick={exportExcel}>Export Excel</Button>
                   </div>
+                  </DialogHeader>
+                
 
                   <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
                     <div>

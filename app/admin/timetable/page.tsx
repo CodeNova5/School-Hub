@@ -417,7 +417,7 @@ export default function TimetablePage() {
                       {!isSelectedClassSSS && <div className="text-xs text-gray-500 ml-2">(Available only for SSS classes)</div>}
                     </div>
 
-                     {!departmentalMode && (
+                    {!departmentalMode && (
                       <>
                         <div>
                           <Label>Subjects</Label>
@@ -463,9 +463,39 @@ export default function TimetablePage() {
                     )}
 
                     <div className="flex gap-2">
-                      <Button className="flex-1" type="button" onClick={() => handleSubmit()}>{editingEntry ? "Update" : "Create"}</Button>
-                      <Button variant="outline" type="button" onClick={closeDialog}>Cancel</Button>
+                      {editingEntry ? (
+                        <>
+                          <Button className="flex-1" type="button" onClick={() => handleSubmit()}>
+                            Update
+                          </Button>
+
+                          <Button
+                            variant="destructive"
+                            type="button"
+                            onClick={() => {
+                              deleteEntry(editingEntry.id);
+                              closeDialog();
+                            }}
+                          >
+                            Delete
+                          </Button>
+
+                          <Button variant="outline" type="button" onClick={closeDialog}>
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button className="flex-1" type="button" onClick={() => handleSubmit()}>
+                            Create
+                          </Button>
+                          <Button variant="outline" type="button" onClick={closeDialog}>
+                            Cancel
+                          </Button>
+                        </>
+                      )}
                     </div>
+
                   </form>
                 </DialogContent>
               </Dialog>
@@ -523,7 +553,17 @@ export default function TimetablePage() {
                       <td
                         key={day}
                         className="border px-2 py-1 text-center cursor-pointer hover:bg-gray-50"
-                        onClick={() => openAdd(DAYS[idx], Number(period.id), selectedClass)}
+                        onClick={() => {
+                          const cell = classTimetable[period.id]?.[day] || null;
+
+                          if (cell && cell.rows && cell.rows.length > 0) {
+                            // If the cell contains multiple rows (departmental), edit the first one or show choose-modal  
+                            openEdit(cell.rows[0]);
+                          } else {
+                            openAdd(DAYS[idx], Number(period.id), selectedClass);
+                          }
+                        }}
+
                       >
                         <div>{classTimetable[period.id]?.[day]?.subject ?? ""}</div>
                         <div className="text-xs text-gray-600">{classTimetable[period.id]?.[day]?.teacher ?? ""}</div>

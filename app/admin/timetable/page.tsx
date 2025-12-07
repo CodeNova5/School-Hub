@@ -10,7 +10,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import * as XLSX from "xlsx";
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -296,7 +298,7 @@ export default function TimetablePage() {
           editingEntry?.id || undefined
         );
 
-         if (clash) {
+        if (clash) {
           toast.error(
             `Clash detected!\n\n` +
             `${clash.teacherName} is already teaching:\n` +
@@ -382,7 +384,7 @@ export default function TimetablePage() {
 
     // Collect teacher IDs for all selected departmental subjects
     const teacherIds: string[] = [];
-    
+
 
     if (formScienceSubjectId) {
       const s = subjects.find((x) => x.id === formScienceSubjectId);
@@ -565,6 +567,49 @@ export default function TimetablePage() {
   const selectedClassLevel = classes.find((c) => c.id === formClassId)?.level || "";
   const isSelectedClassSSS = selectedClassLevel.startsWith("SSS");
 
+
+  function handlePrint() {
+    const printContents = document.getElementById("timetable-area")?.innerHTML;
+    const originalContents = document.body.innerHTML;
+
+    document.body.innerHTML = printContents || "";
+    window.print();
+    document.body.innerHTML = originalContents;
+    window.location.reload();
+  }
+
+  async function exportPDF() {
+    const element = document.getElementById("timetable-area");
+    if (!element) return;
+
+    const canvas = await html2canvas(element);
+    const imgData = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF("p", "mm", "a4");
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+
+    // ✅ Add class name HERE
+    const className =
+      classes.find((c) => c.id === selectedClass)?.name || "timetable";
+
+    pdf.save(`${className}-timetable.pdf`);
+  }
+  function exportExcel() {
+    const table = document.querySelector("#timetable-area table");
+    const workbook = XLSX.utils.table_to_book(table);
+
+    // ✅ Add class name HERE
+    const className =
+      classes.find((c) => c.id === selectedClass)?.name || "timetable";
+
+    XLSX.writeFile(workbook, `${className}-timetable.xlsx`);
+  }
+
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
@@ -590,6 +635,11 @@ export default function TimetablePage() {
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-h-[90vh] overflow-y-auto">
                   <DialogHeader><DialogTitle>{editingEntry ? "Edit Entry" : "Add Timetable Entry"}</DialogTitle></DialogHeader>
+                  <div className="flex gap-2 mt-2">
+                    <Button variant="outline" onClick={handlePrint}>Print</Button>
+                    <Button variant="outline" onClick={exportPDF}>Export PDF</Button>
+                    <Button variant="outline" onClick={exportExcel}>Export Excel</Button>
+                  </div>
 
                   <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
                     <div>
@@ -736,48 +786,50 @@ export default function TimetablePage() {
               <DialogTitle>Timetable for {classes.find((c) => c.id === selectedClass)?.name}</DialogTitle>
             </DialogHeader>
 
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border px-2 py-1">Period</th>
-                  {DAYS_SHORT.map((d, i) => (<th key={d} className="border px-2 py-1">{DAYS[i].slice(0, 3)}</th>))}
-                </tr>
-              </thead>
-              <tbody>
-                {TIMETABLE_PERIODS.map((period) => period.break ? (
-                  <tr key={String(period.id)} className="bg-gray-200 text-center">
-                    <td colSpan={6} className="py-1">{period.label} ({period.start}–{period.end})</td>
+            <div id="timetable-area">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border px-2 py-1">Period</th>
+                    {DAYS_SHORT.map((d, i) => (<th key={d} className="border px-2 py-1">{DAYS[i].slice(0, 3)}</th>))}
                   </tr>
-                ) : (
-                  <tr key={String(period.id)}>
-                    <td className="border px-2 py-1">
-                      <div>{period.label}</div>
-                      <div className="text-gray-500 text-xs">{period.start}-{period.end}</div>
-                    </td>
-                    {DAYS_SHORT.map((day, idx) => (
-                      <td
-                        key={day}
-                        className="border px-2 py-1 text-center cursor-pointer hover:bg-gray-50"
-                        onClick={() => {
-                          const cell = classTimetable[period.id]?.[day] || null;
-
-                          if (cell && cell.rows && cell.rows.length > 0) {
-                            // If the cell contains multiple rows (departmental), edit the first one or show choose-modal  
-                            openEdit(cell.rows[0]);
-                          } else {
-                            openAdd(DAYS[idx], Number(period.id), selectedClass);
-                          }
-                        }}
-
-                      >
-                        <div>{classTimetable[period.id]?.[day]?.subject ?? ""}</div>
-                        <div className="text-xs text-gray-600">{classTimetable[period.id]?.[day]?.teacher ?? ""}</div>
+                </thead>
+                <tbody>
+                  {TIMETABLE_PERIODS.map((period) => period.break ? (
+                    <tr key={String(period.id)} className="bg-gray-200 text-center">
+                      <td colSpan={6} className="py-1">{period.label} ({period.start}–{period.end})</td>
+                    </tr>
+                  ) : (
+                    <tr key={String(period.id)}>
+                      <td className="border px-2 py-1">
+                        <div>{period.label}</div>
+                        <div className="text-gray-500 text-xs">{period.start}-{period.end}</div>
                       </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      {DAYS_SHORT.map((day, idx) => (
+                        <td
+                          key={day}
+                          className="border px-2 py-1 text-center cursor-pointer hover:bg-gray-50"
+                          onClick={() => {
+                            const cell = classTimetable[period.id]?.[day] || null;
+
+                            if (cell && cell.rows && cell.rows.length > 0) {
+                              // If the cell contains multiple rows (departmental), edit the first one or show choose-modal  
+                              openEdit(cell.rows[0]);
+                            } else {
+                              openAdd(DAYS[idx], Number(period.id), selectedClass);
+                            }
+                          }}
+
+                        >
+                          <div>{classTimetable[period.id]?.[day]?.subject ?? ""}</div>
+                          <div className="text-xs text-gray-600">{classTimetable[period.id]?.[day]?.teacher ?? ""}</div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

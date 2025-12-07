@@ -186,7 +186,8 @@ export default function TimetablePage() {
       else {
         toast.success("Entry updated");
         closeDialog();
-        fetchAll();
+        await fetchAll();
+        if (formClassId) await showTimetable(formClassId);
       }
 
       return;
@@ -207,7 +208,8 @@ export default function TimetablePage() {
       else {
         toast.success("Entry added");
         closeDialog();
-        fetchAll();
+        await fetchAll();
+        if (formClassId) await showTimetable(formClassId);
       }
 
       return;
@@ -229,7 +231,8 @@ export default function TimetablePage() {
     else {
       toast.success("Departmental entries added");
       closeDialog();
-      fetchAll();
+      await fetchAll();
+      if (formClassId) await showTimetable(formClassId);
     }
   }
 
@@ -239,7 +242,8 @@ export default function TimetablePage() {
     if (error) toast.error("Failed to delete");
     else {
       toast.success("Entry deleted");
-      fetchAll();
+      await fetchAll();
+      if (selectedClass) await showTimetable(selectedClass);
     }
   }
 

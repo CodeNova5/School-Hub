@@ -296,7 +296,7 @@ export default function TimetablePage() {
           editingEntry?.id || undefined
         );
 
-        if (clash) {
+         if (clash) {
           toast.error(
             `Clash detected!\n\n` +
             `${clash.teacherName} is already teaching:\n` +
@@ -345,6 +345,28 @@ export default function TimetablePage() {
         subject_id: formSubjectId || null,
         department: null,
       };
+
+      // Find teacher for chosen subject
+      const selectedSubject = subjects.find((s) => s.id === formSubjectId);
+      const teacherId = selectedSubject?.teacher_id || null;
+      if (teacherId) {
+        const clash = await teacherHasClashDetailed(
+          [teacherId],
+          formDay,
+          Number(formPeriod),
+          formClassId
+        );
+        if (clash) {
+          toast.error(
+            `Clash detected!\n\n` +
+            `${clash.teacherName} is already teaching:\n` +
+            `• Subject: ${clash.subjectName}\n` +
+            `• Class: ${clash.className}\n` +
+            `• Period: ${formPeriod} on ${formDay}`
+          );
+          return;
+        }
+      }
 
       const { error } = await supabase.from("timetable_entries").insert(payload);
       if (error) toast.error(error.message || "Failed to create entry");

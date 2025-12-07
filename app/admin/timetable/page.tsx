@@ -784,20 +784,31 @@ export default function TimetablePage() {
         <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
           <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
             <DialogHeader>
-              <DialogTitle>Timetable for {classes.find((c) => c.id === selectedClass)?.name}</DialogTitle>
-              <div className="flex gap-2 mt-2">
-                <Button variant="outline" onClick={handlePrint}>
-                   <Printer className="h-4 w-4 mr-2" />
-                  Print
-                </Button>
-                <Button className="background-black text-white" onClick={exportPDF}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export as PDF</Button>
-                <Button className="background-black text-white" onClick={exportExcel}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export as Excel</Button>
+              <DialogTitle>
+                Timetable for {classes.find((c) => c.id === selectedClass)?.name}
+              </DialogTitle>
+
+              <div className="flex mt-2">
+                {/* Push buttons to the right */}
+                <div className="flex gap-2 ml-auto">
+                  <Button variant="outline" onClick={handlePrint}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print
+                  </Button>
+
+                  <Button className="bg-black text-white" onClick={exportPDF}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export as PDF
+                  </Button>
+
+                  <Button className="bg-black text-white" onClick={exportExcel}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export as Excel
+                  </Button>
+                </div>
               </div>
             </DialogHeader>
+
 
             <div id="timetable-area">
               <table className="w-full border-collapse text-sm">

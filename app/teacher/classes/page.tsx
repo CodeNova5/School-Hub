@@ -2,200 +2,116 @@
 
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Badge } from "@/components/ui/badge";
-import { PieChart, TrendingUp, Users, BookOpen, Star } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Link from "next/link";
+import { Class } from "@/lib/types";
 import { toast } from "sonner";
-
-type ClassRow = {
-  id: number;
-  name: string;
-  level: string;
-};
-
-type FinalClass = ClassRow & {
-  avg: number;
-  pass: number;
-  top: string | null;
-  studentCount: number;
-  genderCount: { male: number; female: number };
-};
+import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 
 export default function TeacherClassesPage() {
-  const [classes, setClasses] = useState<FinalClass[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    load();
+    loadClasses();
   }, []);
 
-  async function load() {
-    setLoading(true);
+  async function loadClasses() {
+    setIsLoading(true);
     try {
-      const user = (await supabase.auth.getUser()).data.user;
-      if (!user) return toast.error("Please log in");
-
-      const { data: teacher } = await supabase
-        .from("teachers")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!teacher) return toast.error("Teacher profile not found");
-
-      const { data: tc } = await supabase
-        .from("teacher_classes")
-        .select("class_id")
-        .eq("teacher_id", teacher.id);
-
-      const classIds = tc?.map((c) => c.class_id) ?? [];
-
-      const { data: classData } = await supabase
-        .from("classes")
-        .select("*")
-        .in("id", classIds)
-        .order("level");
-
-      const final: FinalClass[] = [];
-
-      for (const cls of classData ?? []) {
-        const { data: studentsRaw } = await supabase
-          .from("students")
-          .select("id, gender, first_name, last_name")
-          .eq("class_id", cls.id)
-          .eq("status", "active");
-
-        const students = studentsRaw ?? [];
-        const ids = students.map((s) => s.id);
-
-        const { data: resultsRaw } = await supabase
-          .from("results")
-          .select("*")
-          .in("student_id", ids);
-
-        const results = resultsRaw ?? [];
-
-        const avg = results.length
-          ? Number(
-              (
-                results.reduce((a, b) => a + b.total, 0) / results.length
-              ).toFixed(1)
-            )
-          : 0;
-
-        const pass = results.length
-          ? Number(
-              (
-                (results.filter((r) => r.total >= 50).length / results.length) *
-                100
-              ).toFixed(2)
-            )
-          : 0;
-
-        let top: string | null = null;
-        if (results.length) {
-          const best = results.reduce((a, b) => (a.total > b.total ? a : b));
-          const sd = students.find((s) => s.id === best.student_id);
-          top = sd ? `${sd.first_name} ${sd.last_name}` : null;
-        }
-
-        const genderCount = {
-          male: students.filter((s) => s.gender === "male").length,
-          female: students.filter((s) => s.gender === "female").length,
-        };
-
-        final.push({
-          ...cls,
-          avg,
-          pass,
-          top,
-          genderCount,
-          studentCount: ids.length,
-        });
+      const user = await getCurrentUser();
+      if (!user) {
+        toast.error("Please log in to continue");
+        return;
       }
 
-      setClasses(final);
-    } catch (err) {
-      console.log(err);
-      toast.error("Error loading classes");
+      const teacher = await getTeacherByUserId(user.id);
+      if (!teacher) {
+        toast.error("Teacher profile not found");
+        return;
+      }
+
+      // Get classes assigned to teacher
+      const { data: assignedClasses } = await supabase
+        .from("classes")
+        .select("*")
+        .eq("class_teacher_id", teacher.id)
+        .order("name");
+
+      if (!assignedClasses || assignedClasses.length === 0) {
+        toast.error("No classes assigned to you");
+        setIsLoading(false);
+        return;
+      }
+
+      setClasses(assignedClasses);
+      setTeacherClasses(assignedClasses.map((c) => c.id));
+    } catch (error: any) {
+      toast.error("Failed to load classes: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
-    setLoading(false);
   }
 
-  if (loading)
+  if (isLoading) {
     return (
       <DashboardLayout role="teacher">
-        <div className="flex justify-center items-center h-80 text-gray-500 text-lg">
-          Loading classes...
+        <div className="flex items-center justify-center h-96">
+          <p className="text-gray-500">Loading classes...</p>
         </div>
       </DashboardLayout>
     );
+  }
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-6">
-        <h1 className="text-4xl font-bold mb-4">My Classes</h1>
-
-        <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(350px,1fr))] w-full">
-          {classes.map((cls) => (
-            <div
-              key={cls.id}
-              className="rounded-2xl shadow-sm hover:shadow-xl transition-all p-4 bg-white"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-semibold">{cls.name}</h2>
-                <Badge className="bg-purple-100 text-purple-700">{cls.level}</Badge>
-              </div>
-
-              <div className="grid grid-cols-4 gap-3 mb-4">
-                <div className="p-3 bg-blue-50 rounded-xl text-center">
-                  <Users className="w-4 h-4 mx-auto mb-1" />
-                  <p className="text-xs">Students</p>
-                  <p className="font-bold text-lg">{cls.studentCount}</p>
-                </div>
-
-                <div className="p-3 bg-green-50 rounded-xl text-center">
-                  <TrendingUp className="w-4 h-4 mx-auto mb-1" />
-                  <p className="text-xs">Avg</p>
-                  <p className="font-bold text-lg">{cls.avg}%</p>
-                </div>
-
-                <div className="p-3 bg-yellow-50 rounded-xl text-center">
-                  <PieChart className="w-4 h-4 mx-auto mb-1" />
-                  <p className="text-xs">Pass</p>
-                  <p className="font-bold text-lg">{cls.pass}%</p>
-                </div>
-
-                <div className="p-3 bg-purple-50 rounded-xl text-center">
-                  <Star className="w-4 h-4 mx-auto mb-1" />
-                  <p className="text-xs">Top</p>
-                  <p className="font-bold text-sm truncate">{cls.top || "—"}</p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded-xl border mb-4">
-                <p className="font-medium mb-1 flex items-center gap-2">
-                  <PieChart className="w-4 h-4" /> Gender Distribution
-                </p>
-                <div className="flex justify-between text-sm">
-                  <span>Male: {cls.genderCount.male}</span>
-                  <span>Female: {cls.genderCount.female}</span>
-                </div>
-              </div>
-
-              <Link href={`/teacher/classes/${cls.id}`}>
-                <div className="p-4 border hover:bg-blue-50 cursor-pointer transition rounded-xl">
-                  <div className="flex items-center gap-2 mb-1">
-                    <BookOpen className="w-4 h-4 text-gray-600" />
-                    <span className="font-semibold text-sm">View Class Details</span>
-                  </div>
-                  <p className="text-xs text-gray-500">Analytics • Subjects • Students</p>
-                </div>
-              </Link>
-            </div>
-          ))}
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">My Classes</h1>
+          <p className="text-gray-600 mt-1">
+            View and manage the classes assigned to you
+          </p>
         </div>
+
+        {classes.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            <p>No classes assigned</p>
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {classes.map((cls) => (
+              <div
+                key={cls.id}
+                className="p-6 bg-white rounded-2xl shadow-sm hover:shadow-lg transition-all"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold">{cls.name}</h2>
+                  <Badge className="bg-purple-100 text-purple-700">{cls.level}</Badge>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <p className="text-gray-600 text-sm">
+                    {/* Optionally display additional info */}
+                    Class ID: {cls.id}
+                  </p>
+                  {cls.teacherName && (
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                       
+                        <AvatarFallback className="bg-blue-100 text-blue-700">
+                          {cls.teacherName[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <p className="text-sm">{cls.teacherName}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

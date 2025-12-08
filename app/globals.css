@@ -44,6 +44,7 @@
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
+
   .dark {
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
@@ -76,7 +77,26 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.export-mode #timetable-area table {
+  border-collapse: collapse !important;
+}
+
+.export-mode #timetable-area td,
+.export-mode #timetable-area th {
+  padding: 6px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  margin: 0 !important;
+  line-height: 1.2 !important;
+}
+
+.export-mode #timetable-area {
+  background: white !important;
+  zoom: 1.0;
 }

@@ -578,27 +578,43 @@ export default function TimetablePage() {
     document.body.innerHTML = originalContents;
     window.location.reload();
   }
+  function applyExportStyles() {
+    document.body.classList.add("export-mode");
+  }
+
+  function removeExportStyles() {
+    document.body.classList.remove("export-mode");
+  }
 
   async function exportPDF() {
+    applyExportStyles(); // ⭐ Apply clean centered table layout
+
     const element = document.getElementById("timetable-area");
     if (!element) return;
 
-    const canvas = await html2canvas(element);
+    const canvas = await html2canvas(element, {
+      scale: 2,              // ⭐ sharper image
+      useCORS: true,
+    });
+
+    removeExportStyles(); // ⭐ Remove temporary styling
+
     const imgData = canvas.toDataURL("image/png");
-
     const pdf = new jsPDF("p", "mm", "a4");
+
     const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = (imgProps.height * pdfW) / imgProps.width;
 
-    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
 
-    // ✅ Add class name HERE
     const className =
       classes.find((c) => c.id === selectedClass)?.name || "timetable";
 
     pdf.save(`${className}-timetable.pdf`);
   }
+
+
   function exportExcel() {
     const table = document.querySelector("#timetable-area table");
     const workbook = XLSX.utils.table_to_book(table);

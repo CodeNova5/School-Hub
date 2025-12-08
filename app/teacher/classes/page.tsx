@@ -1,7 +1,6 @@
 "use client";
 
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PieChart, TrendingUp, Users, BookOpen, Star } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -67,7 +66,7 @@ export default function TeacherClassesPage() {
           .eq("class_id", cls.id)
           .eq("status", "active");
 
-        const students = studentsRaw ?? []; // ← ALWAYS an array
+        const students = studentsRaw ?? [];
         const ids = students.map((s) => s.id);
 
         const { data: resultsRaw } = await supabase
@@ -75,22 +74,24 @@ export default function TeacherClassesPage() {
           .select("*")
           .in("student_id", ids);
 
-        const results = resultsRaw ?? []; // ← ALWAYS an array
-
+        const results = resultsRaw ?? [];
 
         const avg = results.length
           ? Number(
-            (
-              results.reduce((a, b) => a + b.total, 0) /
-              results.length
-            ).toFixed(1)
-          )
+              (
+                results.reduce((a, b) => a + b.total, 0) / results.length
+              ).toFixed(1)
+            )
           : 0;
 
         const pass = results.length
-          ? Number(((results.filter((r) => r.total >= 50).length / results.length) * 100).toFixed(2))
+          ? Number(
+              (
+                (results.filter((r) => r.total >= 50).length / results.length) *
+                100
+              ).toFixed(2)
+            )
           : 0;
-
 
         let top: string | null = null;
         if (results.length) {
@@ -138,69 +139,61 @@ export default function TeacherClassesPage() {
 
         <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(350px,1fr))] w-full">
           {classes.map((cls) => (
-            <Card
+            <div
               key={cls.id}
-              className="rounded-2xl shadow-sm hover:shadow-xl transition-all p-1"
+              className="rounded-2xl shadow-sm hover:shadow-xl transition-all p-4 bg-white"
             >
-              <CardHeader>
-                <CardTitle className="text-2xl font-semibold flex justify-between items-center">
-                  <span>{cls.name}</span>
-                  <Badge className="bg-purple-100 text-purple-700">
-                    {cls.level}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-semibold">{cls.name}</h2>
+                <Badge className="bg-purple-100 text-purple-700">{cls.level}</Badge>
+              </div>
 
-              <CardContent className="space-y-5">
-                <div className="grid grid-cols-4 gap-3">
-                  <div className="p-3 bg-blue-50 rounded-xl text-center">
-                    <Users className="w-4 h-4 mx-auto mb-1" />
-                    <p className="text-xs">Students</p>
-                    <p className="font-bold text-lg">{cls.studentCount}</p>
-                  </div>
-
-                  <div className="p-3 bg-green-50 rounded-xl text-center">
-                    <TrendingUp className="w-4 h-4 mx-auto mb-1" />
-                    <p className="text-xs">Avg</p>
-                    <p className="font-bold text-lg">{cls.avg}%</p>
-                  </div>
-
-                  <div className="p-3 bg-yellow-50 rounded-xl text-center">
-                    <PieChart className="w-4 h-4 mx-auto mb-1" />
-                    <p className="text-xs">Pass</p>
-                    <p className="font-bold text-lg">{cls.pass}%</p>
-                  </div>
-
-                  <div className="p-3 bg-purple-50 rounded-xl text-center">
-                    <Star className="w-4 h-4 mx-auto mb-1" />
-                    <p className="text-xs">Top</p>
-                    <p className="font-bold text-sm truncate">
-                      {cls.top || "—"}
-                    </p>
-                  </div>
+              <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="p-3 bg-blue-50 rounded-xl text-center">
+                  <Users className="w-4 h-4 mx-auto mb-1" />
+                  <p className="text-xs">Students</p>
+                  <p className="font-bold text-lg">{cls.studentCount}</p>
                 </div>
 
-                <Card className="p-4 bg-gray-50 rounded-xl border">
-                  <p className="font-medium mb-1 flex items-center gap-2">
-                    <PieChart className="w-4 h-4" /> Gender Distribution
-                  </p>
-                  <div className="flex justify-between text-sm">
-                    <span>Male: {cls.genderCount.male}</span>
-                    <span>Female: {cls.genderCount.female}</span>
-                  </div>
-                </Card>
+                <div className="p-3 bg-green-50 rounded-xl text-center">
+                  <TrendingUp className="w-4 h-4 mx-auto mb-1" />
+                  <p className="text-xs">Avg</p>
+                  <p className="font-bold text-lg">{cls.avg}%</p>
+                </div>
 
-                <Link href={`/teacher/classes/${cls.id}`}>
-                  <Card className="p-4 border hover:bg-blue-50 cursor-pointer transition rounded-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <BookOpen className="w-4 h-4 text-gray-600" />
-                      <span className="font-semibold text-sm">View Class Details</span>
-                    </div>
-                    <p className="text-xs text-gray-500">Analytics • Subjects • Students</p>
-                  </Card>
-                </Link>
-              </CardContent>
-            </Card>
+                <div className="p-3 bg-yellow-50 rounded-xl text-center">
+                  <PieChart className="w-4 h-4 mx-auto mb-1" />
+                  <p className="text-xs">Pass</p>
+                  <p className="font-bold text-lg">{cls.pass}%</p>
+                </div>
+
+                <div className="p-3 bg-purple-50 rounded-xl text-center">
+                  <Star className="w-4 h-4 mx-auto mb-1" />
+                  <p className="text-xs">Top</p>
+                  <p className="font-bold text-sm truncate">{cls.top || "—"}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50 rounded-xl border mb-4">
+                <p className="font-medium mb-1 flex items-center gap-2">
+                  <PieChart className="w-4 h-4" /> Gender Distribution
+                </p>
+                <div className="flex justify-between text-sm">
+                  <span>Male: {cls.genderCount.male}</span>
+                  <span>Female: {cls.genderCount.female}</span>
+                </div>
+              </div>
+
+              <Link href={`/teacher/classes/${cls.id}`}>
+                <div className="p-4 border hover:bg-blue-50 cursor-pointer transition rounded-xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <BookOpen className="w-4 h-4 text-gray-600" />
+                    <span className="font-semibold text-sm">View Class Details</span>
+                  </div>
+                  <p className="text-xs text-gray-500">Analytics • Subjects • Students</p>
+                </div>
+              </Link>
+            </div>
           ))}
         </div>
       </div>

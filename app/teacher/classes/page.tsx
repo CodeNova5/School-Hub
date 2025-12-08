@@ -223,7 +223,7 @@ export default function TeacherClassesPage() {
       <div className="space-y-8">
         <h1 className="text-3xl font-bold mb-4">My Classes</h1>
 
-       <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 w-full">
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 w-full auto-rows-fr">
           {classes.map(cls => (
             <Card key={cls.id} className="hover:shadow-lg transition w-full">
               <CardHeader>

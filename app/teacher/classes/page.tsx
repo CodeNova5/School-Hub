@@ -14,19 +14,12 @@ type ClassRow = {
   level: string;
 };
 
-type TimetableEntry = {
-  day: string;
-  period: string;
-  subject: string;
-};
-
 type FinalClass = ClassRow & {
   avg: number;
   pass: number;
   top: string | null;
   studentCount: number;
   genderCount: { male: number; female: number };
-  timetable?: TimetableEntry[];
 };
 
 export default function TeacherClassesPage() {
@@ -67,7 +60,6 @@ export default function TeacherClassesPage() {
       const final: FinalClass[] = [];
 
       for (const cls of classData ?? []) {
-        // Fetch students
         const { data: studentsRaw } = await supabase
           .from("students")
           .select("id, gender, first_name, last_name")
@@ -77,7 +69,6 @@ export default function TeacherClassesPage() {
         const students = studentsRaw ?? [];
         const ids = students.map((s) => s.id);
 
-        // Fetch results
         const { data: resultsRaw } = await supabase
           .from("results")
           .select("*")
@@ -87,13 +78,18 @@ export default function TeacherClassesPage() {
 
         const avg = results.length
           ? Number(
-              (results.reduce((a, b) => a + b.total, 0) / results.length).toFixed(1)
+              (
+                results.reduce((a, b) => a + b.total, 0) / results.length
+              ).toFixed(1)
             )
           : 0;
 
         const pass = results.length
           ? Number(
-              ((results.filter((r) => r.total >= 50).length / results.length) * 100).toFixed(2)
+              (
+                (results.filter((r) => r.total >= 50).length / results.length) *
+                100
+              ).toFixed(2)
             )
           : 0;
 
@@ -109,14 +105,6 @@ export default function TeacherClassesPage() {
           female: students.filter((s) => s.gender === "female").length,
         };
 
-        // Fetch timetable for this class
-        const { data: timetableRaw } = await supabase
-          .from("timetable")
-          .select("*")
-          .eq("class_id", cls.id)
-          .order("day", { ascending: true })
-          .order("period", { ascending: true });
-
         final.push({
           ...cls,
           avg,
@@ -124,7 +112,6 @@ export default function TeacherClassesPage() {
           top,
           genderCount,
           studentCount: ids.length,
-          timetable: timetableRaw ?? [],
         });
       }
 
@@ -147,27 +134,20 @@ export default function TeacherClassesPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8">
-        <div className="flex justify-between items-start gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">My Classes</h1>
-            <p className="text-gray-600">View class stats, top students, gender distribution, and timetable</p>
-          </div>
-        </div>
+      <div className="space-y-6">
+        <h1 className="text-4xl font-bold mb-4">My Classes</h1>
 
         <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(350px,1fr))] w-full">
           {classes.map((cls) => (
             <div
               key={cls.id}
-              className="rounded-2xl shadow-sm hover:shadow-lg transition-all p-6 bg-white"
+              className="rounded-2xl shadow-sm hover:shadow-xl transition-all p-4 bg-white"
             >
-              {/* Class Header */}
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-semibold">{cls.name}</h2>
                 <Badge className="bg-purple-100 text-purple-700">{cls.level}</Badge>
               </div>
 
-              {/* Class Stats */}
               <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="p-3 bg-blue-50 rounded-xl text-center">
                   <Users className="w-4 h-4 mx-auto mb-1" />
@@ -194,7 +174,6 @@ export default function TeacherClassesPage() {
                 </div>
               </div>
 
-              {/* Gender Distribution */}
               <div className="p-4 bg-gray-50 rounded-xl border mb-4">
                 <p className="font-medium mb-1 flex items-center gap-2">
                   <PieChart className="w-4 h-4" /> Gender Distribution
@@ -205,32 +184,6 @@ export default function TeacherClassesPage() {
                 </div>
               </div>
 
-              {/* Timetable */}
-              {cls.timetable && cls.timetable.length > 0 && (
-                <div className="mb-4 overflow-x-auto">
-                  <p className="font-medium mb-2">Class Timetable</p>
-                  <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="border px-2 py-1 text-left">Day</th>
-                        <th className="border px-2 py-1 text-left">Period</th>
-                        <th className="border px-2 py-1 text-left">Subject</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cls.timetable.map((t, i) => (
-                        <tr key={i} className="hover:bg-gray-50">
-                          <td className="border px-2 py-1">{t.day}</td>
-                          <td className="border px-2 py-1">{t.period}</td>
-                          <td className="border px-2 py-1">{t.subject}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* View Details */}
               <Link href={`/teacher/classes/${cls.id}`}>
                 <div className="p-4 border hover:bg-blue-50 cursor-pointer transition rounded-xl">
                   <div className="flex items-center gap-2 mb-1">

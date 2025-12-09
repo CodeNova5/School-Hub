@@ -91,23 +91,14 @@ export default function ClassesPage() {
     }
 
     const formData = new FormData(e.currentTarget);
-    const department = formData.get("department") as string;
-
-    if (selectedEducationLevel === "SSS" && !department) {
-      toast.error("Please select a department for SSS classes");
-      return;
-    }
+   
 
     const classData: any = {
       level: selectedLevel,
       education_level: selectedEducationLevel,
       name: selectedLevel,
-      stream: formData.get("stream") as string || null,
-      capacity: parseInt(formData.get("capacity") as string) || 30,
       class_teacher_id: formData.get("class_teacher_id") as string || null,
-      room_number: formData.get("room_number") as string || null,
-      department: selectedEducationLevel === "SSS" ? department : null,
-    };
+      };
 
     if (editingClass) {
       const { error } = await supabase
@@ -246,56 +237,6 @@ export default function ClassesPage() {
                     </select>
                   </div>
                 )}
-
-                {/* DEPARTMENT (for SSS only) */}
-                {selectedEducationLevel === "SSS" && (
-                  <div>
-                    <Label>Department</Label>
-                    <select
-                      name="department"
-                      className="w-full px-3 py-2 border rounded-md"
-                      defaultValue={editingClass?.department || ""}
-                      required
-                    >
-                      <option value="">Select Department</option>
-                      <option value="Science">Science</option>
-                      <option value="Arts">Arts</option>
-                      <option value="Commercial">Commercial</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* STREAM */}
-                <div>
-                  <Label>Stream (optional)</Label>
-                  <Input
-                    name="stream"
-                    placeholder="e.g., A, B"
-                    defaultValue={editingClass?.stream || ""}
-                  />
-                </div>
-
-                {/* ROOM NUMBER */}
-                <div>
-                  <Label>Room Number (optional)</Label>
-                  <Input
-                    name="room_number"
-                    placeholder="e.g., Room 101"
-                    defaultValue={editingClass?.room_number || ""}
-                  />
-                </div>
-
-                {/* CAPACITY */}
-                <div>
-                  <Label>Capacity</Label>
-                  <Input
-                    name="capacity"
-                    type="number"
-                    min="1"
-                    defaultValue={editingClass?.capacity || 30}
-                    required
-                  />
-                </div>
 
                 {/* CLASS TEACHER */}
                 <div>

@@ -26,7 +26,7 @@ interface NavItem {
 }
 
 interface SidebarProps {
-  role: 'admin' | 'teacher';
+  role: 'admin' | 'teacher' | 'student';
 }
 
 export function Sidebar({ role }: SidebarProps) {
@@ -57,9 +57,19 @@ export function Sidebar({ role }: SidebarProps) {
     { href: '/teacher/calendar', label: 'Calendar', icon: <Calendar className="h-5 w-5" /> },
     { href: '/teacher/settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },
   ];
+ 
+  const studentNav: NavItem[] = [
+    { href: '/student/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: '/student/timetable', label: 'Timetable', icon: <Calendar className="h-5 w-5" /> },
+    { href: '/student/subjects', label: 'Subjects', icon: <BookOpen className="h-5 w-5" /> },
+    { href: '/student/results', label: 'Results', icon: <GraduationCap className="h-5 w-5" /> },
+    { href: '/student/assignments', label: 'Assignments', icon: <FileText className="h-5 w-5" /> },
+    { href: '/student/attendance', label: 'Attendance', icon: <ClipboardList className="h-5 w-5" /> },
+    { href: '/student/calendar', label: 'Calendar', icon: <Calendar className="h-5 w-5" /> },
+    { href: '/student/settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },
+  ];
 
-  const navItems = role === 'admin' ? adminNav : teacherNav;
-
+  const navItems = role === 'admin' ? adminNav : role === 'teacher' ? teacherNav : studentNav;
   return (
     <aside
       className={cn(

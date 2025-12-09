@@ -46,89 +46,115 @@ export default function StudentsPage() {
   }
 
   async function generateUniqueStudentId(): Promise<string> {
-  let unique = false;
-  let newId = '';
+    let unique = false;
+    let newId = '';
 
-  while (!unique) {
-    const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4-digit
-    newId = `STU${randomNumber}`;
+    while (!unique) {
+      const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4-digit
+      newId = `STU${randomNumber}`;
 
-    const { data } = await supabase
-      .from('students')
-      .select('id')
-      .eq('student_id', newId)
-      .single();
+      const { data } = await supabase
+        .from('students')
+        .select('id')
+        .eq('student_id', newId)
+        .single();
 
-    if (!data) unique = true; // If no student has this ID, it's unique
-  }
-
-  return newId;
-}
-
-async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-  e.preventDefault();
-  const formData = new FormData(e.currentTarget);
-  const photoFile = formData.get("photo_file") as File | null;
-  let photoUrl = editingStudent?.photo_url || "";
-
-  if (photoFile && photoFile.size > 0) {
-    const uploadForm = new FormData();
-    uploadForm.append("file", photoFile);
-    uploadForm.append("student_id", editingStudent?.student_id || ""); // optional for upload API
-
-    const res = await fetch("/api/upload-student-photo", {
-      method: "POST",
-      body: uploadForm,
-    });
-
-    const result = await res.json();
-    photoUrl = result.url;
-  }
-
-  // Generate student ID if creating new
-  const studentId = editingStudent?.student_id || await generateUniqueStudentId();
-
-  const studentData = {
-    student_id: studentId,
-    first_name: formData.get('first_name') as string,
-    last_name: formData.get('last_name') as string,
-    email: formData.get('email') as string || null,
-    phone: formData.get('phone') as string || null,
-    gender: formData.get('gender') as string,
-    address: formData.get('address') as string || null,
-    date_of_birth: formData.get('date_of_birth') as string,
-    photo_url: photoUrl || null,
-    class_id: formData.get('class_id') as string,
-    department: formData.get('department') as string || null,
-    parent_name: formData.get('parent_name') as string,
-    parent_email: formData.get('parent_email') as string,
-    parent_phone: formData.get('parent_phone') as string,
-    status: formData.get('status') as string || 'active',
-  };
-
-  if (editingStudent) {
-    const { error } = await supabase
-      .from('students')
-      .update(studentData)
-      .eq('id', editingStudent.id);
-
-    if (error) toast.error('Failed to update student');
-    else {
-      toast.success('Student updated successfully');
-      setIsDialogOpen(false);
-      setEditingStudent(null);
-      fetchStudents();
+      if (!data) unique = true; // If no student has this ID, it's unique
     }
-  } else {
-    const { error } = await supabase.from('students').insert(studentData);
-    if (error) toast.error('Failed to create student');
-    else {
-      toast.success('Student created successfully');
-      setIsDialogOpen(false);
-      fetchStudents();
-    }
+
+    return newId;
   }
-}
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const photoFile = formData.get("photo_file") as File | null;
+    let photoUrl = editingStudent?.photo_url || "";
+
+    if (photoFile && photoFile.size > 0) {
+      const uploadForm = new FormData();
+      uploadForm.append("file", photoFile);
+      uploadForm.append("student_id", editingStudent?.student_id || ""); // optional for upload API
+
+      const res = await fetch("/api/upload-student-photo", {
+        method: "POST",
+        body: uploadForm,
+      });
+
+      const result = await res.json();
+      photoUrl = result.url;
+    }
+
+    // Generate student ID if creating new
+    const studentId = editingStudent?.student_id || await generateUniqueStudentId();
+
+    const studentData = {
+      student_id: studentId,
+      first_name: formData.get('first_name') as string,
+      last_name: formData.get('last_name') as string,
+      email: formData.get('email') as string || null,
+      phone: formData.get('phone') as string || null,
+      gender: formData.get('gender') as string,
+      address: formData.get('address') as string || null,
+      date_of_birth: formData.get('date_of_birth') as string,
+      photo_url: photoUrl || null,
+      class_id: formData.get('class_id') as string,
+      department: formData.get('department') as string || null,
+      parent_name: formData.get('parent_name') as string,
+      parent_email: formData.get('parent_email') as string,
+      parent_phone: formData.get('parent_phone') as string,
+      status: formData.get('status') as string || 'active',
+    };
+
+    if (editingStudent) {
+      const { error } = await supabase
+        .from('students')
+        .update(studentData)
+        .eq('id', editingStudent.id);
+
+      if (error) toast.error('Failed to update student');
+      else {
+        toast.success('Student updated successfully');
+        setIsDialogOpen(false);
+        setEditingStudent(null);
+        fetchStudents();
+      }
+    } else {
+      const { data, error } = await supabase.from('students').insert(studentData).select().single();
+
+      if (error) {
+        toast.error("Failed to create student");
+      } else {
+        toast.success("Student created successfully");
+
+        // Create Auth user
+        if (studentData.email) {
+          const { error: userError } = await supabase.auth.admin.createUser({
+            email: studentData.email,
+            email_confirm: false,
+            user_metadata: {
+              role: "student",
+              student_id: studentData.student_id,
+            },
+          });
+
+          if (!userError) {
+            await supabase.auth.admin.generateLink({
+              type: "invite",
+              email: studentData.email,
+            });
+            toast.success("Verification email sent to student");
+          } else {
+            toast.error("Failed to create login account for student");
+          }
+        }
+
+        setIsDialogOpen(false);
+        fetchStudents();
+      }
+    }
+
+  }
 
 
   async function handleDelete(id: string) {
@@ -216,7 +242,7 @@ async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
 
                 <div>
                   <Label htmlFor="gender">Gender</Label>
-                  <select id="gender" name="gender" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.gender || '' } required >
+                  <select id="gender" name="gender" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.gender || ''} required >
                     <option value="">Select gender</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
@@ -245,7 +271,7 @@ async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
                 </div>
                 <div>
                   <Label htmlFor="address">Address</Label>
-                  <Input id="address" name="address" defaultValue={editingStudent?.address} required/>
+                  <Input id="address" name="address" defaultValue={editingStudent?.address} required />
                 </div>
                 <div>
                   <Label htmlFor="parent_name">Parent Name</Label>

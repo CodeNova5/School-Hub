@@ -186,8 +186,7 @@ export default function TeacherSubjectsPage() {
             <div className="flex flex-wrap gap-2">
               {myClasses.map((cls) => (
                 <Badge key={cls.id} variant="outline" className="text-sm">
-                  {cls.name} - {cls.level}
-                  {cls.department && ` (${cls.department})`}
+                  {cls.name}
                 </Badge>
               ))}
             </div>

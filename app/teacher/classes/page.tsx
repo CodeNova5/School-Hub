@@ -210,7 +210,7 @@ export default function TeacherClassesPage() {
       <div className="space-y-6">
         <h1 className="text-4xl font-bold mb-4">My Classes</h1>
 
-        <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(350px,1fr))] w-full">
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm w-full">
           {classes.map((cls) => (
             <div
               key={cls.id}

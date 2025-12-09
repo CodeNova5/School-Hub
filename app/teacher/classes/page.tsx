@@ -7,6 +7,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { toast } from "sonner";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx-js-style";
 
 type ClassRow = {
   id: number;
@@ -25,6 +28,10 @@ type FinalClass = ClassRow & {
 export default function TeacherClassesPage() {
   const [classes, setClasses] = useState<FinalClass[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTimetableClass, setSelectedTimetableClass] = useState<number | null>(null);
+  const [timetable, setTimetable] = useState<any>({});
+  const [loadingTimetable, setLoadingTimetable] = useState(false);
+  const [isTimetableModalOpen, setIsTimetableModalOpen] = useState(false);
 
   useEffect(() => {
     load();
@@ -78,19 +85,19 @@ export default function TeacherClassesPage() {
 
         const avg = results.length
           ? Number(
-              (
-                results.reduce((a, b) => a + b.total, 0) / results.length
-              ).toFixed(1)
-            )
+            (
+              results.reduce((a, b) => a + b.total, 0) / results.length
+            ).toFixed(1)
+          )
           : 0;
 
         const pass = results.length
           ? Number(
-              (
-                (results.filter((r) => r.total >= 50).length / results.length) *
-                100
-              ).toFixed(2)
-            )
+            (
+              (results.filter((r) => r.total >= 50).length / results.length) *
+              100
+            ).toFixed(2)
+          )
           : 0;
 
         let top: string | null = null;
@@ -121,6 +128,72 @@ export default function TeacherClassesPage() {
       toast.error("Error loading classes");
     }
     setLoading(false);
+  }
+
+  async function loadTimetable(classId: number) {
+    setLoadingTimetable(true);
+    setSelectedTimetableClass(classId);
+
+    const { data } = await supabase
+      .from("timetable_entries")
+      .select("*, subjects(name, teacher_id), classes(name)")
+      .eq("class_id", classId)
+      .order("period_number");
+
+    const map: any = {};
+
+    const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const SHORT = ["mon", "tue", "wed", "thu", "fri"];
+
+    for (let p = 1; p <= 11; p++) {
+      map[p] = { mon: null, tue: null, wed: null, thu: null, fri: null };
+    }
+
+    data?.forEach((row) => {
+      const dayKey = row.day_of_week.toLowerCase().slice(0, 3);
+      if (!map[row.period_number]) return;
+
+      map[row.period_number][dayKey] = {
+        subject: row.subjects?.name || "",
+        teacher: "", // teachers not required for teacher's mode
+      };
+    });
+
+    setTimetable(map);
+    setIsTimetableModalOpen(true);
+    setLoadingTimetable(false);
+  }
+
+  function handlePrintTimetable() {
+    const printContents = document.getElementById("teacher-timetable")?.innerHTML;
+    const originalContents = document.body.innerHTML;
+
+    document.body.innerHTML = printContents || "";
+    window.print();
+    document.body.innerHTML = originalContents;
+    window.location.reload();
+  }
+
+  async function exportTeacherPDF() {
+    const className = classes.find(c => c.id === selectedTimetableClass)?.name || "class";
+    const element = document.getElementById("teacher-timetable");
+
+    const canvas = await html2canvas(element!, { scale: 2 });
+    const img = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF("p", "mm", "a4");
+    const width = pdf.internal.pageSize.getWidth();
+    const height = (canvas.height * width) / canvas.width;
+
+    pdf.addImage(img, "PNG", 0, 0, width, height);
+    pdf.save(`${className}-timetable.pdf`);
+  }
+
+  function exportTeacherExcel() {
+    const className = classes.find(c => c.id === selectedTimetableClass)?.name || "class";
+    const table = document.querySelector("#teacher-timetable table");
+    const workbook = XLSX.utils.table_to_book(table);
+    XLSX.writeFile(workbook, `${className}-timetable.xlsx`);
   }
 
   if (loading)
@@ -184,19 +257,74 @@ export default function TeacherClassesPage() {
                 </div>
               </div>
 
-              <Link href={`/teacher/classes/${cls.id}`}>
-                <div className="p-4 border hover:bg-blue-50 cursor-pointer transition rounded-xl">
-                  <div className="flex items-center gap-2 mb-1">
-                    <BookOpen className="w-4 h-4 text-gray-600" />
-                    <span className="font-semibold text-sm">View Class Details</span>
-                  </div>
-                  <p className="text-xs text-gray-500">Analytics • Subjects • Students</p>
+              <div
+                onClick={() => loadTimetable(cls.id)}
+                className="p-4 border hover:bg-green-50 cursor-pointer transition rounded-xl mt-2"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <BookOpen className="w-4 h-4 text-gray-600" />
+                  <span className="font-semibold text-sm">View Timetable</span>
                 </div>
-              </Link>
+                <p className="text-xs text-gray-500">Printable • Exportable</p>
+              </div>
+
             </div>
           ))}
         </div>
       </div>
+      {isTimetableModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
+          <div className="bg-white max-w-4xl w-full rounded-xl p-6 shadow-xl overflow-auto max-h-[90vh]">
+            <h2 className="text-2xl font-bold mb-4">
+              Timetable for {classes.find(c => c.id === selectedTimetableClass)?.name}
+            </h2>
+
+            <div className="flex gap-3 mb-4">
+              <button onClick={handlePrintTimetable} className="px-4 py-2 bg-gray-800 text-white rounded">Print</button>
+              <button onClick={exportTeacherPDF} className="px-4 py-2 bg-blue-600 text-white rounded">Export PDF</button>
+              <button onClick={exportTeacherExcel} className="px-4 py-2 bg-green-600 text-white rounded">Export Excel</button>
+            </div>
+
+            <div id="teacher-timetable" className="border rounded-lg p-4 bg-white">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border p-2">Period</th>
+                    <th className="border p-2">Mon</th>
+                    <th className="border p-2">Tue</th>
+                    <th className="border p-2">Wed</th>
+                    <th className="border p-2">Thu</th>
+                    <th className="border p-2">Fri</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {Object.entries(timetable as any).map(([period, row]: [string, any]) => (
+                    <tr key={period}>
+                      <td className="border p-2 font-medium">Period {period}</td>
+                      {["mon", "tue", "wed", "thu", "fri"].map((d) => (
+                        <td key={d} className="border p-2 text-center">
+                          {row[d]?.subject || ""}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-4 text-right">
+              <button
+                onClick={() => setIsTimetableModalOpen(false)}
+                className="px-4 py-2 bg-red-500 text-white rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </DashboardLayout>
   );
 }

@@ -136,7 +136,7 @@ export default function StudentsPage() {
 
       // Create login account (SERVER SIDE)
       if (studentData.email) {
-        await fetch("/api/create-student-auth", {
+        await fetch("/api/create-student", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

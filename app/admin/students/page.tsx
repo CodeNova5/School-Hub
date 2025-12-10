@@ -108,51 +108,50 @@ export default function StudentsPage() {
 
     if (editingStudent) {
       const { error } = await supabase
-        .from('students')
+        .from("students")
         .update(studentData)
-        .eq('id', editingStudent.id);
+        .eq("id", editingStudent.id);
 
-      if (error) toast.error('Failed to update student');
+      if (error) toast.error("Failed to update student");
       else {
-        toast.success('Student updated successfully');
+        toast.success("Student updated successfully");
         setIsDialogOpen(false);
         setEditingStudent(null);
         fetchStudents();
       }
+
     } else {
-      const { data, error } = await supabase.from('students').insert(studentData).select().single();
+      const { data, error } = await supabase
+        .from("students")
+        .insert(studentData)
+        .select()
+        .single();
 
       if (error) {
         toast.error("Failed to create student");
-      } else {
-        toast.success("Student created successfully");
-
-        // Create Auth user
-        if (studentData.email) {
-          const { error: userError } = await supabase.auth.admin.createUser({
-            email: studentData.email,
-            email_confirm: false,
-            user_metadata: {
-              role: "student",
-              student_id: studentData.student_id,
-            },
-          });
-
-          if (!userError) {
-            await supabase.auth.admin.generateLink({
-              type: "invite",
-              email: studentData.email,
-            });
-            toast.success("Verification email sent to student");
-          } else {
-            toast.error("Failed to create login account for student");
-          }
-        }
-
-        setIsDialogOpen(false);
-        fetchStudents();
+        return;
       }
+
+      toast.success("Student created successfully");
+
+      // Create login account (SERVER SIDE)
+      if (studentData.email) {
+        await fetch("/api/create-student-auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: studentData.email,
+            student_id: studentData.student_id,
+          }),
+        });
+
+        toast.success("Verification email sent to student");
+      }
+
+      setIsDialogOpen(false);
+      fetchStudents();
     }
+
 
   }
 

@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     // 3️⃣ Send email using Resend
     await resend.emails.send({
-      from: "School Hub <noreply@yourdomain.com>",
+      from: "netdot1234@gmail.com",
       to: email,
       subject: "Your Student Account Invitation",
       html: `

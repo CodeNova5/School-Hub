@@ -1,8 +1,5 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,29 +29,17 @@ export async function POST(req: Request) {
       type: "invite",
       email,
       options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/student/set-password`
-      }
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/student/set-password`,
+      },
     });
 
     if (linkError) {
       return NextResponse.json({ error: linkError.message }, { status: 400 });
     }
 
-    const magicLink = linkData?.properties?.action_link;
-
-    // 3️⃣ Send email using Resend
-    await resend.emails.send({
-      from: "netdot1234@gmail.com",
-      to: email,
-      subject: "Your Student Account Invitation",
-      html: `
-        <p>Hello,</p>
-        <p>You have been invited to School Hub.</p>
-        <p>Click the link below to activate your account:</p>
-        <p><a href="${magicLink}">Activate Account</a></p>
-        <p>If you did not request this, ignore this email.</p>
-      `,
-    });
+    // 3️⃣ Magic link is automatically sent via Supabase SMTP
+    // You can still log it for debugging if needed:
+    console.log("Magic link generated (for debugging):", linkData?.properties?.action_link);
 
     return NextResponse.json({ success: true });
 

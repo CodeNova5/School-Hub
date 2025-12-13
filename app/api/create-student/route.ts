@@ -10,44 +10,44 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { email, student_id } = await req.json();
+    const {  studentData} = await req.json();
 
-    // 1️⃣ Create user (email + password auth)
-    const { error: createError } =
-      await supabase.auth.admin.createUser({
-        email,
-        password: crypto.randomUUID(), // temp password
-        email_confirm: true,
-        user_metadata: {
-          role: "student",
-          student_id,
-        },
-      });
+  // 1️⃣ Create student row
+await supabase.from("students").insert({
+  ...studentData,
+  is_active: false,
+  status: "pending",
+});
 
-    if (createError) {
-      return NextResponse.json(
-        { error: createError.message },
-        { status: 400 }
-      );
-    }
+// 2️⃣ Create auth user
+await supabase.auth.admin.createUser({
+  email: studentData.email,
+  password: crypto.randomUUID(),
+  email_confirm: true,
+  user_metadata: {
+    role: "student",
+    student_id: studentData.student_id,
+  },
+});
 
-    // 2️⃣ Generate activation token
-    const rawToken = crypto.randomBytes(32).toString("hex");
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(rawToken)
-      .digest("hex");
+// 3️⃣ Generate activation token
+const rawToken = crypto.randomBytes(32).toString("hex");
+const tokenHash = crypto
+  .createHash("sha256")
+  .update(rawToken)
+  .digest("hex");
 
-    // 3️⃣ Store activation record
-    await supabase
-      .from("students")
-      .update({
-        activation_token_hash: tokenHash,
-        activation_expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24),
-        activation_used: false,
-        is_active: false,
-      })
-      .eq("email", email);
+// 4️⃣ Save token INTO STUDENTS TABLE
+await supabase
+  .from("students")
+  .update({
+    activation_token_hash: tokenHash,
+    activation_expires_at: new Date(Date.now() + 86400000),
+    activation_used: false,
+  })
+  .eq("email", studentData.email);
+
+// 5️⃣ Send activation email
 
 
     // 4️⃣ Send activation email
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
     await transporter.sendMail({
       from: `"School Hub" <${process.env.EMAIL_USER}>`,
-      to: email,
+      to: studentData.email,
       subject: "Activate Your Student Account",
       html: `
         <p>Hello,</p>

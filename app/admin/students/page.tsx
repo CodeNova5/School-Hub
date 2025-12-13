@@ -121,35 +121,16 @@ export default function StudentsPage() {
       }
 
     } else {
-      const { data, error } = await supabase
-        .from("students")
-        .insert(studentData)
-        .select()
-        .single();
+      await fetch("/api/create-student", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(studentData),
+      });
 
-      if (error) {
-        toast.error("Failed to create student");
-        return;
-      }
-
-      toast.success("Student created successfully");
-
-      // Create login account (SERVER SIDE)
-      if (studentData.email) {
-        await fetch("/api/create-student", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: studentData.email,
-            student_id: studentData.student_id,
-          }),
-        });
-
-        toast.success("Verification email sent to student");
-      }
-
+      toast.success("Student created and activation email sent");
       setIsDialogOpen(false);
       fetchStudents();
+
     }
 
 

@@ -10,44 +10,44 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const {  studentData} = await req.json();
+    const studentData = await req.json();
 
-  // 1️⃣ Create student row
-await supabase.from("students").insert({
-  ...studentData,
-  is_active: false,
-  status: "pending",
-});
+    // 1️⃣ Create student row
+    await supabase.from("students").insert({
+      ...studentData,
+      is_active: false,
+      status: "pending",
+    });
 
-// 2️⃣ Create auth user
-await supabase.auth.admin.createUser({
-  email: studentData.email,
-  password: crypto.randomUUID(),
-  email_confirm: true,
-  user_metadata: {
-    role: "student",
-    student_id: studentData.student_id,
-  },
-});
+    // 2️⃣ Create auth user
+    await supabase.auth.admin.createUser({
+      email: studentData.email,
+      password: crypto.randomUUID(),
+      email_confirm: true,
+      user_metadata: {
+        role: "student",
+        student_id: studentData.student_id,
+      },
+    });
 
-// 3️⃣ Generate activation token
-const rawToken = crypto.randomBytes(32).toString("hex");
-const tokenHash = crypto
-  .createHash("sha256")
-  .update(rawToken)
-  .digest("hex");
+    // 3️⃣ Generate activation token
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
 
-// 4️⃣ Save token INTO STUDENTS TABLE
-await supabase
-  .from("students")
-  .update({
-    activation_token_hash: tokenHash,
-    activation_expires_at: new Date(Date.now() + 86400000),
-    activation_used: false,
-  })
-  .eq("email", studentData.email);
+    // 4️⃣ Save token INTO STUDENTS TABLE
+    await supabase
+      .from("students")
+      .update({
+        activation_token_hash: tokenHash,
+        activation_expires_at: new Date(Date.now() + 86400000),
+        activation_used: false,
+      })
+      .eq("email", studentData.email);
 
-// 5️⃣ Send activation email
+    // 5️⃣ Send activation email
 
 
     // 4️⃣ Send activation email

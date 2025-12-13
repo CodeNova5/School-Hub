@@ -1,29 +1,32 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import nodemailer from "nodemailer";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email, password, teacherData, selectedClasses } = body;
+    const { email, teacherData, selectedClasses } = body;
 
-    // Server-side Supabase client with service role
+    // 1️⃣ Supabase server client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY! // MUST BE SERVICE KEY
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 1. Create auth user
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    // 2️⃣ Create user (unconfirmed)
+    const { data: authData, error: createError } = await supabase.auth.admin.createUser({
       email,
-      password,
-      email_confirm: true,
+      email_confirm: false, // NOT confirmed, must verify via magic link
+      user_metadata: {
+        role: "teacher",
+      },
     });
 
-    if (authError) {
-      return NextResponse.json({ error: authError.message }, { status: 400 });
+    if (createError) {
+      return NextResponse.json({ error: createError.message }, { status: 400 });
     }
 
-    // 2. Insert into teachers table
+    // 3️⃣ Insert teacher record
     const { data: teacher, error: teacherError } = await supabase
       .from("teachers")
       .insert({
@@ -34,12 +37,12 @@ export async function POST(req: Request) {
       .single();
 
     if (teacherError) {
-      // Rollback auth user if teacher insert fails
+      // rollback auth if insert fails
       await supabase.auth.admin.deleteUser(authData.user.id);
       return NextResponse.json({ error: teacherError.message }, { status: 400 });
     }
 
-    // 3. Insert class assignments
+    // 4️⃣ Insert class assignments
     if (selectedClasses?.length > 0) {
       const assignments = selectedClasses.map((classId: string) => ({
         teacher_id: teacher.id,
@@ -50,11 +53,47 @@ export async function POST(req: Request) {
       await supabase.from("teacher_classes").insert(assignments);
     }
 
+    // 5️⃣ Generate magic link
+    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/teacher/set-password`,
+      },
+    });
+
+    if (linkError || !linkData?.properties?.action_link) {
+      return NextResponse.json({ error: linkError?.message || "Failed to generate magic link" }, { status: 400 });
+    }
+
+    const magicLink = linkData.properties.action_link;
+
+    // 6️⃣ Send email with magic link
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"School Hub" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Your Teacher Account Invitation",
+      html: `
+        <p>Hello,</p>
+        <p>You have been invited to join <strong>School Hub</strong> as a teacher.</p>
+        <p>Click the link below to set your password and activate your account:</p>
+        <p><a href="${magicLink}" style="color:#2563eb;">Set Password & Activate Account</a></p>
+        <p>If you did not expect this email, please ignore it.</p>
+      `,
+    });
+
     return NextResponse.json({ success: true, teacher });
+
   } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Unexpected server error" },
-      { status: 500 }
-    );
+    console.error(err);
+    return NextResponse.json({ error: err.message || "Unexpected server error" }, { status: 500 });
   }
 }

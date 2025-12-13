@@ -1,21 +1,23 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // server-only key
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: Request) {
   try {
     const { email, student_id } = await req.json();
 
-    // 1️⃣ Create user (unconfirmed)
-    const { data: userData, error: createError } =
+    // 1️⃣ Create user (email + password auth)
+    const { error: createError } =
       await supabase.auth.admin.createUser({
         email,
-        email_confirm: false,
+        password: crypto.randomUUID(), // temp password
+        email_confirm: true,
         user_metadata: {
           role: "student",
           student_id,
@@ -29,26 +31,21 @@ export async function POST(req: Request) {
       );
     }
 
-    // 2️⃣ Generate magic invite link
-    const { data: linkData, error: linkError } =
-      await supabase.auth.admin.generateLink({
-        type: "invite",
-        email,
-        options: {
-          redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/student/set-password`,
-        },
-      });
+    // 2️⃣ Generate activation token
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
 
-    if (linkError) {
-      return NextResponse.json(
-        { error: linkError.message },
-        { status: 400 }
-      );
-    }
+    // 3️⃣ Store activation record
+    await supabase.from("students").insert({
+      email,
+      token_hash: tokenHash,
+      expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24),
+    });
 
-    const magicLink = linkData?.properties?.action_link;
-
-    // 3️⃣ Send email using Nodemailer (Gmail)
+    // 4️⃣ Send activation email
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -57,20 +54,23 @@ export async function POST(req: Request) {
       },
     });
 
+    const activationLink =
+      `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${rawToken}`;
+
     await transporter.sendMail({
       from: `"School Hub" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "Your Student Account Invitation",
+      subject: "Activate Your Student Account",
       html: `
         <p>Hello,</p>
-        <p>You have been invited to <strong>School Hub</strong>.</p>
-        <p>Click the link below to activate your account:</p>
+        <p>Your student account has been created.</p>
+        <p>Click the link below to activate your account and set your password:</p>
         <p>
-          <a href="${magicLink}" style="color:#2563eb;">
+          <a href="${activationLink}" style="color:#2563eb;">
             Activate Account
           </a>
         </p>
-        <p>If you did not request this, please ignore this email.</p>
+        <p>This link expires in 24 hours.</p>
       `,
     });
 

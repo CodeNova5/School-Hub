@@ -1,4 +1,9 @@
 ALTER TABLE students
+ADD COLUMN IF NOT EXISTS activation_token_hash text,
+ADD COLUMN IF NOT EXISTS activation_expires_at timestamptz,
+ADD COLUMN IF NOT EXISTS activation_used boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT false;
+
 ADD COLUMN religion text CHECK (
   religion IS NULL OR religion = ANY (ARRAY['Christian', 'Muslim'])
 );

@@ -11,7 +11,6 @@ import { toast } from "sonner";
 export default function StudentLoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -20,28 +19,53 @@ export default function StudentLoginPage() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
+    // 1️⃣ Supabase auth login
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
+    if (error || !data.user) {
       toast.error("Invalid login credentials");
       setLoading(false);
       return;
     }
 
-    // Check user role
-    const metadata = data.user?.user_metadata;
+    // 2️⃣ Role check
+    const metadata = data.user.user_metadata;
     if (metadata?.role !== "student") {
+      await supabase.auth.signOut();
       toast.error("Unauthorized. This portal is for students.");
       setLoading(false);
       return;
     }
 
+    // 3️⃣ Activation check
+    const { data: student, error: studentError } = await supabase
+      .from("students")
+      .select("is_active")
+      .eq("email", email)
+      .single();
+
+    if (studentError || !student) {
+      await supabase.auth.signOut();
+      toast.error("Student record not found");
+      setLoading(false);
+      return;
+    }
+
+    if (!student.is_active) {
+      await supabase.auth.signOut();
+      toast.error("Account not activated. Check your email.");
+      setLoading(false);
+      return;
+    }
+
+    // 4️⃣ Success
     toast.success("Login successful");
     router.push("/student/dashboard");
   }
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">

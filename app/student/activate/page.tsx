@@ -42,7 +42,7 @@ export default function ActivateStudentAccount() {
       setLoading(true);
       setError(null);
 
-      const res = await fetch("/api/student/activate", {
+      const res = await fetch("/api/student", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),

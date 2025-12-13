@@ -39,11 +39,16 @@ export async function POST(req: Request) {
       .digest("hex");
 
     // 3️⃣ Store activation record
-    await supabase.from("students").insert({
-      email,
-      token_hash: tokenHash,
-      expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24),
-    });
+    await supabase
+      .from("students")
+      .update({
+        activation_token_hash: tokenHash,
+        activation_expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        activation_used: false,
+        is_active: false,
+      })
+      .eq("email", email);
+
 
     // 4️⃣ Send activation email
     const transporter = nodemailer.createTransport({

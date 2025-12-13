@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // server-only
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function POST(req: Request) {
@@ -24,19 +24,18 @@ export async function POST(req: Request) {
       .update(token)
       .digest("hex");
 
-    // 2️⃣ Find activation record
-    const { data: activation, error: activationError } =
-      await supabase
-        .from("students")
-        .select("*")
-        .eq("token_hash", tokenHash)
-        .single();
+    // 2️⃣ Find student by activation token
+    const { data: student, error } = await supabase
+      .from("students")
+      .select("id, email, activation_used, activation_expires_at")
+      .eq("activation_token_hash", tokenHash)
+      .single();
 
     if (
-      activationError ||
-      !activation ||
-      activation.used ||
-      new Date(activation.expires_at) < new Date()
+      error ||
+      !student ||
+      student.activation_used ||
+      new Date(student.activation_expires_at) < new Date()
     ) {
       return NextResponse.json(
         { error: "Invalid or expired activation link" },
@@ -44,7 +43,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3️⃣ Get user by email
+    // 3️⃣ Get auth user
     const { data: users, error: userError } =
       await supabase.auth.admin.listUsers({
         page: 1,
@@ -59,17 +58,17 @@ export async function POST(req: Request) {
     }
 
     const user = users.users.find(
-      (u) => u.email === activation.email
+      (u) => u.email === student.email
     );
 
     if (!user) {
       return NextResponse.json(
-        { error: "User not found" },
+        { error: "Auth user not found" },
         { status: 404 }
       );
     }
 
-    // 4️⃣ Update password
+    // 4️⃣ Set password
     const { error: updateError } =
       await supabase.auth.admin.updateUserById(
         user.id,
@@ -83,24 +82,22 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5️⃣ Mark activation as used
+    // 5️⃣ Mark student as activated
     await supabase
       .from("students")
-      .update({ used: true })
-      .eq("id", activation.id);
-
-    // 6️⃣ (Optional) mark user active in your profile table
-    // await supabase
-    //   .from("students")
-    //   .update({ is_active: true })
-    //   .eq("email", activation.email);
+      .update({
+        activation_used: true,
+        is_active: true,
+        status: "active",
+      })
+      .eq("id", student.id);
 
     return NextResponse.json({
       success: true,
       message: "Account activated successfully",
     });
 
-  } catch (e: any) {
+  } catch (e) {
     console.error(e);
     return NextResponse.json(
       { error: "Server error" },

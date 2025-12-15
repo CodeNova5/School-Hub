@@ -1,84 +1,91 @@
+
+// =============================
+// /teacher/login/page.tsx
+// =============================
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { School } from 'lucide-react';
-import { signInTeacher } from '@/lib/auth';
-import { toast } from 'sonner';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
-export default function TeacherLoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+export function TeacherLoginPage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setIsLoading(true);
+    setLoading(true);
 
-    try {
-      await signInTeacher(email, password);
-      toast.success('Login successful!');
-      router.push('/teacher');
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed. Please check your credentials.');
-    } finally {
-      setIsLoading(false);
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      toast.error("Invalid login credentials");
+      setLoading(false);
+      return;
     }
+
+    const role = data.user?.user_metadata?.role;
+
+    if (role !== "teacher") {
+      toast.error("Unauthorized access");
+      setLoading(false);
+      return;
+    }
+
+    // Optional: check teacher active status
+    const { data: teacher } = await supabase
+      .from("teachers")
+      .select("is_active")
+      .eq("user_id", data.user.id)
+      .single();
+
+    if (!teacher?.is_active) {
+      toast.error("Account not activated");
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    toast.success("Login successful");
+    router.push("/teacher/dashboard");
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4 text-center">
-          <div className="flex justify-center">
-            <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center">
-              <School className="h-8 w-8 text-blue-600" />
-            </div>
-          </div>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Teacher Login</CardTitle>
-          <p className="text-gray-600">Sign in to access your teacher dashboard</p>
+          <p className="text-gray-600 text-sm mt-2">
+            Enter your email and password
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="teacher@school.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading}
-              />
+              <label className="text-sm font-medium">Email</label>
+              <Input name="email" type="email" required />
             </div>
+
             <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-              />
+              <label className="text-sm font-medium">Password</label>
+              <Input name="password" type="password" required />
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Signing in...' : 'Sign In'}
+
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
-
-          <div className="mt-6 text-center text-sm text-gray-600">
-            <a href="/" className="hover:text-blue-600">
-              Back to Homepage
-            </a>
-          </div>
         </CardContent>
       </Card>
     </div>

@@ -62,8 +62,6 @@ export default function TeachersPage() {
     const formData = new FormData(e.currentTarget);
 
     const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-
     const teacherData = {
       staff_id: formData.get('staff_id') as string,
       first_name: formData.get('first_name') as string,
@@ -105,10 +103,6 @@ export default function TeachersPage() {
       setSelectedClasses([]);
       fetchTeachers();
     } else {
-      if (!password) {
-        toast.error('Password is required for new teachers');
-        return;
-      }
 
       const savingToast = toast.loading('Creating teacher account...');
 
@@ -117,8 +111,6 @@ export default function TeachersPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email,
-            password,
             teacherData,
             selectedClasses
           }),

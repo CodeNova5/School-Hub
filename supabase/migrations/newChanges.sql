@@ -5,6 +5,12 @@ ADD COLUMN IF NOT EXISTS activation_expires_at timestamptz,
 ADD COLUMN IF NOT EXISTS activation_used boolean DEFAULT false,
 ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT false;
 
+ALTER TABLE assignments
+ADD COLUMN submission_type text DEFAULT 'text',
+ADD COLUMN total_marks integer DEFAULT 100,
+ADD COLUMN allow_late_submission boolean DEFAULT false;
+
+
 ADD COLUMN religion text CHECK (
   religion IS NULL OR religion = ANY (ARRAY['Christian', 'Muslim'])
 );

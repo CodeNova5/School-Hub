@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-export function TeacherLoginPage() {
+export default function TeacherLoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 

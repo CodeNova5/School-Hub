@@ -107,7 +107,7 @@ export default function TeachersPage() {
       const savingToast = toast.loading('Creating teacher account...');
 
       try {
-        const res = await fetch("/teacher/create-teacher", {
+        const res = await fetch("/api/create-teacher", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

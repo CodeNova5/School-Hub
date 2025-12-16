@@ -12,15 +12,8 @@ export async function POST(req: Request) {
   try {
     const studentData = await req.json();
 
-    // 1️⃣ Create student row
-    await supabase.from("students").insert({
-      ...studentData,
-      is_active: false,
-      status: "pending",
-    });
-
-    // 2️⃣ Create auth user
-    await supabase.auth.admin.createUser({
+    // 1️⃣ Create auth user first to get user_id
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: studentData.email,
       password: crypto.randomUUID(),
       email_confirm: true,
@@ -28,6 +21,16 @@ export async function POST(req: Request) {
         role: "student",
         student_id: studentData.student_id,
       },
+    });
+
+    if (authError) throw authError;
+
+    // 2️⃣ Create student row with user_id
+    await supabase.from("students").insert({
+      ...studentData,
+      user_id: authData.user.id,
+      is_active: false,
+      status: "pending",
     });
 
     // 3️⃣ Generate activation token
@@ -48,9 +51,6 @@ export async function POST(req: Request) {
       .eq("email", studentData.email);
 
     // 5️⃣ Send activation email
-
-
-    // 4️⃣ Send activation email
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {

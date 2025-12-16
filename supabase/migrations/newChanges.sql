@@ -1,4 +1,5 @@
 ALTER TABLE students
+ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
 ADD COLUMN IF NOT EXISTS activation_token_hash text,
 ADD COLUMN IF NOT EXISTS activation_expires_at timestamptz,
 ADD COLUMN IF NOT EXISTS activation_used boolean DEFAULT false,

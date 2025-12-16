@@ -111,6 +111,7 @@ export default function TeachersPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            email,
             teacherData,
             selectedClasses
           }),

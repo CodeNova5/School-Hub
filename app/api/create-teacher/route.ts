@@ -1,3 +1,4 @@
+// app/api/create-teacher/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";

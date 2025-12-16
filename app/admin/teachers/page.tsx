@@ -107,7 +107,7 @@ export default function TeachersPage() {
       const savingToast = toast.loading('Creating teacher account...');
 
       try {
-        const res = await fetch("/api/create-teacher", {
+        const res = await fetch("/api/teacher/create-teacher", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -235,21 +235,7 @@ export default function TeachersPage() {
                     required
                   />
                 </div>
-                {!editingTeacher && (
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      placeholder="Create a password"
-                      required
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Teacher will use this to log in
-                    </p>
-                  </div>
-                )}
+               
                 <div>
                   <Label htmlFor="phone">Phone</Label>
                   <Input id="phone" name="phone" defaultValue={editingTeacher?.phone} />

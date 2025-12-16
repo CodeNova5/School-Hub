@@ -77,7 +77,11 @@ export async function POST(req: Request) {
     // 5️⃣ Mark activation as used
     await supabase
       .from("teachers")
-      .update({ activation_used: true })
+      .update({ 
+        activation_used: true,
+        is_active: true,
+        
+       })
       .eq("id", teacher.id);
     return NextResponse.json(
       { message: "Account activated successfully" },

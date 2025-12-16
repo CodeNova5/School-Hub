@@ -7,29 +7,34 @@ import { Input } from '@/components/ui/input';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
-import { AssignmentModal } from '@/components/assignment-modal';
-import { Search, Plus, FileText, Trash2, Calendar } from 'lucide-react';
+import { getCurrentUser } from '@/lib/auth';
+import { Search, FileText, Calendar, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface Assignment {
   id: string;
   title: string;
   description: string;
+  instructions: string;
   due_date: string;
-  class_id: string;
-  subject_id: string;
-  created_at: string;
-  classes?: { name: string; level: string };
   subjects?: { name: string };
+  classes?: { name: string };
 }
 
-export default function AssignmentsPage() {
+interface Submission {
+  assignment_id: string;
+  submitted_at?: string;
+  grade?: number;
+  feedback?: string;
+  submitted_on_time?: boolean;
+}
+
+export default function StudentAssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [submissions, setSubmissions] = useState<Record<string, Submission>>({});
   const [filteredAssignments, setFilteredAssignments] = useState<Assignment[]>([]);
-  const [teacherId, setTeacherId] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -49,23 +54,50 @@ export default function AssignmentsPage() {
         return;
       }
 
-      const teacher = await getTeacherByUserId(user.id);
-      if (!teacher) {
-        toast.error('Teacher profile not found');
+      const { data: studentData } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!studentData) {
+        toast.error('Student profile not found');
         return;
       }
 
-      setTeacherId(teacher.id);
+      setStudentId(studentData.id);
 
-      const { data } = await supabase
-        .from('assignments')
-        .select('*, classes(*), subjects(*)')
-        .eq('teacher_id', teacher.id)
-        .order('due_date', { ascending: false });
+      const { data: classData } = await supabase
+        .from('students')
+        .select('class_id')
+        .eq('id', studentData.id)
+        .single();
 
-      if (data) {
-        setAssignments(data as any);
+      if (!classData?.class_id) {
+        toast.error('Class not assigned');
+        return;
       }
+
+      const { data: assignmentData } = await supabase
+        .from('assignments')
+        .select('*, subjects(*), classes(*)')
+        .eq('class_id', classData.class_id)
+        .order('due_date', { ascending: true });
+
+      if (assignmentData) {
+        setAssignments(assignmentData as any);
+      }
+
+      const { data: submissionData } = await supabase
+        .from('assignment_submissions')
+        .select('*')
+        .eq('student_id', studentData.id);
+
+      const submissionsMap: Record<string, Submission> = {};
+      submissionData?.forEach(sub => {
+        submissionsMap[sub.assignment_id] = sub;
+      });
+      setSubmissions(submissionsMap);
     } catch (error: any) {
       toast.error('Failed to load assignments: ' + error.message);
     } finally {
@@ -88,24 +120,6 @@ export default function AssignmentsPage() {
     setFilteredAssignments(filtered);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this assignment?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('assignments')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast.success('Assignment deleted successfully');
-      setAssignments(assignments.filter(a => a.id !== id));
-    } catch (error: any) {
-      toast.error('Failed to delete assignment: ' + error.message);
-    }
-  }
-
   function getDaysUntilDue(dueDate: string): number {
     const due = new Date(dueDate);
     const today = new Date();
@@ -121,9 +135,16 @@ export default function AssignmentsPage() {
     return { label: `Due in ${days} days`, color: 'bg-green-100 text-green-700' };
   }
 
+  function getSubmissionStatus(assignment: Assignment) {
+    const sub = submissions[assignment.id];
+    if (!sub) return 'Not Submitted';
+    if (sub.grade !== null && sub.grade !== undefined) return `Graded: ${sub.grade}%`;
+    return sub.submitted_on_time ? 'Submitted' : 'Submitted Late';
+  }
+
   if (isLoading) {
     return (
-      <DashboardLayout role="teacher">
+      <DashboardLayout role="student">
         <div className="flex items-center justify-center h-96">
           <p className="text-gray-500">Loading assignments...</p>
         </div>
@@ -132,19 +153,13 @@ export default function AssignmentsPage() {
   }
 
   return (
-    <DashboardLayout role="teacher">
+    <DashboardLayout role="student">
       <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Assignments</h1>
-            <p className="text-gray-600 mt-1">
-              Create and manage assignments for your classes
-            </p>
-          </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Assignment
-          </Button>
+        <div>
+          <h1 className="text-3xl font-bold">Assignments</h1>
+          <p className="text-gray-600 mt-1">
+            View and submit your assignments
+          </p>
         </div>
 
         <Card>
@@ -175,12 +190,15 @@ export default function AssignmentsPage() {
               <div className="text-center py-12 text-gray-500">
                 <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                 <p>No assignments yet</p>
-                <p className="text-sm mt-1">Create your first assignment to get started</p>
+                <p className="text-sm mt-1">Your assignments will appear here</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {filteredAssignments.map((assignment) => {
                   const dueStatus = getDueStatus(assignment.due_date);
+                  const submissionStatus = getSubmissionStatus(assignment);
+                  const sub = submissions[assignment.id];
+
                   return (
                     <div
                       key={assignment.id}
@@ -194,12 +212,10 @@ export default function AssignmentsPage() {
                           <p className="text-gray-600 text-sm mb-3">
                             {assignment.description}
                           </p>
+                          <p className="text-gray-600 text-sm mb-3">
+                            {assignment.instructions}
+                          </p>
                           <div className="flex flex-wrap gap-2">
-                            {assignment.classes && (
-                              <Badge variant="outline" className="text-xs">
-                                {assignment.classes.name}
-                              </Badge>
-                            )}
                             {assignment.subjects && (
                               <Badge variant="secondary" className="text-xs">
                                 {assignment.subjects.name}
@@ -209,25 +225,32 @@ export default function AssignmentsPage() {
                               <Calendar className="h-3 w-3 mr-1 inline" />
                               {dueStatus.label}
                             </Badge>
+                            {sub?.grade !== null && sub?.grade !== undefined && (
+                              <Badge className="bg-green-100 text-green-700 text-xs">
+                                Grade: {sub.grade}%
+                              </Badge>
+                            )}
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              toast.info('View submissions feature coming soon');
-                            }}
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge
+                            variant={sub ? 'default' : 'outline'}
+                            className={sub?.grade ? 'bg-green-100 text-green-700' : ''}
                           >
-                            View Submissions
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(assignment.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                            {submissionStatus}
+                          </Badge>
+                          {sub?.feedback && (
+                            <div className="text-xs bg-blue-50 p-2 rounded border border-blue-200 max-w-xs">
+                              <p className="font-medium text-blue-900">Feedback:</p>
+                              <p className="text-blue-800">{sub.feedback}</p>
+                            </div>
+                          )}
+                          {!sub && (
+                            <Button size="sm">
+                              <Upload className="h-4 w-4 mr-2" />
+                              Submit
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -238,13 +261,6 @@ export default function AssignmentsPage() {
           </CardContent>
         </Card>
       </div>
-
-      <AssignmentModal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={loadData}
-        teacherId={teacherId}
-      />
     </DashboardLayout>
   );
 }

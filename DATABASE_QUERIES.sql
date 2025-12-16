@@ -222,10 +222,100 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================================================
+-- 5. ASSIGNMENTS TABLE
+-- Stores assignments created by teachers
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS assignments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id uuid REFERENCES teachers(id) ON DELETE CASCADE,
+  class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
+  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
+  title text NOT NULL,
+  description text DEFAULT '',
+  instructions text DEFAULT '',
+  due_date date NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read assignments" ON assignments;
+CREATE POLICY "Anyone can read assignments" ON assignments FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Teachers can manage assignments" ON assignments;
+CREATE POLICY "Teachers can manage assignments" ON assignments FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_assignments_teacher ON assignments(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_class ON assignments(class_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_subject ON assignments(subject_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_due_date ON assignments(due_date);
+
+-- ============================================================================
+-- 6. ASSIGNMENT_SUBMISSIONS TABLE
+-- Stores student submissions for assignments
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  assignment_id uuid REFERENCES assignments(id) ON DELETE CASCADE,
+  student_id uuid REFERENCES students(id) ON DELETE CASCADE,
+  submission_text text DEFAULT '',
+  file_url text DEFAULT '',
+  submitted_at timestamptz DEFAULT now(),
+  submitted_on_time boolean DEFAULT true,
+  grade numeric CHECK (grade IS NULL OR (grade >= 0 AND grade <= 100)),
+  feedback text DEFAULT '',
+  graded_at timestamptz,
+  graded_by uuid REFERENCES teachers(id) ON DELETE SET NULL,
+  UNIQUE(assignment_id, student_id)
+);
+
+ALTER TABLE assignment_submissions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read submissions" ON assignment_submissions;
+CREATE POLICY "Anyone can read submissions" ON assignment_submissions FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Teachers can manage submissions" ON assignment_submissions;
+CREATE POLICY "Teachers can manage submissions" ON assignment_submissions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_submissions_assignment ON assignment_submissions(assignment_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_student ON assignment_submissions(student_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON assignment_submissions(submitted_at);
+
+-- ============================================================================
+-- 7. TRIGGER TO MARK LATE SUBMISSIONS
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION check_submission_on_time()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.submitted_at::date > (
+    SELECT due_date FROM assignments WHERE id = NEW.assignment_id
+  ) THEN
+    NEW.submitted_on_time := false;
+  ELSE
+    NEW.submitted_on_time := true;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_check_submission_on_time ON assignment_submissions;
+CREATE TRIGGER trigger_check_submission_on_time
+  BEFORE INSERT ON assignment_submissions
+  FOR EACH ROW
+  EXECUTE FUNCTION check_submission_on_time();
+
+-- ============================================================================
 -- DONE!
 -- ============================================================================
 -- ✓ student_subjects table created for tracking student subject selections
 -- ✓ results table recreated with detailed score columns
 -- ✓ Auto-calculation trigger for total and grade
 -- ✓ Function to calculate student position in class
+-- ✓ assignments table for teacher-created assignments
+-- ✓ assignment_submissions table for student submissions
+-- ✓ Trigger to automatically check if submission is on time
 -- ============================================================================

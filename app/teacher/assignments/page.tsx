@@ -11,7 +11,7 @@ import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { AssignmentModal } from '@/components/assignment-modal';
 import { Search, Plus, FileText, Trash2, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-
+import Link from 'next/link';
 interface Assignment {
   id: string;
   title: string;
@@ -212,15 +212,11 @@ export default function AssignmentsPage() {
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              toast.info('View submissions feature coming soon');
-                            }}
-                          >
-                            View Submissions
-                          </Button>
+                          <Link href={`/dashboard/assignments/${assignment.id}`}>
+                            <Button variant="outline" size="sm">
+                              View Details
+                            </Button>
+                          </Link>
                           <Button
                             variant="destructive"
                             size="sm"

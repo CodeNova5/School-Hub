@@ -7,10 +7,13 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 // TipTap
-import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import TextAlign from "@tiptap/extension-text-align";
+import Highlight from "@tiptap/extension-highlight";
+import Blockquote from "@tiptap/extension-blockquote";
+import CodeBlock from "@tiptap/extension-code-block";
 import Underline from "@tiptap/extension-underline";
-
+import StarterKit from "@tiptap/starter-kit";
+import { useEditor, EditorContent } from "@tiptap/react";
 // Icons
 import {
   Bold,
@@ -21,6 +24,13 @@ import {
   Heading1,
   Heading2,
   Upload,
+  Quote,
+  Code,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Highlighter,
+  Eraser,
 } from "lucide-react";
 
 interface Props {
@@ -42,17 +52,34 @@ export default function StudentAssignmentSubmissionModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   /* ---------------- RICH TEXT EDITOR ---------------- */
+
   const editor = useEditor({
-    extensions: [StarterKit, Underline],
+    extensions: [
+      StarterKit.configure({
+        bulletList: { keepMarks: true },
+        orderedList: { keepMarks: true },
+        heading: { levels: [1, 2, 3] },
+        codeBlock: false, // we use our own
+      }),
+      Underline,
+      Highlight,
+      Blockquote,
+      CodeBlock,
+      TextAlign.configure({
+        types: ["heading", "paragraph"],
+      }),
+    ],
+    autofocus: "end",
+    editable: true,
     content: "",
-    onUpdate({ editor }) {
-      setContent(editor.getHTML());
-    },
     editorProps: {
       attributes: {
         class:
-          "min-h-[240px] p-4 border rounded-b-md focus:outline-none prose max-w-none",
+          "min-h-[260px] p-4 focus:outline-none prose max-w-none",
       },
+    },
+    onUpdate({ editor }) {
+      setContent(editor.getHTML());
     },
   });
 
@@ -195,45 +222,102 @@ export default function StudentAssignmentSubmissionModal({
                 {/* Toolbar */}
                 <div className="flex flex-wrap gap-1 p-2 border rounded-t-md bg-muted">
                   <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleBold().run()}
-                    active={editor.isActive("bold")}
                     icon={<Bold size={16} />}
+                    active={editor.isActive("bold")}
+                    onClick={() => editor.chain().focus().toggleBold().run()}
                   />
                   <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
-                    active={editor.isActive("italic")}
                     icon={<Italic size={16} />}
+                    active={editor.isActive("italic")}
+                    onClick={() => editor.chain().focus().toggleItalic().run()}
                   />
                   <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleUnderline().run()}
-                    active={editor.isActive("underline")}
                     icon={<UnderlineIcon size={16} />}
+                    active={editor.isActive("underline")}
+                    onClick={() => editor.chain().focus().toggleUnderline().run()}
                   />
                   <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleBulletList().run()}
-                    active={editor.isActive("bulletList")}
+                    icon={<Highlighter size={16} />}
+                    active={editor.isActive("highlight")}
+                    onClick={() => editor.chain().focus().toggleHighlight().run()}
+                  />
+                  <ToolbarButton
                     icon={<List size={16} />}
+                    active={editor.isActive("bulletList")}
+                    onClick={() => editor.chain().focus().toggleBulletList().run()}
                   />
                   <ToolbarButton
-                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                    active={editor.isActive("orderedList")}
                     icon={<ListOrdered size={16} />}
+                    active={editor.isActive("orderedList")}
+                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
                   />
                   <ToolbarButton
+                    icon={<Heading1 size={16} />}
+                    active={editor.isActive("heading", { level: 1 })}
                     onClick={() =>
                       editor.chain().focus().toggleHeading({ level: 1 }).run()
                     }
-                    active={editor.isActive("heading", { level: 1 })}
-                    icon={<Heading1 size={16} />}
                   />
                   <ToolbarButton
+                    icon={<Heading2 size={16} />}
+                    active={editor.isActive("heading", { level: 2 })}
                     onClick={() =>
                       editor.chain().focus().toggleHeading({ level: 2 }).run()
                     }
-                    active={editor.isActive("heading", { level: 2 })}
-                    icon={<Heading2 size={16} />}
                   />
+                  <ToolbarButton
+                    icon={<Quote size={16} />}
+                    active={editor.isActive("blockquote")}
+                    onClick={() =>
+                      editor.chain().focus().toggleBlockquote().run()
+                    }
+                  />
+                  <ToolbarButton
+                    icon={<Code size={16} />}
+                    active={editor.isActive("codeBlock")}
+                    onClick={() =>
+                      editor.chain().focus().toggleCodeBlock().run()
+                    }
+                  />
+                  <ToolbarButton
+                    icon={<AlignLeft size={16} />}
+                    active={editor.isActive({ textAlign: "left" })}
+                    onClick={() =>
+                      editor.chain().focus().setTextAlign("left").run()
+                    }
+                  />
+                  <ToolbarButton
+                    icon={<AlignCenter size={16} />}
+                    active={editor.isActive({ textAlign: "center" })}
+                    onClick={() =>
+                      editor.chain().focus().setTextAlign("center").run()
+                    }
+                  />
+                  <ToolbarButton
+                    icon={<AlignRight size={16} />}
+                    active={editor.isActive({ textAlign: "right" })}
+                    onClick={() =>
+                      editor.chain().focus().setTextAlign("right").run()
+                    }
+                  />
+                  <ToolbarButton
+                    icon={<Eraser size={16} />}
+                    active={false}
+                    onClick={() =>
+                      editor.chain().focus().clearNodes().unsetAllMarks().run()
+                    }
+                  />
+                  <ToolbarButton
+                    icon={<Heading1 size={18} />}
+                    active={editor.isActive("heading", { level: 1 })}
+                    onClick={() =>
+                      editor.chain().focus().toggleHeading({ level: 1 }).run()
+                    }
+                  />
+
                 </div>
+
+                {/* Editor */}
 
                 <div
                   onClick={() => editor?.chain().focus().run()}

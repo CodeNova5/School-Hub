@@ -100,3 +100,22 @@
   background: white !important;
   zoom: 1.0;
 }
+
+.ProseMirror h1 {
+  font-size: 2.2rem;
+  font-weight: 700;
+}
+
+.ProseMirror h2 {
+  font-size: 1.8rem;
+  font-weight: 600;
+}
+
+.ProseMirror h3 {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.ProseMirror p {
+  font-size: 1rem;
+}

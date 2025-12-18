@@ -56,6 +56,12 @@ export default function StudentAssignmentSubmissionModal({
     },
   });
 
+  useEffect(() => {
+    if (open && editor) {
+      editor.commands.focus("end");
+    }
+  }, [open, editor]);
+
 
   /* ---------------- HELPERS ---------------- */
   function ToolbarButton({
@@ -229,7 +235,13 @@ export default function StudentAssignmentSubmissionModal({
                   />
                 </div>
 
-                <EditorContent editor={editor} />
+                <div
+                  onClick={() => editor?.chain().focus().run()}
+                  className="border border-t-0 rounded-b-md"
+                >
+                  <EditorContent editor={editor} />
+                </div>
+
               </div>
             )}
 

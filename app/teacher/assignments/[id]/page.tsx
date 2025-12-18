@@ -11,6 +11,7 @@ import { Calendar, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AssignmentDetailsPage() {
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const params = useParams();
   const assignmentId = params.id as string;
 
@@ -23,21 +24,38 @@ export default function AssignmentDetailsPage() {
 
   async function loadAssignment() {
     setLoading(true);
-    const { data, error } = await supabase
+
+    const { data: assignmentData, error: assignmentError } = await supabase
       .from("assignments")
       .select(`
-        *,
-        classes(name),
-        subjects(name)
-      `)
+      *,
+      classes(name),
+      subjects(name)
+    `)
       .eq("id", assignmentId)
       .single();
 
-    if (error) {
+    if (assignmentError) {
       toast.error("Failed to load assignment");
-    } else {
-      setAssignment(data);
+      setLoading(false);
+      return;
     }
+
+    const { data: submissionsData } = await supabase
+      .from("assignment_submissions")
+      .select(`
+      *,
+      students(
+        id,
+        first_name,
+        last_name
+      )
+    `)
+      .eq("assignment_id", assignmentId)
+      .order("submitted_at", { ascending: true });
+
+    setAssignment(assignmentData);
+    setSubmissions(submissionsData || []);
     setLoading(false);
   }
 
@@ -113,23 +131,72 @@ export default function AssignmentDetailsPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Student Submission CTA */}
+        {/* Submissions */}
         <Card>
           <CardHeader>
-            <CardTitle>Your Submission</CardTitle>
+            <CardTitle>
+              Student Submissions ({submissions.length})
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              You have not submitted this assignment yet.
-            </p>
 
-            <Button className="w-full">
-              <Upload className="h-4 w-4 mr-2" />
-              Submit Assignment
-            </Button>
+          <CardContent className="space-y-6">
+            {submissions.length === 0 && (
+              <p className="text-muted-foreground text-sm">
+                No submissions yet.
+              </p>
+            )}
+
+            {submissions.map((submission) => (
+              <div
+                key={submission.id}
+                className="border rounded-lg p-4 space-y-3"
+              >
+                {/* Student Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">
+                      {submission.students?.first_name}{" "}
+                      {submission.students?.last_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Submitted on{" "}
+                      {new Date(submission.submitted_at).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {!submission.submitted_on_time && (
+                    <Badge variant="destructive">Late</Badge>
+                  )}
+                </div>
+
+                {/* Rich Text Answer */}
+                {submission.submission_text && (
+                  <div className="prose max-w-none border rounded-md p-4 bg-muted/40">
+                    <div
+                      dangerouslySetInnerHTML={{
+                        __html: submission.submission_text,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* File Upload */}
+                {submission.file_url && (
+                  <a
+                    href={submission.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm text-primary underline"
+                  >
+                    <Upload className="h-4 w-4" />
+                    View uploaded file
+                  </a>
+                )}
+              </div>
+            ))}
           </CardContent>
         </Card>
+
       </div>
     </DashboardLayout>
   );

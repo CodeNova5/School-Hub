@@ -212,7 +212,7 @@ export default function AssignmentsPage() {
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                          <Link href={`/dashboard/assignments/${assignment.id}`}>
+                          <Link href={`/teacher/assignments/${assignment.id}`}>
                             <Button variant="outline" size="sm">
                               View Details
                             </Button>

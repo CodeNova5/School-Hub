@@ -5,8 +5,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import { StudentAssignmentSubmissionModal } from "@/components/StudentAssignmentSubmissionModal";
-
+import StudentAssignmentSubmissionModal from "@/components/StudentAssignmentSubmissionModal";
 export default function StudentAssignmentDetails() {
     const { id } = useParams();
     const [assignment, setAssignment] = useState<any>(null);

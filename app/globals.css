@@ -119,3 +119,21 @@
 .ProseMirror p {
   font-size: 1rem;
 }
+
+/* ===============================
+   TipTap editor list fix
+   =============================== */
+
+.ProseMirror ul {
+  list-style-type: disc !important;
+  padding-left: 1.5rem !important;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal !important;
+  padding-left: 1.5rem !important;
+}
+
+.ProseMirror li {
+  margin: 0.25rem 0;
+}

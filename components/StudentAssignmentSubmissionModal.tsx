@@ -14,6 +14,7 @@ import CodeBlock from "@tiptap/extension-code-block";
 import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
 import { useEditor, EditorContent } from "@tiptap/react";
+
 // Icons
 import {
   Bold,
@@ -56,10 +57,14 @@ export default function StudentAssignmentSubmissionModal({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        bulletList: { keepMarks: true },
-        orderedList: { keepMarks: true },
-        heading: { levels: [1, 2, 3] },
-        codeBlock: false, // we use our own
+        bulletList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
+        orderedList: {
+          keepMarks: true,
+          keepAttributes: false,
+        },
       }),
       Underline,
       Highlight,
@@ -72,12 +77,6 @@ export default function StudentAssignmentSubmissionModal({
     autofocus: "end",
     editable: true,
     content: "",
-    editorProps: {
-      attributes: {
-        class:
-          "min-h-[260px] p-4 focus:outline-none prose max-w-none",
-      },
-    },
     onUpdate({ editor }) {
       setContent(editor.getHTML());
     },
@@ -244,13 +243,21 @@ export default function StudentAssignmentSubmissionModal({
                   <ToolbarButton
                     icon={<List size={16} />}
                     active={editor.isActive("bulletList")}
-                    onClick={() => editor.chain().focus().toggleBulletList().run()}
+                    onClick={() => {
+                      editor.commands.focus();
+                      editor.commands.toggleBulletList();
+                    }}
                   />
+
                   <ToolbarButton
                     icon={<ListOrdered size={16} />}
                     active={editor.isActive("orderedList")}
-                    onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                    onClick={() => {
+                      editor.commands.focus();
+                      editor.commands.toggleOrderedList();
+                    }}
                   />
+
                   <ToolbarButton
                     icon={<Heading1 size={16} />}
                     active={editor.isActive("heading", { level: 1 })}
@@ -270,13 +277,6 @@ export default function StudentAssignmentSubmissionModal({
                     active={editor.isActive("blockquote")}
                     onClick={() =>
                       editor.chain().focus().toggleBlockquote().run()
-                    }
-                  />
-                  <ToolbarButton
-                    icon={<Code size={16} />}
-                    active={editor.isActive("codeBlock")}
-                    onClick={() =>
-                      editor.chain().focus().toggleCodeBlock().run()
                     }
                   />
                   <ToolbarButton
@@ -307,14 +307,6 @@ export default function StudentAssignmentSubmissionModal({
                       editor.chain().focus().clearNodes().unsetAllMarks().run()
                     }
                   />
-                  <ToolbarButton
-                    icon={<Heading1 size={18} />}
-                    active={editor.isActive("heading", { level: 1 })}
-                    onClick={() =>
-                      editor.chain().focus().toggleHeading({ level: 1 }).run()
-                    }
-                  />
-
                 </div>
 
                 {/* Editor */}

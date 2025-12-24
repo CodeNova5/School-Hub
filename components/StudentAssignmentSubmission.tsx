@@ -1,10 +1,10 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useParams, useRouter } from "next/navigation";
 
 // TipTap
 import TextAlign from "@tiptap/extension-text-align";
@@ -34,23 +34,22 @@ import {
   Eraser,
 } from "lucide-react";
 
-interface Props {
-  open: boolean;
-  onClose: () => void;
-  assignment: {
-    id: string;
-    submission_type: "text" | "file" | "both";
-  };
-}
-
-export default function StudentAssignmentSubmissionModal({
-  open,
-  onClose,
-  assignment,
-}: Props) {
+export default function StudentAssignmentSubmission() {
+  const { id } = useParams();
+  const router = useRouter();
+  const [assignment, setAssignment] = useState<any>(null);
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    supabase
+        .from("assignments")
+        .select("*")
+        .eq("id", id)
+        .single()
+        .then(({ data }) => setAssignment(data));
+}, [id]);
 
   /* ---------------- RICH TEXT EDITOR ---------------- */
 
@@ -83,10 +82,10 @@ export default function StudentAssignmentSubmissionModal({
   });
 
   useEffect(() => {
-    if (open && editor) {
+    if (editor) {
       editor.commands.focus("end");
     }
-  }, [open, editor]);
+  }, [editor]);
 
 
   /* ---------------- HELPERS ---------------- */
@@ -194,7 +193,7 @@ export default function StudentAssignmentSubmissionModal({
       toast.success("Assignment submitted successfully");
       editor?.commands.clearContent();
       setFile(null);
-      onClose();
+      router.push(`/student/assignments/${id}`);
     } catch (err: any) {
       toast.error(err.message || "Submission failed");
     } finally {
@@ -202,16 +201,12 @@ export default function StudentAssignmentSubmissionModal({
     }
   }
 
-  if (!editor) return null;
+  if (!editor || !assignment) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Submit Assignment</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-6">
+    <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold">Submit Assignment</h1>
+        <div className="space-y-6 mt-6">
           {/* ---------------- TOOLBAR + EDITOR ---------------- */}
           {(assignment.submission_type === "text" ||
             assignment.submission_type === "both") && (
@@ -343,15 +338,14 @@ export default function StudentAssignmentSubmissionModal({
         </div>
 
         {/* ---------------- ACTIONS ---------------- */}
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>
+        <div className="flex justify-end gap-3 pt-4 border-t mt-6">
+          <Button variant="outline" onClick={() => router.back()}>
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? "Submitting..." : "Submit"}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }

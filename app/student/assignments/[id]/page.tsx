@@ -5,11 +5,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import StudentAssignmentSubmissionModal from "@/components/StudentAssignmentSubmissionModal";
+import Link from "next/link";
+
 export default function StudentAssignmentDetails() {
     const { id } = useParams();
     const [assignment, setAssignment] = useState<any>(null);
-    const [open, setOpen] = useState(false);
 
     useEffect(() => {
         supabase
@@ -38,13 +38,9 @@ export default function StudentAssignmentDetails() {
                     <span>Marks: {assignment.total_marks}</span>
                 </div>
 
-                <Button onClick={() => setOpen(true)}>Submit Assignment</Button>
-
-                <StudentAssignmentSubmissionModal
-                    open={open}
-                    onClose={() => setOpen(false)}
-                    assignment={assignment}
-                />
+                <Link href={`/student/assignments/${id}/submit`}>
+                    <Button>Submit Assignment</Button>
+                </Link>
 
             </div>
         </DashboardLayout>

@@ -9,7 +9,7 @@ import Color from "@tiptap/extension-color";
 import { TextStyle } from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
 // @ts-ignore
-import FontSize from "@tiptap/extension-font-size";
+import { FontSize } from "@/lib/tiptap/font-size";
 import {
     Undo, Redo, Printer, Pilcrow, ChevronDown, Bold, Italic, Underline as UnderlineIcon, Strikethrough,
     Palette, AlignLeft, AlignCenter, AlignRight, AlignJustify, Baseline, List, ListOrdered, Minus,

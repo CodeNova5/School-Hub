@@ -79,9 +79,8 @@ export async function POST(req: Request) {
     // 4️⃣ Assign class
     if (selectedClass) {
       await supabase
-        .from('classes')
-        .update({ class_teacher_id: teacher.id })
-        .eq('id', selectedClass);
+        .from('teacher_classes')
+        .insert({ teacher_id: teacher.id, class_id: selectedClass });
     }
 
     // 5️⃣ Assign subjects

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Teacher, Class } from '@/lib/types';
+import { Teacher, Class, Subject } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -22,14 +22,17 @@ import { toast } from 'sonner';
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [assignedSubjects, setAssignedSubjects] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
 
   useEffect(() => {
     fetchTeachers();
-    fetchClasses();
+    fetchUnassignedData();
   }, []);
 
   async function fetchTeachers() {
@@ -41,19 +44,42 @@ export default function TeachersPage() {
     if (data) setTeachers(data);
   }
 
-  async function fetchClasses() {
-    const { data } = await supabase.from('classes').select('*').order('name');
-    if (data) setClasses(data);
+  async function fetchUnassignedData() {
+    // Fetch classes that are not assigned to any teacher
+    const { data: classData } = await supabase
+      .from('classes')
+      .select('*')
+      .is('class_teacher_id', null)
+      .order('name');
+    if (classData) setClasses(classData);
+
+    // Fetch all subjects
+    const { data: subjectData } = await supabase.from('subjects').select('*').order('name');
+    if (subjectData) setSubjects(subjectData);
+
+    // Fetch subjects that are already assigned
+    const { data: assignedSubjectData } = await supabase.from('subject_assignments').select('subject_id');
+    if (assignedSubjectData) {
+      setAssignedSubjects(assignedSubjectData.map((s) => s.subject_id));
+    }
   }
 
-  async function loadTeacherClasses(teacherId: string) {
-    const { data } = await supabase
-      .from('teacher_classes')
-      .select('class_id')
-      .eq('teacher_id', teacherId);
+  async function loadTeacherData(teacher: Teacher) {
+    // Load assigned class
+    const { data: classData } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('class_teacher_id', teacher.id)
+      .single();
+    if (classData) setSelectedClass(classData.id);
 
-    if (data) {
-      setSelectedClasses(data.map((tc) => tc.class_id));
+    // Load assigned subjects
+    const { data: subjectData } = await supabase
+      .from('subject_assignments')
+      .select('subject_id')
+      .eq('teacher_id', teacher.id);
+    if (subjectData) {
+      setSelectedSubjects(subjectData.map((s) => s.subject_id));
     }
   }
 
@@ -63,7 +89,6 @@ export default function TeachersPage() {
 
     const email = formData.get('email') as string;
     const teacherData = {
-      staff_id: formData.get('staff_id') as string,
       first_name: formData.get('first_name') as string,
       last_name: formData.get('last_name') as string,
       email,
@@ -75,65 +100,37 @@ export default function TeachersPage() {
     };
 
     if (editingTeacher) {
-      const { error } = await supabase
-        .from('teachers')
-        .update(teacherData)
-        .eq('id', editingTeacher.id);
-
-      if (error) {
-        toast.error('Failed to update teacher');
-        return;
-      }
-
-      await supabase.from('teacher_classes').delete().eq('teacher_id', editingTeacher.id);
-
-      if (selectedClasses.length > 0) {
-        const classAssignments = selectedClasses.map((classId) => ({
-          teacher_id: editingTeacher.id,
-          class_id: classId,
-          session_id: null,
-        }));
-
-        await supabase.from('teacher_classes').insert(classAssignments);
-      }
-
-      toast.success('Teacher updated successfully');
-      setIsDialogOpen(false);
-      setEditingTeacher(null);
-      setSelectedClasses([]);
-      fetchTeachers();
+      // Update teacher logic
     } else {
-
       const savingToast = toast.loading('Creating teacher account...');
 
       try {
-        const res = await fetch("/api/create-teacher", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/create-teacher', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email,
             teacherData,
-            selectedClasses
+            selectedClass,
+            selectedSubjects,
           }),
         });
 
         const json = await res.json();
 
         if (!res.ok) {
-          toast.error(json.error || "Failed to create teacher", { id: savingToast });
+          toast.error(json.error || 'Failed to create teacher', { id: savingToast });
           return;
         }
 
-        toast.success("Teacher created successfully!", { id: savingToast });
-        setIsDialogOpen(false);
-        setSelectedClasses([]);
+        toast.success('Teacher created successfully!', { id: savingToast });
+        closeDialog();
         fetchTeachers();
-
+        fetchUnassignedData();
       } catch (error: any) {
-        toast.error(error.message || "Failed to create teacher", { id: savingToast });
+        toast.error(error.message || 'Failed to create teacher', { id: savingToast });
       }
     }
-
   }
 
   async function handleDelete(id: string, userId?: string) {
@@ -154,19 +151,22 @@ export default function TeachersPage() {
 
   async function openEditDialog(teacher: Teacher) {
     setEditingTeacher(teacher);
-    await loadTeacherClasses(teacher.id);
+    await loadTeacherData(teacher);
     setIsDialogOpen(true);
   }
 
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingTeacher(null);
-    setSelectedClasses([]);
+    setSelectedClass('');
+    setSelectedSubjects([]);
   }
 
-  function toggleClassSelection(classId: string) {
-    setSelectedClasses((prev) =>
-      prev.includes(classId) ? prev.filter((id) => id !== classId) : [...prev, classId]
+  function toggleSubjectSelection(subjectId: string) {
+    setSelectedSubjects((prev) =>
+      prev.includes(subjectId)
+        ? prev.filter((id) => id !== subjectId)
+        : [...prev, subjectId]
     );
   }
 
@@ -217,16 +217,6 @@ export default function TeachersPage() {
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="staff_id">Staff ID</Label>
-                  <Input
-                    id="staff_id"
-                    name="staff_id"
-                    placeholder="e.g., TCH001"
-                    defaultValue={editingTeacher?.staff_id}
-                    required
-                  />
-                </div>
-                <div>
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
@@ -236,7 +226,6 @@ export default function TeachersPage() {
                     required
                   />
                 </div>
-               
                 <div>
                   <Label htmlFor="phone">Phone</Label>
                   <Input id="phone" name="phone" defaultValue={editingTeacher?.phone} />
@@ -264,21 +253,44 @@ export default function TeachersPage() {
                   <Input id="address" name="address" defaultValue={editingTeacher?.address} />
                 </div>
                 <div>
-                  <Label>Assign Classes</Label>
-                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                  <Label>Assign Class</Label>
+                  <select
+                    id="class_id"
+                    name="class_id"
+                    className="w-full h-10 px-3 border rounded-md"
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    required
+                  >
+                    <option value="" disabled>Select a class</option>
                     {classes.map((cls) => (
-                      <label key={cls.id} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedClasses.includes(cls.id)}
-                          onChange={() => toggleClassSelection(cls.id)}
-                          className="h-4 w-4"
-                        />
-                        <span className="text-sm">{cls.name}</span>
-                      </label>
+                      <option key={cls.id} value={cls.id}>{cls.name}</option>
                     ))}
-                    {classes.length === 0 && (
-                      <p className="text-sm text-gray-500">No classes available</p>
+                  </select>
+                   {classes.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">No classes available for assignment</p>
+                    )}
+                </div>
+                <div>
+                  <Label>Assign Subjects</Label>
+                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                    {subjects.map((subject) => {
+                      const isAssigned = assignedSubjects.includes(subject.id);
+                      return (
+                        <label key={subject.id} className={`flex items-center gap-2 ${isAssigned ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedSubjects.includes(subject.id)}
+                            onChange={() => toggleSubjectSelection(subject.id)}
+                            disabled={isAssigned}
+                            className="h-4 w-4"
+                          />
+                          <span className="text-sm">{subject.name} {isAssigned && '(Assigned)'}</span>
+                        </label>
+                      );
+                    })}
+                     {subjects.length === 0 && (
+                      <p className="text-sm text-gray-500">No subjects available</p>
                     )}
                   </div>
                 </div>

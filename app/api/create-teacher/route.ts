@@ -6,18 +6,19 @@ import crypto from "crypto";
 
 // Function to generate a unique staff ID
 async function generateUniqueStaffId(supabase: any) {
-  let staffId;
-  let isUnique = false;
-  while (!isUnique) {
-    const randomPart = Math.floor(1000 + Math.random() * 9000);
-    staffId = `TCH${randomPart}`;
-    const { data, error } = await supabase.from('teachers').select('staff_id').eq('staff_id', staffId).single();
-    if (!data && !error) {
-      isUnique = true;
-    }
+  while (true) {
+    const staffId = `TCH${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const { data } = await supabase
+      .from("teachers")
+      .select("id")
+      .eq("staff_id", staffId)
+      .maybeSingle(); // ✅ IMPORTANT
+
+    if (!data) return staffId; // unique
   }
-  return staffId;
 }
+
 
 export async function POST(req: Request) {
   try {
@@ -29,6 +30,17 @@ export async function POST(req: Request) {
     );
 
     // 1️⃣ Create auth user
+
+    const { data: existingAuth } = await supabase.auth.admin.listUsers();
+
+    if (existingAuth?.users?.some(u => u.email === email)) {
+      return NextResponse.json(
+        { error: "A user with this email already exists" },
+        { status: 400 }
+      );
+    }
+
+
     const { data: authData, error: authError } =
       await supabase.auth.admin.createUser({
         email,
@@ -73,14 +85,22 @@ export async function POST(req: Request) {
     }
 
     // 5️⃣ Assign subjects
-    if (selectedSubjects?.length > 0) {
+    if (selectedSubjects?.length > 0 && selectedClass) {
       const assignments = selectedSubjects.map((subjectId: string) => ({
         teacher_id: teacher.id,
         subject_id: subjectId,
-        class_id: selectedClass, // Assuming subjects are assigned in the context of the selected class
+        class_id: selectedClass,
       }));
-      await supabase.from("subject_assignments").insert(assignments);
+
+      const { error: subjectError } = await supabase
+        .from("subject_assignments")
+        .insert(assignments);
+
+      if (subjectError) {
+        throw subjectError;
+      }
     }
+
 
     // 6️⃣ Generate and save activation token
     const rawToken = crypto.randomBytes(32).toString("hex");

@@ -74,9 +74,10 @@ export default function StudentsPage() {
     if (photoFile && photoFile.size > 0) {
       const uploadForm = new FormData();
       uploadForm.append("file", photoFile);
+      uploadForm.append("type", "student_photo");
       uploadForm.append("student_id", editingStudent?.student_id || ""); // optional for upload API
 
-      const res = await fetch("/api/upload-student-photo", {
+      const res = await fetch("/api/upload", {
         method: "POST",
         body: uploadForm,
       });

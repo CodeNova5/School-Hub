@@ -75,17 +75,16 @@ export default function StudentAssignmentSubmission() {
 
             /* ---------- FILE UPLOAD (GitHub API) ---------- */
             if (file) {
-                const base64 = await fileToBase64(file);
+               
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("type", "assignment_file");
+                formData.append("assignment_id", assignment.id);
+                formData.append("student_id", student.id);
 
-                const res = await fetch("/api/upload-assignment", {
+                const res = await fetch("/api/upload", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        assignmentId: assignment.id,
-                        studentId: student.id,
-                        fileName: file.name,
-                        fileContentBase64: base64,
-                    }),
+                    body: formData,
                 });
 
                 if (!res.ok) throw new Error("File upload failed");
@@ -140,7 +139,7 @@ export default function StudentAssignmentSubmission() {
                                 <input
                                     type="file"
                                     hidden
-                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.bmp,.txt,.rtf,.odt,.ppt,.pptx ."
                                     onChange={(e) => setFile(e.target.files?.[0] || null)}
                                 />
                             </label>

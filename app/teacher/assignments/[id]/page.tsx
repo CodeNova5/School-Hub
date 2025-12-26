@@ -137,163 +137,182 @@ export default function AssignmentDetailsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Header */}
-          <div className="space-y-3">
-            <h1 className="text-3xl font-bold">{assignment.title}</h1>
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Header Section */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-4">{assignment.title}</h1>
 
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{assignment.classes?.name}</Badge>
-              <Badge variant="secondary">{assignment.subjects?.name}</Badge>
-              <Badge>
-                <Calendar className="h-3 w-3 mr-1" />
-                Due {new Date(assignment.due_date).toLocaleDateString()}
-              </Badge>
-            </div>
-
-            <div className="flex flex-wrap gap-3 pt-2">
-              <Badge variant="outline">{submissions.length} Submitted</Badge>
-              <Badge variant="success">{gradedCount} Graded</Badge>
-              <Badge variant="destructive">{lateCount} Late</Badge>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                size="sm"
-                variant={filter === "all" ? "default" : "outline"}
-                onClick={() => setFilter("all")}
-              >
-                All
-              </Button>
-              <Button
-                size="sm"
-                variant={filter === "ungraded" ? "default" : "outline"}
-                onClick={() => setFilter("ungraded")}
-              >
-                Ungraded
-              </Button>
-              <Button
-                size="sm"
-                variant={filter === "late" ? "default" : "outline"}
-                onClick={() => setFilter("late")}
-              >
-                Late
-              </Button>
-            </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Badge variant="outline">{assignment.classes?.name}</Badge>
+            <Badge variant="secondary">{assignment.subjects?.name}</Badge>
+            <Badge>
+              <Calendar className="h-3 w-3 mr-1" />
+              Due {new Date(assignment.due_date).toLocaleDateString()}
+            </Badge>
           </div>
 
+          <div className="flex flex-wrap gap-3 mb-6">
+            <Badge variant="outline">{submissions.length} Submitted</Badge>
+            <Badge variant="success">{gradedCount} Graded</Badge>
+            <Badge variant="destructive">{lateCount} Late</Badge>
+          </div>
 
-          {/* Assignment Info */}
-          <div className="lg:col-span-1 sticky top-6 h-fit">
-            <Card>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={filter === "all" ? "default" : "outline"}
+              onClick={() => setFilter("all")}
+            >
+              All
+            </Button>
+            <Button
+              size="sm"
+              variant={filter === "ungraded" ? "default" : "outline"}
+              onClick={() => setFilter("ungraded")}
+            >
+              Ungraded
+            </Button>
+            <Button
+              size="sm"
+              variant={filter === "late" ? "default" : "outline"}
+              onClick={() => setFilter("late")}
+            >
+              Late
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Assignment Info - Sidebar */}
+          <div className="lg:col-span-1">
+            <Card className="sticky top-6 h-fit">
               <CardHeader>
-                <CardTitle>Assignment Info</CardTitle>
+                <CardTitle className="text-lg">Assignment Info</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              <CardContent className="space-y-4 text-sm">
                 <div>
-                  <p className="font-medium">Description</p>
-                  <p className="text-muted-foreground">{assignment.description || "—"}</p>
+                  <p className="font-medium mb-1">Description</p>
+                  <p className="text-muted-foreground text-xs leading-relaxed">{assignment.description || "—"}</p>
                 </div>
 
                 <div>
-                  <p className="font-medium">Instructions</p>
-                  <p className="text-muted-foreground whitespace-pre-wrap">
+                  <p className="font-medium mb-1">Instructions</p>
+                  <p className="text-muted-foreground text-xs whitespace-pre-wrap leading-relaxed">
                     {assignment.instructions || "—"}
                   </p>
                 </div>
 
-                <Badge variant="outline">
-                  <FileText className="h-3 w-3 mr-1" />
-                  {getSubmissionLabel(assignment.submission_type)}
-                </Badge>
+                <div className="space-y-2">
+                  <Badge variant="outline" className="block w-full text-center py-2">
+                    <FileText className="h-3 w-3 mr-1" />
+                    {getSubmissionLabel(assignment.submission_type)}
+                  </Badge>
 
-                <Badge variant="outline">{assignment.total_marks} Marks</Badge>
+                  <Badge variant="outline" className="block w-full text-center py-2">
+                    {assignment.total_marks} Marks
+                  </Badge>
 
-                {!assignment.allow_late_submission && (
-                  <Badge variant="destructive">No Late Submissions</Badge>
-                )}
+                  {!assignment.allow_late_submission && (
+                    <Badge variant="destructive" className="block w-full text-center py-2">
+                      No Late Submissions
+                    </Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
 
+          {/* Submissions - Main Content */}
+          <div className="lg:col-span-3">
+            <Card className="h-fit">
+              <CardHeader>
+                <CardTitle>
+                  Student Submissions ({submissions.length})
+                </CardTitle>
+              </CardHeader>
 
-          {/* Submissions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Student Submissions ({submissions.length})
-              </CardTitle>
-            </CardHeader>
+              <CardContent className="space-y-4">
+                {submissions.length === 0 && (
+                  <p className="text-muted-foreground text-sm">
+                    No submissions yet.
+                  </p>
+                )}
 
-            <CardContent className="space-y-6">
-              {submissions.length === 0 && (
-                <p className="text-muted-foreground text-sm">
-                  No submissions yet.
-                </p>
-              )}
-
-              <div className="lg:col-span-2 space-y-4">
                 {filteredSubmissions.map((submission) => {
                   const isOpen = openId === submission.id;
                   const gradeEntry = grading[submission.id] || {};
 
                   return (
-                    <div
-                      className="border rounded-lg p-4 cursor-pointer hover:bg-muted/40"
-                      onClick={() => setOpenId(isOpen ? null : submission.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold">
-                            {submission.students?.first_name} {submission.students?.last_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Submitted {new Date(submission.submitted_at).toLocaleString()}
-                          </p>
-                        </div>
+                    <div key={submission.id}>
+                      <div
+                        className="border rounded-lg p-4 cursor-pointer hover:bg-muted/40 transition-colors"
+                        onClick={() => setOpenId(isOpen ? null : submission.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="font-semibold">
+                              {submission.students?.first_name} {submission.students?.last_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Submitted {new Date(submission.submitted_at).toLocaleString()}
+                            </p>
+                          </div>
 
-                        <div className="flex gap-2">
-                          {!submission.submitted_on_time && (
-                            <Badge variant="destructive">Late</Badge>
-                          )}
-                          <Badge variant={submission.graded_at ? "success" : "warning"}>
-                            {submission.graded_at ? "Graded" : "Ungraded"}
-                          </Badge>
+                          <div className="flex gap-2">
+                            {!submission.submitted_on_time && (
+                              <Badge variant="destructive">Late</Badge>
+                            )}
+                            <Badge variant={submission.graded_at ? "success" : "warning"}>
+                              {submission.graded_at ? "Graded" : "Ungraded"}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
 
-
                       {isOpen && (
-                        <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 bg-muted/20 rounded-lg">
                           {/* ===== ANSWER SECTION ===== */}
                           <div className="lg:col-span-2 space-y-4">
-                            {submission.submission_text && (
-                              <div className="prose max-w-none border rounded-md p-4 bg-muted/40">
-                                <div dangerouslySetInnerHTML={{ __html: submission.submission_text }} />
-                              </div>
-                            )}
+                            <div>
+                              <h4 className="font-semibold text-sm mb-2">Student Answer</h4>
+                              {submission.submission_text && (
+                                <div className="prose prose-sm max-w-none border rounded-md p-4 bg-white dark:bg-slate-950">
+                                  <div dangerouslySetInnerHTML={{ __html: submission.submission_text }} />
+                                </div>
+                              )}
 
-                            {submission.file_url && (
-                              <a
-                                href={submission.file_url}
-                                target="_blank"
-                                className="text-sm text-primary underline"
-                              >
-                                View uploaded file
-                              </a>
-                            )}
+                              {submission.file_url && (
+                                <div className="pt-2">
+                                  <a
+                                    href={submission.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary underline hover:no-underline flex items-center gap-1"
+                                  >
+                                    <Upload className="h-4 w-4" />
+                                    View uploaded file
+                                  </a>
+                                </div>
+                              )}
+
+                              {!submission.submission_text && !submission.file_url && (
+                                <p className="text-sm text-muted-foreground italic">No submission content</p>
+                              )}
+                            </div>
                           </div>
 
                           {/* ===== GRADING SECTION ===== */}
-                          <div className="bg-muted/40 p-4 rounded-lg space-y-3">
+                          <div className="bg-white dark:bg-slate-950 p-4 rounded-lg border space-y-4">
                             <div>
-                              <Label>Score</Label>
+                              <h4 className="font-semibold text-sm mb-2">Grade</h4>
+                              <Label htmlFor={`score-${submission.id}`} className="text-xs">Score</Label>
                               <Input
+                                id={`score-${submission.id}`}
                                 type="number"
                                 placeholder={`Out of ${assignment.total_marks}`}
                                 defaultValue={submission.grade ?? ""}
                                 disabled={!!submission.graded_at}
+                                className="mt-1"
                                 onChange={(e) =>
                                   setGrading((prev) => ({
                                     ...prev,
@@ -307,7 +326,7 @@ export default function AssignmentDetailsPage() {
                             </div>
 
                             <div>
-                              <Label>Feedback</Label>
+                              <Label htmlFor={`feedback-${submission.id}`} className="text-xs">Feedback</Label>
                               <FeedbackEditor
                                 value={submission.feedback || ""}
                                 onChange={(val) =>
@@ -324,10 +343,11 @@ export default function AssignmentDetailsPage() {
 
                             <Button
                               className="w-full"
-                              disabled={!!submission.graded_at}
+                              disabled={!!submission.graded_at || savingId === submission.id}
                               onClick={() => saveGrade(submission.id)}
+                              size="sm"
                             >
-                              {submission.graded_at ? "Graded" : "Save Grade"}
+                              {savingId === submission.id ? "Saving..." : submission.graded_at ? "Graded" : "Save Grade"}
                             </Button>
                           </div>
                         </div>
@@ -335,13 +355,12 @@ export default function AssignmentDetailsPage() {
                     </div>
                   );
                 })}
-              </div>
-
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-      </DashboardLayout>
+    </DashboardLayout>
     );
 }
 

@@ -7,13 +7,10 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
 import { Calendar, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { SubmissionModal } from "@/components/SubmissionModal";
 
 /* ============================= PAGE ============================= */
 
@@ -33,6 +30,8 @@ export default function AssignmentDetailsPage() {
   const [lateOnly, setLateOnly] = useState(false);
   const [dateOrder, setDateOrder] = useState<"newest" | "oldest">("newest");
   const [search, setSearch] = useState("");
+  const [activeSubmission, setActiveSubmission] = useState<any | null>(null);
+
 
   useEffect(() => {
     loadData();
@@ -187,11 +186,32 @@ export default function AssignmentDetailsPage() {
             <Card>
               <CardContent className="py-6 space-y-4">
                 <div className="flex flex-wrap justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold">Student Submissions</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {submissions.length} total • {gradedCount} graded • {lateCount} late
-                    </p>
+                  <div className="grid grid-cols-3 gap-4 mb-8">
+                    <h2 className="text-2xl font-bold col-span-3">Student Submissions</h2>
+                    <Card className="bg-white border border-gray-200">
+                      <CardContent className="pt-6">
+                        <div className="text-center">
+                          <p className="text-4xl font-bold text-gray-900">{submissions.length}</p>
+                          <p className="text-sm text-gray-500 mt-1">Total Submissions</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-white border border-gray-200">
+                      <CardContent className="pt-6">
+                        <div className="text-center">
+                          <p className="text-4xl font-bold text-green-600">{gradedCount}</p>
+                          <p className="text-sm text-gray-500 mt-1">Graded</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-white border border-gray-200">
+                      <CardContent className="pt-6">
+                        <div className="text-center">
+                          <p className="text-4xl font-bold text-red-600">{lateCount}</p>
+                          <p className="text-sm text-gray-500 mt-1">Late Submissions</p>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
 
                   <div className="flex gap-2 flex-wrap">
@@ -251,13 +271,12 @@ export default function AssignmentDetailsPage() {
             )}
 
             {filteredSubmissions.map(sub => {
-              const isOpen = openId === sub.id;
 
               return (
                 <div key={sub.id} className="space-y-3">
                   <Card
                     className="cursor-pointer"
-                    onClick={() => setOpenId(isOpen ? null : sub.id)}
+                    onClick={() => setActiveSubmission(sub)}
                   >
                     <CardContent className="py-4 flex justify-between items-center">
                       <div>
@@ -278,67 +297,16 @@ export default function AssignmentDetailsPage() {
                     </CardContent>
                   </Card>
 
-                  {isOpen && (
-                    <Card className="border-blue-300">
-                      <CardContent className="py-6 grid lg:grid-cols-3 gap-6">
+                  <SubmissionModal
+                    submission={activeSubmission}
+                    assignment={assignment}
+                    grading={grading}
+                    setGrading={setGrading}
+                    savingId={savingId}
+                    saveGrade={saveGrade}
+                    onClose={() => setActiveSubmission(null)}
+                  />
 
-                        {/* ANSWER */}
-                        <div className="lg:col-span-2 space-y-4">
-                          {sub.submission_text && (
-                            <div
-                              className="prose max-w-none"
-                              dangerouslySetInnerHTML={{ __html: sub.submission_text }}
-                            />
-                          )}
-
-                          {sub.file_url && (
-                            <a
-                              href={sub.file_url}
-                              target="_blank"
-                              className="inline-flex items-center gap-2 text-blue-600"
-                            >
-                              <Upload className="w-4 h-4" />
-                              View file
-                            </a>
-                          )}
-                        </div>
-
-                        {/* GRADING */}
-                        <div className="space-y-4">
-                          <Label>Score</Label>
-                          <Input
-                            type="number"
-                            defaultValue={sub.grade ?? ""}
-                            disabled={!!sub.graded_at}
-                            onChange={e =>
-                              setGrading(p => ({
-                                ...p,
-                                [sub.id]: { ...p[sub.id], grade: e.target.value },
-                              }))
-                            }
-                          />
-
-                          <FeedbackEditor
-                            value={sub.feedback || ""}
-                            onChange={val =>
-                              setGrading(p => ({
-                                ...p,
-                                [sub.id]: { ...p[sub.id], feedback: val },
-                              }))
-                            }
-                          />
-
-                          <Button
-                            className="w-full"
-                            disabled={!!sub.graded_at || savingId === sub.id}
-                            onClick={() => saveGrade(sub.id)}
-                          >
-                            {savingId === sub.id ? "Saving..." : "Save Grade"}
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
                 </div>
               );
             })}
@@ -346,42 +314,5 @@ export default function AssignmentDetailsPage() {
         </div>
       </div>
     </DashboardLayout>
-  );
-}
-
-/* ================= FEEDBACK EDITOR ================= */
-
-function FeedbackEditor({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (val: string) => void;
-}) {
-  const editor = useEditor({
-    extensions: [StarterKit, Underline],
-    content: value,
-    onUpdate({ editor }) {
-      onChange(editor.getHTML());
-    },
-  });
-
-  useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value || "");
-    }
-  }, [value, editor]);
-
-  if (!editor) return null;
-
-  return (
-    <div className="border rounded-md">
-      <div className="flex gap-1 border-b p-1">
-        <button onClick={() => editor.chain().focus().toggleBold().run()}>B</button>
-        <button onClick={() => editor.chain().focus().toggleItalic().run()}>I</button>
-        <button onClick={() => editor.chain().focus().toggleUnderline().run()}>U</button>
-      </div>
-      <EditorContent editor={editor} />
-    </div>
   );
 }

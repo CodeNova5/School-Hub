@@ -33,7 +33,7 @@ export function SubmissionModal({
 
   const canPreviewInline =
     fileExt &&
-    ["pdf", "png", "jpg", "jpeg", "gif", "webp"].includes(fileExt);
+    ["png", "jpg", "jpeg", "gif", "webp"].includes(fileExt);
 
   const canIframe =
     fileExt &&

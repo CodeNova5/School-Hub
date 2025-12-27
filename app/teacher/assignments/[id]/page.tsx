@@ -85,6 +85,14 @@ export default function AssignmentDetailsPage() {
       return dateOrder === "newest" ? bTime - aTime : aTime - bTime;
     });
 
+
+  function getSubmissionLabel(type: string) {
+    if (type === "text") return "Text Answer";
+    if (type === "file") return "File Upload";
+    return "Text + File";
+  }
+
+
   async function saveGrade(submissionId: string) {
     const entry = grading[submissionId];
     if (!entry?.grade) {
@@ -123,8 +131,7 @@ export default function AssignmentDetailsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="p-8 max-w-7xl mx-auto space-y-10">
-
+      <div className="max-w-4xl mx-auto space-y-6">
         {/* ================= ASSIGNMENT HEADER ================= */}
         <div>
           <h1 className="text-4xl font-bold">{assignment.title}</h1>
@@ -142,7 +149,7 @@ export default function AssignmentDetailsPage() {
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
 
           {/* ================= SIDEBAR ================= */}
-          <Card className="xl:col-span-1 h-fit sticky top-8">
+          <Card>
             <CardHeader>
               <CardTitle>Assignment Info</CardTitle>
             </CardHeader>
@@ -151,22 +158,30 @@ export default function AssignmentDetailsPage() {
                 {assignment.description || "No description"}
               </p>
 
-              <div className="pt-4 border-t space-y-2">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  <span className="text-sm">
-                    {assignment.submission_type}
-                  </span>
+              <div className="border-t border-gray-100 pt-6 space-y-3">
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                    <p className="font-medium text-blue-900">{getSubmissionLabel(assignment.submission_type)}</p>
+                  </div>
                 </div>
-                <p className="font-semibold">
-                  Total Marks: {assignment.total_marks}
-                </p>
+
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <p className="text-sm text-gray-600">Total Marks</p>
+                  <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
+                </div>
+
+                {!assignment.allow_late_submission && (
+                  <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                    <p className="text-sm font-medium text-red-900">No Late Submissions Allowed</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
 
           {/* ================= STUDENT SUBMISSIONS ================= */}
-          <div className="xl:col-span-4 space-y-6">
+          <div>
 
             {/* ===== Section Header ===== */}
             <Card>

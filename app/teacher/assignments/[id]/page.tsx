@@ -12,51 +12,42 @@ import { Button } from "@/components/ui/button";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-
 import { Calendar, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 
+/* ============================= PAGE ============================= */
+
 export default function AssignmentDetailsPage() {
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const params = useParams();
-  const assignmentId = params.id as string;
-  const [grading, setGrading] = useState<Record<string, any>>({});
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "ungraded" | "late">("all");
+  const { id } = useParams();
+  const assignmentId = id as string;
 
   const [assignment, setAssignment] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const gradedCount = submissions.filter(s => s.graded_at).length;
-  const lateCount = submissions.filter(s => !s.submitted_on_time).length;
-
-  const filteredSubmissions = submissions.filter((s) => {
-    if (filter === "ungraded") return !s.graded_at;
-    if (filter === "late") return !s.submitted_on_time;
-    return true;
-  });
-
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [grading, setGrading] = useState<Record<string, any>>({});
   const [openId, setOpenId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-
+  /* ===== Filters ===== */
+  const [statusFilter, setStatusFilter] = useState<"all" | "graded" | "ungraded">("all");
+  const [lateOnly, setLateOnly] = useState(false);
+  const [dateOrder, setDateOrder] = useState<"newest" | "oldest">("newest");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    loadAssignment();
+    loadData();
   }, []);
 
-  async function loadAssignment() {
+  async function loadData() {
     setLoading(true);
 
-    const { data: assignmentData, error: assignmentError } = await supabase
+    const { data: assignmentData, error } = await supabase
       .from("assignments")
-      .select(`
-      *,
-      classes(name),
-      subjects(name)
-    `)
+      .select("*, classes(name), subjects(name)")
       .eq("id", assignmentId)
       .single();
 
-    if (assignmentError) {
+    if (error) {
       toast.error("Failed to load assignment");
       setLoading(false);
       return;
@@ -64,40 +55,46 @@ export default function AssignmentDetailsPage() {
 
     const { data: submissionsData } = await supabase
       .from("assignment_submissions")
-      .select(`
-      *,
-      students(
-        id,
-        first_name,
-        last_name
-      )
-    `)
-      .eq("assignment_id", assignmentId)
-      .order("submitted_at", { ascending: true });
+      .select("*, students(id, first_name, last_name)")
+      .eq("assignment_id", assignmentId);
 
     setAssignment(assignmentData);
     setSubmissions(submissionsData || []);
     setLoading(false);
   }
 
-  function getSubmissionLabel(type: string) {
-    if (type === "text") return "Text Answer";
-    if (type === "file") return "File Upload";
-    return "Text + File";
-  }
+  /* ===== Derived Data ===== */
+  const gradedCount = submissions.filter(s => s.graded_at).length;
+  const lateCount = submissions.filter(s => !s.submitted_on_time).length;
+
+  const filteredSubmissions = submissions
+    .filter(s => {
+      if (statusFilter === "graded") return s.graded_at;
+      if (statusFilter === "ungraded") return !s.graded_at;
+      return true;
+    })
+    .filter(s => (lateOnly ? !s.submitted_on_time : true))
+    .filter(s =>
+      `${s.students?.first_name} ${s.students?.last_name}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aTime = new Date(a.submitted_at).getTime();
+      const bTime = new Date(b.submitted_at).getTime();
+      return dateOrder === "newest" ? bTime - aTime : aTime - bTime;
+    });
 
   async function saveGrade(submissionId: string) {
     const entry = grading[submissionId];
     if (!entry?.grade) {
-      toast.error("Enter a grade first");
+      toast.error("Enter a grade");
       return;
     }
 
     setSavingId(submissionId);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     await supabase
       .from("assignment_submissions")
@@ -111,25 +108,14 @@ export default function AssignmentDetailsPage() {
 
     toast.success("Grade saved");
     setSavingId(null);
-    loadAssignment(); // refresh
+    loadData();
   }
-
 
   if (loading) {
     return (
       <DashboardLayout role="teacher">
-        <div className="flex items-center justify-center h-96 text-muted-foreground">
+        <div className="h-96 flex items-center justify-center text-muted-foreground">
           Loading assignment...
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  if (!assignment) {
-    return (
-      <DashboardLayout role="teacher">
-        <div className="flex items-center justify-center h-96 text-red-500">
-          Assignment not found
         </div>
       </DashboardLayout>
     );
@@ -137,272 +123,218 @@ export default function AssignmentDetailsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header Section */}
-          <div className="mb-12">
-            <h1 className="text-5xl font-bold text-gray-900 mb-6">{assignment.title}</h1>
+      <div className="p-8 max-w-7xl mx-auto space-y-10">
 
-            <div className="flex flex-wrap gap-3 mb-6">
-              <Badge variant="outline" className="text-base py-2 px-4">{assignment.classes?.name}</Badge>
-              <Badge variant="secondary" className="text-base py-2 px-4">{assignment.subjects?.name}</Badge>
-              <Badge className="text-base py-2 px-4 bg-blue-100 text-blue-900 hover:bg-blue-100">
-                <Calendar className="h-4 w-4 mr-2" />
-                Due {new Date(assignment.due_date).toLocaleDateString()}
-              </Badge>
-            </div>
+        {/* ================= ASSIGNMENT HEADER ================= */}
+        <div>
+          <h1 className="text-4xl font-bold">{assignment.title}</h1>
 
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <Card className="bg-white border border-gray-200">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <p className="text-4xl font-bold text-gray-900">{submissions.length}</p>
-                    <p className="text-sm text-gray-500 mt-1">Total Submissions</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white border border-gray-200">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <p className="text-4xl font-bold text-green-600">{gradedCount}</p>
-                    <p className="text-sm text-gray-500 mt-1">Graded</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="bg-white border border-gray-200">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <p className="text-4xl font-bold text-red-600">{lateCount}</p>
-                    <p className="text-sm text-gray-500 mt-1">Late Submissions</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="flex gap-3 flex-wrap">
-              <Button
-                size="lg"
-                variant={filter === "all" ? "default" : "outline"}
-                onClick={() => setFilter("all")}
-                className={filter === "all" ? "bg-blue-600 text-white" : ""}
-              >
-                All Submissions
-              </Button>
-              <Button
-                size="lg"
-                variant={filter === "ungraded" ? "default" : "outline"}
-                onClick={() => setFilter("ungraded")}
-                className={filter === "ungraded" ? "bg-yellow-600 text-white" : ""}
-              >
-                Ungraded
-              </Button>
-              <Button
-                size="lg"
-                variant={filter === "late" ? "default" : "outline"}
-                onClick={() => setFilter("late")}
-                className={filter === "late" ? "bg-red-600 text-white" : ""}
-              >
-                Late Submissions
-              </Button>
-            </div>
+          <div className="flex gap-2 mt-4 flex-wrap">
+            <Badge variant="outline">{assignment.classes?.name}</Badge>
+            <Badge variant="secondary">{assignment.subjects?.name}</Badge>
+            <Badge className="bg-blue-100 text-blue-800">
+              <Calendar className="w-4 h-4 mr-1" />
+              Due {new Date(assignment.due_date).toLocaleDateString()}
+            </Badge>
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
-            {/* Assignment Info - Sidebar */}
-            <div className="xl:col-span-1">
-              <Card className="sticky top-8 h-fit bg-white shadow-md border-gray-200">
-                <CardHeader className="border-b border-gray-200">
-                  <CardTitle className="text-xl text-gray-900">Assignment Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6 pt-6">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+
+          {/* ================= SIDEBAR ================= */}
+          <Card className="xl:col-span-1 h-fit sticky top-8">
+            <CardHeader>
+              <CardTitle>Assignment Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {assignment.description || "No description"}
+              </p>
+
+              <div className="pt-4 border-t space-y-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm">
+                    {assignment.submission_type}
+                  </span>
+                </div>
+                <p className="font-semibold">
+                  Total Marks: {assignment.total_marks}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ================= STUDENT SUBMISSIONS ================= */}
+          <div className="xl:col-span-4 space-y-6">
+
+            {/* ===== Section Header ===== */}
+            <Card>
+              <CardContent className="py-6 space-y-4">
+                <div className="flex flex-wrap justify-between gap-4">
                   <div>
-                    <p className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wide">Description</p>
-                    <p className="text-gray-600 text-sm leading-relaxed">{assignment.description || "—"}</p>
-                  </div>
-
-                  <div className="border-t border-gray-100 pt-6">
-                    <p className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wide">Instructions</p>
-                    <p className="text-gray-600 text-sm whitespace-pre-wrap leading-relaxed">
-                      {assignment.instructions || "—"}
+                    <h2 className="text-2xl font-bold">Student Submissions</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {submissions.length} total • {gradedCount} graded • {lateCount} late
                     </p>
                   </div>
 
-                  <div className="border-t border-gray-100 pt-6 space-y-3">
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                      <div className="flex items-center gap-2 mb-1">
-                        <FileText className="h-5 w-5 text-blue-600" />
-                        <p className="font-medium text-blue-900">{getSubmissionLabel(assignment.submission_type)}</p>
-                      </div>
-                    </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Input
+                      placeholder="Search student..."
+                      className="w-48"
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                    />
 
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <p className="text-sm text-gray-600">Total Marks</p>
-                      <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
-                    </div>
+                    <Button
+                      variant={statusFilter === "all" ? "default" : "outline"}
+                      onClick={() => setStatusFilter("all")}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      variant={statusFilter === "ungraded" ? "default" : "outline"}
+                      onClick={() => setStatusFilter("ungraded")}
+                    >
+                      Ungraded
+                    </Button>
+                    <Button
+                      variant={statusFilter === "graded" ? "default" : "outline"}
+                      onClick={() => setStatusFilter("graded")}
+                    >
+                      Graded
+                    </Button>
 
-                    {!assignment.allow_late_submission && (
-                      <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                        <p className="text-sm font-medium text-red-900">No Late Submissions Allowed</p>
-                      </div>
-                    )}
+                    <Button
+                      variant={lateOnly ? "destructive" : "outline"}
+                      onClick={() => setLateOnly(v => !v)}
+                    >
+                      Late
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        setDateOrder(o => (o === "newest" ? "oldest" : "newest"))
+                      }
+                    >
+                      {dateOrder === "newest" ? "Newest" : "Oldest"}
+                    </Button>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ===== Submissions List ===== */}
+            {filteredSubmissions.length === 0 && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  No submissions match this filter.
                 </CardContent>
               </Card>
-            </div>
+            )}
 
-            {/* Submissions - Main Content */}
-            <div className="xl:col-span-4">
-              <div className="space-y-6">
-                <h2 className="text-2xl font-bold text-gray-900">Student Submissions</h2>
+            {filteredSubmissions.map(sub => {
+              const isOpen = openId === sub.id;
 
-                {submissions.length === 0 && (
-                  <Card className="bg-white shadow-md border-gray-200">
-                    <CardContent className="pt-12 pb-12">
-                      <p className="text-center text-gray-500 text-lg">
-                        No submissions yet.
-                      </p>
+              return (
+                <div key={sub.id} className="space-y-3">
+                  <Card
+                    className="cursor-pointer"
+                    onClick={() => setOpenId(isOpen ? null : sub.id)}
+                  >
+                    <CardContent className="py-4 flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold">
+                          {sub.students?.first_name} {sub.students?.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(sub.submitted_at).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        {!sub.submitted_on_time && <Badge variant="destructive">Late</Badge>}
+                        <Badge variant={sub.graded_at ? "success" : "warning"}>
+                          {sub.graded_at ? "Graded" : "Ungraded"}
+                        </Badge>
+                      </div>
                     </CardContent>
                   </Card>
-                )}
 
-                {filteredSubmissions.map((submission) => {
-                  const isOpen = openId === submission.id;
-                  const gradeEntry = grading[submission.id] || {};
+                  {isOpen && (
+                    <Card className="border-blue-300">
+                      <CardContent className="py-6 grid lg:grid-cols-3 gap-6">
 
-                  return (
-                    <div key={submission.id} className="space-y-3">
-                      <Card
-                        className={`bg-white border-2 cursor-pointer transition-all shadow-md hover:shadow-lg ${
-                          isOpen ? "border-blue-400" : "border-gray-200 hover:border-gray-300"
-                        }`}
-                        onClick={() => setOpenId(isOpen ? null : submission.id)}
-                      >
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="font-bold text-lg text-gray-900">
-                                {submission.students?.first_name} {submission.students?.last_name}
-                              </p>
-                              <p className="text-sm text-gray-500 mt-1">
-                                Submitted {new Date(submission.submitted_at).toLocaleString()}
-                              </p>
-                            </div>
+                        {/* ANSWER */}
+                        <div className="lg:col-span-2 space-y-4">
+                          {sub.submission_text && (
+                            <div
+                              className="prose max-w-none"
+                              dangerouslySetInnerHTML={{ __html: sub.submission_text }}
+                            />
+                          )}
 
-                            <div className="flex gap-3 flex-shrink-0">
-                              {!submission.submitted_on_time && (
-                                <Badge variant="destructive" className="text-xs py-1">Late</Badge>
-                              )}
-                              <Badge
-                                variant={submission.graded_at ? "success" : "warning"}
-                                className="text-xs py-1"
-                              >
-                                {submission.graded_at ? "Graded" : "Ungraded"}
-                              </Badge>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                          {sub.file_url && (
+                            <a
+                              href={sub.file_url}
+                              target="_blank"
+                              className="inline-flex items-center gap-2 text-blue-600"
+                            >
+                              <Upload className="w-4 h-4" />
+                              View file
+                            </a>
+                          )}
+                        </div>
 
-                      {isOpen && (
-                        <Card className="bg-white shadow-lg border-2 border-blue-200">
-                          <CardContent className="pt-8 space-y-8">
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                              {/* ===== ANSWER SECTION ===== */}
-                              <div className="lg:col-span-2 space-y-6">
-                                <div>
-                                  <h4 className="font-bold text-lg text-gray-900 mb-4">Student Answer</h4>
-                                  {submission.submission_text && (
-                                    <div className="prose prose-sm max-w-none border-2 border-gray-200 rounded-lg p-6 bg-gray-50">
-                                      <div dangerouslySetInnerHTML={{ __html: submission.submission_text }} />
-                                    </div>
-                                  )}
+                        {/* GRADING */}
+                        <div className="space-y-4">
+                          <Label>Score</Label>
+                          <Input
+                            type="number"
+                            defaultValue={sub.grade ?? ""}
+                            disabled={!!sub.graded_at}
+                            onChange={e =>
+                              setGrading(p => ({
+                                ...p,
+                                [sub.id]: { ...p[sub.id], grade: e.target.value },
+                              }))
+                            }
+                          />
 
-                                  {submission.file_url && (
-                                    <div className="pt-4">
-                                      <a
-                                        href={submission.file_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 px-4 py-3 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
-                                      >
-                                        <Upload className="h-5 w-5" />
-                                        View Uploaded File
-                                      </a>
-                                    </div>
-                                  )}
+                          <FeedbackEditor
+                            value={sub.feedback || ""}
+                            onChange={val =>
+                              setGrading(p => ({
+                                ...p,
+                                [sub.id]: { ...p[sub.id], feedback: val },
+                              }))
+                            }
+                          />
 
-                                  {!submission.submission_text && !submission.file_url && (
-                                    <p className="text-base text-gray-500 italic bg-gray-100 rounded-lg p-6">
-                                      No submission content
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* ===== GRADING SECTION ===== */}
-                              <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-lg border-2 border-gray-200 space-y-6">
-                                <div>
-                                  <h4 className="font-bold text-lg text-gray-900 mb-4">Grade</h4>
-                                  <Label htmlFor={`score-${submission.id}`} className="text-sm font-semibold text-gray-700">Score (out of {assignment.total_marks})</Label>
-                                  <Input
-                                    id={`score-${submission.id}`}
-                                    type="number"
-                                    placeholder="0"
-                                    defaultValue={submission.grade ?? ""}
-                                    disabled={!!submission.graded_at}
-                                    className="mt-3 text-lg py-3 font-bold"
-                                    onChange={(e) =>
-                                      setGrading((prev) => ({
-                                        ...prev,
-                                        [submission.id]: {
-                                          ...prev[submission.id],
-                                          grade: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                </div>
-
-                                <div className="border-t border-gray-300 pt-6">
-                                  <Label htmlFor={`feedback-${submission.id}`} className="text-sm font-semibold text-gray-700 block mb-3">Feedback</Label>
-                                  <FeedbackEditor
-                                    value={submission.feedback || ""}
-                                    onChange={(val) =>
-                                      setGrading((prev) => ({
-                                        ...prev,
-                                        [submission.id]: {
-                                          ...prev[submission.id],
-                                          feedback: val,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                </div>
-
-                                <Button
-                                  className="w-full text-base py-6 font-semibold"
-                                  disabled={!!submission.graded_at || savingId === submission.id}
-                                  onClick={() => saveGrade(submission.id)}
-                                >
-                                  {savingId === submission.id ? "Saving..." : submission.graded_at ? "Graded" : "Save Grade"}
-                                </Button>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                          <Button
+                            className="w-full"
+                            disabled={!!sub.graded_at || savingId === sub.id}
+                            onClick={() => saveGrade(sub.id)}
+                          >
+                            {savingId === sub.id ? "Saving..." : "Save Grade"}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
     </DashboardLayout>
-    );
+  );
 }
 
+/* ================= FEEDBACK EDITOR ================= */
 
 function FeedbackEditor({
   value,
@@ -413,32 +345,26 @@ function FeedbackEditor({
 }) {
   const editor = useEditor({
     extensions: [StarterKit, Underline],
-    content: value || "",
+    content: value,
     onUpdate({ editor }) {
       onChange(editor.getHTML());
     },
-    editorProps: {
-      attributes: {
-        class:
-          "min-h-[120px] p-3 focus:outline-none prose max-w-none",
-      },
-    },
   });
+
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value || "");
+    }
+  }, [value, editor]);
 
   if (!editor) return null;
 
   return (
     <div className="border rounded-md">
-      <div className="flex gap-1 border-b p-1 bg-muted">
-        <button onClick={() => editor.chain().focus().toggleBold().run()} className="px-2 text-sm font-bold">
-          B
-        </button>
-        <button onClick={() => editor.chain().focus().toggleItalic().run()} className="px-2 text-sm italic">
-          I
-        </button>
-        <button onClick={() => editor.chain().focus().toggleUnderline().run()} className="px-2 text-sm underline">
-          U
-        </button>
+      <div className="flex gap-1 border-b p-1">
+        <button onClick={() => editor.chain().focus().toggleBold().run()}>B</button>
+        <button onClick={() => editor.chain().focus().toggleItalic().run()}>I</button>
+        <button onClick={() => editor.chain().focus().toggleUnderline().run()}>U</button>
       </div>
       <EditorContent editor={editor} />
     </div>

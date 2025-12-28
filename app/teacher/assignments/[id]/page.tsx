@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Calendar, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { SubmissionModal } from "@/components/SubmissionModal";
-import useSubmissionKeyboardNav from "@/hooks/KeyboardNavigationHook";
 
 /* ============================= PAGE ============================= */
 
@@ -33,11 +32,7 @@ export default function AssignmentDetailsPage() {
   const [search, setSearch] = useState("");
   const [activeSubmission, setActiveSubmission] = useState<any | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
 
     const { data: assignmentData, error } = await supabase
@@ -60,7 +55,11 @@ export default function AssignmentDetailsPage() {
     setAssignment(assignmentData);
     setSubmissions(submissionsData || []);
     setLoading(false);
-  }
+  }, [assignmentId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   /* ===== Derived Data ===== */
   const gradedCount = submissions.filter(s => s.graded_at).length;
@@ -274,62 +273,48 @@ export default function AssignmentDetailsPage() {
               </Card>
             )}
 
-            {filteredSubmissions.map(sub => {
-
-              return (
-                <div key={sub.id} className="space-y-3">
-                  <Card
-                    className="cursor-pointer"
-                    onClick={() => setActiveSubmission(sub)}
-                  >
-                    <CardContent className="py-4 flex justify-between items-center">
-                      <div>
-                        <p className="font-semibold">
-                          {sub.students?.first_name} {sub.students?.last_name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(sub.submitted_at).toLocaleString()}
-                        </p>
-                      </div>
-
-                      <div className="flex gap-2">
-                        {!sub.submitted_on_time && <Badge variant="destructive">Late</Badge>}
-                        <Badge variant={sub.graded_at ? "success" : "warning"}>
-                          {sub.graded_at ? "Graded" : "Ungraded"}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <SubmissionModal
-                    submission={activeSubmission}
-                    assignment={assignment}
-                    grading={grading}
-                    setGrading={setGrading}
-                    savingId={savingId}
-                    saveGrade={saveGrade}
-                    onClose={() => setActiveSubmission(null)}
-                  />
-                  {activeSubmission && (
-                    useSubmissionKeyboardNav({
-                      enabled: true,
-                      currentIndex: activeIndex,
-                      submissions: filteredSubmissions,
-                      onChange: setActiveSubmission,
-                      onClose: () => setActiveSubmission(null),
-                    })
-                  )}
-                  <div className="flex gap-2 text-xs text-muted-foreground">
-                    {activeIndex > 0 && <span>← Previous</span>}
-                    {activeIndex < filteredSubmissions.length - 1 && <span>→ Next</span>}
+            {filteredSubmissions.map(sub => (
+              <Card
+                key={sub.id}
+                className="cursor-pointer"
+                onClick={() => setActiveSubmission(sub)}
+              >
+                <CardContent className="py-4 flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">
+                      {sub.students?.first_name} {sub.students?.last_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(sub.submitted_at).toLocaleString()}
+                    </p>
                   </div>
 
-
-                </div>
-              );
-            })}
+                  <div className="flex gap-2">
+                    {!sub.submitted_on_time && (
+                      <Badge variant="destructive">Late</Badge>
+                    )}
+                    <Badge variant={sub.graded_at ? "success" : "warning"}>
+                      {sub.graded_at ? "Graded" : "Ungraded"}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
+
+        <SubmissionModal
+          submission={activeSubmission}
+          submissions={filteredSubmissions}
+          activeIndex={activeIndex}
+          setActiveSubmission={setActiveSubmission}
+          assignment={assignment}
+          grading={grading}
+          setGrading={setGrading}
+          savingId={savingId}
+          saveGrade={saveGrade}
+          onClose={() => setActiveSubmission(null)}
+        />
       </div>
     </DashboardLayout>
   );

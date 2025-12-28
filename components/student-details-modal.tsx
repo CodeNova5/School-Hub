@@ -19,7 +19,8 @@ import { AttendanceTimeline } from './attendance-timeline';
 import { filterStudentResultsBySessionAndTerm, filterAttendanceByPeriod } from '@/lib/student-utils';
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mail, Phone, MapPin, Calendar, User, Hash } from 'lucide-react';
+import { Mail, Phone, MapPin, Calendar, User, Hash, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface StudentDetailsModalProps {
   student: Student | null;
@@ -27,6 +28,8 @@ interface StudentDetailsModalProps {
   terms: Term[];
   isOpen: boolean;
   onClose: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
 }
 
 export function StudentDetailsModal({
@@ -35,6 +38,8 @@ export function StudentDetailsModal({
   terms,
   isOpen,
   onClose,
+  onNext,
+  onPrevious,
 }: StudentDetailsModalProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [selectedTermId, setSelectedTermId] = useState<string>('');
@@ -117,6 +122,15 @@ export function StudentDetailsModal({
         <DialogHeader>
           <DialogTitle>Student Details</DialogTitle>
         </DialogHeader>
+
+        <div className="absolute top-4 right-16 flex gap-2">
+          <Button variant="outline" size="icon" onClick={onPrevious}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={onNext}>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
 
         <div className="space-y-6">
           <Card>

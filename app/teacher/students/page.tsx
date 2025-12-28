@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
@@ -33,13 +33,77 @@ export default function TeacherStudentsPage() {
   const [filterGender, setFilterGender] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  const handleNextStudent = useCallback(() => {
+    if (!selectedStudent) return;
+    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
+    const nextIndex = (currentIndex + 1) % filteredStudents.length;
+    setSelectedStudent(filteredStudents[nextIndex]);
+  }, [filteredStudents, selectedStudent]);
+
+  const handlePreviousStudent = useCallback(() => {
+    if (!selectedStudent) return;
+    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
+    const previousIndex = (currentIndex - 1 + filteredStudents.length) % filteredStudents.length;
+    setSelectedStudent(filteredStudents[previousIndex]);
+  }, [filteredStudents, selectedStudent]);
+
   useEffect(() => {
     loadData();
   }, []);
 
   useEffect(() => {
-    applyFilters();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!isModalOpen) return;
+
+      if (event.key === 'ArrowRight') {
+        handleNextStudent();
+      } else if (event.key === 'ArrowLeft') {
+        handlePreviousStudent();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isModalOpen, handleNextStudent, handlePreviousStudent]);
+
+  const applyFilters = useCallback(() => {
+    let filtered = [...students];
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (s) =>
+          s.first_name.toLowerCase().includes(term) ||
+          s.last_name.toLowerCase().includes(term) ||
+          s.student_id.toLowerCase().includes(term) ||
+          s.email.toLowerCase().includes(term)
+      );
+    }
+
+    if (filterClass) {
+      filtered = filtered.filter((s) => s.class_id === filterClass);
+    }
+
+    if (filterDepartment) {
+      filtered = filtered.filter((s) => s.department === filterDepartment);
+    }
+
+    if (filterGender) {
+      filtered = filtered.filter((s) => s.gender === filterGender);
+    }
+
+    if (filterStatus) {
+      filtered = filtered.filter((s) => s.status === filterStatus);
+    }
+
+    setFilteredStudents(filtered);
   }, [students, searchTerm, filterClass, filterDepartment, filterGender, filterStatus]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   async function loadData() {
     setIsLoading(true);
@@ -122,39 +186,6 @@ export default function TeacherStudentsPage() {
     } finally {
       setIsLoading(false);
     }
-  }
-
-  function applyFilters() {
-    let filtered = [...students];
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (s) =>
-          s.first_name.toLowerCase().includes(term) ||
-          s.last_name.toLowerCase().includes(term) ||
-          s.student_id.toLowerCase().includes(term) ||
-          s.email.toLowerCase().includes(term)
-      );
-    }
-
-    if (filterClass) {
-      filtered = filtered.filter((s) => s.class_id === filterClass);
-    }
-
-    if (filterDepartment) {
-      filtered = filtered.filter((s) => s.department === filterDepartment);
-    }
-
-    if (filterGender) {
-      filtered = filtered.filter((s) => s.gender === filterGender);
-    }
-
-    if (filterStatus) {
-      filtered = filtered.filter((s) => s.status === filterStatus);
-    }
-
-    setFilteredStudents(filtered);
   }
 
   function handleViewDetails(student: Student) {
@@ -358,6 +389,8 @@ export default function TeacherStudentsPage() {
           terms={terms}
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
+          onNext={handleNextStudent}
+          onPrevious={handlePreviousStudent}
         />
 
         <StudentSubjectsModal

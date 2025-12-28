@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { SubmissionModal } from "@/components/SubmissionModal";
+import useSubmissionKeyboardNav from "@/hooks/KeyboardNavigationHook";
 
 /* ============================= PAGE ============================= */
 
@@ -31,7 +32,6 @@ export default function AssignmentDetailsPage() {
   const [dateOrder, setDateOrder] = useState<"newest" | "oldest">("newest");
   const [search, setSearch] = useState("");
   const [activeSubmission, setActiveSubmission] = useState<any | null>(null);
-
 
   useEffect(() => {
     loadData();
@@ -83,6 +83,10 @@ export default function AssignmentDetailsPage() {
       const bTime = new Date(b.submitted_at).getTime();
       return dateOrder === "newest" ? bTime - aTime : aTime - bTime;
     });
+
+  const activeIndex = activeSubmission
+    ? filteredSubmissions.findIndex(s => s.id === activeSubmission.id)
+    : -1;
 
 
   function getSubmissionLabel(type: string) {
@@ -306,6 +310,20 @@ export default function AssignmentDetailsPage() {
                     saveGrade={saveGrade}
                     onClose={() => setActiveSubmission(null)}
                   />
+                  {activeSubmission && (
+                    useSubmissionKeyboardNav({
+                      enabled: true,
+                      currentIndex: activeIndex,
+                      submissions: filteredSubmissions,
+                      onChange: setActiveSubmission,
+                      onClose: () => setActiveSubmission(null),
+                    })
+                  )}
+                  <div className="flex gap-2 text-xs text-muted-foreground">
+                    {activeIndex > 0 && <span>← Previous</span>}
+                    {activeIndex < filteredSubmissions.length - 1 && <span>→ Next</span>}
+                  </div>
+
 
                 </div>
               );

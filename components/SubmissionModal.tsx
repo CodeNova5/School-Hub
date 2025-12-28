@@ -43,6 +43,10 @@ export function SubmissionModal({
     <Dialog open={!!submission} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b">
+          <p className="text-xs text-muted-foreground mt-1">
+            ← Previous • → Next • Esc to close
+          </p>
+ 
           <DialogTitle className="text-xl font-bold">
             {submission.students?.first_name} {submission.students?.last_name}
           </DialogTitle>
@@ -176,6 +180,7 @@ export function SubmissionModal({
               )}
             </ScrollArea>
           </div>
+          
         </div>
       </DialogContent>
     </Dialog>

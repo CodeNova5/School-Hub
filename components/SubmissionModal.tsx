@@ -19,6 +19,9 @@ import Underline from "@tiptap/extension-underline";
 
 export function SubmissionModal({
   submission,
+  submissions,
+  activeIndex,
+  setActiveSubmission,
   assignment,
   grading,
   setGrading,
@@ -26,6 +29,33 @@ export function SubmissionModal({
   saveGrade,
   onClose,
 }: any) {
+  useEffect(() => {
+    if (!submission) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (activeIndex < submissions.length - 1) {
+          setActiveSubmission(submissions[activeIndex + 1]);
+        }
+      }
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (activeIndex > 0) {
+          setActiveSubmission(submissions[activeIndex - 1]);
+        }
+      }
+
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [submission, submissions, activeIndex, setActiveSubmission, onClose]);
+
   if (!submission) return null;
 
   const fileUrl = submission.file_url;
@@ -43,13 +73,15 @@ export function SubmissionModal({
     <Dialog open={!!submission} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b">
-          <p className="text-xs text-muted-foreground mt-1">
-            ← Previous • → Next • Esc to close
-          </p>
- 
-          <DialogTitle className="text-xl font-bold">
-            {submission.students?.first_name} {submission.students?.last_name}
-          </DialogTitle>
+          <div className="flex justify-between">
+            <DialogTitle className="text-xl font-bold">
+              {submission.students?.first_name} {submission.students?.last_name}
+            </DialogTitle>
+            <div className="flex gap-2 text-xs text-muted-foreground">
+              {activeIndex > 0 && <span>← Previous</span>}
+              {activeIndex < submissions.length - 1 && <span>→ Next</span>}
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
             Submitted {new Date(submission.submitted_at).toLocaleString()}
           </p>

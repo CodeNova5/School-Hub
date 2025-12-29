@@ -90,7 +90,7 @@ export function SubmissionModal({
 
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden [&>button[aria-label='Close']]:hidden">
+      <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden" hideClose>
 
         <DialogHeader className="px-6 py-4 border-b bg-muted/40">
           <div className="flex items-center justify-between gap-4">
@@ -140,9 +140,10 @@ export function SubmissionModal({
               </Button>
 
               <Button
-                variant="destructive"
+                variant="secondary"
                 size="icon"
                 onClick={onClose}
+                className="hover:bg-red-600"
               >
                 <X className="h-4 w-4" />
               </Button>

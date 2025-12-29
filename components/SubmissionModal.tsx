@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react"
+import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 
@@ -76,7 +76,7 @@ export function SubmissionModal({
 
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden">
+      <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden [&>button[aria-label='Close']]:hidden">
 
         <DialogHeader className="px-6 py-4 border-b bg-muted/40">
           <div className="flex items-center justify-between gap-4">
@@ -105,31 +105,58 @@ export function SubmissionModal({
               </div>
             </div>
 
-            {/* Right: Navigation */}
-            <div className="flex items-center gap-1">
+            {/* Right: Navigation + Close */}
+            <div className="flex items-center gap-2">
+              {/* Previous */}
               <Button
-                variant="ghost"
-                size="sm"
+                variant="secondary"
+                size="icon"
                 disabled={activeIndex === 0}
-                className="h-8 px-2"
+                className="
+          h-9 w-9 rounded-full
+          shadow-sm
+          hover:shadow-md
+          transition
+        "
               >
                 <ChevronLeft className="h-4 w-4" />
-                <span className="sr-only">Previous</span>
               </Button>
 
+              {/* Next */}
               <Button
-                variant="ghost"
-                size="sm"
+                variant="secondary"
+                size="icon"
                 disabled={activeIndex === submissions.length - 1}
-                className="h-8 px-2"
+                className="
+          h-9 w-9 rounded-full
+          shadow-sm
+          hover:shadow-md
+          transition
+        "
               >
                 <ChevronRight className="h-4 w-4" />
-                <span className="sr-only">Next</span>
+              </Button>
+
+              {/* Divider */}
+              <div className="mx-1 h-6 w-px bg-border" />
+
+              {/* Close / Cancel */}
+              <Button
+                variant="destructive"
+                size="icon"
+                onClick={onClose}
+                className="
+          h-9 w-9 rounded-full
+          shadow-sm
+          hover:shadow-md
+          transition
+        "
+              >
+                <X className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </DialogHeader>
-
 
         <div className="grid grid-cols-12 h-full">
 

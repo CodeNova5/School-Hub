@@ -77,17 +77,15 @@ export function SubmissionModal({
 
   if (!submission) return null;
 
-  const fileUrl = submission.file_url;
-  const fileExt = fileUrl?.split(".").pop()?.toLowerCase();
+  const ext = submission.file_url?.split(".").pop()?.toLowerCase();
+  const fileUrl = submission.file_url || "";
 
-  const canPreviewInline =
-    fileExt &&
-    ["png", "jpg", "jpeg", "gif", "webp"].includes(fileExt);
-
-  const canIframe =
-    fileExt &&
-    ["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(fileExt);
-
+  const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
+  const isPdf = ext === "pdf";
+  const isOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
+  const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
+    fileUrl
+  )}&embedded=true`;
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden" hideClose>
@@ -143,7 +141,7 @@ export function SubmissionModal({
                 variant="secondary"
                 size="icon"
                 onClick={onClose}
-                className="hover:bg-red-600"
+                className="hover:bg-red-400"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -239,25 +237,32 @@ export function SubmissionModal({
 
               {fileUrl && (
                 <>
-                  {/* Image Preview */}
-                  {canPreviewInline && (
+                  {/* Image */}
+                  {isImage && (
                     <img
                       src={fileUrl}
-                      alt="Submission file"
                       className="w-full rounded-md border"
                     />
                   )}
 
-                  {/* PDF / Docs Preview */}
-                  {!canPreviewInline && canIframe && (
+                  {/* PDF */}
+                  {isPdf && (
                     <iframe
                       src={fileUrl}
-                      className="w-full h-[70vh] rounded-md border"
+                      className="w-full h-[75vh] rounded-md border"
+                    />
+                  )}
+
+                  {/* Word / Excel / PowerPoint */}
+                  {isOffice && (
+                    <iframe
+                      src={googleViewerUrl}
+                      className="w-full h-[75vh] rounded-md border"
                     />
                   )}
 
                   {/* Fallback */}
-                  {!canPreviewInline && !canIframe && (
+                  {!isImage && !isPdf && !isOffice && (
                     <div className="flex flex-col items-center justify-center gap-4 border rounded-md p-8">
                       <FileText className="w-10 h-10 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
@@ -277,6 +282,7 @@ export function SubmissionModal({
               )}
             </ScrollArea>
           </div>
+
 
         </div>
       </DialogContent>

@@ -17,7 +17,6 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react"
-import { PdfPreview } from "@/components/PdfPreview";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 
@@ -251,6 +250,7 @@ export function SubmissionModal({
                     <iframe
                       src={fileUrl}
                       className="w-full h-[75vh] rounded-md border"
+                      allowFullScreen
                     />
                   )}
 
@@ -259,6 +259,7 @@ export function SubmissionModal({
                     <iframe
                       src={googleViewerUrl}
                       className="w-full h-[75vh] rounded-md border"
+                      allowFullScreen
                     />
                   )}
 

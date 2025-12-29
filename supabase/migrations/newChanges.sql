@@ -146,3 +146,24 @@ CHECK (
 );
 CREATE UNIQUE INDEX uq_timetable_class_period_department
 ON timetable_entries (day_of_week, period_number, class_id, COALESCE(department, 'NONE'));
+
+DROP POLICY IF EXISTS "Teachers can grade submissions"
+ON assignment_submissions;
+
+CREATE POLICY "Teachers can grade submissions"
+ON assignment_submissions
+FOR UPDATE
+USING (
+  auth.uid() = teacher_id
+)
+WITH CHECK (
+  auth.uid() IS NOT NULL
+);
+
+ALTER TABLE assignment_submissions
+DROP CONSTRAINT assignment_submissions_graded_by_fkey;
+
+ALTER TABLE assignment_submissions
+ADD CONSTRAINT assignment_submissions_graded_by_fkey
+FOREIGN KEY (graded_by) REFERENCES auth.users(id)
+ON DELETE SET NULL;

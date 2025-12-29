@@ -58,7 +58,7 @@ export default function TeacherLoginPage() {
     }
 
     toast.success("Login successful");
-    router.push("/teacher/dashboard");
+    router.push("/teacher");
   }
 
   return (

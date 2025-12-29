@@ -15,6 +15,10 @@ import { Label } from "@/components/ui/label";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+
+
 
 /* ================= SUBMISSION MODAL ================= */
 
@@ -73,20 +77,59 @@ export function SubmissionModal({
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden">
-        <DialogHeader className="px-6 py-4 border-b">
-          <div className="flex justify-between">
-            <DialogTitle className="text-xl font-bold">
-              {submission.students?.first_name} {submission.students?.last_name}
-            </DialogTitle>
-            <div className="flex gap-2 text-xs text-muted-foreground">
-              {activeIndex > 0 && <span>← Previous</span>}
-              {activeIndex < submissions.length - 1 && <span>→ Next</span>}
+
+        <DialogHeader className="px-6 py-4 border-b bg-muted/40">
+          <div className="flex items-center justify-between gap-4">
+            {/* Left: Student identity */}
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="font-semibold">
+                  {submission.students?.first_name?.[0]}
+                  {submission.students?.last_name?.[0]}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="leading-tight">
+                <DialogTitle className="text-lg font-semibold">
+                  {submission.students?.first_name}{" "}
+                  {submission.students?.last_name}
+                </DialogTitle>
+
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>
+                    Submitted{" "}
+                    {new Date(submission.submitted_at).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Navigation */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={activeIndex === 0}
+                className="h-8 px-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="sr-only">Previous</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={activeIndex === submissions.length - 1}
+                className="h-8 px-2"
+              >
+                <ChevronRight className="h-4 w-4" />
+                <span className="sr-only">Next</span>
+              </Button>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Submitted {new Date(submission.submitted_at).toLocaleString()}
-          </p>
         </DialogHeader>
+
 
         <div className="grid grid-cols-12 h-full">
 
@@ -213,7 +256,7 @@ export function SubmissionModal({
               )}
             </ScrollArea>
           </div>
-          
+
         </div>
       </DialogContent>
     </Dialog>

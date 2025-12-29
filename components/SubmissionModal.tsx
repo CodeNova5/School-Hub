@@ -16,7 +16,14 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react"
+import { PdfPreview } from "@/components/PdfPreview";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { pdfjs } from "react-pdf";
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.js",
+  import.meta.url
+).toString();
 
 
 
@@ -77,15 +84,13 @@ export function SubmissionModal({
 
   if (!submission) return null;
 
-  const ext = submission.file_url?.split(".").pop()?.toLowerCase();
   const fileUrl = submission.file_url || "";
+  const ext = fileUrl?.split(".").pop()?.toLowerCase();
 
   const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
   const isPdf = ext === "pdf";
   const isOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
-  const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
-    fileUrl
-  )}&embedded=true`;
+
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden" hideClose>
@@ -245,18 +250,15 @@ export function SubmissionModal({
                     />
                   )}
 
-                  {/* PDF */}
-                  {isPdf && (
-                    <iframe
-                      src={fileUrl}
-                      className="w-full h-[75vh] rounded-md border"
-                    />
-                  )}
+                  {/* PDF (pdf.js) */}
+                  {isPdf && <PdfPreview url={fileUrl} />}
 
-                  {/* Word / Excel / PowerPoint */}
+                  {/* Office files */}
                   {isOffice && (
                     <iframe
-                      src={googleViewerUrl}
+                      src={`https://docs.google.com/gview?url=${encodeURIComponent(
+                        fileUrl
+                      )}&embedded=true`}
                       className="w-full h-[75vh] rounded-md border"
                     />
                   )}
@@ -264,17 +266,15 @@ export function SubmissionModal({
                   {/* Fallback */}
                   {!isImage && !isPdf && !isOffice && (
                     <div className="flex flex-col items-center justify-center gap-4 border rounded-md p-8">
-                      <FileText className="w-10 h-10 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         Preview not supported for this file type.
                       </p>
                       <a
                         href={fileUrl}
                         target="_blank"
-                        className="inline-flex items-center gap-2 text-blue-600"
+                        className="text-blue-600 underline"
                       >
-                        <Download className="w-4 h-4" />
-                        Download File
+                        Download file
                       </a>
                     </div>
                   )}
@@ -282,6 +282,7 @@ export function SubmissionModal({
               )}
             </ScrollArea>
           </div>
+
 
 
         </div>

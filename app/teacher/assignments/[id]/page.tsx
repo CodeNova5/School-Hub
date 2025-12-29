@@ -105,9 +105,11 @@ export default function AssignmentDetailsPage() {
 
     setSavingId(submissionId);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    await supabase
+    const { data: updatedSubmission, error } = await supabase
       .from("assignment_submissions")
       .update({
         grade: Number(entry.grade),
@@ -115,11 +117,25 @@ export default function AssignmentDetailsPage() {
         graded_at: new Date().toISOString(),
         graded_by: user?.id,
       })
-      .eq("id", submissionId);
+      .eq("id", submissionId)
+      .select("*, students(id, first_name, last_name)")
+      .single();
+
+    if (error || !updatedSubmission) {
+      toast.error("Failed to save grade");
+      setSavingId(null);
+      return;
+    }
+
+    setSubmissions((prevSubmissions) =>
+      prevSubmissions.map((s) =>
+        s.id === submissionId ? updatedSubmission : s
+      )
+    );
+    setActiveSubmission(updatedSubmission);
 
     toast.success("Grade saved");
     setSavingId(null);
-    loadData();
   }
 
   if (loading) {

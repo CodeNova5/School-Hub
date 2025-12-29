@@ -293,7 +293,7 @@ async function handleSave() {
     }
 
     toast.success('Results saved successfully');
-    router.push('/teacher/results');
+    router.refresh();
   } catch (error: any) {
     toast.error('Failed to save results: ' + (error?.message || String(error)));
   } finally {

@@ -10,11 +10,18 @@ export function PdfPreview({ url }: { url: string }) {
   return (
     <div className="flex flex-col items-center gap-3">
       <Document
-        file={url}
+        file={{
+          url
+        }}
+        options={{
+          disableRange: true,
+          disableStream: true,
+        }}
         onLoadSuccess={({ numPages }) => setNumPages(numPages)}
         loading={<p className="text-sm text-muted-foreground">Loading PDF…</p>}
         error={<p className="text-sm text-red-500">Failed to load PDF</p>}
       >
+
         <Page
           pageNumber={page}
           width={500}

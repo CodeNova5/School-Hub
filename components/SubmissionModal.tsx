@@ -34,6 +34,18 @@ export function SubmissionModal({
   saveGrade,
   onClose,
 }: any) {
+  function goNext() {
+    if (activeIndex < submissions.length - 1) {
+      setActiveSubmission(submissions[activeIndex + 1]);
+    }
+  }
+
+  function goPrev() {
+    if (activeIndex > 0) {
+      setActiveSubmission(submissions[activeIndex - 1]);
+    }
+  }
+
   useEffect(() => {
     if (!submission) return;
 
@@ -42,6 +54,7 @@ export function SubmissionModal({
         e.preventDefault();
         if (activeIndex < submissions.length - 1) {
           setActiveSubmission(submissions[activeIndex + 1]);
+          goNext();
         }
       }
 
@@ -49,6 +62,7 @@ export function SubmissionModal({
         e.preventDefault();
         if (activeIndex > 0) {
           setActiveSubmission(submissions[activeIndex - 1]);
+          goPrev();
         }
       }
 
@@ -107,53 +121,32 @@ export function SubmissionModal({
 
             {/* Right: Navigation + Close */}
             <div className="flex items-center gap-2">
-              {/* Previous */}
               <Button
                 variant="secondary"
                 size="icon"
                 disabled={activeIndex === 0}
-                className="
-          h-9 w-9 rounded-full
-          shadow-sm
-          hover:shadow-md
-          transition
-        "
+                onClick={goPrev}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
 
-              {/* Next */}
               <Button
                 variant="secondary"
                 size="icon"
                 disabled={activeIndex === submissions.length - 1}
-                className="
-          h-9 w-9 rounded-full
-          shadow-sm
-          hover:shadow-md
-          transition
-        "
+                onClick={goNext}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
 
-              {/* Divider */}
-              <div className="mx-1 h-6 w-px bg-border" />
-
-              {/* Close / Cancel */}
               <Button
                 variant="destructive"
                 size="icon"
                 onClick={onClose}
-                className="
-          h-9 w-9 rounded-full
-          shadow-sm
-          hover:shadow-md
-          transition
-        "
               >
                 <X className="h-4 w-4" />
               </Button>
+
             </div>
           </div>
         </DialogHeader>

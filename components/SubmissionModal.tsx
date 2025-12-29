@@ -88,27 +88,28 @@ export function SubmissionModal({
 
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
-      <DialogContent className="max-w-[95vw] h-[90vh] p-0 overflow-hidden" hideClose>
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col" hideClose>
 
-        <DialogHeader className="px-6 py-4 border-b bg-muted/40">
-          <div className="flex items-center justify-between gap-4">
+        {/* ================= HEADER ================= */}
+        <DialogHeader className="px-8 py-6 border-b bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex items-center justify-between gap-4 w-full">
             {/* Left: Student identity */}
-            <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="font-semibold">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-12 w-12">
+                <AvatarFallback className="font-bold text-lg bg-blue-100 text-blue-900">
                   {submission.students?.first_name?.[0]}
                   {submission.students?.last_name?.[0]}
                 </AvatarFallback>
               </Avatar>
 
               <div className="leading-tight">
-                <DialogTitle className="text-lg font-semibold">
+                <DialogTitle className="text-xl font-bold text-gray-900">
                   {submission.students?.first_name}{" "}
                   {submission.students?.last_name}
                 </DialogTitle>
 
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                  <Clock className="h-4 w-4" />
                   <span>
                     Submitted{" "}
                     {new Date(submission.submitted_at).toLocaleString()}
@@ -118,119 +119,70 @@ export function SubmissionModal({
             </div>
 
             {/* Right: Navigation + Close */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 font-medium">
+                {activeIndex + 1} of {submissions.length}
+              </span>
               <Button
-                variant="secondary"
-                size="icon"
+                variant="outline"
+                size="sm"
                 disabled={activeIndex === 0}
                 onClick={goPrev}
+                className="h-9 w-9 p-0"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-5 w-5" />
               </Button>
 
               <Button
-                variant="secondary"
-                size="icon"
+                variant="outline"
+                size="sm"
                 disabled={activeIndex === submissions.length - 1}
                 onClick={goNext}
+                className="h-9 w-9 p-0"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               </Button>
 
               <Button
-                variant="secondary"
-                size="icon"
+                variant="ghost"
+                size="sm"
                 onClick={onClose}
-                className="hover:bg-red-400"
+                className="h-9 w-9 p-0 hover:bg-red-100 hover:text-red-600"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </Button>
-
             </div>
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-12 h-full">
+        {/* ================= SCROLLABLE CONTENT ================= */}
+        <ScrollArea className="flex-1 overflow-y-auto">
+          <div className="p-8 space-y-8">
 
-          {/* ================= STUDENT ANSWER ================= */}
-          <div className="col-span-4 border-r">
-            <ScrollArea className="h-full p-6">
-              <h3 className="font-semibold mb-4">Student Answer</h3>
+            {/* ================= STUDENT ANSWER ================= */}
+            <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-6">Student Answer</h3>
 
               {submission.submission_text ? (
                 <div
-                  className="prose max-w-none"
+                  className="prose prose-sm max-w-none text-gray-700"
                   dangerouslySetInnerHTML={{
                     __html: submission.submission_text,
                   }}
                 />
               ) : (
-                <p className="text-muted-foreground italic">
+                <p className="text-gray-400 italic py-8 text-center">
                   No written answer submitted.
                 </p>
               )}
-            </ScrollArea>
-          </div>
+            </div>
 
-          {/* ================= GRADING ================= */}
-          <div className="col-span-4 border-r bg-muted/40">
-            <ScrollArea className="h-full p-6 space-y-6">
-              <h3 className="font-semibold">Grading</h3>
-
-              <div>
-                <Label>Score (out of {assignment.total_marks})</Label>
-                <Input
-                  type="number"
-                  className="mt-2"
-                  defaultValue={submission.grade ?? ""}
-                  disabled={!!submission.graded_at}
-                  onChange={(e) =>
-                    setGrading((prev: any) => ({
-                      ...prev,
-                      [submission.id]: {
-                        ...prev[submission.id],
-                        grade: e.target.value,
-                      },
-                    }))
-                  }
-                />
-              </div>
-
-              <Separator />
-
-              <div>
-                <Label className="mb-2 block">Feedback</Label>
-                <FeedbackEditor
-                  value={submission.feedback || ""}
-                  onChange={(val: string) =>
-                    setGrading((prev: any) => ({
-                      ...prev,
-                      [submission.id]: {
-                        ...prev[submission.id],
-                        feedback: val,
-                      },
-                    }))
-                  }
-                />
-              </div>
-
-              <Button
-                className="w-full"
-                disabled={!!submission.graded_at || savingId === submission.id}
-                onClick={() => saveGrade(submission.id)}
-              >
-                {savingId === submission.id ? "Saving..." : "Save Grade"}
-              </Button>
-            </ScrollArea>
-          </div>
-
-          {/* ================= FILE PREVIEW ================= */}
-          <div className="col-span-4">
-            <ScrollArea className="h-full p-6">
-              <h3 className="font-semibold mb-4">Submitted File</h3>
+            {/* ================= FILE PREVIEW ================= */}
+            <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-6">Submitted File</h3>
 
               {!fileUrl && (
-                <p className="text-muted-foreground italic">
+                <p className="text-gray-400 italic py-8 text-center">
                   No file uploaded.
                 </p>
               )}
@@ -241,7 +193,7 @@ export function SubmissionModal({
                   {isImage && (
                     <img
                       src={fileUrl}
-                      className="w-full rounded-md border"
+                      className="w-full max-h-96 object-contain rounded-lg border border-gray-300"
                     />
                   )}
 
@@ -265,15 +217,15 @@ export function SubmissionModal({
 
                   {/* Fallback */}
                   {!isImage && !isPdf && !isOffice && (
-                    <div className="flex flex-col items-center justify-center gap-4 border rounded-md p-8">
-                      <FileText className="w-10 h-10 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center gap-4 border-2 border-dashed border-gray-300 rounded-lg p-12 bg-gray-50">
+                      <FileText className="w-12 h-12 text-gray-300" />
+                      <p className="text-sm text-gray-500 text-center">
                         Preview not supported for this file type.
                       </p>
                       <a
                         href={fileUrl}
                         target="_blank"
-                        className="inline-flex items-center gap-2 text-blue-600"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
                       >
                         <Download className="w-4 h-4" />
                         Download File
@@ -282,11 +234,74 @@ export function SubmissionModal({
                   )}
                 </>
               )}
-            </ScrollArea>
+            </div>
+
+            {/* ================= GRADING SECTION ================= */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-8">
+              <h3 className="text-lg font-bold text-gray-900 mb-8">Grade & Feedback</h3>
+
+              <div className="space-y-8">
+                {/* Score Input */}
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
+                  <Label className="text-base font-semibold text-gray-900 block mb-4">
+                    Score (out of {assignment.total_marks})
+                  </Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    className="text-2xl font-bold py-4 h-14"
+                    defaultValue={submission.grade ?? ""}
+                    disabled={!!submission.graded_at}
+                    onChange={(e) =>
+                      setGrading((prev: any) => ({
+                        ...prev,
+                        [submission.id]: {
+                          ...prev[submission.id],
+                          grade: e.target.value,
+                        },
+                      }))
+                    }
+                  />
+                  {submission.graded_at && (
+                    <p className="text-sm text-green-600 font-medium mt-3">
+                      Already graded
+                    </p>
+                  )}
+                </div>
+
+                {/* Feedback Editor */}
+                <div className="bg-white rounded-lg p-6 border border-gray-200">
+                  <Label className="text-base font-semibold text-gray-900 block mb-4">
+                    Feedback
+                  </Label>
+                  <FeedbackEditor
+                    value={submission.feedback || ""}
+                    onChange={(val: string) =>
+                      setGrading((prev: any) => ({
+                        ...prev,
+                        [submission.id]: {
+                          ...prev[submission.id],
+                          feedback: val,
+                        },
+                      }))
+                    }
+                  />
+                </div>
+
+                {/* Save Button */}
+                <Button
+                  className="w-full py-6 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!!submission.graded_at || savingId === submission.id}
+                  onClick={() => saveGrade(submission.id)}
+                >
+                  {savingId === submission.id ? "Saving..." : submission.graded_at ? "Already Graded" : "Save Grade"}
+                </Button>
+              </div>
+            </div>
+
           </div>
+        </ScrollArea>
 
-
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -319,11 +334,26 @@ function FeedbackEditor({
   if (!editor) return null;
 
   return (
-    <div className="border rounded-md">
-      <div className="flex gap-1 border-b p-1">
-        <button onClick={() => editor.chain().focus().toggleBold().run()}>B</button>
-        <button onClick={() => editor.chain().focus().toggleItalic().run()}>I</button>
-        <button onClick={() => editor.chain().focus().toggleUnderline().run()}>U</button>
+    <div className="border border-gray-300 rounded-lg overflow-hidden">
+      <div className="flex gap-2 border-b border-gray-300 p-3 bg-gray-50">
+        <button
+          onClick={() => editor.chain().focus().toggleBold().run()}
+          className="px-3 py-1 font-bold text-gray-700 hover:bg-gray-200 rounded transition-colors"
+        >
+          B
+        </button>
+        <button
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+          className="px-3 py-1 italic text-gray-700 hover:bg-gray-200 rounded transition-colors"
+        >
+          I
+        </button>
+        <button
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          className="px-3 py-1 underline text-gray-700 hover:bg-gray-200 rounded transition-colors"
+        >
+          U
+        </button>
       </div>
       <EditorContent editor={editor} />
     </div>

@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       sha,
     });
 
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/main/${path}`;
+    const url = `https://codenova5.github.io/${repo}/${path}`;
 
     return NextResponse.json({ fileUrl: url });
   } catch (err: any) {

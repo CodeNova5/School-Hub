@@ -19,11 +19,9 @@ import Underline from "@tiptap/extension-underline";
 import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react"
 import { PdfPreview } from "@/components/PdfPreview";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { pdfjs } from "react-pdf";
-// Correct import for pdfjs v3+
-import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+import { pdfjs } from "react-pdf";
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   
 
 

@@ -77,7 +77,7 @@ export function SubmissionModal({
   }, [submission, submissions, activeIndex, setActiveSubmission, onClose]);
 
   if (!submission) return null;
-  const fileUrl = submission.submitted_file_url;
+  const fileUrl = submission.file_url;
 
   const ext = fileUrl?.split(".").pop()?.toLowerCase();
   const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);

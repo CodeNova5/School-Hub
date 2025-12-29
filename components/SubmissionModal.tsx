@@ -20,11 +20,6 @@ import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react"
 import { PdfPreview } from "@/components/PdfPreview";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
-import { pdfjs } from "react-pdf";
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  
-
-
 
 /* ================= SUBMISSION MODAL ================= */
 
@@ -82,13 +77,15 @@ export function SubmissionModal({
   }, [submission, submissions, activeIndex, setActiveSubmission, onClose]);
 
   if (!submission) return null;
+  const fileUrl = submission.submitted_file_url;
 
-  const fileUrl = submission.file_url || "";
   const ext = fileUrl?.split(".").pop()?.toLowerCase();
-
   const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
   const isPdf = ext === "pdf";
   const isOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
+  const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
+    fileUrl
+  )}&embedded=true`;
 
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
@@ -249,15 +246,18 @@ export function SubmissionModal({
                     />
                   )}
 
-                  {/* PDF (pdf.js) */}
-                  {isPdf && <PdfPreview url={fileUrl} />}
+                  {/* PDF */}
+                  {isPdf && (
+                    <iframe
+                      src={fileUrl}
+                      className="w-full h-[75vh] rounded-md border"
+                    />
+                  )}
 
-                  {/* Office files */}
+                  {/* Word / Excel / PowerPoint */}
                   {isOffice && (
                     <iframe
-                      src={`https://docs.google.com/gview?url=${encodeURIComponent(
-                        fileUrl
-                      )}&embedded=true`}
+                      src={googleViewerUrl}
                       className="w-full h-[75vh] rounded-md border"
                     />
                   )}
@@ -265,15 +265,17 @@ export function SubmissionModal({
                   {/* Fallback */}
                   {!isImage && !isPdf && !isOffice && (
                     <div className="flex flex-col items-center justify-center gap-4 border rounded-md p-8">
+                      <FileText className="w-10 h-10 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
                         Preview not supported for this file type.
                       </p>
                       <a
                         href={fileUrl}
                         target="_blank"
-                        className="text-blue-600 underline"
+                        className="inline-flex items-center gap-2 text-blue-600"
                       >
-                        Download file
+                        <Download className="w-4 h-4" />
+                        Download File
                       </a>
                     </div>
                   )}
@@ -281,7 +283,6 @@ export function SubmissionModal({
               )}
             </ScrollArea>
           </div>
-
 
 
         </div>

@@ -1,4 +1,5 @@
 // components/SubmissionModal.tsx
+"use client";
 import { useEffect } from "react";
 import {
   Dialog,
@@ -19,11 +20,11 @@ import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react"
 import { PdfPreview } from "@/components/PdfPreview";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { pdfjs } from "react-pdf";
+// Correct import for pdfjs v3+
+import pdfWorker from "pdfjs-dist/build/pdf.worker.entry";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.js",
-  import.meta.url
-).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+  
 
 
 

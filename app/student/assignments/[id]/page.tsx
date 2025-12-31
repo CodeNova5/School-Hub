@@ -45,6 +45,53 @@ export default function StudentAssignmentDetails() {
         loadAssignment();
     }, [id]);
 
+    function getGradeStyles(marksObtained: number, totalMarks: number) {
+        if (!totalMarks || totalMarks === 0) {
+            return {
+                border: "border-gray-300",
+                bg: "bg-muted/30",
+                badge: "bg-gray-500 text-white",
+                text: "text-gray-700",
+                label: "Ungraded",
+                percent: 0,
+            };
+        }
+
+        const percent = Math.round((marksObtained / totalMarks) * 100);
+
+        if (percent >= 70) {
+            return {
+                border: "border-green-500",
+                bg: "bg-green-50/40",
+                badge: "bg-green-600 text-white",
+                text: "text-green-700",
+                label: "Excellent",
+                percent,
+            };
+        }
+
+        if (percent >= 40) {
+            return {
+                border: "border-yellow-500",
+                bg: "bg-yellow-50/40",
+                badge: "bg-yellow-600 text-white",
+                text: "text-yellow-700",
+                label: "Average",
+                percent,
+            };
+        }
+
+        return {
+            border: "border-red-500",
+            bg: "bg-red-50/40",
+            badge: "bg-red-600 text-white",
+            text: "text-red-700",
+            label: "Needs Improvement",
+            percent,
+        };
+    }
+
+
     if (loading) {
         return (
             <DashboardLayout role="student">
@@ -129,50 +176,60 @@ export default function StudentAssignmentDetails() {
                 )}
 
 
-                {isGraded && (
-                    <Card className="border-2 border-green-500 bg-green-50/40">
-                        <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-xl">Result</CardTitle>
-                                <Badge className="bg-green-600 text-white">Graded</Badge>
-                            </div>
-                        </CardHeader>
+                {isGraded && (() => {
+                    const styles = getGradeStyles(
+                        submission.grade,            // marks obtained (e.g. 14)
+                        assignment.total_marks       // total marks (e.g. 20)
+                    );
 
-                        <CardContent className="space-y-6">
-                            {/* Grade */}
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Score</p>
-                                    <p className="text-4xl font-bold text-green-700">
-                                        {submission.grade}
-                                        <span className="text-lg text-muted-foreground">
-                                            {" "} / {assignment.total_marks}
-                                        </span>
-                                    </p>
+                    return (
+                        <Card className={`border-2 ${styles.border} ${styles.bg}`}>
+                            <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="text-xl">Result</CardTitle>
+                                    <Badge className={styles.badge}>{styles.label}</Badge>
+                                </div>
+                            </CardHeader>
+
+                            <CardContent className="space-y-6">
+                                {/* Score */}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm text-muted-foreground">Score</p>
+                                        <p className={`text-4xl font-bold ${styles.text}`}>
+                                            {submission.grade}
+                                            <span className="text-lg text-muted-foreground">
+                                                {" "} / {assignment.total_marks}
+                                            </span>
+                                        </p>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            {styles.percent}%
+                                        </p>
+                                    </div>
+
+                                    <div className="text-right">
+                                        <p className="text-sm text-muted-foreground">Graded on</p>
+                                        <p className="font-medium">
+                                            {new Date(submission.graded_at).toLocaleDateString()}
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <div className="text-right">
-                                    <p className="text-sm text-muted-foreground">Graded on</p>
-                                    <p className="font-medium">
-                                        {new Date(submission.graded_at).toLocaleDateString()}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Feedback */}
-                            {submission.feedback && (
-                                <div className="rounded-lg border bg-white p-4">
-                                    <p className="text-sm font-medium mb-1 text-muted-foreground">
-                                        Teacher’s Feedback
-                                    </p>
-                                    <p className="whitespace-pre-wrap leading-relaxed">
-                                        {submission.feedback}
-                                    </p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
+                                {/* Feedback */}
+                                {submission.feedback && (
+                                    <div className="rounded-lg border bg-white p-4">
+                                        <p className="text-sm font-medium mb-1 text-muted-foreground">
+                                            Teacher’s Feedback
+                                        </p>
+                                        <p className="whitespace-pre-wrap leading-relaxed">
+                                            {submission.feedback}
+                                        </p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    );
+                })()}
 
             </div>
         </DashboardLayout>

@@ -30,7 +30,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
   const [dueDate, setDueDate] = useState('');
 
   const [submissionType, setSubmissionType] = useState<'text' | 'file' | 'both'>('text');
-  const [totalMarks, setTotalMarks] = useState(100);
+  const [totalMarks, setTotalMarks] = useState(20);
   const [allowLate, setAllowLate] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);

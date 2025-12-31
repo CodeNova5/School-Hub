@@ -110,12 +110,68 @@ export default function StudentAssignmentDetails() {
                     </CardContent>
                 </Card>
 
-                {isGraded ? (
-                    <Button disabled>Graded</Button>
-                ) : (
+                {/* Action / Status Section */}
+                {!submission && (
                     <Link href={`/student/assignments/${id}/submit`}>
-                        <Button>Submit Assignment</Button>
+                        <Button size="lg">Submit Assignment</Button>
                     </Link>
+                )}
+
+                {submission && !isGraded && (
+                    <Card className="border-dashed">
+                        <CardContent className="py-6 text-center text-muted-foreground">
+                            <p className="font-medium">Submission received</p>
+                            <p className="text-sm mt-1">
+                                Your assignment has been submitted and is awaiting grading.
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
+
+
+                {isGraded && (
+                    <Card className="border-2 border-green-500 bg-green-50/40">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-xl">Result</CardTitle>
+                                <Badge className="bg-green-600 text-white">Graded</Badge>
+                            </div>
+                        </CardHeader>
+
+                        <CardContent className="space-y-6">
+                            {/* Grade */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm text-muted-foreground">Score</p>
+                                    <p className="text-4xl font-bold text-green-700">
+                                        {submission.grade}
+                                        <span className="text-lg text-muted-foreground">
+                                            {" "} / {assignment.total_marks}
+                                        </span>
+                                    </p>
+                                </div>
+
+                                <div className="text-right">
+                                    <p className="text-sm text-muted-foreground">Graded on</p>
+                                    <p className="font-medium">
+                                        {new Date(submission.graded_at).toLocaleDateString()}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Feedback */}
+                            {submission.feedback && (
+                                <div className="rounded-lg border bg-white p-4">
+                                    <p className="text-sm font-medium mb-1 text-muted-foreground">
+                                        Teacher’s Feedback
+                                    </p>
+                                    <p className="whitespace-pre-wrap leading-relaxed">
+                                        {submission.feedback}
+                                    </p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
                 )}
 
             </div>

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, FileText } from "lucide-react";
+import { Download } from "lucide-react";
 
 export default function StudentAssignmentDetails() {
     const { id } = useParams();
@@ -111,6 +112,15 @@ export default function StudentAssignmentDetails() {
     }
 
     const isGraded = submission && submission.graded_at;
+    const fileUrl = submission.file_url;
+
+    const ext = fileUrl?.split(".").pop()?.toLowerCase();
+    const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
+    const isPdf = ext === "pdf";
+    const isOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
+    const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
+        fileUrl
+    )}&embedded=true`;
 
     return (
         <DashboardLayout role="student">
@@ -156,6 +166,101 @@ export default function StudentAssignmentDetails() {
                         </div>
                     </CardContent>
                 </Card>
+
+                {submission && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>My Submission</CardTitle>
+                        </CardHeader>
+
+                        <CardContent className="space-y-6">
+                            {/* Text Answer */}
+                            {submission.answer_text ? (
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground mb-1">
+                                        Text Answer
+                                    </p>
+                                    <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap">
+                                        {submission.answer_text}
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    No text answer submitted.
+                                </p>
+                            )}
+
+                            {/* File Submission */}
+                            {submission.file_url && (
+                                <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-6">Submitted File</h3>
+
+                                    {!fileUrl && (
+                                        <p className="text-gray-400 italic py-8 text-center">
+                                            No file uploaded.
+                                        </p>
+                                    )}
+
+                                    {fileUrl && (
+                                        <>
+                                            {/* Image */}
+                                            {isImage && (
+                                                <img
+                                                    src={fileUrl}
+                                                    className="w-full max-h-96 object-contain rounded-lg border border-gray-300"
+                                                />
+                                            )}
+
+                                            {/* PDF */}
+                                            {isPdf && (
+                                                <iframe
+                                                    src={fileUrl}
+                                                    className="w-full h-[75vh] rounded-md border"
+                                                    allowFullScreen
+                                                />
+                                            )}
+
+                                            {/* Word / Excel / PowerPoint */}
+                                            {isOffice && (
+                                                <iframe
+                                                    src={googleViewerUrl}
+                                                    className="w-full h-[75vh] rounded-md border"
+                                                    allowFullScreen
+                                                />
+                                            )}
+
+                                            {/* Fallback */}
+                                            {!isImage && !isPdf && !isOffice && (
+                                                <div className="flex flex-col items-center justify-center gap-4 border-2 border-dashed border-gray-300 rounded-lg p-12 bg-gray-50">
+                                                    <FileText className="w-12 h-12 text-gray-300" />
+                                                    <p className="text-sm text-gray-500 text-center">
+                                                        Preview not supported for this file type.
+                                                    </p>
+                                                    <a
+                                                        href={fileUrl}
+                                                        target="_blank"
+                                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+                                                    >
+                                                        <Download className="w-4 h-4" />
+                                                        Download File
+                                                    </a>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+                            )}
+
+                            {!submission.answer_text && !submission.file_url && (
+                                <p className="text-sm text-muted-foreground">
+                                    No submission content available.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+
 
                 {/* Action / Status Section */}
                 {!submission && (

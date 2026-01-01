@@ -112,7 +112,7 @@ export default function StudentAssignmentDetails() {
     }
 
     const isGraded = submission && submission.graded_at;
-    const fileUrl = submission.file_url;
+   const fileUrl = submission?.file_url ?? null;
 
     const ext = fileUrl?.split(".").pop()?.toLowerCase();
     const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
@@ -180,8 +180,10 @@ export default function StudentAssignmentDetails() {
                                     <p className="text-sm font-medium text-muted-foreground mb-1">
                                         Text Answer
                                     </p>
-                                    <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap">
-                                        {submission.submission_text}
+                                    <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap" dangerouslySetInnerHTML={{
+                                        __html: submission.submission_text,
+                                    }}>
+
                                     </div>
                                 </div>
                             ) : (
@@ -252,7 +254,7 @@ export default function StudentAssignmentDetails() {
 
                             )}
 
-                            {!submission.answer_text && !submission.file_url && (
+                            {!submission.submission_text && !submission.file_url && (
                                 <p className="text-sm text-muted-foreground">
                                     No submission content available.
                                 </p>
@@ -326,8 +328,10 @@ export default function StudentAssignmentDetails() {
                                         <p className="text-sm font-medium mb-1 text-muted-foreground">
                                             Teacher’s Feedback
                                         </p>
-                                        <p className="whitespace-pre-wrap leading-relaxed">
-                                            {submission.feedback}
+                                        <p className="whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{
+                                            __html: submission.feedback,
+                                        }}>
+                                        
                                         </p>
                                     </div>
                                 )}

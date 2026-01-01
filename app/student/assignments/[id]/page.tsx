@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, FileText } from "lucide-react";
 import { Download } from "lucide-react";
+import { FilePreview } from "@/components/file-preview";
 
 export default function StudentAssignmentDetails() {
     const { id } = useParams();
@@ -153,6 +154,8 @@ export default function StudentAssignmentDetails() {
                                 {assignment.instructions || "—"}
                             </p>
                         </div>
+
+                        {assignment.file_url && <FilePreview fileUrl={assignment.file_url} />}
 
                         <div className="flex flex-wrap gap-3">
                             <Badge variant="outline">

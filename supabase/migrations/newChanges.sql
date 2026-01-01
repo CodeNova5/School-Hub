@@ -167,3 +167,6 @@ ALTER TABLE assignment_submissions
 ADD CONSTRAINT assignment_submissions_graded_by_fkey
 FOREIGN KEY (graded_by) REFERENCES auth.users(id)
 ON DELETE SET NULL;
+--- file_url column inserted to store teacher uploaded files
+ALTER TABLE assignments
+ADD COLUMN file_url text;

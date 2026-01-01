@@ -150,7 +150,7 @@ export default function AssignmentDetailsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
         {/* ================= ASSIGNMENT HEADER ================= */}
         <div>
           <h1 className="text-4xl font-bold">{assignment.title}</h1>

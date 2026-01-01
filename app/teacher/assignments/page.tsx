@@ -31,47 +31,85 @@ export default function AssignmentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const ITEMS_PER_PAGE = 10;
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // filters
+  const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [gradedStatus, setGradedStatus] = useState<'all' | 'graded' | 'ungraded'>('all');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  // derived
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(1);
+  }, [searchTerm, selectedClass, gradedStatus, startDate, endDate]);
+
 
   useEffect(() => {
     applyFilters();
   }, [assignments, searchTerm]);
 
-  async function loadData() {
+  async function loadData(page = 1) {
     setIsLoading(true);
     try {
       const user = await getCurrentUser();
-      if (!user) {
-        toast.error('Please log in to continue');
-        return;
-      }
+      if (!user) return toast.error('Please log in');
 
       const teacher = await getTeacherByUserId(user.id);
-      if (!teacher) {
-        toast.error('Teacher profile not found');
-        return;
-      }
+      if (!teacher) return toast.error('Teacher profile not found');
 
       setTeacherId(teacher.id);
 
-      const { data } = await supabase
+      let query = supabase
         .from('assignments')
-        .select('*, classes(*), subjects(*)')
-        .eq('teacher_id', teacher.id)
-        .order('due_date', { ascending: false });
+        .select('*, classes(*), subjects(*)', { count: 'exact' })
+        .eq('teacher_id', teacher.id);
 
-      if (data) {
-        setAssignments(data as any);
+      if (selectedClass !== 'all') {
+        query = query.eq('class_id', selectedClass);
       }
-    } catch (error: any) {
-      toast.error('Failed to load assignments: ' + error.message);
+
+      if (gradedStatus !== 'all') {
+        query =
+          gradedStatus === 'graded'
+            ? query.eq('is_graded', true)
+            : query.eq('is_graded', false);
+      }
+
+      if (startDate) query = query.gte('due_date', startDate);
+      if (endDate) query = query.lte('due_date', endDate);
+
+      if (searchTerm) {
+        query = query.or(
+          `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`
+        );
+      }
+
+      const from = (page - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      const { data, count, error } = await query
+        .order('due_date', { ascending: false })
+        .range(from, to);
+
+      if (error) throw error;
+
+      setAssignments(data || []);
+      setFilteredAssignments(data || []);
+      setTotalCount(count || 0);
+      setCurrentPage(page);
+    } catch (err: any) {
+      toast.error(err.message);
     } finally {
       setIsLoading(false);
     }
   }
+
 
   function applyFilters() {
     let filtered = [...assignments];
@@ -121,15 +159,77 @@ export default function AssignmentsPage() {
     return { label: `Due in ${days} days`, color: 'bg-green-100 text-green-700' };
   }
 
+  function AssignmentSkeleton() {
+    return (
+      <div className="border rounded-lg p-4 space-y-4 skeleton">
+        {/* Title */}
+        <div className="h-5 w-2/3 bg-gray-200 rounded" />
+
+        {/* Description */}
+        <div className="space-y-2">
+          <div className="h-4 w-full bg-gray-200 rounded" />
+          <div className="h-4 w-5/6 bg-gray-200 rounded" />
+        </div>
+
+        {/* Badges */}
+        <div className="flex gap-2">
+          <div className="h-5 w-20 bg-gray-200 rounded-full" />
+          <div className="h-5 w-24 bg-gray-200 rounded-full" />
+          <div className="h-5 w-28 bg-gray-200 rounded-full" />
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-2 pt-2">
+          <div className="h-8 w-24 bg-gray-200 rounded" />
+          <div className="h-8 w-10 bg-gray-200 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  function AssignmentSkeletonList() {
+    return (
+      <div className="space-y-4">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <AssignmentSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
+
+
+
   if (isLoading) {
     return (
       <DashboardLayout role="teacher">
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading assignments...</p>
+        <div className="space-y-8">
+          {/* Header skeleton */}
+          <div className="flex justify-between items-center">
+            <div className="space-y-2">
+              <div className="h-7 w-48 bg-gray-200 rounded skeleton" />
+              <div className="h-4 w-72 bg-gray-200 rounded skeleton" />
+            </div>
+            <div className="h-10 w-44 bg-gray-200 rounded skeleton" />
+          </div>
+
+          {/* Filters skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-10 bg-gray-200 rounded skeleton"
+              />
+            ))}
+          </div>
+
+          {/* List skeleton */}
+          <AssignmentSkeletonList />
         </div>
       </DashboardLayout>
     );
   }
+
+
 
   return (
     <DashboardLayout role="teacher">
@@ -163,6 +263,55 @@ export default function AssignmentsPage() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Filters</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Input
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+
+            <select
+              className="border rounded-md px-3 py-2"
+              value={gradedStatus}
+              onChange={(e) => setGradedStatus(e.target.value as any)}
+            >
+              <option value="all">All</option>
+              <option value="graded">Graded</option>
+              <option value="ungraded">Ungraded</option>
+            </select>
+
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedClass('all');
+                setGradedStatus('all');
+                setStartDate('');
+                setEndDate('');
+              }}
+            >
+              Clear
+            </Button>
+          </CardContent>
+        </Card>
+
 
         <Card>
           <CardHeader>
@@ -233,6 +382,32 @@ export default function AssignmentsPage() {
             )}
           </CardContent>
         </Card>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-6">
+            <p className="text-sm text-gray-500">
+              Page {currentPage} of {totalPages}
+            </p>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => loadData(currentPage - 1)}
+              >
+                Previous
+              </Button>
+
+              <Button
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() => loadData(currentPage + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+
       </div>
 
       <AssignmentModal

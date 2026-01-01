@@ -1,99 +1,104 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+import { getCurrentUser } from "@/lib/auth";
 import { Octokit } from "@octokit/rest";
 
-type UploadType = "student_photo" | "assignment_file";
+export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
-export async function POST(req: Request) {
-  try {
-    const form = await req.formData();
+  const formData = await req.formData();
+  const file = formData.get("file") as File;
+  const type = formData.get("type") as string;
 
-    const file = form.get("file") as File;
-    const type = form.get("type") as UploadType;
+  if (!file || !type) {
+    return NextResponse.json({ error: "Missing file or type" }, { status: 400 });
+  }
 
-    if (!file || !type) {
-      return NextResponse.json(
-        { error: "file and type are required" },
-        { status: 400 }
-      );
-    }
-
-    const octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
-    });
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const base64 = buffer.toString("base64");
-
-    const owner = "CodeNova5";
-    const repo = "Student-Photos";
-
-    let path = "";
-    let commitMessage = "";
-
-    /**
-     * Decide how to handle upload based on type
-     */
-    switch (type) {
-      case "student_photo": {
-        const studentId = form.get("student_id") as string;
-        if (!studentId) throw new Error("student_id is required");
-
-        path = `students/${studentId}.jpg`;
-        commitMessage = `Upload student photo for ${studentId}`;
-        break;
-      }
-
-      case "assignment_file": {
-        const assignmentId = form.get("assignment_id") as string;
-        const studentId = form.get("student_id") as string;
-
-        if (!assignmentId || !studentId) {
-          throw new Error("assignment_id and student_id are required");
-        }
-
-        path = `assignments/${assignmentId}/${studentId}-${file.name}`;
-        commitMessage = `Upload assignment ${assignmentId} by ${studentId}`;
-        break;
-      }
-
-      default:
-        return NextResponse.json(
-          { error: "Unsupported upload type" },
-          { status: 400 }
-        );
-    }
-
-    // Check if file already exists (for updates)
-    let sha: string | undefined;
+  if (type === "student_photo") {
     try {
-      const { data } = await octokit.repos.getContent({
+      const octokit = new Octokit({
+        auth: process.env.GITHUB_TOKEN,
+      });
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const base64 = buffer.toString("base64");
+
+      const owner = "CodeNova5";
+      const repo = "Student-Photos";
+
+      const studentId = formData.get("student_id") as string;
+      if (!studentId) throw new Error("student_id is required");
+
+      const path = `students/${studentId}.jpg`;
+      const commitMessage = `Upload student photo for ${studentId}`;
+
+      let sha: string | undefined;
+      try {
+        const { data } = await octokit.repos.getContent({
+          owner,
+          repo,
+          path,
+        });
+        // @ts-ignore
+        sha = data.sha;
+      } catch (err: any) {
+        if (err.status !== 404) throw err;
+      }
+
+      await octokit.repos.createOrUpdateFileContents({
         owner,
         repo,
         path,
+        message: commitMessage,
+        content: base64,
+        sha,
       });
-      // @ts-ignore
-      sha = data.sha;
+
+      const url = `https://codenova5.github.io/${repo}/${path}`;
+      return NextResponse.json({ fileUrl: url });
     } catch (err: any) {
-      if (err.status !== 404) throw err;
+      console.error("Upload error:", err);
+      return NextResponse.json(
+        { error: "Upload failed", details: err.message },
+        { status: 500 }
+      );
     }
+  } else {
+    try {
+      let filePath = "";
+      const assignmentId = formData.get("assignment_id") as string;
+      const studentId = formData.get("student_id") as string;
 
-    await octokit.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path,
-      message: commitMessage,
-      content: base64,
-      sha,
-    });
+      if (type === "assignment_file") {
+        if (!assignmentId) throw new Error("assignment_id is required");
+        filePath = `assignments/${assignmentId}/${file.name}`;
+      } else if (type === "submission_file") {
+        if (!assignmentId || !studentId) {
+          throw new Error("assignment_id and student_id are required");
+        }
+        filePath = `submissions/${assignmentId}/${studentId}/${file.name}`;
+      } else {
+        return NextResponse.json({ error: "Invalid upload type" }, { status: 400 });
+      }
 
-    const url = `https://codenova5.github.io/${repo}/${path}`;
+      const { error: uploadError } = await supabase.storage
+        .from("files")
+        .upload(filePath, file);
 
-    return NextResponse.json({ fileUrl: url });
-  } catch (err: any) {
-    console.error("Upload error:", err);
-    return NextResponse.json(
-      { error: "Upload failed", details: err.message },
-      { status: 500 }
-    );
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data } = supabase.storage
+        .from("files")
+        .getPublicUrl(filePath);
+
+      return NextResponse.json({ fileUrl: data.publicUrl });
+    } catch (error: any) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 }

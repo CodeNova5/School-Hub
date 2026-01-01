@@ -175,7 +175,7 @@ export default function StudentAssignmentDetails() {
 
                         <CardContent className="space-y-6">
                             {/* Text Answer */}
-                            {submission.answer_text ? (
+                            {submission.submission_text ? (
                                 <div>
                                     <p className="text-sm font-medium text-muted-foreground mb-1">
                                         Text Answer

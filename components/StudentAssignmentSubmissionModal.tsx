@@ -95,7 +95,7 @@ export default function StudentAssignmentSubmission() {
           <p className="text-muted-foreground">{assignment.description}</p>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground pt-2">
             <span className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Due: {assignment.due_date || "Not set"}</span>
-            <span className="flex items-center gap-2"><Clock className="h-4 w-4" /> Marks: {assignment.total_score}</span>
+            <span className="flex items-center gap-2"><Clock className="h-4 w-4" /> Marks: {assignment.total_marks}</span>
             <span className="flex items-center gap-2"><FileText className="h-4 w-4" /> Type: {assignment.submission_type}</span>
           </div>
         </CardHeader>

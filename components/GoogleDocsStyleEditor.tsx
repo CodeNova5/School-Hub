@@ -66,7 +66,7 @@ export default function GoogleDocsStyleEditor({
     editorProps: {
       attributes: {
         class:
-          "prose max-w-none focus:outline-none px-24 py-20 min-h-[1100px]",
+          "prose max-w-none focus:outline-none px-10 py-10 min-h-[1100px]",
       },
     },
   });
@@ -80,7 +80,7 @@ export default function GoogleDocsStyleEditor({
         {/* Title Row */}
         <div className="flex items-center gap-4 px-6 py-3">
           <input
-            defaultValue="Untitled document"
+            defaultValue="Answer Document"
             className="text-xl font-semibold outline-none focus:bg-muted px-2 py-1 rounded"
           />
         </div>
@@ -105,7 +105,7 @@ export default function GoogleDocsStyleEditor({
               <SelectValue placeholder="Arial" />
             </SelectTrigger>
             <SelectContent>
-              {["Arial", "Georgia", "Times New Roman", "Verdana"].map((f) => (
+              {["Arial", "Georgia", "Times New Roman", "Verdana", "Courier New", "Comic Sans MS", "Cursive", "Sans Serif"].map((f) => (
                 <SelectItem key={f} value={f}>
                   {f}
                 </SelectItem>

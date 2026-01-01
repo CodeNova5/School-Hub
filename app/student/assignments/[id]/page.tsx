@@ -181,7 +181,7 @@ export default function StudentAssignmentDetails() {
                                         Text Answer
                                     </p>
                                     <div className="rounded-lg border bg-muted/30 p-4 whitespace-pre-wrap">
-                                        {submission.answer_text}
+                                        {submission.submission_text}
                                     </div>
                                 </div>
                             ) : (

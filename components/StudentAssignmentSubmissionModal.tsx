@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Upload, FileText, Calendar, Clock } from "lucide-react";
 import GoogleDocsStyleEditor from "./GoogleDocsStyleEditor";
+import { FilePreview } from "./file-preview";
 
 export default function StudentAssignmentSubmission() {
   const { id } = useParams();
@@ -99,6 +100,11 @@ export default function StudentAssignmentSubmission() {
             <span className="flex items-center gap-2"><FileText className="h-4 w-4" /> Type: {assignment.submission_type}</span>
           </div>
         </CardHeader>
+        {assignment.file_url && (
+          <CardContent>
+            <FilePreview fileUrl={assignment.file_url} />
+          </CardContent>
+        )}
       </Card>
 
       {/* ===== Editor Section ===== */}

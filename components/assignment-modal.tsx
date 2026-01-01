@@ -32,6 +32,8 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
   const [submissionType, setSubmissionType] = useState<'text' | 'file' | 'both'>('text');
   const [totalMarks, setTotalMarks] = useState(20);
   const [allowLate, setAllowLate] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -76,28 +78,62 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
     }
 
     setIsSaving(true);
-    const { error } = await supabase.from('assignments').insert({
-      teacher_id: teacherId,
-      class_id: selectedClass,
-      subject_id: selectedSubject,
-      title,
-      description,
-      instructions,
-      due_date: dueDate,
-      submission_type: submissionType,
-      total_marks: totalMarks,
-      allow_late_submission: allowLate,
-    });
 
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      // 1. Create assignment record without file_url
+      const { data: assignmentData, error: insertError } = await supabase
+        .from('assignments')
+        .insert({
+          teacher_id: teacherId,
+          class_id: selectedClass,
+          subject_id: selectedSubject,
+          title,
+          description,
+          instructions,
+          due_date: dueDate,
+          submission_type: submissionType,
+          total_marks: totalMarks,
+          allow_late_submission: allowLate,
+        })
+        .select('id')
+        .single();
+
+      if (insertError) throw insertError;
+      const assignmentId = assignmentData.id;
+
+      // 2. If a file is selected, upload it
+      if (file) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", "teacher_assignment_file");
+        formData.append("assignment_id", assignmentId);
+
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.error || "File upload failed");
+        }
+        
+        const { fileUrl } = await res.json();
+
+        // 3. Update the assignment with the file_url
+        const { error: updateError } = await supabase
+          .from('assignments')
+          .update({ file_url: fileUrl })
+          .eq('id', assignmentId);
+
+        if (updateError) throw updateError;
+      }
+
       toast.success('Assignment created');
       onSave();
       onClose();
-    }
 
-    setIsSaving(false);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create assignment');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -133,6 +169,19 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
         <Input placeholder="Assignment title" value={title} onChange={(e) => setTitle(e.target.value)} />
         <Textarea placeholder="Short description" value={description} onChange={(e) => setDescription(e.target.value)} />
         <Textarea placeholder="Detailed instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Attach file (Optional)</label>
+          <label className="flex items-center gap-3 cursor-pointer border rounded-md p-3 hover:bg-muted transition">
+            <Upload className="h-5 w-5 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">{file ? file.name : "Upload PDF, DOC, Image, etc."}</span>
+            <input
+              type="file"
+              hidden
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
+          </label>
+        </div>
+
 
         <div className="grid grid-cols-2 gap-4">
           <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />

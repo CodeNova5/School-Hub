@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "@octokit/rest";
 
-type UploadType = "student_photo" | "assignment_file";
+type UploadType = "student_photo" | "assignment_file" | "teacher_assignment_file";
 
 export async function POST(req: Request) {
   try {
@@ -53,6 +53,18 @@ export async function POST(req: Request) {
 
         path = `assignments/${assignmentId}/${studentId}-${file.name}`;
         commitMessage = `Upload assignment ${assignmentId} by ${studentId}`;
+        break;
+      }
+
+      case "teacher_assignment_file": {
+        const assignmentId = form.get("assignment_id") as string;
+
+        if (!assignmentId) {
+          throw new Error("assignment_id is required");
+        }
+
+        path = `assignments/${assignmentId}/${file.name}`;
+        commitMessage = `Upload teacher assignment ${assignmentId}`;
         break;
       }
 

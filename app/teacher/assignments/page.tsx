@@ -101,22 +101,40 @@ export default function AssignmentsPage() {
 
   const [teacherId, setTeacherId] = useState("");
   const [openModal, setOpenModal] = useState(false);
+  type CacheKey = string;
+
+  const assignmentsCache = new Map<
+    CacheKey,
+    {
+      data: Assignment[];
+      total: number;
+      timestamp: number;
+    }
+  >();
+
+  function getCacheKey(teacherId: string, page: number) {
+    return `${teacherId}-page-${page}`;
+  }
 
   /* ---------------------------------------------------------------------- */
   /* LOAD DATA                                                              */
   /* ---------------------------------------------------------------------- */
+  async function loadAssignments({ revalidate = true } = {}) {
+    if (!teacherId) return;
 
-  async function loadAssignments() {
-    setLoading(true);
+    const cacheKey = getCacheKey(teacherId, page);
+    const cached = assignmentsCache.get(cacheKey);
+
+    // 1️⃣ Serve cache instantly
+    if (cached) {
+      setAssignments(cached.data);
+      setTotal(cached.total);
+      if (!revalidate) return;
+    }
+
+    setLoading(!cached);
+
     try {
-      const user = await getCurrentUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const teacher = await getTeacherByUserId(user.id);
-      if (!teacher) throw new Error("Teacher not found");
-
-      setTeacherId(teacher.id);
-
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
@@ -124,14 +142,14 @@ export default function AssignmentsPage() {
         .from("assignments")
         .select(
           `
-          *,
-          classes(name),
-          subjects(name),
-          assignment_submissions(id, grade)
-        `,
+        *,
+        classes(name),
+        subjects(name),
+        assignment_submissions(id, grade)
+      `,
           { count: "exact" }
         )
-        .eq("teacher_id", teacher.id)
+        .eq("teacher_id", teacherId)
         .order("due_date", { ascending: true })
         .range(from, to);
 
@@ -152,14 +170,27 @@ export default function AssignmentsPage() {
           };
         }) || [];
 
+      // 2️⃣ Update state
       setAssignments(normalized);
       setTotal(count || 0);
+
+      // 3️⃣ Update cache
+      assignmentsCache.set(cacheKey, {
+        data: normalized,
+        total: count || 0,
+        timestamp: Date.now(),
+      });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    loadAssignments();
+  }, [page, teacherId]);
+
 
   /* ---------------------------------------------------------------------- */
   /* FILTERS                                                                */
@@ -208,17 +239,46 @@ export default function AssignmentsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this assignment?")) return;
 
+    const cacheKey = getCacheKey(teacherId, page);
+
+    // 1️⃣ Snapshot current state
+    const previous = assignments;
+    const previousTotal = total;
+
+    // 2️⃣ Optimistic update
+    setAssignments((prev) => prev.filter((a) => a.id !== id));
+    setTotal((t) => t - 1);
+
+    if (assignmentsCache.has(cacheKey)) {
+      assignmentsCache.set(cacheKey, {
+        ...assignmentsCache.get(cacheKey)!,
+        data: previous.filter((a) => a.id !== id),
+        total: previousTotal - 1,
+        timestamp: Date.now(),
+      });
+    }
+
+    // 3️⃣ Server request
     const { error } = await supabase
       .from("assignments")
       .delete()
       .eq("id", id);
 
-    if (error) toast.error(error.message);
-    else {
+    if (error) {
+      // 4️⃣ Rollback on failure
+      setAssignments(previous);
+      setTotal(previousTotal);
+      toast.error("Delete failed. Restored.");
+    } else {
       toast.success("Assignment deleted");
-      loadAssignments();
     }
   }
+
+  function invalidateAssignmentsCache() {
+    assignmentsCache.clear();
+  }
+
+
 
   /* ---------------------------------------------------------------------- */
   /* RENDER                                                                 */
@@ -379,10 +439,30 @@ export default function AssignmentsPage() {
 
       <AssignmentModal
         open={openModal}
-        onClose={() => setOpenModal(false)}
-        onSave={loadAssignments}
         teacherId={teacherId}
+        onClose={() => setOpenModal(false)}
+        onSave={(newAssignment:any) => {
+          const cacheKey = getCacheKey(teacherId, page);
+
+          // 1️⃣ Optimistic UI update
+          setAssignments((prev) => [newAssignment, ...prev]);
+          setTotal((t) => t + 1);
+
+          // 2️⃣ Update cache
+          assignmentsCache.set(cacheKey, {
+            data: [newAssignment, ...assignments],
+            total: total + 1,
+            timestamp: Date.now(),
+          });
+
+          // 3️⃣ Close modal instantly
+          setOpenModal(false);
+
+          // 4️⃣ Background revalidation (no spinner)
+          loadAssignments({ revalidate: true });
+        }}
       />
+
     </DashboardLayout>
   );
 }

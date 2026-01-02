@@ -150,10 +150,10 @@ export default function AssignmentDetailsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="flex items-center justify-between">
-        {/* ================= ASSIGNMENT HEADER ================= */}
+      <div className="space-y-8">
+        {/* Header */}
         <div>
-          <h1 className="text-4xl font-bold">{assignment.title}</h1>
+          <h1 className="text-3xl font-bold">{assignment.title}</h1>
 
           <div className="flex gap-2 mt-4 flex-wrap">
             <Badge variant="outline">{assignment.classes?.name}</Badge>
@@ -165,174 +165,172 @@ export default function AssignmentDetailsPage() {
           </div>
         </div>
 
-       
+        {/* Assignment Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignment Info</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {assignment.description || "No description"}
+            </p>
 
-          {/* ================= SIDEBAR ================= */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Assignment Info</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
-              <p className="text-sm text-muted-foreground">
-                {assignment.description || "No description"}
-              </p>
-
-              <div className="border-t border-gray-100 pt-6 space-y-3">
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                    <p className="font-medium text-blue-900">{getSubmissionLabel(assignment.submission_type)}</p>
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <p className="font-medium text-blue-900">{getSubmissionLabel(assignment.submission_type)}</p>
                 </div>
+              </div>
 
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <p className="text-sm text-gray-600">Total Marks</p>
-                  <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <p className="text-sm text-gray-600">Total Marks</p>
+                <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
+              </div>
+
+              {!assignment.allow_late_submission && (
+                <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                  <p className="text-sm font-medium text-red-900">No Late Submissions Allowed</p>
                 </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-                {!assignment.allow_late_submission && (
-                  <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                    <p className="text-sm font-medium text-red-900">No Late Submissions Allowed</p>
-                  </div>
-                )}
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex flex-wrap gap-4">
+              <Input
+                placeholder="Search student..."
+                className="w-48"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+
+              <Button
+                variant={statusFilter === "all" ? "default" : "outline"}
+                onClick={() => setStatusFilter("all")}
+              >
+                All
+              </Button>
+              <Button
+                variant={statusFilter === "ungraded" ? "default" : "outline"}
+                onClick={() => setStatusFilter("ungraded")}
+              >
+                Ungraded
+              </Button>
+              <Button
+                variant={statusFilter === "graded" ? "default" : "outline"}
+                onClick={() => setStatusFilter("graded")}
+              >
+                Graded
+              </Button>
+
+              <Button
+                variant={lateOnly ? "destructive" : "outline"}
+                onClick={() => setLateOnly(v => !v)}
+              >
+                Late
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() =>
+                  setDateOrder(o => (o === "newest" ? "oldest" : "newest"))
+                }
+              >
+                {dateOrder === "newest" ? "Newest" : "Oldest"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="bg-white border border-gray-200">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-4xl font-bold text-gray-900">{submissions.length}</p>
+                <p className="text-sm text-gray-500 mt-1">Total Submissions</p>
               </div>
             </CardContent>
           </Card>
-
-          {/* ================= STUDENT SUBMISSIONS ================= */}
-          <div>
-
-            {/* ===== Section Header ===== */}
-            <Card>
-              <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
-                <div className="flex flex-wrap justify-between gap-4">
-                  <div className="grid grid-cols-3 gap-4 mb-8">
-                    <h2 className="text-2xl font-bold col-span-3">Student Submissions</h2>
-                    <Card className="bg-white border border-gray-200">
-                      <CardContent className="pt-6">
-                        <div className="text-center">
-                          <p className="text-4xl font-bold text-gray-900">{submissions.length}</p>
-                          <p className="text-sm text-gray-500 mt-1">Total Submissions</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-white border border-gray-200">
-                      <CardContent className="pt-6">
-                        <div className="text-center">
-                          <p className="text-4xl font-bold text-green-600">{gradedCount}</p>
-                          <p className="text-sm text-gray-500 mt-1">Graded</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="bg-white border border-gray-200">
-                      <CardContent className="pt-6">
-                        <div className="text-center">
-                          <p className="text-4xl font-bold text-red-600">{lateCount}</p>
-                          <p className="text-sm text-gray-500 mt-1">Late Submissions</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="flex gap-2 flex-wrap">
-                    <Input
-                      placeholder="Search student..."
-                      className="w-48"
-                      value={search}
-                      onChange={e => setSearch(e.target.value)}
-                    />
-
-                    <Button
-                      variant={statusFilter === "all" ? "default" : "outline"}
-                      onClick={() => setStatusFilter("all")}
-                    >
-                      All
-                    </Button>
-                    <Button
-                      variant={statusFilter === "ungraded" ? "default" : "outline"}
-                      onClick={() => setStatusFilter("ungraded")}
-                    >
-                      Ungraded
-                    </Button>
-                    <Button
-                      variant={statusFilter === "graded" ? "default" : "outline"}
-                      onClick={() => setStatusFilter("graded")}
-                    >
-                      Graded
-                    </Button>
-
-                    <Button
-                      variant={lateOnly ? "destructive" : "outline"}
-                      onClick={() => setLateOnly(v => !v)}
-                    >
-                      Late
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        setDateOrder(o => (o === "newest" ? "oldest" : "newest"))
-                      }
-                    >
-                      {dateOrder === "newest" ? "Newest" : "Oldest"}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ===== Submissions List ===== */}
-            {filteredSubmissions.length === 0 && (
-              <Card>
-                <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
-                  No submissions match this filter.
-                </CardContent>
-              </Card>
-            )}
-
-            {filteredSubmissions.map(sub => (
-              <Card
-                key={sub.id}
-                className="cursor-pointer"
-                onClick={() => setActiveSubmission(sub)}
-              >
-                <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
-                  <div>
-                    <p className="font-semibold">
-                      {sub.students?.first_name} {sub.students?.last_name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(sub.submitted_at).toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    {!sub.submitted_on_time && (
-                      <Badge variant="destructive">Late</Badge>
-                    )}
-                    <Badge variant={sub.graded_at ? "success" : "warning"}>
-                      {sub.graded_at ? "Graded" : "Ungraded"}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card className="bg-white border border-gray-200">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-4xl font-bold text-green-600">{gradedCount}</p>
+                <p className="text-sm text-gray-500 mt-1">Graded</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white border border-gray-200">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <p className="text-4xl font-bold text-red-600">{lateCount}</p>
+                <p className="text-sm text-gray-500 mt-1">Late Submissions</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        <SubmissionModal
-          submission={activeSubmission}
-          submissions={filteredSubmissions}
-          activeIndex={activeIndex}
-          setActiveSubmission={setActiveSubmission}
-          assignment={assignment}
-          grading={grading}
-          setGrading={setGrading}
-          savingId={savingId}
-          saveGrade={saveGrade}
-          onClose={() => setActiveSubmission(null)}
-        />
-      
+        {/* Submissions List */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Student Submissions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {filteredSubmissions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No submissions match this filter.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredSubmissions.map(sub => (
+                  <div
+                    key={sub.id}
+                    className="border rounded-lg p-4 hover:shadow-md transition cursor-pointer"
+                    onClick={() => setActiveSubmission(sub)}
+                  >
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <p className="font-semibold">
+                          {sub.students?.first_name} {sub.students?.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(sub.submitted_at).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <div className="flex gap-2">
+                        {!sub.submitted_on_time && (
+                          <Badge variant="destructive">Late</Badge>
+                        )}
+                        <Badge variant={sub.graded_at ? "success" : "warning"}>
+                          {sub.graded_at ? "Graded" : "Ungraded"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <SubmissionModal
+        submission={activeSubmission}
+        submissions={filteredSubmissions}
+        activeIndex={activeIndex}
+        setActiveSubmission={setActiveSubmission}
+        assignment={assignment}
+        grading={grading}
+        setGrading={setGrading}
+        savingId={savingId}
+        saveGrade={saveGrade}
+        onClose={() => setActiveSubmission(null)}
+      />
     </DashboardLayout>
   );
 }

@@ -14,7 +14,7 @@ import { Loader2, FileText, Upload } from 'lucide-react';
 interface AssignmentModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: () => void;
+  onSave: (assignment?: any) => void;
   teacherId: string;
 }
 
@@ -125,8 +125,15 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
         if (updateError) throw updateError;
       }
 
+      // 4. Fetch the full assignment with relationships
+      const { data: fullAssignment } = await supabase
+        .from('assignments')
+        .select('*, classes(name), subjects(name), assignment_submissions(id, grade)')
+        .eq('id', assignmentId)
+        .single();
+
       toast.success('Assignment created');
-      onSave();
+      onSave(fullAssignment);
       onClose();
 
     } catch (error: any) {

@@ -319,6 +319,8 @@ export function SubmissionModal({
                   <Input
                     type="number"
                     placeholder="0"
+                    min={0}
+                    max={assignment.total_marks}
                     className="text-2xl font-bold py-4 h-14"
                     defaultValue={submission.grade ?? ""}
                     disabled={!!submission.graded_at}
@@ -425,7 +427,7 @@ function FeedbackEditor({
           U
         </button>
       </div>
-      <EditorContent editor={editor} />
+      <EditorContent className="height-[20px]" editor={editor} />
     </div>
   );
 }

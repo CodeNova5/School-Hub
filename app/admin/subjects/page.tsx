@@ -108,7 +108,6 @@ const PREDEFINED_SUBJECTS = {
 
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
@@ -117,43 +116,20 @@ export default function SubjectsPage() {
   const [customSubjectName, setCustomSubjectName] = useState<string>('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [selectedReligion, setSelectedReligion] = useState<string>('');
-  const [selectedTeacher, setSelectedTeacher] = useState<string>('');
   const [isOptional, setIsOptional] = useState(false);
 
   useEffect(() => {
     fetchSubjects();
-    fetchTeachers();
+
   }, []);
 
   async function fetchSubjects() {
     const { data } = await supabase.from('subjects').select('*').order('education_level', { ascending: true }).order('name');
     if (data) {
-      const subjectsWithTeachers = await Promise.all(
-        data.map(async (subject) => {
-          if (subject.teacher_id) {
-            const teacher = teachers.find((t) => t.id === subject.teacher_id);
-            return {
-              ...subject,
-              teacherName: teacher
-                ? `${teacher.first_name} ${teacher.last_name}`
-                : undefined,
-            };
-          }
-          return subject;
-        })
-      );
-      setSubjects(subjectsWithTeachers);
+      setSubjects(data);
     }
   }
 
-  async function fetchTeachers() {
-    const { data } = await supabase
-      .from('teachers')
-      .select('*')
-      .eq('status', 'active')
-      .order('first_name');
-    if (data) setTeachers(data);
-  }
 
   function getAvailableSubjects(): string[] {
     if (!selectedLevel) return [];
@@ -166,7 +142,7 @@ export default function SubjectsPage() {
     if (selectedLevel === 'SSS' && !selectedDepartment) {
       predefinedKey = 'SSS-All';
     }
-     
+
 
     const allPredefined =
       PREDEFINED_SUBJECTS[predefinedKey as keyof typeof PREDEFINED_SUBJECTS] || [];
@@ -206,7 +182,7 @@ export default function SubjectsPage() {
       department: selectedLevel === 'SSS' ? selectedDepartment : null,
       religion: selectedReligion || null,
       is_optional: isOptional,
-      teacher_id: selectedTeacher || null,
+
     };
 
     if (editingSubject) {
@@ -267,7 +243,6 @@ export default function SubjectsPage() {
     setCustomSubjectName(subject.name);
 
     setSelectedReligion(subject.religion || '');
-    setSelectedTeacher(subject.teacher_id || '');
     setIsOptional(subject.is_optional);
     setIsDialogOpen(true);
   }
@@ -280,7 +255,6 @@ export default function SubjectsPage() {
     setCustomSubjectName('');
     setSelectedDepartment('');
     setSelectedReligion('');
-    setSelectedTeacher('');
     setIsOptional(false);
   }
 
@@ -303,19 +277,19 @@ export default function SubjectsPage() {
     }
   };
 
- const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
-  let groupKey: string;
+  const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
+    let groupKey: string;
 
-  if (subject.education_level === 'SSS') {
-    groupKey = subject.department ? `SSS - ${subject.department}` : 'SSS - All';
-  } else {
-    groupKey = subject.education_level;
-  }
+    if (subject.education_level === 'SSS') {
+      groupKey = subject.department ? `SSS - ${subject.department}` : 'SSS - All';
+    } else {
+      groupKey = subject.education_level;
+    }
 
-  if (!acc[groupKey]) acc[groupKey] = [];
-  acc[groupKey].push(subject);
-  return acc;
-}, {} as Record<string, Subject[]>);
+    if (!acc[groupKey]) acc[groupKey] = [];
+    acc[groupKey].push(subject);
+    return acc;
+  }, {} as Record<string, Subject[]>);
 
   const availableSubjectsForSelection = getAvailableSubjects();
 
@@ -369,7 +343,7 @@ export default function SubjectsPage() {
                   )}
                 </div>
 
-               
+
                 {selectedLevel === 'SSS' && (
                   <div>
                     <Label htmlFor="department">Department (Optional)</Label>
@@ -395,35 +369,35 @@ export default function SubjectsPage() {
                 )}
 
                 {selectedLevel && !editingSubject && (
-                    <div>
-                      <Label htmlFor="subject">Subject</Label>
-                      <select
-                        id="subject"
-                        value={selectedSubject}
-                        onChange={(e) => {
-                          setSelectedSubject(e.target.value);
-                          if (e.target.value !== 'custom') {
-                            setCustomSubjectName('');
-                          }
-                        }}
-                        className="w-full px-3 py-2 border rounded-md"
-                        required
-                      >
-                        <option value="">Select Subject</option>
-                        {availableSubjectsForSelection.map((subject) => (
-                          <option key={subject} value={subject}>
-                            {subject}
-                          </option>
-                        ))}
-                        <option value="custom">Custom Subject (Not in List)</option>
-                      </select>
-                      {availableSubjectsForSelection.length === 0 && (
-                        <p className="text-xs text-amber-600 mt-1">
-                          All predefined subjects have been added. Use custom to add more.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <div>
+                    <Label htmlFor="subject">Subject</Label>
+                    <select
+                      id="subject"
+                      value={selectedSubject}
+                      onChange={(e) => {
+                        setSelectedSubject(e.target.value);
+                        if (e.target.value !== 'custom') {
+                          setCustomSubjectName('');
+                        }
+                      }}
+                      className="w-full px-3 py-2 border rounded-md"
+                      required
+                    >
+                      <option value="">Select Subject</option>
+                      {availableSubjectsForSelection.map((subject) => (
+                        <option key={subject} value={subject}>
+                          {subject}
+                        </option>
+                      ))}
+                      <option value="custom">Custom Subject (Not in List)</option>
+                    </select>
+                    {availableSubjectsForSelection.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        All predefined subjects have been added. Use custom to add more.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {(selectedSubject === 'custom' || editingSubject) && (
                   <div>
@@ -437,23 +411,6 @@ export default function SubjectsPage() {
                     />
                   </div>
                 )}
-
-                <div>
-                  <Label htmlFor="teacher">Assign Teacher</Label>
-                  <select
-                    id="teacher"
-                    value={selectedTeacher}
-                    onChange={(e) => setSelectedTeacher(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md"
-                  >
-                    <option value="">No Teacher Assigned</option>
-                    {teachers.map((teacher) => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.first_name} {teacher.last_name} - {teacher.staff_id}
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
                 <div>
                   <Label htmlFor="religion">Religion (Optional)</Label>
@@ -545,7 +502,6 @@ export default function SubjectsPage() {
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {levelSubjects.map((subject) => {
-                    const teacher = teachers.find((t) => t.id === subject.teacher_id);
                     return (
                       <Card key={subject.id} className="hover:shadow-lg transition-shadow">
                         <CardContent className="p-4">
@@ -570,14 +526,6 @@ export default function SubjectsPage() {
                                     </Badge>
                                   )}
                                 </div>
-                                {teacher && (
-                                  <div className="flex items-center gap-1 text-xs text-gray-600">
-                                    <User className="h-3 w-3" />
-                                    <span className="truncate">
-                                      {teacher.first_name} {teacher.last_name}
-                                    </span>
-                                  </div>
-                                )}
                               </div>
                             </div>
                             <div className="flex gap-1 flex-shrink-0">

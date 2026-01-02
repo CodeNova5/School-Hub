@@ -132,7 +132,6 @@ CREATE TABLE IF NOT EXISTS subjects (
     religion IS NULL OR religion = ANY (ARRAY['Christian', 'Muslim'])
   ),
   is_optional boolean DEFAULT false,
-  teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
   created_at timestamptz DEFAULT now()
 );
 
@@ -188,6 +187,7 @@ CREATE POLICY "Admins can manage students" ON students FOR ALL TO authenticated 
 CREATE TABLE IF NOT EXISTS subject_classes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+  teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
   class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
   created_at timestamptz DEFAULT now(),
   UNIQUE(subject_id, class_id)

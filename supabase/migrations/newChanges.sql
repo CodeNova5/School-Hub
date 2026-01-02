@@ -180,3 +180,7 @@ CHECK (session_id IS NULL OR session_id::text <> '');
 ALTER TABLE assignments
 ADD CONSTRAINT assignments_term_not_empty
 CHECK (term_id IS NULL OR term_id::text <> '');
+
+ALTER TABLE subject_classes
+ADD COLUMN IF NOT EXISTS teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS subject_code text NOT NULL;

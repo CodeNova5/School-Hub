@@ -197,10 +197,6 @@ export default function AssignmentsPage() {
   /* ---------------------------------------------------------------------- */
 
   useEffect(() => {
-    loadAssignments();
-  }, [page]);
-
-  useEffect(() => {
     let result = [...assignments];
 
     if (search) {

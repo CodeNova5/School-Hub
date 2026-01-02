@@ -100,6 +100,7 @@ export function AssignmentFilters({ teacherId, onChange }: AssignmentFiltersProp
   }, []);
 
   async function loadClasses() {
+    if (!teacherId) return;
     const { data: tc } = await supabase
       .from("teacher_classes")
       .select("class_id")

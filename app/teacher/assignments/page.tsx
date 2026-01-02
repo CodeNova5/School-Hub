@@ -344,10 +344,13 @@ export default function AssignmentsPage() {
         <Card>
           <CardContent className="flex flex-col gap-4 pt-6">
             <div className="flex flex-wrap gap-4">
-              <AssignmentFilters
-                teacherId={teacherId}
-                onChange={setFilters}
-              />
+              {teacherId && (
+                <AssignmentFilters
+                  teacherId={teacherId}
+                  onChange={setFilters}
+                />
+              )}
+
 
               <Input
                 placeholder="Search..."

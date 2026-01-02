@@ -96,70 +96,6 @@ export function SubmissionModal({
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col" hideClose>
-        {/* Assignment Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Assignment Info</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {assignment.description || "No description"}
-            </p>
-
-            {assignment.file_url && (
-              <div>
-                <p className="font-medium mb-2">Attached File</p>
-                <div className="border rounded-lg p-4">
-                  {assignmentIsImage && (
-                    <img
-                      src={assignmentFileUrl}
-                      className="w-full max-h-96 object-contain rounded-lg border"
-                    />
-                  )}
-                  {assignmentIsPdf && (
-                    <iframe
-                      src={assignmentFileUrl}
-                      className="w-full h-[60vh] rounded-md border"
-                    />
-                  )}
-                  {assignmentIsOffice && (
-                    <iframe
-                      src={assignmentGoogleViewerUrl}
-                      className="w-full h-[60vh] rounded-md border"
-                    />
-                  )}
-                  {!assignmentIsImage && !assignmentIsPdf && !assignmentIsOffice && (
-                    <div className="flex items-center gap-4">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">
-                          {assignment.file_url.split("/").pop()}
-                        </p>
-                        <a
-                          href={assignmentFileUrl}
-                          target="_blank"
-                          className="text-sm text-primary hover:underline"
-                        >
-                          Download File
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p className="text-sm text-gray-600">Total Marks</p>
-                <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
-              </div>
-
-            </div>
-          </CardContent>
-        </Card>
 
         {/* ================= HEADER ================= */}
         <DialogHeader className="px-8 py-6 border-b bg-gradient-to-r from-gray-50 to-white">
@@ -229,7 +165,70 @@ export function SubmissionModal({
         {/* ================= SCROLLABLE CONTENT ================= */}
         <ScrollArea className="flex-1 overflow-y-auto">
           <div className="p-8 space-y-8">
+            {/* Assignment Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Assignment Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  {assignment.description || "No description"}
+                </p>
 
+                {assignment.file_url && (
+                  <div>
+                    <p className="font-medium mb-2">Attached File</p>
+                    <div className="border rounded-lg p-4">
+                      {assignmentIsImage && (
+                        <img
+                          src={assignmentFileUrl}
+                          className="w-full max-h-96 object-contain rounded-lg border"
+                        />
+                      )}
+                      {assignmentIsPdf && (
+                        <iframe
+                          src={assignmentFileUrl}
+                          className="w-full h-[60vh] rounded-md border"
+                        />
+                      )}
+                      {assignmentIsOffice && (
+                        <iframe
+                          src={assignmentGoogleViewerUrl}
+                          className="w-full h-[60vh] rounded-md border"
+                        />
+                      )}
+                      {!assignmentIsImage && !assignmentIsPdf && !assignmentIsOffice && (
+                        <div className="flex items-center gap-4">
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">
+                              {assignment.file_url.split("/").pop()}
+                            </p>
+                            <a
+                              href={assignmentFileUrl}
+                              target="_blank"
+                              className="text-sm text-primary hover:underline"
+                            >
+                              Download File
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-sm text-gray-600">Total Marks</p>
+                    <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
+                  </div>
+
+                </div>
+              </CardContent>
+            </Card>
             {/* ================= STUDENT ANSWER ================= */}
             <div className="bg-white border-2 border-gray-200 rounded-lg p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-6">Student Answer</h3>

@@ -147,7 +147,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
           due_date: dueDate,
           total_marks: totalMarks,
           submission_type: submissionType,
-          allow_late: allowLate,
+          allow_late_submission: allowLate,
         })
         .select(`
     *,

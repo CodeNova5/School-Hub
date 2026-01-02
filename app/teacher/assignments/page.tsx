@@ -441,7 +441,7 @@ export default function AssignmentsPage() {
         open={openModal}
         teacherId={teacherId}
         onClose={() => setOpenModal(false)}
-        onSave={(newAssignment:any) => {
+        onSave={(newAssignment) => {
           const cacheKey = getCacheKey(teacherId, page);
 
           // 1️⃣ Optimistic UI update

@@ -14,7 +14,8 @@ import { Loader2, FileText, Upload } from 'lucide-react';
 interface AssignmentModalProps {
   open: boolean;
   onClose: () => void;
-  onSave: (assignment?: any) => void;
+  onSave: (assignment: any) => void;
+
   teacherId: string;
 }
 
@@ -91,12 +92,14 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
           description,
           instructions,
           due_date: dueDate,
-          submission_type: submissionType,
-          total_marks: totalMarks,
-          allow_late_submission: allowLate,
         })
-        .select('id')
+        .select(`
+    *,
+    classes(name),
+    subjects(name)
+  `)
         .single();
+
 
       if (insertError) throw insertError;
       const assignmentId = assignmentData.id;
@@ -113,7 +116,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
           const errorData = await res.json();
           throw new Error(errorData.error || "File upload failed");
         }
-        
+
         const { fileUrl } = await res.json();
 
         // 3. Update the assignment with the file_url
@@ -125,15 +128,18 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
         if (updateError) throw updateError;
       }
 
-      // 4. Fetch the full assignment with relationships
-      const { data: fullAssignment } = await supabase
-        .from('assignments')
-        .select('*, classes(name), subjects(name), assignment_submissions(id, grade)')
-        .eq('id', assignmentId)
-        .single();
+      toast.success("Assignment created");
+      onSave({
+        ...assignmentData,
+        assignment_submissions: [],
+        submissionCount: 0,
+        gradedCount: 0,
+        isFullyGraded: false,
+        hasPendingGrading: false,
+        isOverdue: new Date(assignmentData.due_date) < new Date(),
+      });
+      onClose();
 
-      toast.success('Assignment created');
-      onSave(fullAssignment);
       onClose();
 
     } catch (error: any) {

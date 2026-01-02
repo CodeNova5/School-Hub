@@ -19,7 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-
+import { AssignmentFilters } from "@/components/AssignmentFilters";
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -98,6 +98,11 @@ export default function AssignmentsPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "no-submissions" | "submitted" | "pending-grading" | "fully-graded" | "overdue"
   >("all");
+  const [filters, setFilters] = useState<{
+    sessionId?: string;
+    termId?: string;
+    classId?: string;
+  }>({});
 
   const [teacherId, setTeacherId] = useState("");
   const [openModal, setOpenModal] = useState(false);
@@ -112,9 +117,19 @@ export default function AssignmentsPage() {
     }
   >();
 
-  function getCacheKey(teacherId: string, page: number) {
-    return `${teacherId}-page-${page}`;
+  function getCacheKey(
+    teacherId: string,
+    page: number,
+    filters: {
+      sessionId?: string;
+      termId?: string;
+      classId?: string;
+    }
+  ) {
+    return `${teacherId}-${page}-${filters.sessionId ?? "all"}-${filters.termId ?? "all"
+      }-${filters.classId ?? "all"}`;
   }
+
 
   /* ---------------------------------------------------------------------- */
   /* LOAD DATA                                                              */
@@ -122,7 +137,7 @@ export default function AssignmentsPage() {
   async function loadAssignments({ revalidate = true } = {}) {
     if (!teacherId) return;
 
-    const cacheKey = getCacheKey(teacherId, page);
+    const cacheKey = getCacheKey(teacherId, page, filters);
     const cached = assignmentsCache.get(cacheKey);
 
     // 1️⃣ Serve cache instantly
@@ -138,7 +153,7 @@ export default function AssignmentsPage() {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data, count, error } = await supabase
+      let query = supabase
         .from("assignments")
         .select(
           `
@@ -149,7 +164,19 @@ export default function AssignmentsPage() {
       `,
           { count: "exact" }
         )
-        .eq("teacher_id", teacherId)
+        .eq("teacher_id", teacherId);
+
+      /* -------------------- SERVER-SIDE FILTERS -------------------- */
+      if (filters.sessionId)
+        query = query.eq("session_id", filters.sessionId);
+
+      if (filters.termId)
+        query = query.eq("term_id", filters.termId);
+
+      if (filters.classId)
+        query = query.eq("class_id", filters.classId);
+
+      const { data, count, error } = await query
         .order("due_date", { ascending: true })
         .range(from, to);
 
@@ -170,11 +197,9 @@ export default function AssignmentsPage() {
           };
         }) || [];
 
-      // 2️⃣ Update state
       setAssignments(normalized);
       setTotal(count || 0);
 
-      // 3️⃣ Update cache
       assignmentsCache.set(cacheKey, {
         data: normalized,
         total: count || 0,
@@ -186,6 +211,7 @@ export default function AssignmentsPage() {
       setLoading(false);
     }
   }
+
 
   // Initialize teacher ID
   useEffect(() => {
@@ -249,7 +275,7 @@ export default function AssignmentsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this assignment?")) return;
 
-    const cacheKey = getCacheKey(teacherId, page);
+    const cacheKey = getCacheKey(teacherId, page, filters);
 
     // 1️⃣ Snapshot current state
     const previous = assignments;
@@ -313,35 +339,43 @@ export default function AssignmentsPage() {
 
         {/* Filters */}
         <Card>
-          <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
-            <Input
-              placeholder="Search..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <CardContent className="flex flex-col gap-4 pt-6">
+            <div className="flex flex-wrap gap-4">
+              <AssignmentFilters
+                teacherId={teacherId}
+                onChange={setFilters}
+              />
 
-            <select
-              className="border rounded-md px-3 py-2"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-            >
-              <option value="all">All</option>
-              <option value="no-submissions">No submissions</option>
-              <option value="submitted">Submitted</option>
-              <option value="pending-grading">Pending grading</option>
-              <option value="fully-graded">Fully graded</option>
-              <option value="overdue">Overdue</option>
-            </select>
+              <Input
+                placeholder="Search..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="max-w-xs"
+              />
 
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("all");
-              }}
-            >
-              Clear
-            </Button>
+              <select
+                className="border rounded-md px-3 py-2"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+              >
+                <option value="all">All</option>
+                <option value="no-submissions">No submissions</option>
+                <option value="submitted">Submitted</option>
+                <option value="pending-grading">Pending grading</option>
+                <option value="fully-graded">Fully graded</option>
+                <option value="overdue">Overdue</option>
+              </select>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                }}
+              >
+                Clear
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -452,7 +486,7 @@ export default function AssignmentsPage() {
         teacherId={teacherId}
         onClose={() => setOpenModal(false)}
         onSave={(newAssignment) => {
-          const cacheKey = getCacheKey(teacherId, page);
+          const cacheKey = getCacheKey(teacherId, page, filters);
 
           // 1️⃣ Optimistic UI update
           setAssignments((prev) => [newAssignment, ...prev]);

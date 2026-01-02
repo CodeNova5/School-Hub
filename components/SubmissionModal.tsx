@@ -18,7 +18,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import { ChevronLeft, ChevronRight, X, Clock } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /* ================= SUBMISSION MODAL ================= */
 
@@ -76,8 +76,7 @@ export function SubmissionModal({
   }, [submission, submissions, activeIndex, setActiveSubmission, onClose]);
 
   if (!submission) return null;
-  const fileUrl = submission.file_url;
-
+  const fileUrl = submission.file_url ?? null;
   const ext = fileUrl?.split(".").pop()?.toLowerCase();
   const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
   const isPdf = ext === "pdf";
@@ -85,10 +84,82 @@ export function SubmissionModal({
   const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
     fileUrl
   )}&embedded=true`;
+  const assignmentFileUrl = assignment?.file_url ?? null;
+  const assignmentExt = assignmentFileUrl?.split(".").pop()?.toLowerCase();
+  const assignmentIsImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(assignmentExt);
+  const assignmentIsPdf = assignmentExt === "pdf";
+  const assignmentIsOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(assignmentExt);
+  const assignmentGoogleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
+    assignmentFileUrl
+  )}&embedded=true`;
 
   return (
     <Dialog open={!!submission} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col" hideClose>
+        {/* Assignment Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignment Info</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {assignment.description || "No description"}
+            </p>
+
+            {assignment.file_url && (
+              <div>
+                <p className="font-medium mb-2">Attached File</p>
+                <div className="border rounded-lg p-4">
+                  {assignmentIsImage && (
+                    <img
+                      src={assignmentFileUrl}
+                      className="w-full max-h-96 object-contain rounded-lg border"
+                    />
+                  )}
+                  {assignmentIsPdf && (
+                    <iframe
+                      src={assignmentFileUrl}
+                      className="w-full h-[60vh] rounded-md border"
+                    />
+                  )}
+                  {assignmentIsOffice && (
+                    <iframe
+                      src={assignmentGoogleViewerUrl}
+                      className="w-full h-[60vh] rounded-md border"
+                    />
+                  )}
+                  {!assignmentIsImage && !assignmentIsPdf && !assignmentIsOffice && (
+                    <div className="flex items-center gap-4">
+                      <FileText className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">
+                          {assignment.file_url.split("/").pop()}
+                        </p>
+                        <a
+                          href={assignmentFileUrl}
+                          target="_blank"
+                          className="text-sm text-primary hover:underline"
+                        >
+                          Download File
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <p className="text-sm text-gray-600">Total Marks</p>
+                <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ================= HEADER ================= */}
         <DialogHeader className="px-8 py-6 border-b bg-gradient-to-r from-gray-50 to-white">

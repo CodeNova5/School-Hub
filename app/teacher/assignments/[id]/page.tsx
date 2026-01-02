@@ -138,6 +138,16 @@ export default function AssignmentDetailsPage() {
     setSavingId(null);
   }
 
+
+  const assignmentFileUrl = assignment?.file_url ?? null;
+  const assignmentExt = assignmentFileUrl?.split(".").pop()?.toLowerCase();
+  const assignmentIsImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(assignmentExt);
+  const assignmentIsPdf = assignmentExt === "pdf";
+  const assignmentIsOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(assignmentExt);
+  const assignmentGoogleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
+    assignmentFileUrl
+  )}&embedded=true`;
+  
   if (loading) {
     return (
       <DashboardLayout role="teacher">
@@ -174,6 +184,50 @@ export default function AssignmentDetailsPage() {
             <p className="text-sm text-muted-foreground">
               {assignment.description || "No description"}
             </p>
+
+            {assignment.file_url && (
+              <div>
+                <p className="font-medium mb-2">Attached File</p>
+                <div className="border rounded-lg p-4">
+                  {assignmentIsImage && (
+                    <img
+                      src={assignmentFileUrl}
+                      className="w-full max-h-96 object-contain rounded-lg border"
+                    />
+                  )}
+                  {assignmentIsPdf && (
+                    <iframe
+                      src={assignmentFileUrl}
+                      className="w-full h-[60vh] rounded-md border"
+                    />
+                  )}
+                  {assignmentIsOffice && (
+                    <iframe
+                      src={assignmentGoogleViewerUrl}
+                      className="w-full h-[60vh] rounded-md border"
+                    />
+                  )}
+                  {!assignmentIsImage && !assignmentIsPdf && !assignmentIsOffice && (
+                    <div className="flex items-center gap-4">
+                      <FileText className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">
+                          {assignment.file_url.split("/").pop()}
+                        </p>
+                        <a
+                          href={assignmentFileUrl}
+                          target="_blank"
+                          className="text-sm text-primary hover:underline"
+                        >
+                          Download File
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">

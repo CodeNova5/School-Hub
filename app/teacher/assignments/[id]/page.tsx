@@ -165,14 +165,14 @@ export default function AssignmentDetailsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
+       
 
           {/* ================= SIDEBAR ================= */}
           <Card>
             <CardHeader>
               <CardTitle>Assignment Info</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
               <p className="text-sm text-muted-foreground">
                 {assignment.description || "No description"}
               </p>
@@ -204,7 +204,7 @@ export default function AssignmentDetailsPage() {
 
             {/* ===== Section Header ===== */}
             <Card>
-              <CardContent className="py-6 space-y-4">
+              <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
                 <div className="flex flex-wrap justify-between gap-4">
                   <div className="grid grid-cols-3 gap-4 mb-8">
                     <h2 className="text-2xl font-bold col-span-3">Student Submissions</h2>
@@ -284,7 +284,7 @@ export default function AssignmentDetailsPage() {
             {/* ===== Submissions List ===== */}
             {filteredSubmissions.length === 0 && (
               <Card>
-                <CardContent className="py-12 text-center text-muted-foreground">
+                <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
                   No submissions match this filter.
                 </CardContent>
               </Card>
@@ -296,7 +296,7 @@ export default function AssignmentDetailsPage() {
                 className="cursor-pointer"
                 onClick={() => setActiveSubmission(sub)}
               >
-                <CardContent className="py-4 flex justify-between items-center">
+                <CardContent className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-6">
                   <div>
                     <p className="font-semibold">
                       {sub.students?.first_name} {sub.students?.last_name}
@@ -332,7 +332,7 @@ export default function AssignmentDetailsPage() {
           saveGrade={saveGrade}
           onClose={() => setActiveSubmission(null)}
         />
-      </div>
+      
     </DashboardLayout>
   );
 }

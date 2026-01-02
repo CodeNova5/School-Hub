@@ -34,17 +34,60 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
   const [totalMarks, setTotalMarks] = useState(20);
   const [allowLate, setAllowLate] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [terms, setTerms] = useState<any[]>([]);
+
+  const [selectedSession, setSelectedSession] = useState('');
+  const [selectedTerm, setSelectedTerm] = useState('');
 
 
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (open) loadClasses();
+    if (!open) return;
+    loadClasses();
+    loadSessions();
   }, [open]);
+
+  useEffect(() => {
+    if (!selectedSession) return;
+    loadTerms();
+  }, [selectedSession]);
+
 
   useEffect(() => {
     if (selectedClass) loadSubjects();
   }, [selectedClass]);
+
+  async function loadSessions() {
+    const { data, error } = await supabase
+      .from('sessions')
+      .select('*')
+      .order('start_date', { ascending: false });
+
+    if (error) {
+      toast.error("Failed to load sessions");
+      return;
+    }
+
+    setSessions(data || []);
+  }
+
+  async function loadTerms() {
+    const { data, error } = await supabase
+      .from('terms')
+      .select('*')
+      .eq('session_id', selectedSession)
+      .order('start_date');
+
+    if (error) {
+      toast.error("Failed to load terms");
+      return;
+    }
+
+    setTerms(data || []);
+  }
+
 
   async function loadClasses() {
     const { data } = await supabase
@@ -73,10 +116,18 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
   }
 
   async function handleSave() {
-    if (!selectedClass || !selectedSubject || !title || !dueDate) {
+    if (
+      !selectedSession ||
+      !selectedTerm ||
+      !selectedClass ||
+      !selectedSubject ||
+      !title ||
+      !dueDate
+    ) {
       toast.error('Please fill all required fields');
       return;
     }
+
 
     setIsSaving(true);
 
@@ -86,12 +137,17 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
         .from('assignments')
         .insert({
           teacher_id: teacherId,
+          session_id: selectedSession,
+          term_id: selectedTerm,
           class_id: selectedClass,
           subject_id: selectedSubject,
           title,
           description,
           instructions,
           due_date: dueDate,
+          total_marks: totalMarks,
+          submission_type: submissionType,
+          allow_late: allowLate,
         })
         .select(`
     *,
@@ -158,6 +214,39 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
             Create Assignment
           </DialogTitle>
         </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Select value={selectedSession} onValueChange={setSelectedSession}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select Session" />
+            </SelectTrigger>
+            <SelectContent>
+              {sessions.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={selectedTerm}
+            onValueChange={setSelectedTerm}
+            disabled={!selectedSession}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Term" />
+            </SelectTrigger>
+            <SelectContent>
+              {terms.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
 
         <div className="grid grid-cols-2 gap-4">
           <Select onValueChange={setSelectedClass}>

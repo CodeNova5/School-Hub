@@ -187,6 +187,20 @@ export default function AssignmentsPage() {
     }
   }
 
+  // Initialize teacher ID
+  useEffect(() => {
+    async function initTeacher() {
+      const user = await getCurrentUser();
+      if (user) {
+        const teacher = await getTeacherByUserId(user.id);
+        if (teacher) {
+          setTeacherId(teacher.id);
+        }
+      }
+    }
+    initTeacher();
+  }, []);
+
   useEffect(() => {
     loadAssignments();
   }, [page, teacherId]);

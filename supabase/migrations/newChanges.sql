@@ -170,3 +170,13 @@ ON DELETE SET NULL;
 --- file_url column inserted to store teacher uploaded files
 ALTER TABLE assignments
 ADD COLUMN file_url text;
+ALTER TABLE assignments
+ADD COLUMN IF NOT EXISTS session_id uuid REFERENCES sessions(id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS term_id uuid REFERENCES terms(id) ON DELETE SET NULL;
+ALTER TABLE assignments
+ADD CONSTRAINT assignments_session_not_empty
+CHECK (session_id IS NULL OR session_id::text <> '');
+
+ALTER TABLE assignments
+ADD CONSTRAINT assignments_term_not_empty
+CHECK (term_id IS NULL OR term_id::text <> '');

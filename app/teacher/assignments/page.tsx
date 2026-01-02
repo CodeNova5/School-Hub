@@ -134,6 +134,53 @@ export default function AssignmentsPage() {
   /* ---------------------------------------------------------------------- */
   /* LOAD DATA                                                              */
   /* ---------------------------------------------------------------------- */
+  
+    /* -------------------- Load sessions -------------------- */
+    useEffect(() => {
+      loadSessions();
+    }, []);
+
+    async function loadSessions() {
+      const { data } = await supabase
+        .from("sessions")
+        .select("*")
+        .order("start_date", { ascending: false });
+
+      if (!data) return;
+      
+      const current = data.find((s) => s.is_current);
+      if (current) {
+        setFilters((prev) => ({ ...prev, sessionId: current.id }));
+      }
+    }
+
+    /* -------------------- Load terms when session changes -------------------- */
+    useEffect(() => {
+      if (!filters.sessionId) return;
+
+      loadTerms(filters.sessionId);
+      setFilters((prev) => ({ ...prev, termId: undefined }));
+    }, [filters.sessionId]);
+
+    async function loadTerms(sessionId: string) {
+      const { data } = await supabase
+        .from("terms")
+        .select("*")
+        .eq("session_id", sessionId)
+        .order("start_date");
+
+      if (!data) return;
+
+      const current = data.find((t) => t.is_current);
+      if (current) {
+        setFilters((prev) => ({ ...prev, termId: current.id }));
+      }
+    }
+  
+  /* -------------------- Load assignments -------------------- */
+  
+  
+
   async function loadAssignments({ revalidate = true } = {}) {
     if (!teacherId) return;
 

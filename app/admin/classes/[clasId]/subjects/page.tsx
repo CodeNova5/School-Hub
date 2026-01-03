@@ -36,7 +36,9 @@ interface Teacher {
 }
 
 export default function ClassSubjectsPage() {
-  const { classId } = useParams<{ classId: string }>();
+  
+const params = useParams();
+const classId = params.classId as string;
 
   const [classSubjects, setClassSubjects] = useState<ClassSubject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -51,6 +53,7 @@ export default function ClassSubjectsPage() {
   }, [classId]);
 
   async function fetchClassSubjects() {
+    if (!classId) return;
     const { data, error } = await supabase
       .from("subject_classes")
       .select(`

@@ -192,3 +192,13 @@ ON classes (education_level, level, COALESCE(stream, ''));
 
 ALTER TABLE classes
 ADD COLUMN IF NOT EXISTS stream text;
+
+ALTER TABLE public.subject_classes
+ADD COLUMN teacher_id uuid;
+ADD COLUMN subject_code text NOT NULL;
+
+ALTER TABLE public.subject_classes
+ADD CONSTRAINT subject_classes_teacher_id_fkey
+FOREIGN KEY (teacher_id)
+REFERENCES public.teachers(id)
+ON DELETE SET NULL;

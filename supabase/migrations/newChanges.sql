@@ -185,5 +185,10 @@ ALTER TABLE subject_classes
 ADD COLUMN IF NOT EXISTS teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL;
 ADD COLUMN IF NOT EXISTS subject_code text NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS unique_class_per_level
-ON classes (education_level, level);
+DROP INDEX IF EXISTS unique_class_per_level;
+
+CREATE UNIQUE INDEX unique_class_per_level_stream
+ON classes (education_level, level, COALESCE(stream, ''));
+
+ALTER TABLE classes
+ADD COLUMN IF NOT EXISTS stream text;

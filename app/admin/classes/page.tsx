@@ -33,6 +33,7 @@ export default function ClassesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [stream, setStream] = useState("");
 
   const [selectedEducationLevel, setSelectedEducationLevel] = useState("");
   const [selectedLevel, setSelectedLevel] = useState("");
@@ -101,9 +102,15 @@ export default function ClassesPage() {
 
     const formData = new FormData(e.currentTarget);
 
+    const normalizedStream = stream.trim() || null;
+
+    const className = normalizedStream
+      ? `${selectedLevel} ${normalizedStream}`
+      : selectedLevel;
 
     const classData: any = {
       level: selectedLevel,
+      name: className,
       education_level: selectedEducationLevel,
       class_teacher_id: formData.get("class_teacher_id") as string || null,
     };
@@ -153,17 +160,11 @@ export default function ClassesPage() {
       fetchClasses();
     }
   }
-
   function openEditDialog(cls: Class) {
     setEditingClass(cls);
-
-    const educationLevel = cls.education_level || Object.keys(EDUCATION_LEVELS).find((key) =>
-      EDUCATION_LEVELS[key as keyof typeof EDUCATION_LEVELS].includes(cls.level)
-    );
-
-    setSelectedEducationLevel(educationLevel || "");
+    setSelectedEducationLevel(cls.education_level);
     setSelectedLevel(cls.level);
-
+    setStream(cls.stream || "");
     setIsDialogOpen(true);
   }
 
@@ -172,6 +173,7 @@ export default function ClassesPage() {
     setEditingClass(null);
     setSelectedEducationLevel("");
     setSelectedLevel("");
+    setStream("");
   }
 
   const filteredClasses = classes.filter((cls) => {
@@ -255,6 +257,16 @@ export default function ClassesPage() {
                     </select>
                   </div>
                 )}
+
+                <div>
+                  <Label>Stream (optional)</Label>
+                  <Input
+                    placeholder="A, B, C"
+                    value={stream}
+                    onChange={(e) => setStream(e.target.value.toUpperCase())}
+                  />
+                </div>
+
 
                 {/* CLASS TEACHER */}
                 <div>

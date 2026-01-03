@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import Link from "next/link";
 
 const EDUCATION_LEVELS = {
   "Pre-Primary": ["Nursery 1", "Nursery 2", "KG 1", "KG 2"],
@@ -43,7 +44,13 @@ export default function ClassesPage() {
   }, []);
 
   async function fetchClasses() {
-    const { data } = await supabase.from("classes").select("*").order("level");
+    const { data } = await supabase
+      .from("classes")
+      .select(`
+    *,
+    teacher:teachers(first_name, last_name)
+  `)
+      .order("level");
 
     if (data) {
       const classesWithStats = await Promise.all(
@@ -53,7 +60,9 @@ export default function ClassesPage() {
             supabase.from("subject_classes").select("id", { count: "exact" }).eq("class_id", cls.id),
           ]);
 
-          const teacher = teachers.find((t) => t.id === cls.class_teacher_id);
+
+          const teacher = cls.teacher;
+
 
           return {
             ...cls,
@@ -91,14 +100,13 @@ export default function ClassesPage() {
     }
 
     const formData = new FormData(e.currentTarget);
-   
+
 
     const classData: any = {
       level: selectedLevel,
       education_level: selectedEducationLevel,
-      name: selectedLevel,
       class_teacher_id: formData.get("class_teacher_id") as string || null,
-      };
+    };
 
     if (editingClass) {
       const { error } = await supabase
@@ -113,6 +121,16 @@ export default function ClassesPage() {
         fetchClasses();
       }
     } else {
+      const exists = classes.some(
+        c =>
+          c.education_level === selectedEducationLevel &&
+          c.level === selectedLevel
+      );
+      if (exists) {
+        toast.error("This class already exists");
+        return;
+      }
+
       const { error } = await supabase.from("classes").insert(classData);
 
       if (error) toast.error("Failed to create class");
@@ -350,6 +368,11 @@ export default function ClassesPage() {
                             </div>
                           </div>
                         </div>
+                        <Link href={`/admin/classes/${cls.id}/subjects`}>
+                          <Button size="sm" variant="outline">
+                            Subjects
+                          </Button>
+                        </Link>
 
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" onClick={() => openEditDialog(cls)}>

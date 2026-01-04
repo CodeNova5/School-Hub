@@ -101,12 +101,13 @@ export default function ClassPage() {
       console.error(error);
       return;
     }
+    console.log("Fetched subject classes:", data);
 
     const transformedData = (data || []).map((item: any) => ({
       id: item.id,
       subject_code: item.subject_code,
       subject: item.subject[0],
-      teacher: item.teacher[0] || null,
+      teacher: item.teacher?.first_name
     }));
     setSubjects(transformedData);
     setSubjectsLoading(false);

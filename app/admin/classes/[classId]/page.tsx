@@ -121,12 +121,13 @@ export default function ClassPage() {
       return;
     }
 
-    const transformedData = (data || []).map((item: any) => ({
+    const transformedData: SubjectClass[] = (data || []).map((item: any) => ({
       id: item.id,
       subject_code: item.subject_code,
-      subject: item.subject[0],
-      teacher: item.teacher[0] || null,
+      subject: item.subject,        // ← object, not array
+      teacher: item.teacher ?? null // ← safely handle null
     }));
+
     setSubjects(transformedData);
     setSubjectsLoading(false);
   }
@@ -381,7 +382,7 @@ export default function ClassPage() {
                           <td className="p-2">
                             {s.first_name} {s.last_name}
                           </td>
-                       </tr>
+                        </tr>
                       ))}
                     </tbody>
                   </table>

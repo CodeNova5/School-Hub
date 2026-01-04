@@ -6,6 +6,14 @@ import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -38,6 +46,12 @@ type Student = {
   last_name: string;
 };
 
+type Teacher = {
+  id: string;
+  first_name: string;
+  last_name: string;
+};
+
 export default function ClassPage() {
   const params = useParams();
   const classId = params.classId as string;
@@ -51,10 +65,15 @@ export default function ClassPage() {
 
   const [classData, setClassData] = useState<ClassData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [isAssignTeacherOpen, setIsAssignTeacherOpen] = useState(false);
+  const [selectedSubjectClass, setSelectedSubjectClass] = useState<SubjectClass | null>(null);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!classId) return;
     fetchClass();
+    fetchTeachers();
   }, [classId]);
 
   async function fetchClass() {
@@ -101,13 +120,12 @@ export default function ClassPage() {
       console.error(error);
       return;
     }
-    console.log("Fetched subject classes:", data);
 
     const transformedData = (data || []).map((item: any) => ({
       id: item.id,
       subject_code: item.subject_code,
       subject: item.subject[0],
-      teacher: item.teacher?.first_name
+      teacher: item.teacher[0] || null,
     }));
     setSubjects(transformedData);
     setSubjectsLoading(false);
@@ -175,6 +193,48 @@ export default function ClassPage() {
       fetchStudents();
     }
   }, [classData?.id]);
+
+  async function fetchTeachers() {
+    const { data, error } = await supabase
+      .from('teachers')
+      .select('id, first_name, last_name')
+      .eq('status', 'active');
+
+    if (error) {
+      toast.error('Failed to load teachers');
+      console.error(error);
+      return;
+    }
+    setTeachers(data || []);
+  }
+
+  function openAssignTeacherDialog(sc: SubjectClass) {
+    setSelectedSubjectClass(sc);
+    setSelectedTeacherId(sc.teacher?.id || null);
+    setIsAssignTeacherOpen(true);
+  }
+
+  async function handleAssignTeacher() {
+    if (!selectedSubjectClass || !selectedTeacherId) {
+      toast.error("Please select a teacher");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("subject_classes")
+      .update({ teacher_id: selectedTeacherId })
+      .eq("id", selectedSubjectClass.id);
+
+    if (error) {
+      toast.error("Failed to assign teacher");
+      console.error(error);
+      return;
+    }
+
+    toast.success("Teacher assigned successfully");
+    setIsAssignTeacherOpen(false);
+    fetchClassSubjects();
+  }
 
   if (loading) {
     return (
@@ -261,6 +321,7 @@ export default function ClassPage() {
                         <th className="text-left p-2">Code</th>
                         <th className="text-left p-2">Teacher</th>
                         <th className="text-left p-2">Optional</th>
+                        <th className="text-left p-2">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -275,6 +336,15 @@ export default function ClassPage() {
                           </td>
                           <td className="p-2">
                             {sc.subject.is_optional ? "Yes" : "No"}
+                          </td>
+                          <td className="p-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openAssignTeacherDialog(sc)}
+                            >
+                              Assign Teacher
+                            </Button>
                           </td>
                         </tr>
                       ))}
@@ -338,6 +408,42 @@ export default function ClassPage() {
           </TabsContent>
         </Tabs>
       </div>
+      <Dialog open={isAssignTeacherOpen} onOpenChange={setIsAssignTeacherOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Assign Teacher to {selectedSubjectClass?.subject.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="teacher">Select Teacher</Label>
+              <select
+                id="teacher"
+                value={selectedTeacherId || ""}
+                onChange={(e) => setSelectedTeacherId(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+              >
+                <option value="">Select a teacher</option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.first_name} {teacher.last_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsAssignTeacherOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleAssignTeacher}>Save</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

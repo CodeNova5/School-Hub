@@ -204,3 +204,4 @@ REFERENCES public.teachers(id)
 ON DELETE SET NULL;
 ALTER TABLE subject_classes
 ALTER COLUMN subject_code DROP NOT NULL;
+

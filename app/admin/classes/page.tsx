@@ -113,6 +113,7 @@ export default function ClassesPage() {
       name: className,
       education_level: selectedEducationLevel,
       class_teacher_id: formData.get("class_teacher_id") as string || null,
+      class_code: formData.get("class_code") as string || null,
     };
 
     if (editingClass) {
@@ -267,6 +268,14 @@ export default function ClassesPage() {
                   />
                 </div>
 
+                <div>
+                  <Label>Class Code</Label>
+                  <Input
+                    name="class_code"
+                    placeholder="e.g. JSS1A"
+                    defaultValue={editingClass?.class_code || ""}
+                  />
+                </div>
 
                 {/* CLASS TEACHER */}
                 <div>

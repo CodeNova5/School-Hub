@@ -38,6 +38,12 @@ type Student = {
   last_name: string;
 };
 
+type Teacher = {
+  id: string;
+  first_name: string;
+  last_name: string;
+};
+
 export default function ClassPage() {
   const params = useParams();
   const classId = params.classId as string;
@@ -51,10 +57,14 @@ export default function ClassPage() {
 
   const [classData, setClassData] = useState<ClassData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [isAssignTeacherOpen, setIsAssignTeacherOpen] = useState(false);
+  const [selectedSubjectClass, setSelectedSubjectClass] = useState<SubjectClass | null>(null);
 
   useEffect(() => {
     if (!classId) return;
     fetchClass();
+    fetchTeachers();
   }, [classId]);
 
   async function fetchClass() {
@@ -174,6 +184,25 @@ export default function ClassPage() {
       fetchStudents();
     }
   }, [classData?.id]);
+
+  async function fetchTeachers() {
+    const { data, error } = await supabase
+      .from('teachers')
+      .select('id, first_name, last_name')
+      .eq('status', 'active');
+
+    if (error) {
+      toast.error('Failed to load teachers');
+      console.error(error);
+      return;
+    }
+    setTeachers(data || []);
+  }
+
+  function openAssignTeacherDialog(sc: SubjectClass) {
+    setSelectedSubjectClass(sc);
+    setIsAssignTeacherOpen(true);
+  }
 
   if (loading) {
     return (

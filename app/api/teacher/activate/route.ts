@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       .update({ 
         activation_used: true,
         is_active: true,
-        
+        status: "active"
        })
       .eq("id", teacher.id);
     return NextResponse.json(

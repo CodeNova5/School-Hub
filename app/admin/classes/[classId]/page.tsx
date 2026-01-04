@@ -36,7 +36,6 @@ type Student = {
   id: string;
   first_name: string;
   last_name: string;
-  admission_no: string;
 };
 
 export default function ClassPage() {
@@ -157,7 +156,7 @@ export default function ClassPage() {
 
     const { data, error } = await supabase
       .from("students")
-      .select("id, first_name, last_name, admission_no")
+      .select("id, first_name, last_name")
       .eq("class_id", classId)
       .order("last_name");
 
@@ -311,8 +310,7 @@ export default function ClassPage() {
                           <td className="p-2">
                             {s.first_name} {s.last_name}
                           </td>
-                          <td className="p-2 font-mono">{s.admission_no}</td>
-                        </tr>
+                       </tr>
                       ))}
                     </tbody>
                   </table>

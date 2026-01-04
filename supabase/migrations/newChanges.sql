@@ -21,33 +21,23 @@ CREATE TABLE IF NOT EXISTS student_optional_subjects (
   subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
   UNIQUE(student_id, subject_id)
 );
-
 CREATE OR REPLACE FUNCTION link_class_to_subjects()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Clear previous links
+  -- Remove old links (safe for updates)
   DELETE FROM subject_classes WHERE class_id = NEW.id;
 
-  -- SSS classes link by department
-  IF NEW.education_level = 'SSS' AND NEW.department IS NOT NULL THEN
-    INSERT INTO subject_classes (subject_id, class_id)
-    SELECT s.id, NEW.id
-    FROM subjects s
-    WHERE s.education_level = NEW.education_level
-      AND (s.department = NEW.department OR s.department IS NULL)
-      AND s.religion IS NULL;  -- CRS/IRS excluded
-  ELSE
-    -- Lower levels link by education level only (religion excluded)
-    INSERT INTO subject_classes (subject_id, class_id)
-    SELECT s.id, NEW.id
-    FROM subjects s
-    WHERE s.education_level = NEW.education_level
-      AND s.religion IS NULL;  -- CRS/IRS excluded
-  END IF;
+  -- Link subjects by education level only
+  INSERT INTO subject_classes (subject_id, class_id)
+  SELECT s.id, NEW.id
+  FROM subjects s
+  WHERE s.education_level = NEW.education_level
+    AND s.religion IS NULL; -- exclude CRS / IRS
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION get_student_subjects(student_uuid uuid)
 RETURNS TABLE(
@@ -83,6 +73,16 @@ BEGIN
 
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_link_class_to_subjects ON classes;
+
+CREATE TRIGGER trg_link_class_to_subjects
+AFTER INSERT OR UPDATE OF education_level, department
+ON classes
+FOR EACH ROW
+EXECUTE FUNCTION link_class_to_subjects();
+
+
 
 ALTER TABLE results ADD COLUMN IF NOT EXISTS subject_name text;
 
@@ -202,3 +202,5 @@ ADD CONSTRAINT subject_classes_teacher_id_fkey
 FOREIGN KEY (teacher_id)
 REFERENCES public.teachers(id)
 ON DELETE SET NULL;
+ALTER TABLE subject_classes
+ALTER COLUMN subject_code DROP NOT NULL;

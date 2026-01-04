@@ -204,7 +204,7 @@ export default function SubjectsPage() {
       closeDialog();
       fetchSubjects();
     } else {
-      const { error } = await supabase.from('subjects').insert(subjectData);
+      const { data: newSubject, error } = await supabase.from('subjects').insert(subjectData).select().single();
 
       if (error) {
         if (error.code === '23505') {
@@ -215,6 +215,20 @@ export default function SubjectsPage() {
         return;
       }
 
+      let query = supabase.from('classes').select('id').eq('education_level', selectedLevel);
+      const { data: classes, error: classesError } = await query;
+
+      if (classesError) {
+        toast.error('Could not find classes to apply subjects to.');
+        return;
+      }
+      
+      const subjectClasses = classes.map((c) => ({
+        class_id: c.id,
+        subject_id: newSubject.id,
+      }));
+
+      await supabase.from('subject_classes').insert(subjectClasses);
       toast.success('Subject created and applied to all classes in this level');
       closeDialog();
       fetchSubjects();
@@ -224,6 +238,7 @@ export default function SubjectsPage() {
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this subject?')) return;
 
+    await supabase.from('subject_classes').delete().eq('subject_id', id);
     const { error } = await supabase.from('subjects').delete().eq('id', id);
 
     if (error) {

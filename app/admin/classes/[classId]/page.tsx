@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Copy } from "lucide-react";
 type ClassData = {
   id: string;
   name: string;
@@ -258,27 +259,30 @@ export default function ClassPage() {
       <div className="space-y-6">
 
         {/* ================= CLASS HEADER ================= */}
-        <Card>
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">{classData.name}</h1>
-              <div className="flex gap-2 mt-2">
-                <Badge>{classData.education_level}</Badge>
-                <Badge variant="outline">{classData.level}</Badge>
-                {classData.class_code && (
-                  <Badge variant="secondary">
-                    Code: {classData.class_code}
-                  </Badge>
-                )}
+        <div>
+          <h1 className="text-2xl font-bold">{classData.name}</h1>
+          <div className="flex items-center gap-2 mt-2">
+            <Badge>{classData.education_level}</Badge>
+            <Badge variant="outline">{classData.level}</Badge>
+            {classData.class_code && (
+              <div className="flex items-center gap-1">
+                <Badge variant="secondary" className="font-mono">
+                  {classData.class_code}
+                </Badge>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    navigator.clipboard.writeText(classData.class_code!);
+                    toast.success("Copied to clipboard");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
               </div>
-            </div>
-
-            {/* Future actions live here */}
-            <div className="flex gap-2">
-              {/* Edit / Lock / Archive buttons later */}
-            </div>
-          </CardContent>
-        </Card>
+            )}
+          </div>
+        </div>
 
         {/* ================= OVERVIEW ================= */}
         <div className="grid gap-4 md:grid-cols-4">

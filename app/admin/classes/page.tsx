@@ -20,6 +20,15 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
 
+function generateClassCode(length = 6) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 const EDUCATION_LEVELS = {
   "Pre-Primary": ["Nursery 1", "Nursery 2", "KG 1", "KG 2"],
   Primary: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
@@ -137,6 +146,8 @@ export default function ClassesPage() {
         toast.error("This class already exists");
         return;
       }
+
+      classData.class_code = generateClassCode();
 
       const { error } = await supabase.from("classes").insert(classData);
 
@@ -378,11 +389,18 @@ export default function ClassesPage() {
                               <BookOpen className="h-4 w-4" />
                               {cls.subjectCount} subjects
                             </div>
+                            {cls.class_code && (
+                              <div className="flex items-center gap-2 pt-2">
+                                <Badge variant="secondary">
+                                  Code: {cls.class_code}
+                                </Badge>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        <Link href={`/admin/classes/${cls.id}/subjects`}>
+                        <Link href={`/admin/classes/${cls.id}`}>
                           <Button size="sm" variant="outline">
-                            Subjects
+                            Manage
                           </Button>
                         </Link>
 

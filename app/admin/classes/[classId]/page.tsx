@@ -95,11 +95,13 @@ export default function ClassPage() {
     setClassData(data);
     setLoading(false);
   }
+function generateSubjectCode(subjectName: string, className: string) {
+  const clean = subjectName.replace(/\s+/g, "");
+  const prefix = clean.slice(0, 3).toUpperCase();
+  const suffix = clean.slice(-2).toUpperCase();
+  return `${prefix}${suffix}-${className}`;
+}
 
-  function generateSubjectCode(subjectName: string, classCode: string) {
-    const prefix = subjectName.slice(0, 3).toUpperCase();
-    return `${prefix} ${classCode}`;
-  }
 
 
   async function fetchClassSubjects() {
@@ -142,12 +144,12 @@ export default function ClassPage() {
     if (!classData?.class_code) return;
 
     const updates = subjects
-      .filter(s => !s.subject_code)
+     .filter(s => !s.subject_code || s.subject_code.trim() === "")
       .map(s => ({
         id: s.id,
         subject_code: generateSubjectCode(
           s.subject.name,
-          classData.class_code!
+          classData.name!
         ),
       }));
 

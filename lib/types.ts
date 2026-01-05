@@ -23,7 +23,6 @@ export interface Class {
   level: string;
   education_level: 'Pre-Primary' | 'Primary' | 'JSS' | 'SSS';
   capacity: number;
-  class_code: string;
   room_number?: string;
   class_teacher_id?: string;
   academic_year?: string;

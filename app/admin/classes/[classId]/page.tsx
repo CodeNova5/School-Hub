@@ -95,12 +95,12 @@ export default function ClassPage() {
     setClassData(data);
     setLoading(false);
   }
-function generateSubjectCode(subjectName: string, className: string) {
-  const clean = subjectName.replace(/\s+/g, "");
-  const prefix = clean.slice(0, 3).toUpperCase();
-  const suffix = clean.slice(-2).toUpperCase();
-  return `${prefix}${suffix}-${className}`;
-}
+  function generateSubjectCode(subjectName: string, className: string) {
+    const clean = subjectName.replace(/\s+/g, "");
+    const prefix = clean.slice(0, 3).toUpperCase();
+    const suffix = clean.slice(-2).toUpperCase();
+    return `${prefix}${suffix}-${className}`;
+  }
 
 
 
@@ -144,7 +144,7 @@ function generateSubjectCode(subjectName: string, className: string) {
     if (!classData?.class_code) return;
 
     const updates = subjects
-     .filter(s => !s.subject_code || s.subject_code.trim() === "")
+      .filter(s => !s.subject_code || s.subject_code.trim() === "")
       .map(s => ({
         id: s.id,
         subject_code: generateSubjectCode(
@@ -155,15 +155,19 @@ function generateSubjectCode(subjectName: string, className: string) {
 
     if (!updates.length) return;
 
-    const { error } = await supabase
-      .from("subject_classes")
-      .upsert(updates, { onConflict: "id" });
+    for (const u of updates) {
+      const { error } = await supabase
+        .from("subject_classes")
+        .update({ subject_code: u.subject_code })
+        .eq("id", u.id);
 
-    if (error) {
-      toast.error("Failed to generate subject codes");
-      console.error(error);
-      return;
+      if (error) {
+        console.error(error);
+        toast.error("Failed to generate subject codes");
+        return;
+      }
     }
+
 
     fetchClassSubjects();
   }
@@ -266,23 +270,6 @@ function generateSubjectCode(subjectName: string, className: string) {
           <div className="flex items-center gap-2 mt-2">
             <Badge>{classData.education_level}</Badge>
             <Badge variant="outline">{classData.level}</Badge>
-            {classData.class_code && (
-              <div className="flex items-center gap-1">
-                <Badge variant="secondary" className="font-mono">
-                  {classData.class_code}
-                </Badge>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => {
-                    navigator.clipboard.writeText(classData.class_code!);
-                    toast.success("Copied to clipboard");
-                  }}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
           </div>
         </div>
 

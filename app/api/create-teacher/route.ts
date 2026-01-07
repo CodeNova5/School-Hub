@@ -22,7 +22,7 @@ async function generateUniqueStaffId(supabase: any) {
 
 export async function POST(req: Request) {
   try {
-    const { email, teacherData, selectedClass, selectedSubjects } = await req.json();
+    const { email, teacherData, educationLevelId, subjectId } = await req.json();
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -76,31 +76,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: teacherError.message }, { status: 400 });
     }
 
-    // 4️⃣ Assign class
-    if (selectedClass) {
-      await supabase
-        .from('teacher_classes')
-        .insert({ teacher_id: teacher.id, class_id: selectedClass });
-    }
+    // 4️⃣ Assign teacher to subject classes based on education level
+    if (educationLevelId && subjectId) {
+      // First, get the name of the education level
+      const { data: levelData, error: levelError } = await supabase
+        .from('education_levels')
+        .select('name')
+        .eq('id', educationLevelId)
+        .single();
 
-    // 5️⃣ Assign subjects
-    if (selectedSubjects?.length > 0 && selectedClass) {
-      const assignments = selectedSubjects.map((subjectId: string) => ({
-        teacher_id: teacher.id,
-        subject_id: subjectId,
-        class_id: selectedClass,
-      }));
+      if (levelError || !levelData) {
+        throw new Error('Could not find the specified education level.');
+      }
 
-      const { error: subjectError } = await supabase
-        .from("subject_assignments")
-        .insert(assignments);
+      // Next, find all classes within that education level
+      const { data: classes, error: classesError } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('education_level', levelData.name);
 
-      if (subjectError) {
-        throw subjectError;
+      if (classesError) {
+        throw classesError;
+      }
+
+      const classIds = classes.map(c => c.id);
+
+      // Finally, update the teacher_id for all subject_classes that match
+      const { error: updateError } = await supabase
+        .from('subject_classes')
+        .update({ teacher_id: teacher.id })
+        .eq('subject_id', subjectId)
+        .in('class_id', classIds);
+
+      if (updateError) {
+        throw updateError;
       }
     }
-
-
     // 6️⃣ Generate and save activation token
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");

@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Teacher, Subject, EducationLevel } from '@/lib/types';
+import { Teacher, Class, Subject } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -21,18 +21,18 @@ import { toast } from 'sonner';
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [assignedSubjects, setAssignedSubjects] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [selectedEducationLevel, setSelectedEducationLevel] = useState<string>('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedClass, setSelectedClass] = useState<string>('');
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
 
   useEffect(() => {
     fetchTeachers();
-    fetchInitialData();
+    fetchUnassignedData();
   }, []);
 
   async function fetchTeachers() {
@@ -44,48 +44,44 @@ export default function TeachersPage() {
     if (data) setTeachers(data);
   }
 
-  async function fetchInitialData() {
-    // Fetch all education levels
-    const { data: levelData } = await supabase.from('education_levels').select('*').order('name');
-    if (levelData) setEducationLevels(levelData);
+  async function fetchUnassignedData() {
+    // Fetch classes that are not assigned to any teacher
+    const { data: classData } = await supabase
+      .from('classes')
+      .select('*')
+      .is('class_teacher_id', null)
+      .order('name');
+    if (classData) setClasses(classData);
 
     // Fetch all subjects
     const { data: subjectData } = await supabase.from('subjects').select('*').order('name');
     if (subjectData) setSubjects(subjectData);
 
-    // Fetch subjects that are already assigned a teacher in any class
-    const { data: assignedSubjectData } = await supabase
-      .from('subject_classes')
-      .select('subject_id')
-      .not('teacher_id', 'is', null);
-
+    // Fetch subjects that are already assigned
+    const { data: assignedSubjectData } = await supabase.from('subject_assignments').select('subject_id');
     if (assignedSubjectData) {
-      const assignedIds = assignedSubjectData.map((s) => s.subject_id);
-      setAssignedSubjects(assignedIds);
+      setAssignedSubjects(assignedSubjectData.map((s) => s.subject_id));
     }
   }
 
   async function loadTeacherData(teacher: Teacher) {
-    // Find the subject and corresponding class taught by the teacher
-    const { data: subjectClassData } = await supabase
-      .from('subject_classes')
-      .select('subject_id, classes(education_level)')
-      .eq('teacher_id', teacher.id)
-      .limit(1)
+    // Load assigned class
+    const { data: classData } = await supabase
+      .from('classes')
+      .select('id')
+      .eq('class_teacher_id', teacher.id)
       .single();
+    if (classData) setSelectedClass(classData.id);
 
-    if (subjectClassData) {
-      setSelectedSubject(subjectClassData.subject_id);
-      if (subjectClassData.classes) {
-        // Find the matching education level id
-        const level = educationLevels.find(l => l.name === (subjectClassData.classes as any).education_level);
-        if (level) {
-          setSelectedEducationLevel(level.id);
-        }
-      }
+    // Load assigned subjects
+    const { data: subjectData } = await supabase
+      .from('subject_assignments')
+      .select('subject_id')
+      .eq('teacher_id', teacher.id);
+    if (subjectData) {
+      setSelectedSubjects(subjectData.map((s) => s.subject_id));
     }
   }
-
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -115,8 +111,8 @@ export default function TeachersPage() {
           body: JSON.stringify({
             email,
             teacherData,
-            educationLevelId: selectedEducationLevel,
-            subjectId: selectedSubject,
+            selectedClass,
+            selectedSubjects,
           }),
         });
 
@@ -130,7 +126,7 @@ export default function TeachersPage() {
         toast.success('Teacher created successfully!', { id: savingToast });
         closeDialog();
         fetchTeachers();
-        fetchInitialData();
+        fetchUnassignedData();
       } catch (error: any) {
         toast.error(error.message || 'Failed to create teacher', { id: savingToast });
       }
@@ -162,8 +158,16 @@ export default function TeachersPage() {
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingTeacher(null);
-    setSelectedEducationLevel('');
-    setSelectedSubject('');
+    setSelectedClass('');
+    setSelectedSubjects([]);
+  }
+
+  function toggleSubjectSelection(subjectId: string) {
+    setSelectedSubjects((prev) =>
+      prev.includes(subjectId)
+        ? prev.filter((id) => id !== subjectId)
+        : [...prev, subjectId]
+    );
   }
 
   const filteredTeachers = teachers.filter((teacher) =>
@@ -249,47 +253,46 @@ export default function TeachersPage() {
                   <Input id="address" name="address" defaultValue={editingTeacher?.address} />
                 </div>
                 <div>
-                  <Label>Assign to Education Level</Label>
+                  <Label>Assign Class</Label>
                   <select
-                    id="education_level_id"
-                    name="education_level_id"
+                    id="class_id"
+                    name="class_id"
                     className="w-full h-10 px-3 border rounded-md"
-                    value={selectedEducationLevel}
-                    onChange={(e) => setSelectedEducationLevel(e.target.value)}
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
                     required
                   >
-                    <option value="" disabled>Select a level</option>
-                    {educationLevels.map((level) => (
-                      <option key={level.id} value={level.id}>{level.name}</option>
+                    <option value="" disabled>Select a class</option>
+                    {classes.map((cls) => (
+                      <option key={cls.id} value={cls.id}>{cls.name}</option>
                     ))}
                   </select>
-                  {educationLevels.length === 0 && (
-                    <p className="text-sm text-gray-500 mt-1">No education levels found</p>
-                  )}
+                   {classes.length === 0 && (
+                      <p className="text-sm text-gray-500 mt-1">No classes available for assignment</p>
+                    )}
                 </div>
                 <div>
-                  <Label>Assign Subject</Label>
-                  <select
-                    id="subject_id"
-                    name="subject_id"
-                    className="w-full h-10 px-3 border rounded-md"
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>Select a subject</option>
+                  <Label>Assign Subjects</Label>
+                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
                     {subjects.map((subject) => {
                       const isAssigned = assignedSubjects.includes(subject.id);
                       return (
-                        <option key={subject.id} value={subject.id} disabled={isAssigned}>
-                          {subject.name} {isAssigned && '(Assigned)'}
-                        </option>
+                        <label key={subject.id} className={`flex items-center gap-2 ${isAssigned ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedSubjects.includes(subject.id)}
+                            onChange={() => toggleSubjectSelection(subject.id)}
+                            disabled={isAssigned}
+                            className="h-4 w-4"
+                          />
+                          <span className="text-sm">{subject.name} {isAssigned && '(Assigned)'}</span>
+                        </label>
                       );
                     })}
-                  </select>
-                  {subjects.length === 0 && (
-                    <p className="text-sm text-gray-500 mt-1">No subjects available</p>
-                  )}
+                     {subjects.length === 0 && (
+                      <p className="text-sm text-gray-500">No subjects available</p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="status">Status</Label>

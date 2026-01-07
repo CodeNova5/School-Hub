@@ -96,10 +96,12 @@ export default function ClassPage() {
     setLoading(false);
   }
   function generateSubjectCode(subjectName: string, className: string) {
-    const clean = subjectName.replace(/\s+/g, "");
-    const prefix = clean.slice(0, 3).toUpperCase();
-    const suffix = clean.slice(-2).toUpperCase();
-    return `${prefix}${suffix}-${className}`;
+    const firstWord = subjectName.trim().split(" ")[0];
+    const prefix = firstWord.slice(0, 3).toUpperCase();
+
+    const cleanClass = className.replace(/\s+/g, "");
+
+    return `${prefix}-${cleanClass}`;
   }
 
 

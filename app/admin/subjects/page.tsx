@@ -117,11 +117,23 @@ export default function SubjectsPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   const [selectedReligion, setSelectedReligion] = useState<string>('');
   const [isOptional, setIsOptional] = useState(false);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+const [assigningSubject, setAssigningSubject] = useState<Subject | null>(null);
+const [selectedTeacher, setSelectedTeacher] = useState("");
+const [forceAssign, setForceAssign] = useState(false);
 
   useEffect(() => {
     fetchSubjects();
 
   }, []);
+
+  useEffect(() => {
+  supabase.from("teachers").select("id, first_name, last_name").then(({ data }) => {
+    if (data) setTeachers(data as Teacher[]);
+  });
+}, []);
+
 
   async function fetchSubjects() {
     const { data } = await supabase.from('subjects').select('*').order('education_level', { ascending: true }).order('name');
@@ -222,7 +234,7 @@ export default function SubjectsPage() {
         toast.error('Could not find classes to apply subjects to.');
         return;
       }
-      
+
       const subjectClasses = classes.map((c) => ({
         class_id: c.id,
         subject_id: newSubject.id,
@@ -545,6 +557,17 @@ export default function SubjectsPage() {
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
                               <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setAssigningSubject(subject);
+                                  setAssignDialogOpen(true);
+                                }}
+                              >
+                                <User className="h-4 w-4 mr-1" />
+                                Assign Teacher
+                              </Button>
+                              <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => openEditDialog(subject)}
@@ -569,6 +592,72 @@ export default function SubjectsPage() {
             </Card>
           ))
         )}
+
+        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Teacher to All {assigningSubject?.education_level} Classes</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label>Select Teacher</Label>
+                <select
+                  className="w-full border rounded-md p-2"
+                  value={selectedTeacher}
+                  onChange={(e) => setSelectedTeacher(e.target.value)}
+                >
+                  <option value="">Select teacher</option>
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.first_name} {t.last_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between border p-3 rounded-md">
+                <div>
+                  <p className="font-medium">Overwrite existing teachers?</p>
+                  <p className="text-sm text-gray-500">
+                    If off, only unassigned classes will be filled.
+                  </p>
+                </div>
+                <Switch checked={forceAssign} onCheckedChange={setForceAssign} />
+              </div>
+
+              <Button
+                disabled={!selectedTeacher}
+                onClick={async () => {
+                  const loading = toast.loading("Assigning teacher...");
+
+                  const res = await fetch("/api/assign-teacher-to-level", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      teacher_id: selectedTeacher,
+                      subject_id: assigningSubject?.id,
+                      education_level: assigningSubject?.education_level,
+                      force: forceAssign,
+                    }),
+                  });
+
+                  const json = await res.json();
+
+                  if (!res.ok) {
+                    toast.error(json.error || "Failed", { id: loading });
+                  } else {
+                    toast.success("Teacher assigned successfully", { id: loading });
+                    setAssignDialogOpen(false);
+                  }
+                }}
+              >
+                Assign
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </DashboardLayout>
   );

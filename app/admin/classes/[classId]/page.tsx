@@ -112,7 +112,7 @@ export default function ClassPage() {
     const { data } = await supabase
       .from("subject_classes")
       .select(
-        `id, subject_code, subject(id, name, is_optional, religion, department), teacher_id, teachers(id, first_name, last_name)`
+        `id, subject_code, subjects(id, name, is_optional, religion, department), teacher_id, teachers(id, first_name, last_name)`
       )
       .eq("class_id", classId)
       .order("subject_code");

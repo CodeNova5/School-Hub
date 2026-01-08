@@ -118,10 +118,10 @@ export default function SubjectsPage() {
   const [selectedReligion, setSelectedReligion] = useState<string>('');
   const [isOptional, setIsOptional] = useState(false);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-const [assigningSubject, setAssigningSubject] = useState<Subject | null>(null);
-const [selectedTeacher, setSelectedTeacher] = useState("");
-const [forceAssign, setForceAssign] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [assigningSubject, setAssigningSubject] = useState<Subject | null>(null);
+  const [selectedTeacher, setSelectedTeacher] = useState("");
+  const [forceAssign, setForceAssign] = useState(false);
 
   useEffect(() => {
     fetchSubjects();
@@ -129,10 +129,10 @@ const [forceAssign, setForceAssign] = useState(false);
   }, []);
 
   useEffect(() => {
-  supabase.from("teachers").select("id, first_name, last_name").then(({ data }) => {
-    if (data) setTeachers(data as Teacher[]);
-  });
-}, []);
+    supabase.from("teachers").select("id, first_name, last_name").then(({ data }) => {
+      if (data) setTeachers(data as Teacher[]);
+    });
+  }, []);
 
 
   async function fetchSubjects() {
@@ -170,7 +170,6 @@ const [forceAssign, setForceAssign] = useState(false);
 
     return allPredefined.filter((name) => !existingSubjects.includes(name));
   }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -187,16 +186,17 @@ const [forceAssign, setForceAssign] = useState(false);
       return;
     }
 
-
     const subjectData = {
       name: subjectName,
       education_level: selectedLevel,
       department: selectedLevel === 'SSS' ? selectedDepartment : null,
       religion: selectedReligion || null,
       is_optional: isOptional,
-
     };
 
+    // ===========================
+    // ✏️ EDIT SUBJECT
+    // ===========================
     if (editingSubject) {
       const { error } = await supabase
         .from('subjects')
@@ -212,40 +212,90 @@ const [forceAssign, setForceAssign] = useState(false);
         return;
       }
 
+      // 🔥 AUTO ASSIGN TO EMPTY CLASSES
+      const { data: emptyClasses } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("education_level", selectedLevel)
+        .is("class_teacher_id", null);
+
+      if (emptyClasses && emptyClasses.length > 0) {
+        const classIds = emptyClasses.map(c => c.id);
+
+        await supabase
+          .from("subject_classes")
+          .update({ teacher_id: selectedTeacher || null })
+          .eq("subject_id", editingSubject.id)
+          .in("class_id", classIds);
+      }
+
       toast.success('Subject updated successfully');
       closeDialog();
       fetchSubjects();
-    } else {
-      const { data: newSubject, error } = await supabase.from('subjects').insert(subjectData).select().single();
-
-      if (error) {
-        if (error.code === '23505') {
-          toast.error('This subject already exists for this level/department');
-        } else {
-          toast.error('Failed to create subject');
-        }
-        return;
-      }
-
-      let query = supabase.from('classes').select('id').eq('education_level', selectedLevel);
-      const { data: classes, error: classesError } = await query;
-
-      if (classesError) {
-        toast.error('Could not find classes to apply subjects to.');
-        return;
-      }
-
-      const subjectClasses = classes.map((c) => ({
-        class_id: c.id,
-        subject_id: newSubject.id,
-      }));
-
-      await supabase.from('subject_classes').insert(subjectClasses);
-      toast.success('Subject created and applied to all classes in this level');
-      closeDialog();
-      fetchSubjects();
+      return;
     }
+
+    // ===========================
+    // ➕ CREATE SUBJECT
+    // ===========================
+    const { data: newSubject, error } = await supabase
+      .from('subjects')
+      .insert(subjectData)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        toast.error('This subject already exists for this level/department');
+      } else {
+        toast.error('Failed to create subject');
+      }
+      return;
+    }
+
+    // 1️⃣ Get all classes in level
+    let query = supabase
+      .from('classes')
+      .select('id')
+      .eq('education_level', selectedLevel);
+
+    const { data: classes, error: classesError } = await query;
+
+    if (classesError || !classes) {
+      toast.error('Could not find classes to apply subjects to.');
+      return;
+    }
+
+    // 2️⃣ Create subject_classes rows
+    const subjectClasses = classes.map((c) => ({
+      class_id: c.id,
+      subject_id: newSubject.id,
+    }));
+
+    await supabase.from('subject_classes').insert(subjectClasses);
+
+    // 3️⃣ Auto assign to empty classes only
+    const { data: emptyClasses } = await supabase
+      .from("classes")
+      .select("id")
+      .eq("education_level", selectedLevel)
+      .is("class_teacher_id", null);
+
+    if (emptyClasses && emptyClasses.length > 0 && selectedTeacher) {
+      const classIds = emptyClasses.map(c => c.id);
+
+      await supabase
+        .from("subject_classes")
+        .update({ teacher_id: selectedTeacher })
+        .eq("subject_id", newSubject.id)
+        .in("class_id", classIds);
+    }
+
+    toast.success('Subject created and applied to all classes in this level');
+    closeDialog();
+    fetchSubjects();
   }
+
 
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this subject?')) return;
@@ -260,19 +310,31 @@ const [forceAssign, setForceAssign] = useState(false);
       fetchSubjects();
     }
   }
-
   async function openEditDialog(subject: Subject) {
     setEditingSubject(subject);
     setSelectedLevel(subject.education_level);
-    setSelectedDepartment(subject.department || '');
+    setSelectedDepartment(subject.department || "");
 
-    setSelectedSubject('custom');
+    setSelectedSubject("custom");
     setCustomSubjectName(subject.name);
 
-    setSelectedReligion(subject.religion || '');
+    setSelectedReligion(subject.religion || "");
     setIsOptional(subject.is_optional);
+
+    // 🔥 Load existing assigned teacher (if any)
+    const { data } = await supabase
+      .from("subject_classes")
+      .select("teacher_id")
+      .eq("subject_id", subject.id)
+      .not("teacher_id", "is", null)
+      .limit(1)
+      .single();
+
+    setSelectedTeacher(data?.teacher_id || "");
+
     setIsDialogOpen(true);
   }
+
 
   function closeDialog() {
     setIsDialogOpen(false);
@@ -282,6 +344,7 @@ const [forceAssign, setForceAssign] = useState(false);
     setCustomSubjectName('');
     setSelectedDepartment('');
     setSelectedReligion('');
+    setSelectedTeacher('');
     setIsOptional(false);
   }
 
@@ -438,6 +501,24 @@ const [forceAssign, setForceAssign] = useState(false);
                     />
                   </div>
                 )}
+                <div>
+                  <Label>Select Subject Teacher (Optional)</Label>
+                  <select
+                    className="w-full border rounded-md p-2"
+                    value={selectedTeacher}
+                    onChange={(e) => setSelectedTeacher(e.target.value)}
+                  >
+                    <option value="">Do not assign yet</option>
+                    {teachers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.first_name} {t.last_name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This will auto-assign to classes that have no class teacher yet.
+                  </p>
+                </div>
 
                 <div>
                   <Label htmlFor="religion">Religion (Optional)</Label>

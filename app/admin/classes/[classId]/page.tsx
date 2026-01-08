@@ -105,26 +105,47 @@ export default function ClassPage() {
     setClassData(data);
     setLoading(false);
   }
-
   async function fetchClassSubjects() {
     setSubjectsLoading(true);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("subject_classes")
-      .select(
-        `id, subject_code, subjects(id, name, is_optional, religion, department), teacher_id, teachers(id, first_name, last_name)`
+      .select(`
+      id,
+      subject_code,
+      subject:subjects (
+        id,
+        name,
+        is_optional,
+        religion,
+        department
+      ),
+      teacher:teachers (
+        id,
+        first_name,
+        last_name
       )
+    `)
       .eq("class_id", classId)
       .order("subject_code");
 
-    const formattedData = (data || []).map((item: any) => ({
+    if (error) {
+      console.error(error);
+      toast.error("Failed to load subjects");
+      setSubjectsLoading(false);
+      return;
+    }
+
+    const formatted: SubjectClass[] = (data || []).map((item: any) => ({
       id: item.id,
       subject_code: item.subject_code,
-      subject: item.subject,
-      teacher: item.teachers && Array.isArray(item.teachers) ? item.teachers[0] : item.teachers,
+      subject: item.subject,   // ✅ now correct
+      teacher: item.teacher ?? null,
     }));
 
-    setSubjects(formattedData);
+    console.log("SUBJECT DATA:", formatted); // 👈 debug
+
+    setSubjects(formatted);
     setSubjectsLoading(false);
   }
 

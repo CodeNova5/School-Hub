@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -285,7 +285,14 @@ export default function ClassPage() {
                       {filteredSubjects.map((sc, i) => (
                         <tr key={sc.id} className="border-t hover:bg-muted/50">
                           <td className="p-3">{i + 1}</td>
-                          <td className="p-3 font-medium">{sc.subject?.name || "Unknown"}</td>
+                          <td className="p-3 font-medium">
+                            <Link
+                              href={`/admin/subject-classes/${sc.id}/analytics`}
+                              className="hover:underline text-blue-600"
+                            >
+                              {sc.subject.name}
+                            </Link>
+                          </td>
                           <td className="p-3 font-mono flex items-center gap-2">
                             {sc.subject_code}
                             <Button

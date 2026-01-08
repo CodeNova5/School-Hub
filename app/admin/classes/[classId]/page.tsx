@@ -142,9 +142,6 @@ export default function ClassPage() {
       subject: item.subject,   // ✅ now correct
       teacher: item.teacher ?? null,
     }));
-
-    console.log("SUBJECT DATA:", formatted); // 👈 debug
-
     setSubjects(formatted);
     setSubjectsLoading(false);
   }

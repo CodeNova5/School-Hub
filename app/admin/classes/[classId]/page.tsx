@@ -159,7 +159,7 @@ export default function ClassPage() {
     fetchClassSubjects();
   }
 
-  const  filteredSubjects = useMemo(() => {
+  const filteredSubjects = useMemo(() => {
     return subjects.filter((s) => {
       if (!s.subject) return false;
       if (search && !s.subject.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -313,7 +313,43 @@ export default function ClassPage() {
 
           {/* ================= STUDENTS ================= */}
           <TabsContent value="students">
-            <Card><CardContent className="p-6">Students list stays as you already built it</CardContent></Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Class Students</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-md overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="p-3 text-left w-12">#</th>
+                        <th className="p-3 text-left">First Name</th>
+                        <th className="p-3 text-left">Last Name</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.map((student, i) => (
+                        <tr key={student.id} className="border-t hover:bg-muted/50">
+                          <td className="p-3">{i + 1}</td>
+                          <td className="p-3 font-medium">{student.first_name}</td>
+                          <td className="p-3">{student.last_name}</td>
+                          <td className="p-3 text-right">
+                            <Button size="sm" variant="outline">View</Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {students.length === 0 && (
+                    <div className="p-8 text-center text-muted-foreground">
+                      No students in this class yet.
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="results">

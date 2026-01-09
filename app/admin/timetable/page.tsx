@@ -37,7 +37,7 @@ const TIMETABLE_PERIODS = [
 export default function TimetablePage() {
   const [entries, setEntries] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
+  const [subjectClasses, setSubjectClasses] = useState<any[]>([]); // A) State Change
   const [teachers, setTeachers] = useState<any[]>([]);
   const [search, setSearch] = useState("");
 
@@ -49,34 +49,43 @@ export default function TimetablePage() {
   const [formPeriod, setFormPeriod] = useState<number | "">("");
   const [formClassId, setFormClassId] = useState<string>("");
   const [departmentalMode, setDepartmentalMode] = useState(false);
-  const [formSubjectId, setFormSubjectId] = useState<string>("");
-  const [formScienceSubjectId, setFormScienceSubjectId] = useState<string>("");
-  const [formArtsSubjectId, setFormArtsSubjectId] = useState<string>("");
-  const [formCommercialSubjectId, setFormCommercialSubjectId] = useState<string>("");
+  const [formSubjectClassId, setFormSubjectClassId] = useState<string>(""); // B) State Change
+  const [formScienceSubjectClassId, setFormScienceSubjectClassId] = useState<string>(""); // B) State Change
+  const [formArtsSubjectClassId, setFormArtsSubjectClassId] = useState<string>(""); // B) State Change
+  const [formCommercialSubjectClassId, setFormCommercialSubjectClassId] = useState<string>(""); // B) State Change
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-  // ...existing code...
 
   useEffect(() => {
     fetchAll();
   }, []);
 
-  async function fetchAll() {
-    const [timetableRes, classRes, subjectRes, teacherRes] = await Promise.all([
-      supabase
-        .from("timetable_entries")
-        .select("*, classes(name, level), subjects(name, department, teacher_id)")
-        .order("period_number", { ascending: true }),
+  async function fetchAll() { // A) Fetch Query
+    const [timetableRes, classRes, subjectClassRes, teacherRes] = await Promise.all([
+      supabase.from("timetable_entries").select(`
+        *,
+        classes(name, level),
+        subject_classes (
+          id,
+          subject_code,
+          subjects ( name, department ),
+          teachers ( first_name, last_name )
+        )
+      `),
       supabase.from("classes").select("*").order("name"),
-      supabase.from("subjects").select("*").order("name"),
+      supabase.from("subject_classes").select(`
+        *,
+        subjects (name, department),
+        teachers (first_name, last_name)
+      `),
       supabase.from("teachers").select("*").order("first_name"),
     ]);
 
     if (timetableRes.data) setEntries(timetableRes.data);
     if (classRes.data) setClasses(classRes.data);
-    if (subjectRes.data) setSubjects(subjectRes.data);
+    if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
     if (teacherRes.data) setTeachers(teacherRes.data);
   }
 
@@ -87,10 +96,10 @@ export default function TimetablePage() {
     setFormPeriod("");
     setFormClassId("");
     setDepartmentalMode(false);
-    setFormSubjectId("");
-    setFormScienceSubjectId("");
-    setFormArtsSubjectId("");
-    setFormCommercialSubjectId("");
+    setFormSubjectClassId("");
+    setFormScienceSubjectClassId("");
+    setFormArtsSubjectClassId("");
+    setFormCommercialSubjectClassId("");
     setIsDialogOpen(true);
   }
 
@@ -102,10 +111,10 @@ export default function TimetablePage() {
     setFormPeriod(entryRow.period_number || "");
     setFormClassId(entryRow.class_id || "");
     setDepartmentalMode(false); // editing one row -> single subject
-    setFormSubjectId(entryRow.subject_id || "");
-    setFormScienceSubjectId("");
-    setFormArtsSubjectId("");
-    setFormCommercialSubjectId("");
+    setFormSubjectClassId(entryRow.subject_class_id || ""); // B) Payload
+    setFormScienceSubjectClassId("");
+    setFormArtsSubjectClassId("");
+    setFormCommercialSubjectClassId("");
     setIsDialogOpen(true);
   }
 
@@ -132,19 +141,20 @@ export default function TimetablePage() {
 
     // reset subject fields / departmental mode
     setDepartmentalMode(false);
-    setFormSubjectId("");
-    setFormScienceSubjectId("");
-    setFormArtsSubjectId("");
-    setFormCommercialSubjectId("");
+    setFormSubjectClassId("");
+    setFormScienceSubjectClassId("");
+    setFormArtsSubjectClassId("");
+    setFormCommercialSubjectClassId("");
 
     // open dialog
     setIsDialogOpen(true);
   }
 
-  function subjectsByDepartment(dept?: string) {
-    return subjects.filter((s) => {
-      if (!dept) return !s.department;
-      return s.department === dept;
+  function subjectsByDepartment(dept?: string) { // C) UI Dropdowns
+    return subjectClasses.filter((sc) => {
+      if (formClassId && sc.class_id !== formClassId) return false;
+      if (!dept) return !sc.subjects?.department;
+      return sc.subjects?.department === dept;
     });
   }
 
@@ -154,60 +164,41 @@ export default function TimetablePage() {
     if (cleaned.length <= 3) return cleaned.toUpperCase();
     return cleaned.slice(0, 3).toUpperCase();
   }
-
-  function teacherForSubject(subject: any) {
-    if (!subject?.teacher_id) return "";
-    const t = teachers.find((x) => x.id === subject.teacher_id);
-    return t ? `${t.first_name} ${t.last_name}` : "";
-  }
-  async function teacherHasClashDetailed(
+  async function teacherHasClashDetailed( // D) Clash detection
     teacherIds: string[],
     day: string,
     period: number,
     classId: string,
-    ignoreId?: string
+    ignoreEntryId?: string
   ) {
     if (teacherIds.length === 0) return null;
 
     const { data, error } = await supabase
       .from("timetable_entries")
-      .select(`
-      id,
-      class_id,
-      subjects (
-        name,
-        teacher_id,
-        teacher:teacher_id (
-          first_name,
-          last_name
+      .select(\`
+        id,
+        class_id,
+        classes (name),
+        subject_classes (
+          subjects (name),
+          teachers (id, first_name, last_name)
         )
-      )
-    `)
+      \`)
       .eq("day_of_week", day)
       .eq("period_number", period);
 
     if (error || !data) return null;
 
-    for (const row of data) {
-      if (ignoreId && row.id === ignoreId) continue;
+    for (const entry of data) {
+      if (ignoreEntryId && entry.id === ignoreEntryId) continue;
+      if (!entry.subject_classes) continue;
 
-      // subjects is returned as an array, so take the first element
-      const subjectObj = Array.isArray(row.subjects)
-        ? row.subjects[0]
-        : row.subjects;
-
-      if (!subjectObj) continue;
-
-      const teacherId = subjectObj.teacher_id;
-
-      if (teacherId && teacherIds.includes(teacherId)) {
-        const teacherArr = subjectObj.teacher ?? [];
-        const teacherObj = teacherArr[0] || {};
-
+      const teacher = entry.subject_classes.teachers;
+      if (teacher && teacherIds.includes(teacher.id)) {
         return {
-          className: classes.find((c) => c.id === row.class_id)?.name,
-          subjectName: subjectObj.name,
-          teacherName: `${teacherObj.first_name || ""} ${teacherObj.last_name || ""}`.trim(),
+          className: entry.classes?.name,
+          subjectName: entry.subject_classes.subjects?.name,
+          teacherName: \`\${teacher.first_name || ""} \${teacher.last_name || ""}\`.trim(),
         };
       }
     }
@@ -238,30 +229,30 @@ export default function TimetablePage() {
 
         // 2️⃣ Build new departmental rows
         const inserts: any[] = [];
-        if (formScienceSubjectId)
+        if (formScienceSubjectClassId) // B) Payload
           inserts.push({
             day_of_week: formDay,
             period_number: Number(formPeriod),
             class_id: formClassId,
-            subject_id: formScienceSubjectId,
+            subject_class_id: formScienceSubjectClassId,
             department: "Science",
           });
 
-        if (formArtsSubjectId)
+        if (formArtsSubjectClassId) // B) Payload
           inserts.push({
             day_of_week: formDay,
             period_number: Number(formPeriod),
             class_id: formClassId,
-            subject_id: formArtsSubjectId,
+            subject_class_id: formArtsSubjectClassId,
             department: "Arts",
           });
 
-        if (formCommercialSubjectId)
+        if (formCommercialSubjectClassId) // B) Payload
           inserts.push({
             day_of_week: formDay,
             period_number: Number(formPeriod),
             class_id: formClassId,
-            subject_id: formCommercialSubjectId,
+            subject_class_id: formCommercialSubjectClassId,
             department: "Commercial",
           });
 
@@ -287,8 +278,8 @@ export default function TimetablePage() {
       }
 
       // Find teacher for chosen subject
-      const selectedSubject = subjects.find((s) => s.id === formSubjectId);
-      const teacherId = selectedSubject?.teacher_id || null;
+      const selectedSubjectClass = subjectClasses.find((s) => s.id === formSubjectClassId);
+      const teacherId = selectedSubjectClass?.teacher_id || null;
 
       if (teacherId) {
         const clash = await teacherHasClashDetailed(
@@ -301,11 +292,11 @@ export default function TimetablePage() {
 
         if (clash) {
           toast.error(
-            `Clash detected!\n\n` +
-            `${clash.teacherName} is already teaching:\n` +
-            `• Subject: ${clash.subjectName}\n` +
-            `• Class: ${clash.className}\n` +
-            `• Period: ${formPeriod} on ${formDay}`
+            \`Clash detected!\\n\\n\` +
+            \`\${clash.teacherName} is already teaching:\\n\` +
+            \`• Subject: \${clash.subjectName}\\n\` +
+            \`• Class: \${clash.className}\\n\` +
+            \`• Period: \${formPeriod} on \${formDay}\`
           );
           return;
         }
@@ -318,7 +309,7 @@ export default function TimetablePage() {
         day_of_week: formDay,
         period_number: Number(formPeriod),
         class_id: formClassId,
-        subject_id: formSubjectId || null,
+        subject_class_id: formSubjectClassId || null, // B) Payload
         department: null,
       };
 
@@ -345,12 +336,12 @@ export default function TimetablePage() {
         day_of_week: formDay,
         period_number: Number(formPeriod),
         class_id: formClassId,
-        subject_id: formSubjectId || null,
+        subject_class_id: formSubjectClassId || null, // B) Payload
         department: null,
       };
 
       // Find teacher for chosen subject
-      const selectedSubject = subjects.find((s) => s.id === formSubjectId);
+      const selectedSubject = subjectClasses.find((s) => s.id === formSubjectClassId); // D) Clash
       const teacherId = selectedSubject?.teacher_id || null;
       if (teacherId) {
         const clash = await teacherHasClashDetailed(
@@ -361,11 +352,11 @@ export default function TimetablePage() {
         );
         if (clash) {
           toast.error(
-            `Clash detected!\n\n` +
-            `${clash.teacherName} is already teaching:\n` +
-            `• Subject: ${clash.subjectName}\n` +
-            `• Class: ${clash.className}\n` +
-            `• Period: ${formPeriod} on ${formDay}`
+            \`Clash detected!\\n\\n\` +
+            \`\${clash.teacherName} is already teaching:\\n\` +
+            \`• Subject: \${clash.subjectName}\\n\` +
+            \`• Class: \${clash.className}\\n\` +
+            \`• Period: \${formPeriod} on \${formDay}\`
           );
           return;
         }
@@ -387,16 +378,16 @@ export default function TimetablePage() {
     const teacherIds: string[] = [];
 
 
-    if (formScienceSubjectId) {
-      const s = subjects.find((x) => x.id === formScienceSubjectId);
+    if (formScienceSubjectClassId) { // D) Clash
+      const s = subjectClasses.find((x) => x.id === formScienceSubjectClassId);
       if (s?.teacher_id) teacherIds.push(s.teacher_id);
     }
-    if (formArtsSubjectId) {
-      const s = subjects.find((x) => x.id === formArtsSubjectId);
+    if (formArtsSubjectClassId) { // D) Clash
+      const s = subjectClasses.find((x) => x.id === formArtsSubjectClassId);
       if (s?.teacher_id) teacherIds.push(s.teacher_id);
     }
-    if (formCommercialSubjectId) {
-      const s = subjects.find((x) => x.id === formCommercialSubjectId);
+    if (formCommercialSubjectClassId) { // D) Clash
+      const s = subjectClasses.find((x) => x.id === formCommercialSubjectClassId);
       if (s?.teacher_id) teacherIds.push(s.teacher_id);
     }
 
@@ -412,11 +403,11 @@ export default function TimetablePage() {
 
       if (clash) {
         toast.error(
-          `Clash detected!\n\n` +
-          `${clash.teacherName} is already teaching:\n` +
-          `• Subject: ${clash.subjectName}\n` +
-          `• Class: ${clash.className}\n` +
-          `• Period: ${formPeriod} on ${formDay}`
+          \`Clash detected!\\n\\n\` +
+          \`\${clash.teacherName} is already teaching:\\n\` +
+          \`• Subject: \${clash.subjectName}\\n\` +
+          \`• Class: \${clash.className}\\n\` +
+          \`• Period: \${formPeriod} on \${formDay}\`
         );
         return;
       }
@@ -425,9 +416,9 @@ export default function TimetablePage() {
 
     // Departmental mode — create up to 3 rows with department set
     const inserts: any[] = [];
-    if (formScienceSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formScienceSubjectId, department: "Science" });
-    if (formArtsSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formArtsSubjectId, department: "Arts" });
-    if (formCommercialSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formCommercialSubjectId, department: "Commercial" });
+    if (formScienceSubjectClassId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_class_id: formScienceSubjectClassId, department: "Science" }); // B) Payload
+    if (formArtsSubjectClassId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_class_id: formArtsSubjectClassId, department: "Arts" }); // B) Payload
+    if (formCommercialSubjectClassId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_class_id: formCommercialSubjectClassId, department: "Commercial" }); // B) Payload
 
     if (inserts.length === 0) {
       toast.error("Choose at least one department subject to add");
@@ -456,10 +447,10 @@ export default function TimetablePage() {
   }
 
   // groupedEntries to combine departmental rows into single cell display
-  const groupedEntries = useMemo(() => {
+  const groupedEntries = useMemo(() => { // E) Display Logic
     const map: Record<string, any> = {};
     entries.forEach((en) => {
-      const key = `${en.class_id}||${en.day_of_week}||${en.period_number}`;
+      const key = \`\${en.class_id}||\${en.day_of_week}||\${en.period_number}\`;
       if (!map[key]) {
         map[key] = { id: key, class_id: en.class_id, class_name: en.classes?.name, day_of_week: en.day_of_week, period_number: en.period_number, raw: [] };
       }
@@ -473,17 +464,21 @@ export default function TimetablePage() {
       const teacherMap: Record<string, string> = {};
 
       g.raw.forEach((r: any) => {
-        const subjName = r.subjects?.name || "";
-        const subjDept = r.subjects?.department || r.department || "";
+        const subjName = r.subject_classes?.subjects?.name || "";
+        const subjDept = r.subject_classes?.subjects?.department || r.department || "";
         const code = shortCode(subjName);
 
         if (subjDept) {
           deptMap[subjDept] = code;
-          const subjTeacherName = teacherForSubject(r.subjects);
+          const subjTeacherName = r.subject_classes?.teachers
+            ? \`\${r.subject_classes.teachers.first_name} \${r.subject_classes.teachers.last_name}\`
+            : "";
           if (subjTeacherName) teacherMap[subjDept] = subjTeacherName;
         } else {
           deptMap["_single"] = subjName;
-          const subjTeacherName = teacherForSubject(r.subjects);
+          const subjTeacherName = r.subject_classes?.teachers
+            ? \`\${r.subject_classes.teachers.first_name} \${r.subject_classes.teachers.last_name}\`
+            : "";
           if (subjTeacherName) teacherMap["_single"] = subjTeacherName;
         }
       });
@@ -506,12 +501,18 @@ export default function TimetablePage() {
     return results;
   }, [entries, teachers]);
 
-  async function showTimetable(classId: string) {
+  async function showTimetable(classId: string) { // E) Display Logic
     setSelectedClass(classId);
 
     const { data } = await supabase
       .from("timetable_entries")
-      .select("*, subjects(name, department, teacher_id)")
+      .select(\`
+        *,
+        subject_classes (
+          subjects (name, department),
+          teachers (first_name, last_name)
+        )
+      \`)
       .eq("class_id", classId);
 
     if (!data) return;
@@ -523,7 +524,7 @@ export default function TimetablePage() {
     data.forEach((entry) => {
       const dow = (entry.day_of_week || "").toString();
       const dayKey = dow.toLowerCase().slice(0, 3);
-      const key = `${entry.period_number}||${dayKey}`;
+      const key = \`\${entry.period_number}||\${dayKey}\`;
       tempGroup[key] = tempGroup[key] || [];
       tempGroup[key].push(entry);
     });
@@ -536,15 +537,19 @@ export default function TimetablePage() {
       const teacherMap: Record<string, string> = {};
 
       rows.forEach((r: any) => {
-        const sname = r.subjects?.name || "";
-        const sdept = r.subjects?.department || r.department || "";
+        const sname = r.subject_classes?.subjects?.name || "";
+        const sdept = r.subject_classes?.subjects?.department || r.department || "";
         const code = shortCode(sname);
         if (sdept) {
           deptMap[sdept] = code;
-          teacherMap[sdept] = teacherForSubject(r.subjects);
+          teacherMap[sdept] = r.subject_classes?.teachers
+            ? \`\${r.subject_classes.teachers.first_name} \${r.subject_classes.teachers.last_name}\`
+            : "";
         } else {
           deptMap["_single"] = sname;
-          teacherMap["_single"] = teacherForSubject(r.subjects);
+          teacherMap["_single"] = r.subject_classes?.teachers
+            ? \`\${r.subject_classes.teachers.first_name} \${r.subject_classes.teachers.last_name}\`
+            : "";
         }
       });
 
@@ -562,7 +567,7 @@ export default function TimetablePage() {
     setIsTableModalOpen(true);
   }
 
-  const filtered = groupedEntries.filter((g) => `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered = groupedEntries.filter((g) => \`\${g.class_name || ""} \${g.subject_display || ""}\`.toLowerCase().includes(search.toLowerCase()));
 
   // helper: determine if selected class (in the add dialog) is SSS so we can enable departmental mode checkbox
   const selectedClassLevel = classes.find((c) => c.id === formClassId)?.level || "";
@@ -611,7 +616,7 @@ export default function TimetablePage() {
     const className =
       classes.find((c) => c.id === selectedClass)?.name || "timetable";
 
-    pdf.save(`${className}-timetable.pdf`);
+    pdf.save(\`\${className}-timetable.pdf\`);
   }
 
 
@@ -623,7 +628,7 @@ export default function TimetablePage() {
     const className =
       classes.find((c) => c.id === selectedClass)?.name || "timetable";
 
-    XLSX.writeFile(workbook, `${className}-timetable.xlsx`);
+    XLSX.writeFile(workbook, \`\${className}-timetable.xlsx\`);
   }
 
 
@@ -689,45 +694,61 @@ export default function TimetablePage() {
                       {!isSelectedClassSSS && <div className="text-xs text-gray-500 ml-2">(Available only for SSS classes)</div>}
                     </div>
 
-                    {!departmentalMode && (
+                    {!departmentalMode && ( // C) UI Dropdown
                       <>
                         <div>
                           <Label>Subjects</Label>
-                          <select value={formSubjectId} onChange={(e) => setFormSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                          <select value={formSubjectClassId} onChange={(e) => setFormSubjectClassId(e.target.value)} className="w-full border rounded-md h-10 px-2">
                             <option value="">Select subject</option>
-                            {subjectsByDepartment().map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                            {subjectsByDepartment().map((sc) => (
+                              <option key={sc.id} value={sc.id}>
+                                {sc.subjects?.name} ({sc.subject_code}) — {sc.teachers?.first_name} {sc.teachers?.last_name}
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </>
                     )}
 
                     {/* Departmental pickers (visible when departmentalMode true) */}
-                    {departmentalMode && (
+                    {departmentalMode && ( // C) UI Dropdown
                       <div className="border p-3 rounded">
                         <div className="mb-2 font-semibold">Departmental Subjects (choose any)</div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div>
                             <Label>Science Subject</Label>
-                            <select value={formScienceSubjectId} onChange={(e) => setFormScienceSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                            <select value={formScienceSubjectClassId} onChange={(e) => setFormScienceSubjectClassId(e.target.value)} className="w-full border rounded-md h-10 px-2">
                               <option value="">No Science Subject</option>
-                              {subjectsByDepartment("Science").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                              {subjectsByDepartment("Science").map((sc) => (
+                                <option key={sc.id} value={sc.id}>
+                                  {sc.subjects?.name} ({sc.subject_code}) — {sc.teachers?.first_name} {sc.teachers?.last_name}
+                                </option>
+                              ))}
                             </select>
                           </div>
 
                           <div>
                             <Label>Arts Subject</Label>
-                            <select value={formArtsSubjectId} onChange={(e) => setFormArtsSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                            <select value={formArtsSubjectClassId} onChange={(e) => setFormArtsSubjectClassId(e.target.value)} className="w-full border rounded-md h-10 px-2">
                               <option value="">No Arts Subject</option>
-                              {subjectsByDepartment("Arts").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                              {subjectsByDepartment("Arts").map((sc) => (
+                                <option key={sc.id} value={sc.id}>
+                                  {sc.subjects?.name} ({sc.subject_code}) — {sc.teachers?.first_name} {sc.teachers?.last_name}
+                                </option>
+                              ))}
                             </select>
                           </div>
 
                           <div>
                             <Label>Commercial Subject</Label>
-                            <select value={formCommercialSubjectId} onChange={(e) => setFormCommercialSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
+                            <select value={formCommercialSubjectClassId} onChange={(e) => setFormCommercialSubjectClassId(e.target.value)} className="w-full border rounded-md h-10 px-2">
                               <option value="">No Commercial Subject</option>
-                              {subjectsByDepartment("Commercial").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                              {subjectsByDepartment("Commercial").map((sc) => (
+                                <option key={sc.id} value={sc.id}>
+                                  {sc.subjects?.name} ({sc.subject_code}) — {sc.teachers?.first_name} {sc.teachers?.last_name}
+                                </option>
+                              ))}
                             </select>
                           </div>
                         </div>

@@ -14,32 +14,27 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
+import { getPeriodSlots, updatePeriodSlot } from "@/lib/periodSlots";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
 
-const TIMETABLE_PERIODS = [
-  { id: 1, label: "1st Period", start: "08:00", end: "08:40" },
-  { id: 2, label: "2nd Period", start: "08:40", end: "09:20" },
-  { id: 3, label: "3rd Period", start: "09:20", end: "10:00" },
-  { id: 4, label: "4th Period", start: "10:00", end: "10:40" },
-  { id: 5, label: "5th Period", start: "10:40", end: "11:20" },
-  { id: "break1", label: "BREAK", start: "11:20", end: "12:00", break: true },
-  { id: 6, label: "6th Period", start: "12:00", end: "12:40" },
-  { id: 7, label: "7th Period", start: "12:40", end: "13:20" },
-  { id: 8, label: "8th Period", start: "13:20", end: "14:00" },
-  { id: "break2", label: "BREAK", start: "14:00", end: "14:15", break: true },
-  { id: 9, label: "9th Period", start: "14:15", end: "14:50" },
-  { id: 10, label: "10th Period", start: "14:50", end: "15:25" },
-  { id: 11, label: "11th Period", start: "15:25", end: "16:00" },
-];
+interface PeriodSlot {
+  id: number;
+  day_of_week: number;
+  period_number: number;
+  start_time: string;
+  end_time: string;
+}
+
 
 export default function TimetablePage() {
   const [entries, setEntries] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [subjectClasses, setSubjectClasses] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [periodSlots, setPeriodSlots] = useState<any[]>([]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
@@ -57,9 +52,37 @@ export default function TimetablePage() {
   const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
 
+  // Period slot editor states
+  const [editingSlot, setEditingSlot] = useState<PeriodSlot | null>(null);
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [isPeriodSlotDialogOpen, setIsPeriodSlotDialogOpen] = useState(false);
+
   useEffect(() => {
     fetchAll();
   }, []);
+
+  // Period slot editor functions
+  function openEditSlot(slot: PeriodSlot) {
+    setEditingSlot(slot);
+    setStartTime(slot.start_time);
+    setEndTime(slot.end_time);
+    setIsPeriodSlotDialogOpen(true);
+  }
+
+  async function saveSlotEdit() {
+    if (!editingSlot) return;
+    try {
+      await updatePeriodSlot(editingSlot.id, startTime, endTime);
+      toast.success("Period slot updated");
+      setEditingSlot(null);
+      setIsPeriodSlotDialogOpen(false);
+      await fetchAll();
+    } catch (error) {
+      toast.error("Failed to update period slot");
+      console.error(error);
+    }
+  }
 
   async function fetchAll() {
     const [timetableRes, classRes, subjectClassRes] = await Promise.all([
@@ -85,10 +108,19 @@ export default function TimetablePage() {
       `).order("subject_code"),
     ]);
 
+    const { data: periodSlots } = await supabase
+      .from("period_slots")
+      .select("*")
+      .order("period_number");
+
+    if (periodSlots) setPeriodSlots(periodSlots);
+
+
     if (timetableRes.data) setEntries(timetableRes.data);
     if (classRes.data) setClasses(classRes.data);
     if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
   }
+
 
   function openAddDialog() {
     setEditingEntry(null);
@@ -180,7 +212,14 @@ export default function TimetablePage() {
       .from("timetable_entries")
       .select(`
         id,
-        class_id,
+        class_id,    
+  period_slots (
+    day_of_week,
+    period_number,
+    start_time,
+    end_time,
+    is_break
+  ),
         subject_classes (
           id,
           teacher_id,
@@ -540,10 +579,14 @@ export default function TimetablePage() {
 
     if (!data) return;
 
-    const map: Record<number | string, Record<string, any>> = {};
-    TIMETABLE_PERIODS.forEach((p) => {
-      if (!p.break) map[p.id] = { mon: null, tue: null, wed: null, thu: null, fri: null };
-    });
+    const map: any = {};
+
+    periodSlots
+      .filter(p => !p.is_break)
+      .forEach((p) => {
+        map[p.period_number] = { mon: null, tue: null, wed: null, thu: null, fri: null };
+      });
+
 
     const tempGroup: Record<string, any[]> = {};
     data.forEach((entry) => {
@@ -664,10 +707,10 @@ export default function TimetablePage() {
       const headerRow = ["Time", ...DAYS];
       ws_data.push(headerRow);
 
-      TIMETABLE_PERIODS.forEach((period) => {
-        if (period.break) {
+      periodSlots.forEach((period) => {
+        if (period.is_break) {
           ws_data.push([
-            `${period.start} - ${period.end}`,
+            `${period.start_time} - ${period.end_time}`,
             "BREAK",
             "BREAK",
             "BREAK",
@@ -800,6 +843,51 @@ export default function TimetablePage() {
                   {cls.name}
                 </Button>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Period Slot Manager</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="table-auto border-collapse border border-gray-300 w-full">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 p-2">Period</th>
+                    {DAYS.map((day) => (
+                      <th key={day} className="border border-gray-300 p-2">
+                        {day.slice(0, 3)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {PERIODS.map((periodNumber) => (
+                    <tr key={periodNumber}>
+                      <td className="border border-gray-300 p-2 font-semibold">
+                        Period {periodNumber}
+                      </td>
+                      {Array.from({ length: 5 }).map((_, dayIndex) => {
+                        const slot = periodSlots.find(
+                          (s) => s.day_of_week === dayIndex && s.period_number === periodNumber
+                        );
+                        return (
+                          <td
+                            key={dayIndex}
+                            className="border border-gray-300 p-2 cursor-pointer hover:bg-blue-100 text-center text-sm"
+                            onClick={() => slot && openEditSlot(slot)}
+                          >
+                            {slot ? `${slot.start_time} - ${slot.end_time}` : "N/A"}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
@@ -988,7 +1076,7 @@ export default function TimetablePage() {
                 </tr>
               </thead>
               <tbody>
-                {TIMETABLE_PERIODS.map((period) => (
+                {periodSlots.map((period) => (
                   <tr key={period.id}>
                     <td className="border p-2 font-medium">
                       {period.start} - {period.end}
@@ -1041,6 +1129,44 @@ export default function TimetablePage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Period Slot Editor Dialog */}
+      <Dialog open={isPeriodSlotDialogOpen} onOpenChange={setIsPeriodSlotDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Period Time</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div>
+              <Label>Start Time</Label>
+              <Input 
+                type="time" 
+                value={startTime} 
+                onChange={(e) => setStartTime(e.target.value)} 
+              />
+            </div>
+            <div>
+              <Label>End Time</Label>
+              <Input 
+                type="time" 
+                value={endTime} 
+                onChange={(e) => setEndTime(e.target.value)} 
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsPeriodSlotDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={saveSlotEdit}>
+                Save
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

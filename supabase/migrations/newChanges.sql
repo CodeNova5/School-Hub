@@ -91,41 +91,6 @@ ALTER TABLE subjects
 DROP CONSTRAINT subjects_department_check
 
 
-CREATE OR REPLACE FUNCTION set_timetable_times()
-RETURNS trigger
-LANGUAGE plpgsql AS $$
-DECLARE
-  p integer := NEW.period_number;
-BEGIN
-  IF NEW.start_time IS NULL OR NEW.end_time IS NULL THEN
-    CASE p
-      WHEN 1 THEN NEW.start_time := '08:00'::time; NEW.end_time := '08:40'::time;
-      WHEN 2 THEN NEW.start_time := '08:40'::time; NEW.end_time := '09:20'::time;
-      WHEN 3 THEN NEW.start_time := '09:20'::time; NEW.end_time := '10:00'::time;
-      WHEN 4 THEN NEW.start_time := '10:00'::time; NEW.end_time := '10:40'::time;
-      WHEN 5 THEN NEW.start_time := '10:40'::time; NEW.end_time := '11:20'::time;
-      WHEN 6 THEN NEW.start_time := '12:00'::time; NEW.end_time := '12:40'::time;
-      WHEN 7 THEN NEW.start_time := '12:40'::time; NEW.end_time := '13:20'::time;
-      WHEN 8 THEN NEW.start_time := '13:20'::time; NEW.end_time := '14:00'::time;
-      WHEN 9 THEN NEW.start_time := '14:15'::time; NEW.end_time := '14:50'::time;
-      WHEN 10 THEN NEW.start_time := '14:50'::time; NEW.end_time := '15:25'::time;
-      WHEN 11 THEN NEW.start_time := '15:25'::time; NEW.end_time := '16:00'::time;
-      ELSE RAISE EXCEPTION 'Invalid period number %', p;
-    END CASE;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
--- Re-create the trigger to use the new function
-DROP TRIGGER IF EXISTS trg_set_timetable_times ON timetable_entries;
-CREATE TRIGGER trg_set_timetable_times
-BEFORE INSERT OR UPDATE ON timetable_entries
-FOR EACH ROW
-EXECUTE FUNCTION set_timetable_times();
-
-
 
 CREATE TABLE IF NOT EXISTS timetable_entries ( id uuid PRIMARY KEY DEFAULT gen_random_uuid(), day_of_week text NOT NULL CHECK (day_of_week IN ('Monday','Tuesday','Wednesday','Thursday','Friday')), period_number smallint NOT NULL CHECK (period_number BETWEEN 1 AND 10), class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE, subject_id uuid NOT NULL REFERENCES subjects(id) ON DELETE CASCADE, teacher_id uuid NOT NULL REFERENCES teachers(id) ON DELETE SET NULL, start_time time NOT NULL, end_time time NOT NULL, created_at timestamptz DEFAULT now() ); -- prevent duplicate assignment for the same class & period CREATE UNIQUE INDEX IF NOT EXISTS uq_timetable_class_period ON timetable_entries (day_of_week, period_number, class_id); -- prevent double-booking teachers CREATE UNIQUE INDEX IF NOT EXISTS uq_timetable_teacher_period ON timetable_entries (day_of_week, period_number, teacher_id); -- RLS (match style of your existing tables) ALTER TABLE timetable_entries ENABLE ROW LEVEL SECURITY; DROP POLICY IF EXISTS "Anyone can read timetable" ON timetable_entries; CREATE POLICY "Anyone can read timetable" ON timetable_entries FOR SELECT TO authenticated USING (true); DROP POLICY IF EXISTS "Admins can manage timetable" ON timetable_entries; CREATE POLICY "Admins can manage timetable" ON timetable_entries FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
@@ -269,3 +234,87 @@ BEFORE INSERT OR UPDATE OF subject_class_id
 ON timetable_entries
 FOR EACH ROW
 EXECUTE FUNCTION sync_timetable_from_subject_class();
+
+ALTER TABLE timetable_entries
+DROP COLUMN IF EXISTS start_time,
+DROP COLUMN IF EXISTS end_time;
+
+ALTER TABLE timetable_entries
+ADD COLUMN IF NOT EXISTS day_of_week text NOT NULL,
+ADD COLUMN IF NOT EXISTS period_number smallint NOT NULL;
+
+ALTER TABLE timetable_entries
+ADD CONSTRAINT fk_timetable_slot
+FOREIGN KEY (day_of_week, period_number)
+REFERENCES period_slots(day_of_week, period_number)
+ON DELETE RESTRICT;
+
+ALTER TABLE timetable_entries
+ADD CONSTRAINT timetable_must_use_real_slot
+FOREIGN KEY (day_of_week, period_number)
+REFERENCES period_slots(day_of_week, period_number);
+
+CREATE TABLE period_slots (
+  id serial PRIMARY KEY,
+  day_of_week text NOT NULL,
+  period_number smallint NOT NULL,
+  start_time time NOT NULL,
+  end_time time NOT NULL,
+  UNIQUE(day_of_week, period_number)
+);
+INSERT INTO period_slots (day_of_week, period_number, start_time, end_time) VALUES
+('Monday', 1, '08:00', '08:40'),
+('Monday', 2, '08:40', '09:20'),
+('Monday', 3, '09:20', '10:00'),
+('Monday', 4, '10:00', '10:40'),
+('Monday', 5, '10:40', '11:20'),
+('Monday', 6, '12:00', '12:40'),
+('Monday', 7, '12:40', '13:20'),
+('Monday', 8, '13:20', '14:00'),
+('Monday', 9, '14:15', '14:50'),
+('Monday', 10, '14:50', '15:25'),
+('Monday', 11, '15:25', '16:00'),
+('Tuesday', 1, '08:00', '08:40'),
+('Tuesday', 2, '08:40', '09:20'),
+('Tuesday', 3, '09:20', '10:00'),
+('Tuesday', 4, '10:00', '10:40'),
+('Tuesday', 5, '10:40', '11:20'),
+('Tuesday', 6, '12:00', '12:40'),
+('Tuesday', 7, '12:40', '13:20'),
+('Tuesday', 8, '13:20', '14:00'),
+('Tuesday', 9, '14:15', '14:50'),
+('Tuesday', 10, '14:50', '15:25'),
+('Tuesday', 11, '15:25', '16:00'),
+('Wednesday', 1, '08:00', '08:40'),
+('Wednesday', 2, '08:40', '09:20'),
+('Wednesday', 3, '09:20', '10:00'),
+('Wednesday', 4, '10:00', '10:40'),
+('Wednesday', 5, '10:40', '11:20'),
+('Wednesday', 6, '12:00', '12:40'),
+('Wednesday', 7, '12:40', '13:20'),
+('Wednesday', 8, '13:20', '14:00'),
+('Wednesday', 9, '14:15', '14:50'),
+('Wednesday', 10, '14:50', '15:25'),
+('Wednesday', 11, '15:25', '16:00'),
+('Thursday', 1, '08:00', '08:40'),
+('Thursday', 2, '08:40', '09:20'),
+('Thursday', 3, '09:20', '10:00'),
+('Thursday', 4, '10:00', '10:40'),
+('Thursday', 5, '10:40', '11:20'),
+('Thursday', 6, '12:00', '12:40'),
+('Thursday', 7, '12:40', '13:20'),
+('Thursday', 8, '13:20', '14:00'),
+('Thursday', 9, '14:15', '14:50'),
+('Thursday', 10, '14:50', '15:25'),
+('Thursday', 11, '15:25', '16:00'),
+('Friday', 1, '08:00', '08:40'),
+('Friday', 2, '08:40', '09:20'),
+('Friday', 3, '09:20', '10:00'),
+('Friday', 4, '10:00', '10:40'),
+('Friday', 5, '10:40', '11:20'),
+('Friday', 6, '12:00', '12:40'),
+('Friday', 7, '12:40', '13:20'),
+('Friday', 8, '13:20', '14:00'),
+('Friday', 9, '14:15', '14:50'),
+('Friday', 10, '14:50', '15:25'),
+('Friday', 11, '15:25', '16:00');

@@ -296,10 +296,10 @@ export default function TimetablePage() {
         if (clash) {
           toast.error(
             `Clash detected!\n\n` +
-              `${clash.teacherName} is already teaching:\n` +
-              `• Subject: ${clash.subjectName}\n` +
-              `• Class: ${clash.className}\n` +
-              `• Period: ${formPeriod} on ${formDay}`
+            `${clash.teacherName} is already teaching:\n` +
+            `• Subject: ${clash.subjectName}\n` +
+            `• Class: ${clash.className}\n` +
+            `• Period: ${formPeriod} on ${formDay}`
           );
           return;
         }
@@ -350,10 +350,10 @@ export default function TimetablePage() {
         if (clash) {
           toast.error(
             `Clash detected!\n\n` +
-              `${clash.teacherName} is already teaching:\n` +
-              `• Subject: ${clash.subjectName}\n` +
-              `• Class: ${clash.className}\n` +
-              `• Period: ${formPeriod} on ${formDay}`
+            `${clash.teacherName} is already teaching:\n` +
+            `• Subject: ${clash.subjectName}\n` +
+            `• Class: ${clash.className}\n` +
+            `• Period: ${formPeriod} on ${formDay}`
           );
           return;
         }
@@ -398,10 +398,10 @@ export default function TimetablePage() {
       if (clash) {
         toast.error(
           `Clash detected!\n\n` +
-            `${clash.teacherName} is already teaching:\n` +
-            `• Subject: ${clash.subjectName}\n` +
-            `• Class: ${clash.className}\n` +
-            `• Period: ${formPeriod} on ${formDay}`
+          `${clash.teacherName} is already teaching:\n` +
+          `• Subject: ${clash.subjectName}\n` +
+          `• Class: ${clash.className}\n` +
+          `• Period: ${formPeriod} on ${formDay}`
         );
         return;
       }
@@ -812,7 +812,7 @@ export default function TimetablePage() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-                           <div>
+              <div>
                 <Label>Day</Label>
                 <select
                   className="w-full border rounded p-2"
@@ -1002,16 +1002,38 @@ export default function TimetablePage() {
                       DAYS_SHORT.map((day) => {
                         const cell = classTimetable[period.id]?.[day];
                         return (
-                          <td key={day} className="border p-2 text-sm text-center">
+                          <td
+                            key={day}
+                            className="border p-2 text-sm text-center cursor-pointer hover:bg-blue-50"
+                            onClick={() => {
+                              if (!selectedClass) return;
+
+                              const cell = classTimetable[period.id]?.[day];
+
+                              if (cell?.rows?.length > 0) {
+                                openEdit(cell.rows[0]);
+                              } else {
+                                const dayFull =
+                                  day === "mon" ? "Monday" :
+                                    day === "tue" ? "Tuesday" :
+                                      day === "wed" ? "Wednesday" :
+                                        day === "thu" ? "Thursday" :
+                                          "Friday";
+
+                                openAdd(dayFull, Number(period.id), selectedClass);
+                              }
+                            }}
+                          >
                             {cell ? (
                               <>
                                 <div className="font-semibold">{cell.subject}</div>
                                 <div className="text-xs text-gray-600">{cell.teacher}</div>
                               </>
                             ) : (
-                              ""
+                              <span className="text-xs text-gray-400">+ Add</span>
                             )}
                           </td>
+
                         );
                       })
                     )}

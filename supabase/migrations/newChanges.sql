@@ -242,79 +242,13 @@ DROP COLUMN IF EXISTS end_time;
 ALTER TABLE timetable_entries
 ADD COLUMN IF NOT EXISTS day_of_week text NOT NULL,
 ADD COLUMN IF NOT EXISTS period_number smallint NOT NULL;
-
-ALTER TABLE timetable_entries
-ADD CONSTRAINT fk_timetable_slot
-FOREIGN KEY (day_of_week, period_number)
-REFERENCES period_slots(day_of_week, period_number)
-ON DELETE RESTRICT;
-
-ALTER TABLE timetable_entries
-ADD CONSTRAINT timetable_must_use_real_slot
-FOREIGN KEY (day_of_week, period_number)
-REFERENCES period_slots(day_of_week, period_number);
-
+-- Table to store period times for each day
 CREATE TABLE period_slots (
-  id serial PRIMARY KEY,
-  day_of_week text NOT NULL,
-  period_number smallint NOT NULL,
-  start_time time NOT NULL,
-  end_time time NOT NULL,
-  UNIQUE(day_of_week, period_number)
+    id SERIAL PRIMARY KEY,
+    day_of_week INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 4), -- 0 = Monday, 4 = Friday
+    period_number INT NOT NULL CHECK (period_number >= 1 AND period_number <= 11),
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    CONSTRAINT unique_period_per_day UNIQUE(day_of_week, period_number),
+    CONSTRAINT valid_time_range CHECK (start_time < end_time)
 );
-INSERT INTO period_slots (day_of_week, period_number, start_time, end_time) VALUES
-('Monday', 1, '08:00', '08:40'),
-('Monday', 2, '08:40', '09:20'),
-('Monday', 3, '09:20', '10:00'),
-('Monday', 4, '10:00', '10:40'),
-('Monday', 5, '10:40', '11:20'),
-('Monday', 6, '12:00', '12:40'),
-('Monday', 7, '12:40', '13:20'),
-('Monday', 8, '13:20', '14:00'),
-('Monday', 9, '14:15', '14:50'),
-('Monday', 10, '14:50', '15:25'),
-('Monday', 11, '15:25', '16:00'),
-('Tuesday', 1, '08:00', '08:40'),
-('Tuesday', 2, '08:40', '09:20'),
-('Tuesday', 3, '09:20', '10:00'),
-('Tuesday', 4, '10:00', '10:40'),
-('Tuesday', 5, '10:40', '11:20'),
-('Tuesday', 6, '12:00', '12:40'),
-('Tuesday', 7, '12:40', '13:20'),
-('Tuesday', 8, '13:20', '14:00'),
-('Tuesday', 9, '14:15', '14:50'),
-('Tuesday', 10, '14:50', '15:25'),
-('Tuesday', 11, '15:25', '16:00'),
-('Wednesday', 1, '08:00', '08:40'),
-('Wednesday', 2, '08:40', '09:20'),
-('Wednesday', 3, '09:20', '10:00'),
-('Wednesday', 4, '10:00', '10:40'),
-('Wednesday', 5, '10:40', '11:20'),
-('Wednesday', 6, '12:00', '12:40'),
-('Wednesday', 7, '12:40', '13:20'),
-('Wednesday', 8, '13:20', '14:00'),
-('Wednesday', 9, '14:15', '14:50'),
-('Wednesday', 10, '14:50', '15:25'),
-('Wednesday', 11, '15:25', '16:00'),
-('Thursday', 1, '08:00', '08:40'),
-('Thursday', 2, '08:40', '09:20'),
-('Thursday', 3, '09:20', '10:00'),
-('Thursday', 4, '10:00', '10:40'),
-('Thursday', 5, '10:40', '11:20'),
-('Thursday', 6, '12:00', '12:40'),
-('Thursday', 7, '12:40', '13:20'),
-('Thursday', 8, '13:20', '14:00'),
-('Thursday', 9, '14:15', '14:50'),
-('Thursday', 10, '14:50', '15:25'),
-('Thursday', 11, '15:25', '16:00'),
-('Friday', 1, '08:00', '08:40'),
-('Friday', 2, '08:40', '09:20'),
-('Friday', 3, '09:20', '10:00'),
-('Friday', 4, '10:00', '10:40'),
-('Friday', 5, '10:40', '11:20'),
-('Friday', 6, '12:00', '12:40'),
-('Friday', 7, '12:40', '13:20'),
-('Friday', 8, '13:20', '14:00'),
-('Friday', 9, '14:15', '14:50'),
-('Friday', 10, '14:50', '15:25'),
-('Friday', 11, '15:25', '16:00');

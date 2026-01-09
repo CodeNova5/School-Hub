@@ -107,6 +107,27 @@ export default function TimetablePage() {
     if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
   }
 
+  const periodMap = useMemo(() => {
+    const map: Record<number, any> = {};
+
+    periodSlots.forEach((p) => {
+      if (!map[p.period_number]) {
+        map[p.period_number] = {
+          period_number: p.period_number,
+          byDay: {},
+        };
+      }
+      map[p.period_number].byDay[p.day_of_week] = p;
+    });
+
+    return map;
+  }, [periodSlots]);
+
+  const periodNumbers = Object.keys(periodMap)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+
   function openEditPeriodTime(periodSlot: any) {
     setEditingPeriodSlot(periodSlot);
     setPeriodStartTime(periodSlot.start_time || "");
@@ -1024,35 +1045,31 @@ export default function TimetablePage() {
                 </tr>
               </thead>
               <tbody>
-                {periodSlots.map((period) => (
-                  <tr key={period.id}>
-                    <td
-                      className="border p-2 font-medium cursor-pointer hover:bg-gray-100"
-                      onClick={() => {
-                        // Find the period slot for this period/day
-                        const slot = periodSlots.find((p) => p.id === period.id);
-                        if (!slot?.id) return;
+                {periodNumbers.map((periodNumber) => {
 
-                        // Assuming you have period_slots fetched separately
-                        const periodSlot = entries.find(
-                          (e) => e.period_number === period.id && e.day_of_week === 0 // just example Monday
-                        );
+                  const row = periodMap[periodNumber];
 
-                        // Open edit modal
-                        openEditPeriodTime(periodSlot || slot);
-                      }}
-                    >
-                      {period.start} - {period.end}
-                    </td>
+                  // Use Monday as reference for time display (or any day)
+                  const mondaySlot = row.byDay[0];
 
-
-                    {period.break ? (
-                      <td colSpan={5} className="border p-2 text-center font-bold bg-gray-100">
-                        BREAK
+                  return (
+                    <tr key={periodNumber}>
+                      {/* TIME COLUMN */}
+                      <td
+                        className="border p-2 font-medium cursor-pointer hover:bg-gray-100"
+                        onClick={() => {
+                          if (!mondaySlot) return;
+                          openEditPeriodTime(mondaySlot); // You can later enhance to pick day
+                        }}
+                      >
+                        {mondaySlot?.start_time} - {mondaySlot?.end_time}
                       </td>
-                    ) : (
-                      DAYS_SHORT.map((day) => {
-                        const cell = classTimetable[period.id]?.[day];
+
+                      {/* DAY COLUMNS */}
+                      {DAYS_SHORT.map((day, dayIndex) => {
+                        const slotForDay = row.byDay[dayIndex];
+                        const cell = classTimetable[periodNumber]?.[day];
+
                         return (
                           <td
                             key={day}
@@ -1060,19 +1077,17 @@ export default function TimetablePage() {
                             onClick={() => {
                               if (!selectedClass) return;
 
-                              const cell = classTimetable[period.id]?.[day];
-
                               if (cell?.rows?.length > 0) {
                                 openEdit(cell.rows[0]);
                               } else {
                                 const dayFull =
-                                  day === "mon" ? "Monday" :
-                                    day === "tue" ? "Tuesday" :
-                                      day === "wed" ? "Wednesday" :
-                                        day === "thu" ? "Thursday" :
+                                  dayIndex === 0 ? "Monday" :
+                                    dayIndex === 1 ? "Tuesday" :
+                                      dayIndex === 2 ? "Wednesday" :
+                                        dayIndex === 3 ? "Thursday" :
                                           "Friday";
 
-                                openAdd(dayFull, Number(period.id), selectedClass);
+                                openAdd(dayFull, periodNumber, selectedClass);
                               }
                             }}
                           >
@@ -1085,12 +1100,12 @@ export default function TimetablePage() {
                               <span className="text-xs text-gray-400">+ Add</span>
                             )}
                           </td>
-
                         );
-                      })
-                    )}
-                  </tr>
-                ))}
+                      })}
+                    </tr>
+                  );
+                })}
+
               </tbody>
             </table>
           </div>

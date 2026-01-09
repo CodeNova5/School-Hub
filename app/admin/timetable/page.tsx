@@ -108,24 +108,20 @@ export default function TimetablePage() {
   }
 
   const periodMap = useMemo(() => {
-    const map: Record<number, any> = {};
+    const map: Record<number, Record<number, any>> = {};
+    // map[period_number][day_of_week] = slot
 
-    periodSlots.forEach((p) => {
-      if (!map[p.period_number]) {
-        map[p.period_number] = {
-          period_number: p.period_number,
-          byDay: {},
-        };
-      }
-      map[p.period_number].byDay[p.day_of_week] = p;
+    periodSlots.forEach((slot) => {
+      if (!map[slot.period_number]) map[slot.period_number] = {};
+      map[slot.period_number][slot.day_of_week] = slot;
     });
 
     return map;
   }, [periodSlots]);
 
-  const periodNumbers = Object.keys(periodMap)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const periodNumbers = useMemo(() => {
+    return Object.keys(periodMap).map(Number).sort((a, b) => a - b);
+  }, [periodMap]);
 
 
   function openEditPeriodTime(periodSlot: any) {
@@ -1036,7 +1032,15 @@ export default function TimetablePage() {
             <table className="w-full border">
               <thead>
                 <tr>
-                  <th className="border p-2">Time</th>
+                  <th className="border p-2">Period</th>
+                  {DAYS.map((d, i) => (
+                    <th key={d} className="border p-2 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span>{d}</span>
+                      </div>
+                    </th>
+                  ))}
+
                   {DAYS.map((d) => (
                     <th key={d} className="border p-2">
                       {d}
@@ -1045,35 +1049,44 @@ export default function TimetablePage() {
                 </tr>
               </thead>
               <tbody>
-                {periodNumbers.map((periodNumber) => {
+                {periodNumbers.map((periodNumber) => (
+                  <tr key={periodNumber}>
+                    {/* PERIOD LABEL */}
+                    <td className="border p-2 font-medium text-center">
+                      Period {periodNumber}
+                    </td>
 
-                  const row = periodMap[periodNumber];
+                    {/* DAY COLUMNS */}
+                    {DAYS_SHORT.map((day, dayIndex) => {
+                      const slot = periodMap[periodNumber]?.[dayIndex];
+                      const cell = classTimetable[periodNumber]?.[day];
 
-                  // Use Monday as reference for time display (or any day)
-                  const mondaySlot = row.byDay[0];
+                      return (
+                        <td key={day} className="border p-2 text-sm text-center">
 
-                  return (
-                    <tr key={periodNumber}>
-                      {/* TIME COLUMN */}
-                      <td
-                        className="border p-2 font-medium cursor-pointer hover:bg-gray-100"
-                        onClick={() => {
-                          if (!mondaySlot) return;
-                          openEditPeriodTime(mondaySlot); // You can later enhance to pick day
-                        }}
-                      >
-                        {mondaySlot?.start_time} - {mondaySlot?.end_time}
-                      </td>
+                          {/* TIME ROW HEADER INSIDE CELL */}
+                          <div className="flex items-center justify-center gap-1 mb-1 text-xs text-gray-600">
+                            <span>
+                              {slot ? `${slot.start_time} - ${slot.end_time}` : "--:--"}
+                            </span>
 
-                      {/* DAY COLUMNS */}
-                      {DAYS_SHORT.map((day, dayIndex) => {
-                        const slotForDay = row.byDay[dayIndex];
-                        const cell = classTimetable[periodNumber]?.[day];
+                            {slot && (
+                              <button
+                                className="p-1 hover:text-blue-600"
+                                title="Edit time"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditPeriodTime(slot);
+                                }}
+                              >
+                                ✏
+                              </button>
+                            )}
+                          </div>
 
-                        return (
-                          <td
-                            key={day}
-                            className="border p-2 text-sm text-center cursor-pointer hover:bg-blue-50"
+                          {/* SUBJECT CELL */}
+                          <div
+                            className="cursor-pointer hover:bg-blue-50 rounded p-1"
                             onClick={() => {
                               if (!selectedClass) return;
 
@@ -1099,14 +1112,15 @@ export default function TimetablePage() {
                             ) : (
                               <span className="text-xs text-gray-400">+ Add</span>
                             )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+                          </div>
 
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
               </tbody>
+
             </table>
           </div>
         </DialogContent>

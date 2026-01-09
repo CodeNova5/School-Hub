@@ -1,20 +1,21 @@
 "use client";
 
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Student, Subject, Class as ClassType, Session, Term } from '@/lib/types';
-import { toast } from 'sonner';
-import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { Save, Printer, ArrowLeft, Loader2 } from 'lucide-react';
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useEffect, useState, useRef } from "react";
+import { supabase } from "@/lib/supabase";
+import { Student, Class as ClassType, Session, Term } from "@/lib/types";
+import { toast } from "sonner";
+import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Save, Printer, ArrowLeft, Loader2 } from "lucide-react";
+
+
 
 interface SubjectScore {
-  subject_id: string;
+  subject_class_id: string;
   subject_name: string;
   welcome_test: number;
   mid_term_test: number;
@@ -30,88 +31,96 @@ export default function ResultEntryPage() {
   const router = useRouter();
   const printRef = useRef<HTMLDivElement>(null);
 
-  const studentId = searchParams.get('studentId');
+  const studentId = searchParams.get("studentId");
 
   const [student, setStudent] = useState<Student | null>(null);
   const [studentClass, setStudentClass] = useState<ClassType | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [term, setTerm] = useState<Term | null>(null);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+
   const [scores, setScores] = useState<SubjectScore[]>([]);
   const [attendance, setAttendance] = useState(0);
-  const [nextTermBegins, setNextTermBegins] = useState('');
-  const [classTeacherRemark, setClassTeacherRemark] = useState('');
-  const [principalRemark, setPrincipalRemark] = useState('');
+  const [nextTermBegins, setNextTermBegins] = useState("");
+  const [classTeacherRemark, setClassTeacherRemark] = useState("");
+  const [principalRemark, setPrincipalRemark] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (studentId) {
-      loadData();
-    }
+    if (studentId) loadData();
   }, [studentId]);
 
   async function loadData() {
     if (!studentId) return;
-
     setIsLoading(true);
+
     try {
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', studentId)
+      // 1. Student
+      const { data: studentData } = await supabase
+        .from("students")
+        .select("*")
+        .eq("id", studentId)
         .single();
 
-      if (studentError || !studentData) {
-        toast.error('Student not found');
-        router.push('/teacher/results');
+      if (!studentData) {
+        toast.error("Student not found");
+        router.push("/teacher/results");
         return;
       }
 
       setStudent(studentData);
 
+      // 2. Class
       const { data: classData } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('id', studentData.class_id)
+        .from("classes")
+        .select("*")
+        .eq("id", studentData.class_id)
         .single();
 
       if (classData) setStudentClass(classData);
 
+      // 3. Current session & term
       const { data: sessionData } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('is_current', true)
+        .from("sessions")
+        .select("*")
+        .eq("is_current", true)
         .single();
-
-      if (sessionData) setSession(sessionData);
 
       const { data: termData } = await supabase
-        .from('terms')
-        .select('*')
-        .eq('is_current', true)
+        .from("terms")
+        .select("*")
+        .eq("is_current", true)
         .single();
 
-      if (termData) setTerm(termData);
-
-      const { data: subjectsData, error: subjectsError } = await supabase
-        .rpc("get_student_subjects", { student_uuid: studentId });
-
-      if (subjectsError) {
-        toast.error("Failed to load subjects");
-        console.error(subjectsError);
+      if (!sessionData || !termData) {
+        toast.error("No active session or term");
         return;
       }
 
-      if (!subjectsData || (Array.isArray(subjectsData) && subjectsData.length === 0)) {
-        toast.error("No subjects available for this student.");
+      setSession(sessionData);
+      setTerm(termData);
+
+      // 4. Load subject_classes for this student's class
+      const { data: subjectClasses, error: scError } = await supabase
+        .from("subject_classes")
+        .select(`
+          id,
+          subjects (
+            name
+          )
+        `)
+        .eq("class_id", studentData.class_id);
+
+      if (scError || !subjectClasses || subjectClasses.length === 0) {
+        toast.error("No subjects assigned to this class");
         return;
       }
 
-      // Create initial empty scores
-      const initialScores: SubjectScore[] = (subjectsData as any[]).map((subject: any) => ({
-        subject_id: subject.subject_id ?? subject.id,
-        subject_name: subject.name,
+      // 5. Build initial scores
+      let initialScores: SubjectScore[] = subjectClasses.map((sc: any) => ({
+        subject_class_id: sc.id,
+        subject_name: sc.subjects?.name ?? "Unknown",
         welcome_test: 0,
         mid_term_test: 0,
         vetting: 0,
@@ -121,146 +130,129 @@ export default function ResultEntryPage() {
         remark: "",
       }));
 
-      // Load existing results for the same session & term (if available) and merge them into initialScores
-      if (sessionData?.id && termData?.id) {
-        const { data: existingResults } = await supabase
-          .from('results')
-          .select('*')
-          .eq('student_id', studentId)
-          .eq('session_id', sessionData.id)
-          .eq('term_id', termData.id);
+      // 6. Load existing results
+      const { data: existingResults } = await supabase
+        .from("results")
+        .select("*")
+        .eq("student_id", studentId)
+        .eq("session_id", sessionData.id)
+        .eq("term_id", termData.id);
 
-        if (existingResults && existingResults.length > 0) {
-          // Set remarks/nextTermBegins from the first existing record (they are per-term fields)
-          const first = existingResults[0];
-          setClassTeacherRemark(first.class_teacher_remark || "");
-          setPrincipalRemark(first.principal_remark || "");
-          setNextTermBegins(first.next_term_begins || "");
+      if (existingResults && existingResults.length > 0) {
+        const first = existingResults[0];
+        setClassTeacherRemark(first.class_teacher_remark || "");
+        setPrincipalRemark(first.principal_remark || "");
+        setNextTermBegins(first.next_term_begins || "");
 
-          // Map existing results into initialScores
-          for (const res of existingResults) {
-            const idx = initialScores.findIndex((s) => s.subject_id === res.subject_id);
-            if (idx >= 0) {
-              const welcome = clampNumber(res.welcome_test ?? 0, 0, 10);
-              const mid = clampNumber(res.mid_term_test ?? 0, 0, 20);
-              const vetting = clampNumber(res.vetting ?? 0, 0, 10);
-              const exam = clampNumber(res.exam ?? 0, 0, 60);
-              const total = Number(welcome + mid + vetting + exam);
-              const { grade, remark } = calculateGrade(total);
-              initialScores[idx] = {
-                subject_id: res.subject_id,
-                subject_name: initialScores[idx].subject_name,
-                welcome_test: welcome,
-                mid_term_test: mid,
-                vetting,
-                exam,
-                total,
-                grade,
-                remark: res.remark ?? remark,
-              };
-            }
+        for (const res of existingResults) {
+          const idx = initialScores.findIndex(
+            (s) => s.subject_class_id === res.subject_class_id
+          );
+          if (idx >= 0) {
+            const total =
+              (res.welcome_test || 0) +
+              (res.mid_term_test || 0) +
+              (res.vetting || 0) +
+              (res.exam || 0);
+
+            const { grade, remark } = calculateGrade(total);
+
+            initialScores[idx] = {
+              ...initialScores[idx],
+              welcome_test: res.welcome_test || 0,
+              mid_term_test: res.mid_term_test || 0,
+              vetting: res.vetting || 0,
+              exam: res.exam || 0,
+              total,
+              grade,
+              remark: res.remark || remark,
+            };
           }
         }
       }
 
       setScores(initialScores);
 
-      const { count: attendanceCount } = await supabase
-        .from('attendance')
-        .select('*', { count: 'exact' })
-        .eq('student_id', studentId)
-        .eq('status', 'present');
+      // 7. Attendance
+      const { count } = await supabase
+        .from("attendance")
+        .select("*", { count: "exact" })
+        .eq("student_id", studentId)
+        .eq("status", "present");
 
-      setAttendance(attendanceCount || 0);
-    } catch (error: any) {
-      toast.error('Failed to load data: ' + (error?.message || String(error)));
+      setAttendance(count || 0);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load data");
     } finally {
       setIsLoading(false);
     }
   }
 
-  // Helper to clamp numbers to max allowed
-  function clampNumber(value: number, min: number, max: number) {
-    if (isNaN(value)) return min;
-    return Math.max(min, Math.min(max, value));
-  }
-
-  function calculateGrade(total: number): { grade: string; remark: string } {
-    if (total >= 75) return { grade: 'A1', remark: 'Excellent' };
-    if (total >= 70) return { grade: 'B2', remark: 'Very Good' };
-    if (total >= 65) return { grade: 'B3', remark: 'Good' };
-    if (total >= 60) return { grade: 'C4', remark: 'Credit' };
-    if (total >= 55) return { grade: 'C5', remark: 'Credit' };
-    if (total >= 50) return { grade: 'C6', remark: 'Credit' };
-    if (total >= 45) return { grade: 'D7', remark: 'Pass' };
-    if (total >= 40) return { grade: 'E8', remark: 'Pass' };
-    return { grade: 'F9', remark: 'Fail' };
+  function calculateGrade(total: number) {
+    if (total >= 75) return { grade: "A1", remark: "Excellent" };
+    if (total >= 70) return { grade: "B2", remark: "Very Good" };
+    if (total >= 65) return { grade: "B3", remark: "Good" };
+    if (total >= 60) return { grade: "C4", remark: "Credit" };
+    if (total >= 55) return { grade: "C5", remark: "Credit" };
+    if (total >= 50) return { grade: "C6", remark: "Credit" };
+    if (total >= 45) return { grade: "D7", remark: "Pass" };
+    if (total >= 40) return { grade: "E8", remark: "Pass" };
+    return { grade: "F9", remark: "Fail" };
   }
 
   function updateScore(index: number, field: keyof SubjectScore, value: string) {
     const newScores = [...scores];
-    let numValue = parseFloat(value);
-    if (isNaN(numValue)) numValue = 0;
+    const num = Math.max(0, Number(value) || 0);
 
-    // enforce limits per field
-    const limits: Record<string, number> = {
-      welcome_test: 10,
-      mid_term_test: 20,
-      vetting: 10,
-      exam: 60,
-    };
-    const max = limits[field as string] ?? 100;
-    const clamped = clampNumber(numValue, 0, max);
+    (newScores[index] as any)[field] = num;
 
-    newScores[index] = {
-      ...newScores[index],
-      [field]: clamped,
-    };
+    const total =
+      newScores[index].welcome_test +
+      newScores[index].mid_term_test +
+      newScores[index].vetting +
+      newScores[index].exam;
 
-    if (['welcome_test', 'mid_term_test', 'vetting', 'exam'].includes(field)) {
-      const total =
-        (newScores[index].welcome_test || 0) +
-        (newScores[index].mid_term_test || 0) +
-        (newScores[index].vetting || 0) +
-        (newScores[index].exam || 0);
+    const { grade, remark } = calculateGrade(total);
 
-      const { grade, remark } = calculateGrade(total);
-
-      newScores[index].total = total;
-      newScores[index].grade = grade;
-      newScores[index].remark = remark;
-    }
+    newScores[index].total = total;
+    newScores[index].grade = grade;
+    newScores[index].remark = remark;
 
     setScores(newScores);
   }
 
-  const totalScore = scores.reduce((sum, score) => sum + score.total, 0);
+  const totalScore = scores.reduce((sum, s) => sum + s.total, 0);
+  const overallGrade = (() => {
+    const avgScore = scores.length > 0 ? totalScore / scores.length : 0;
+    return calculateGrade(avgScore).grade;
+  })();
   const averagePercentage = scores.length > 0 ? (totalScore / (scores.length * 100)) * 100 : 0;
-  const overallGrade = calculateGrade(averagePercentage).grade;
+
+  function handlePrint() {
+    window.print();
+  }
 
   async function handleSave() {
-    if (!studentId || !term || !session || !student) {
-      toast.error("Missing required data");
-      return;
-    }
+    if (!student || !session || !term) return;
 
     setIsSaving(true);
+
     try {
       const user = await getCurrentUser();
       const teacher = user ? await getTeacherByUserId(user.id) : null;
 
-      const records = scores.map((score) => ({
-        student_id: studentId,
-        subject_id: score.subject_id,
-        class_id: student.class_id,
+      const records = scores.map((s) => ({
+        student_id: student.id,
+        subject_class_id: s.subject_class_id,
         session_id: session.id,
         term_id: term.id,
-
-        welcome_test: clampNumber(score.welcome_test, 0, 10),
-        mid_term_test: clampNumber(score.mid_term_test, 0, 20),
-        vetting: clampNumber(score.vetting, 0, 10),
-        exam: clampNumber(score.exam, 0, 60),
-
+        welcome_test: s.welcome_test,
+        mid_term_test: s.mid_term_test,
+        vetting: s.vetting,
+        exam: s.exam,
+        total: s.total,
+        grade: s.grade,
+        remark: s.remark,
         class_teacher_remark: classTeacherRemark,
         class_teacher_name: teacher
           ? `${teacher.first_name} ${teacher.last_name}`
@@ -270,51 +262,35 @@ export default function ResultEntryPage() {
         entered_by: teacher?.id,
       }));
 
-      // Use correct conflict target
-      const { error } = await supabase
-        .from("results")
-        .upsert(records, {
-          onConflict: "student_id,subject_id,session_id,term_id"
-        });
+      const { error } = await supabase.from("results").upsert(records, {
+        onConflict: "student_id,subject_class_id,session_id,term_id",
+      });
 
       if (error) throw error;
 
       toast.success("Results saved successfully");
       router.push("/teacher/results");
-    } catch (error: any) {
-      toast.error("Failed to save results: " + (error?.message || String(error)));
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save results");
     } finally {
       setIsSaving(false);
     }
   }
 
-
-  function handlePrint() {
-    window.print();
-  }
-
   if (isLoading) {
     return (
       <DashboardLayout role="teacher">
-        <div className="flex items-center justify-center h-96">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <div className="flex justify-center items-center h-96">
+          <Loader2 className="animate-spin" />
         </div>
       </DashboardLayout>
     );
   }
 
-  if (!student) {
-    return (
-      <DashboardLayout role="teacher">
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Student not found</p>
-        </div>
-      </DashboardLayout>
-    );
-  }
+  if (!student) return null;
 
   return (
-    <DashboardLayout role="teacher">
+      <DashboardLayout role="teacher">
       <div className="space-y-6 mb-12">
         <div className="flex items-center justify-between print:hidden">
           <Button variant="ghost" onClick={() => router.push('/teacher/results')}>
@@ -409,7 +385,7 @@ export default function ResultEntryPage() {
                   </thead>
                   <tbody>
                     {scores.map((score, index) => (
-                      <tr key={score.subject_id}>
+                      <tr key={score.subject_class_id}>
                         <td className="border border-gray-300 px-3 py-2 font-medium">
                           {score.subject_name}
                         </td>

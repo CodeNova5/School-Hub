@@ -38,6 +38,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+ALTER TABLE results
+ADD CONSTRAINT results_unique_row
+UNIQUE (student_id, subject_class_id, session_id, term_id);
+
 
 CREATE OR REPLACE FUNCTION get_student_subjects(student_uuid uuid)
 RETURNS TABLE(
@@ -46,31 +50,23 @@ RETURNS TABLE(
 ) AS $$
 BEGIN
   RETURN QUERY
-
-  -- 1. Class subjects (Math, English, etc.)
-  SELECT s.id, s.name
+  SELECT DISTINCT s.id, s.name
   FROM students st
   JOIN classes c ON c.id = st.class_id
   JOIN subject_classes sc ON sc.class_id = c.id
   JOIN subjects s ON s.id = sc.subject_id
   WHERE st.id = student_uuid
-
-  UNION
-
-  -- 2. Religion subjects (CRS / IRS)
-  SELECT s.id, s.name
-  FROM students st
-  JOIN subjects s ON s.religion = st.religion
-  WHERE st.id = student_uuid
-
-  UNION
-
-  -- 3. Optional subjects selected by student
-  SELECT s.id, s.name
-  FROM student_optional_subjects sos
-  JOIN subjects s ON s.id = sos.subject_id
-  WHERE sos.student_id = student_uuid;
-
+    AND (
+      s.is_optional = false
+      OR (s.is_optional = true AND EXISTS (
+        SELECT 1
+        FROM student_optional_subjects sos
+        WHERE sos.student_id = student_uuid
+          AND sos.subject_id = s.id
+      ))
+      OR (s.religion IS NOT NULL AND s.religion = st.religion)
+    )
+  ORDER BY s.name;
 END;
 $$ LANGUAGE plpgsql;
 

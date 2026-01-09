@@ -144,6 +144,7 @@ export default function ResultEntryPage() {
         setPrincipalRemark(first.principal_remark || "");
         setNextTermBegins(first.next_term_begins || "");
 
+        
         for (const res of existingResults) {
           const idx = initialScores.findIndex(
             (s) => s.subject_class_id === res.subject_class_id
@@ -202,7 +203,19 @@ export default function ResultEntryPage() {
 
   function updateScore(index: number, field: keyof SubjectScore, value: string) {
     const newScores = [...scores];
-    const num = Math.max(0, Number(value) || 0);
+    let num = Math.max(0, Number(value) || 0);
+
+    // Enforce score limits for each field
+    const limits: Record<string, number> = {
+      welcome_test: 10,
+      mid_term_test: 20,
+      vetting: 10,
+      exam: 60,
+    };
+
+    if (limits[field]) {
+      num = Math.min(num, limits[field]);
+    }
 
     (newScores[index] as any)[field] = num;
 

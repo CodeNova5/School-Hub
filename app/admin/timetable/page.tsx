@@ -14,6 +14,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
+
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
@@ -37,75 +38,82 @@ const TIMETABLE_PERIODS = [
 export default function TimetablePage() {
   const [entries, setEntries] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
-  const [subjects, setSubjects] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
+  const [subjectClasses, setSubjectClasses] = useState<any[]>([]);
   const [search, setSearch] = useState("");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
 
-  // form state (controlled) — so we can hide/show fields dynamically
   const [formDay, setFormDay] = useState("");
   const [formPeriod, setFormPeriod] = useState<number | "">("");
   const [formClassId, setFormClassId] = useState<string>("");
   const [departmentalMode, setDepartmentalMode] = useState(false);
-  const [formSubjectId, setFormSubjectId] = useState<string>("");
-  const [formScienceSubjectId, setFormScienceSubjectId] = useState<string>("");
-  const [formArtsSubjectId, setFormArtsSubjectId] = useState<string>("");
-  const [formCommercialSubjectId, setFormCommercialSubjectId] = useState<string>("");
+  const [formSubjectClassId, setFormSubjectClassId] = useState<string>("");
+  const [formScienceSubjectClassId, setFormScienceSubjectClassId] = useState<string>("");
+  const [formArtsSubjectClassId, setFormArtsSubjectClassId] = useState<string>("");
+  const [formCommercialSubjectClassId, setFormCommercialSubjectClassId] = useState<string>("");
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-  // ...existing code...
 
   useEffect(() => {
     fetchAll();
   }, []);
 
   async function fetchAll() {
-    const [timetableRes, classRes, subjectRes, teacherRes] = await Promise.all([
+    const [timetableRes, classRes, subjectClassRes] = await Promise.all([
       supabase
         .from("timetable_entries")
-        .select("*, classes(name, level), subjects(name, department, teacher_id)")
+        .select(`
+          *,
+          classes(name, level),
+          subject_classes (
+            id,
+            subject_code,
+            subjects ( name, department ),
+            teachers ( first_name, last_name )
+          )
+        `)
         .order("period_number", { ascending: true }),
       supabase.from("classes").select("*").order("name"),
-      supabase.from("subjects").select("*").order("name"),
-      supabase.from("teachers").select("*").order("first_name"),
+      supabase.from("subject_classes").select(`
+        *,
+        subjects ( name, department ),
+        teachers ( first_name, last_name ),
+        classes ( name, level )
+      `).order("subject_code"),
     ]);
 
     if (timetableRes.data) setEntries(timetableRes.data);
     if (classRes.data) setClasses(classRes.data);
-    if (subjectRes.data) setSubjects(subjectRes.data);
-    if (teacherRes.data) setTeachers(teacherRes.data);
+    if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
   }
 
-  // open add dialog (reset form)
   function openAddDialog() {
     setEditingEntry(null);
     setFormDay("");
     setFormPeriod("");
     setFormClassId("");
     setDepartmentalMode(false);
-    setFormSubjectId("");
-    setFormScienceSubjectId("");
-    setFormArtsSubjectId("");
-    setFormCommercialSubjectId("");
+    setFormSubjectClassId("");
+    setFormScienceSubjectClassId("");
+    setFormArtsSubjectClassId("");
+    setFormCommercialSubjectClassId("");
     setIsDialogOpen(true);
   }
 
-  // open edit for a single underlying row (editingEntry should be a specific row)
   function openEdit(entryRow: any) {
     if (!entryRow) return;
     setEditingEntry(entryRow);
     setFormDay(entryRow.day_of_week || "");
     setFormPeriod(entryRow.period_number || "");
     setFormClassId(entryRow.class_id || "");
-    setDepartmentalMode(false); // editing one row -> single subject
-    setFormSubjectId(entryRow.subject_id || "");
-    setFormScienceSubjectId("");
-    setFormArtsSubjectId("");
-    setFormCommercialSubjectId("");
+    setDepartmentalMode(false);
+    setFormSubjectClassId(entryRow.subject_class_id || "");
+    setFormScienceSubjectClassId("");
+    setFormArtsSubjectClassId("");
+    setFormCommercialSubjectClassId("");
     setIsDialogOpen(true);
   }
 
@@ -114,37 +122,28 @@ export default function TimetablePage() {
     setIsDialogOpen(false);
   }
 
-  // add: openAdd pre-fills the add form for clicked empty cell and opens the dialog
   function openAdd(day: string, period: number, selectedClass: string | null) {
-    // ensure we're creating a new entry (not editing)
     setEditingEntry(null);
-
-    // prefill form values
     setFormDay(day);
     setFormPeriod(period);
-
-    // if the user has already selected a class in the UI, prefill it
     if (selectedClass) {
       setFormClassId(selectedClass);
     } else {
       setFormClassId("");
     }
-
-    // reset subject fields / departmental mode
     setDepartmentalMode(false);
-    setFormSubjectId("");
-    setFormScienceSubjectId("");
-    setFormArtsSubjectId("");
-    setFormCommercialSubjectId("");
-
-    // open dialog
+    setFormSubjectClassId("");
+    setFormScienceSubjectClassId("");
+    setFormArtsSubjectClassId("");
+    setFormCommercialSubjectClassId("");
     setIsDialogOpen(true);
   }
 
-  function subjectsByDepartment(dept?: string) {
-    return subjects.filter((s) => {
-      if (!dept) return !s.department;
-      return s.department === dept;
+  function subjectClassesByDepartment(dept?: string) {
+    return subjectClasses.filter((sc) => {
+      if (sc.class_id !== formClassId) return false;
+      if (!dept) return !sc.subjects?.department;
+      return sc.subjects?.department === dept;
     });
   }
 
@@ -155,11 +154,19 @@ export default function TimetablePage() {
     return cleaned.slice(0, 3).toUpperCase();
   }
 
-  function teacherForSubject(subject: any) {
-    if (!subject?.teacher_id) return "";
-    const t = teachers.find((x) => x.id === subject.teacher_id);
+  function teacherForSubjectClass(subjectClass: any) {
+    if (!subjectClass?.teachers) return "";
+    const t = subjectClass.teachers;
     return t ? `${t.first_name} ${t.last_name}` : "";
   }
+
+  function formatSubjectClassDisplay(sc: any) {
+    const subjectName = sc.subjects?.name || "";
+    const className = sc.classes?.name || "";
+    const teacherName = teacherForSubjectClass(sc);
+    return `${subjectName} (${className}) — ${teacherName}`;
+  }
+
   async function teacherHasClashDetailed(
     teacherIds: string[],
     day: string,
@@ -172,17 +179,15 @@ export default function TimetablePage() {
     const { data, error } = await supabase
       .from("timetable_entries")
       .select(`
-      id,
-      class_id,
-      subjects (
-        name,
-        teacher_id,
-        teacher:teacher_id (
-          first_name,
-          last_name
+        id,
+        class_id,
+        subject_classes (
+          id,
+          teacher_id,
+          subjects ( name ),
+          teachers ( first_name, last_name )
         )
-      )
-    `)
+      `)
       .eq("day_of_week", day)
       .eq("period_number", period);
 
@@ -191,23 +196,26 @@ export default function TimetablePage() {
     for (const row of data) {
       if (ignoreId && row.id === ignoreId) continue;
 
-      // subjects is returned as an array, so take the first element
-      const subjectObj = Array.isArray(row.subjects)
-        ? row.subjects[0]
-        : row.subjects;
+      const subjectClassObj = Array.isArray(row.subject_classes)
+        ? row.subject_classes[0]
+        : row.subject_classes;
 
-      if (!subjectObj) continue;
+      if (!subjectClassObj) continue;
 
-      const teacherId = subjectObj.teacher_id;
+      const teacherId = subjectClassObj.teacher_id;
 
       if (teacherId && teacherIds.includes(teacherId)) {
-        const teacherArr = subjectObj.teacher ?? [];
-        const teacherObj = teacherArr[0] || {};
+        const teacher = Array.isArray(subjectClassObj.teachers)
+          ? subjectClassObj.teachers[0]
+          : subjectClassObj.teachers;
+        const subject = Array.isArray(subjectClassObj.subjects)
+          ? subjectClassObj.subjects[0]
+          : subjectClassObj.subjects;
 
         return {
           className: classes.find((c) => c.id === row.class_id)?.name,
-          subjectName: subjectObj.name,
-          teacherName: `${teacherObj.first_name || ""} ${teacherObj.last_name || ""}`.trim(),
+          subjectName: subject?.name,
+          teacherName: teacher ? `${teacher.first_name} ${teacher.last_name}` : "",
         };
       }
     }
@@ -215,9 +223,6 @@ export default function TimetablePage() {
     return null;
   }
 
-
-
-  // Submit handler uses controlled form state
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
 
@@ -226,42 +231,35 @@ export default function TimetablePage() {
       return;
     }
 
-    // EDITING MODE
     if (editingEntry) {
-      // If switching to departmental mode:
       if (departmentalMode) {
-        // 1️⃣ Delete the original single entry
-        await supabase
-          .from("timetable_entries")
-          .delete()
-          .eq("id", editingEntry.id);
+        await supabase.from("timetable_entries").delete().eq("id", editingEntry.id);
 
-        // 2️⃣ Build new departmental rows
         const inserts: any[] = [];
-        if (formScienceSubjectId)
+        if (formScienceSubjectClassId)
           inserts.push({
             day_of_week: formDay,
             period_number: Number(formPeriod),
             class_id: formClassId,
-            subject_id: formScienceSubjectId,
+            subject_class_id: formScienceSubjectClassId,
             department: "Science",
           });
 
-        if (formArtsSubjectId)
+        if (formArtsSubjectClassId)
           inserts.push({
             day_of_week: formDay,
             period_number: Number(formPeriod),
             class_id: formClassId,
-            subject_id: formArtsSubjectId,
+            subject_class_id: formArtsSubjectClassId,
             department: "Arts",
           });
 
-        if (formCommercialSubjectId)
+        if (formCommercialSubjectClassId)
           inserts.push({
             day_of_week: formDay,
             period_number: Number(formPeriod),
             class_id: formClassId,
-            subject_id: formCommercialSubjectId,
+            subject_class_id: formCommercialSubjectClassId,
             department: "Commercial",
           });
 
@@ -270,10 +268,7 @@ export default function TimetablePage() {
           return;
         }
 
-        // 3️⃣ Insert the new departmental rows
-        const { error } = await supabase
-          .from("timetable_entries")
-          .insert(inserts);
+        const { error } = await supabase.from("timetable_entries").insert(inserts);
 
         if (error) toast.error(error.message || "Failed to update entry");
         else {
@@ -283,12 +278,11 @@ export default function TimetablePage() {
           if (formClassId) await showTimetable(formClassId);
         }
 
-        return; // EXIT — do not run the rest
+        return;
       }
 
-      // Find teacher for chosen subject
-      const selectedSubject = subjects.find((s) => s.id === formSubjectId);
-      const teacherId = selectedSubject?.teacher_id || null;
+      const selectedSubjectClass = subjectClasses.find((sc) => sc.id === formSubjectClassId);
+      const teacherId = selectedSubjectClass?.teacher_id || null;
 
       if (teacherId) {
         const clash = await teacherHasClashDetailed(
@@ -302,23 +296,20 @@ export default function TimetablePage() {
         if (clash) {
           toast.error(
             `Clash detected!\n\n` +
-            `${clash.teacherName} is already teaching:\n` +
-            `• Subject: ${clash.subjectName}\n` +
-            `• Class: ${clash.className}\n` +
-            `• Period: ${formPeriod} on ${formDay}`
+              `${clash.teacherName} is already teaching:\n` +
+              `• Subject: ${clash.subjectName}\n` +
+              `• Class: ${clash.className}\n` +
+              `• Period: ${formPeriod} on ${formDay}`
           );
           return;
         }
-
       }
 
-
-      // Normal single update (regular → regular)
       const payload: any = {
         day_of_week: formDay,
         period_number: Number(formPeriod),
         class_id: formClassId,
-        subject_id: formSubjectId || null,
+        subject_class_id: formSubjectClassId || null,
         department: null,
       };
 
@@ -338,20 +329,17 @@ export default function TimetablePage() {
       return;
     }
 
-
-    // CREATE
     if (!departmentalMode) {
       const payload: any = {
         day_of_week: formDay,
         period_number: Number(formPeriod),
         class_id: formClassId,
-        subject_id: formSubjectId || null,
+        subject_class_id: formSubjectClassId || null,
         department: null,
       };
 
-      // Find teacher for chosen subject
-      const selectedSubject = subjects.find((s) => s.id === formSubjectId);
-      const teacherId = selectedSubject?.teacher_id || null;
+      const selectedSubjectClass = subjectClasses.find((sc) => sc.id === formSubjectClassId);
+      const teacherId = selectedSubjectClass?.teacher_id || null;
       if (teacherId) {
         const clash = await teacherHasClashDetailed(
           [teacherId],
@@ -362,10 +350,10 @@ export default function TimetablePage() {
         if (clash) {
           toast.error(
             `Clash detected!\n\n` +
-            `${clash.teacherName} is already teaching:\n` +
-            `• Subject: ${clash.subjectName}\n` +
-            `• Class: ${clash.className}\n` +
-            `• Period: ${formPeriod} on ${formDay}`
+              `${clash.teacherName} is already teaching:\n` +
+              `• Subject: ${clash.subjectName}\n` +
+              `• Class: ${clash.className}\n` +
+              `• Period: ${formPeriod} on ${formDay}`
           );
           return;
         }
@@ -383,24 +371,21 @@ export default function TimetablePage() {
       return;
     }
 
-    // Collect teacher IDs for all selected departmental subjects
     const teacherIds: string[] = [];
 
+    if (formScienceSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formScienceSubjectClassId);
+      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+    }
+    if (formArtsSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formArtsSubjectClassId);
+      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+    }
+    if (formCommercialSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formCommercialSubjectClassId);
+      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+    }
 
-    if (formScienceSubjectId) {
-      const s = subjects.find((x) => x.id === formScienceSubjectId);
-      if (s?.teacher_id) teacherIds.push(s.teacher_id);
-    }
-    if (formArtsSubjectId) {
-      const s = subjects.find((x) => x.id === formArtsSubjectId);
-      if (s?.teacher_id) teacherIds.push(s.teacher_id);
-    }
-    if (formCommercialSubjectId) {
-      const s = subjects.find((x) => x.id === formCommercialSubjectId);
-      if (s?.teacher_id) teacherIds.push(s.teacher_id);
-    }
-
-    // Check clash for any teacher in the set
     if (teacherIds.length > 0) {
       const clash = await teacherHasClashDetailed(
         teacherIds,
@@ -413,21 +398,40 @@ export default function TimetablePage() {
       if (clash) {
         toast.error(
           `Clash detected!\n\n` +
-          `${clash.teacherName} is already teaching:\n` +
-          `• Subject: ${clash.subjectName}\n` +
-          `• Class: ${clash.className}\n` +
-          `• Period: ${formPeriod} on ${formDay}`
+            `${clash.teacherName} is already teaching:\n` +
+            `• Subject: ${clash.subjectName}\n` +
+            `• Class: ${clash.className}\n` +
+            `• Period: ${formPeriod} on ${formDay}`
         );
         return;
       }
-
     }
 
-    // Departmental mode — create up to 3 rows with department set
     const inserts: any[] = [];
-    if (formScienceSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formScienceSubjectId, department: "Science" });
-    if (formArtsSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formArtsSubjectId, department: "Arts" });
-    if (formCommercialSubjectId) inserts.push({ day_of_week: formDay, period_number: Number(formPeriod), class_id: formClassId, subject_id: formCommercialSubjectId, department: "Commercial" });
+    if (formScienceSubjectClassId)
+      inserts.push({
+        day_of_week: formDay,
+        period_number: Number(formPeriod),
+        class_id: formClassId,
+        subject_class_id: formScienceSubjectClassId,
+        department: "Science",
+      });
+    if (formArtsSubjectClassId)
+      inserts.push({
+        day_of_week: formDay,
+        period_number: Number(formPeriod),
+        class_id: formClassId,
+        subject_class_id: formArtsSubjectClassId,
+        department: "Arts",
+      });
+    if (formCommercialSubjectClassId)
+      inserts.push({
+        day_of_week: formDay,
+        period_number: Number(formPeriod),
+        class_id: formClassId,
+        subject_class_id: formCommercialSubjectClassId,
+        department: "Commercial",
+      });
 
     if (inserts.length === 0) {
       toast.error("Choose at least one department subject to add");
@@ -455,13 +459,19 @@ export default function TimetablePage() {
     }
   }
 
-  // groupedEntries to combine departmental rows into single cell display
   const groupedEntries = useMemo(() => {
     const map: Record<string, any> = {};
     entries.forEach((en) => {
       const key = `${en.class_id}||${en.day_of_week}||${en.period_number}`;
       if (!map[key]) {
-        map[key] = { id: key, class_id: en.class_id, class_name: en.classes?.name, day_of_week: en.day_of_week, period_number: en.period_number, raw: [] };
+        map[key] = {
+          id: key,
+          class_id: en.class_id,
+          class_name: en.classes?.name,
+          day_of_week: en.day_of_week,
+          period_number: en.period_number,
+          raw: [],
+        };
       }
       map[key].raw.push(en);
     });
@@ -473,17 +483,17 @@ export default function TimetablePage() {
       const teacherMap: Record<string, string> = {};
 
       g.raw.forEach((r: any) => {
-        const subjName = r.subjects?.name || "";
-        const subjDept = r.subjects?.department || r.department || "";
+        const subjName = r.subject_classes?.subjects?.name || "";
+        const subjDept = r.subject_classes?.subjects?.department || r.department || "";
         const code = shortCode(subjName);
 
         if (subjDept) {
           deptMap[subjDept] = code;
-          const subjTeacherName = teacherForSubject(r.subjects);
+          const subjTeacherName = teacherForSubjectClass(r.subject_classes);
           if (subjTeacherName) teacherMap[subjDept] = subjTeacherName;
         } else {
           deptMap["_single"] = subjName;
-          const subjTeacherName = teacherForSubject(r.subjects);
+          const subjTeacherName = teacherForSubjectClass(r.subject_classes);
           if (subjTeacherName) teacherMap["_single"] = subjTeacherName;
         }
       });
@@ -493,9 +503,15 @@ export default function TimetablePage() {
       else combined = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
 
       let teachersCombined = "";
-      if (teacherMap["_single"]) teachersCombined = teacherMap["_single"]; else teachersCombined = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
+      if (teacherMap["_single"]) teachersCombined = teacherMap["_single"];
+      else teachersCombined = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
 
-      return { ...g, subject_display: combined, teacher_display: teachersCombined, rows: g.raw };
+      return {
+        ...g,
+        subject_display: combined,
+        teacher_display: teachersCombined,
+        rows: g.raw,
+      };
     });
 
     results.sort((a: any, b: any) => {
@@ -504,20 +520,30 @@ export default function TimetablePage() {
     });
 
     return results;
-  }, [entries, teachers]);
+  }, [entries]);
 
   async function showTimetable(classId: string) {
     setSelectedClass(classId);
 
     const { data } = await supabase
       .from("timetable_entries")
-      .select("*, subjects(name, department, teacher_id)")
+      .select(`
+        *,
+        subject_classes (
+          id,
+          subject_code,
+          subjects ( name, department ),
+          teachers ( first_name, last_name )
+        )
+      `)
       .eq("class_id", classId);
 
     if (!data) return;
 
     const map: Record<number | string, Record<string, any>> = {};
-    TIMETABLE_PERIODS.forEach((p) => { if (!p.break) map[p.id] = { mon: null, tue: null, wed: null, thu: null, fri: null }; });
+    TIMETABLE_PERIODS.forEach((p) => {
+      if (!p.break) map[p.id] = { mon: null, tue: null, wed: null, thu: null, fri: null };
+    });
 
     const tempGroup: Record<string, any[]> = {};
     data.forEach((entry) => {
@@ -536,23 +562,25 @@ export default function TimetablePage() {
       const teacherMap: Record<string, string> = {};
 
       rows.forEach((r: any) => {
-        const sname = r.subjects?.name || "";
-        const sdept = r.subjects?.department || r.department || "";
+        const sname = r.subject_classes?.subjects?.name || "";
+        const sdept = r.subject_classes?.subjects?.department || r.department || "";
         const code = shortCode(sname);
         if (sdept) {
           deptMap[sdept] = code;
-          teacherMap[sdept] = teacherForSubject(r.subjects);
+          teacherMap[sdept] = teacherForSubjectClass(r.subject_classes);
         } else {
           deptMap["_single"] = sname;
-          teacherMap["_single"] = teacherForSubject(r.subjects);
+          teacherMap["_single"] = teacherForSubjectClass(r.subject_classes);
         }
       });
 
       let display = "";
-      if (deptMap["_single"]) display = deptMap["_single"]; else display = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
+      if (deptMap["_single"]) display = deptMap["_single"];
+      else display = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
 
       let teacherDisplay = "";
-      if (teacherMap["_single"]) teacherDisplay = teacherMap["_single"]; else teacherDisplay = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
+      if (teacherMap["_single"]) teacherDisplay = teacherMap["_single"];
+      else teacherDisplay = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
 
       if (!map[periodId]) map[periodId] = {};
       map[periodId][dayKey] = { subject: display, teacher: teacherDisplay, rows };
@@ -562,22 +590,17 @@ export default function TimetablePage() {
     setIsTableModalOpen(true);
   }
 
-  const filtered = groupedEntries.filter((g) => `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered = groupedEntries.filter((g) =>
+    `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase())
+  );
 
-  // helper: determine if selected class (in the add dialog) is SSS so we can enable departmental mode checkbox
   const selectedClassLevel = classes.find((c) => c.id === formClassId)?.level || "";
   const isSelectedClassSSS = selectedClassLevel.startsWith("SSS");
 
-
   function handlePrint() {
-    const printContents = document.getElementById("timetable-area")?.innerHTML;
-    const originalContents = document.body.innerHTML;
-
-    document.body.innerHTML = printContents || "";
     window.print();
-    document.body.innerHTML = originalContents;
-    window.location.reload();
   }
+
   function applyExportStyles() {
     document.body.classList.add("export-mode");
   }
@@ -586,293 +609,420 @@ export default function TimetablePage() {
     document.body.classList.remove("export-mode");
   }
 
-  async function exportPDF() {
-    applyExportStyles(); // ⭐ Apply clean centered table layout
-
+  async function handleExportPDF() {
     const element = document.getElementById("timetable-area");
-    if (!element) return;
+    if (!element) {
+      toast.error("Timetable not found");
+      return;
+    }
 
-    const canvas = await html2canvas(element, {
-      scale: 2,              // ⭐ sharper image
-      useCORS: true,
-    });
+    try {
+      applyExportStyles();
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      removeExportStyles();
 
-    removeExportStyles(); // ⭐ Remove temporary styling
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
+      const imgWidth = 280;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = (imgProps.height * pdfW) / imgProps.width;
+      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
 
-    pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
+      const className = classes.find((c) => c.id === selectedClass)?.name || "Timetable";
+      pdf.save(`${className}_timetable.pdf`);
 
-    const className =
-      classes.find((c) => c.id === selectedClass)?.name || "timetable";
-
-    pdf.save(`${className}-timetable.pdf`);
+      toast.success("PDF exported successfully");
+    } catch (error) {
+      removeExportStyles();
+      toast.error("Failed to export PDF");
+      console.error(error);
+    }
   }
 
+  async function handleExportExcel() {
+    if (!selectedClass) {
+      toast.error("No class selected");
+      return;
+    }
 
-  function exportExcel() {
-    const table = document.querySelector("#timetable-area table");
-    const workbook = XLSX.utils.table_to_book(table);
+    try {
+      const className = classes.find((c) => c.id === selectedClass)?.name || "Class";
+      const ws_data: any[][] = [];
 
-    // ✅ Add class name HERE
-    const className =
-      classes.find((c) => c.id === selectedClass)?.name || "timetable";
+      ws_data.push([`${className} - Weekly Timetable`]);
+      ws_data.push([]);
 
-    XLSX.writeFile(workbook, `${className}-timetable.xlsx`);
+      const headerRow = ["Time", ...DAYS];
+      ws_data.push(headerRow);
+
+      TIMETABLE_PERIODS.forEach((period) => {
+        if (period.break) {
+          ws_data.push([
+            `${period.start} - ${period.end}`,
+            "BREAK",
+            "BREAK",
+            "BREAK",
+            "BREAK",
+            "BREAK",
+          ]);
+        } else {
+          const row = [`${period.start} - ${period.end}`];
+          DAYS_SHORT.forEach((day) => {
+            const cell = classTimetable[period.id]?.[day];
+            if (cell) {
+              row.push(`${cell.subject}\n${cell.teacher}`);
+            } else {
+              row.push("");
+            }
+          });
+          ws_data.push(row);
+        }
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+      ws["!cols"] = [
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 20 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Timetable");
+
+      XLSX.writeFile(wb, `${className}_timetable.xlsx`);
+      toast.success("Excel file exported successfully");
+    } catch (error) {
+      toast.error("Failed to export Excel file");
+      console.error(error);
+    }
   }
-
 
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-8">
-        <div className="flex justify-between items-start gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Timetable</h1>
-            <p className="text-gray-600">Manage school timetable entries (departmental periods supported)</p>
-          </div>
-
-          <div className="flex flex-col gap-2 items-end">
-            <div className="flex gap-2 items-center">
-              <select className="border rounded-md h-10 px-2" value={selectedClass || ""} onChange={(e) => setSelectedClass(e.target.value)}>
-                <option value="">Select a class</option>
-                {classes.map((cls) => (<option key={cls.id} value={cls.id}>{cls.name}</option>))}
-              </select>
-
-              <Button onClick={() => selectedClass && showTimetable(selectedClass)} disabled={!selectedClass}>View Timetable</Button>
-            </div>
-
-            <div className="flex gap-2">
-              <Button onClick={openAddDialog}><Plus className="mr-2" />Add Entry</Button>
-
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>
-                      {editingEntry ? "Edit Entry" : "Add Timetable Entry"}
-                    </DialogTitle>
-                  </DialogHeader>
-
-
-                  <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
-                    <div>
-                      <Label>Day of Week</Label>
-                      <select value={formDay} onChange={(e) => setFormDay(e.target.value)} className="w-full border rounded-md h-10 px-2" required>
-                        <option value="">Select day</option>
-                        {DAYS.map((d) => (<option key={d} value={d}>{d}</option>))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <Label>Period</Label>
-                      <select value={formPeriod} onChange={(e) => setFormPeriod(Number(e.target.value))} className="w-full border rounded-md h-10 px-2" required>
-                        <option value="">Select period</option>
-                        {PERIODS.map((p) => (<option key={p} value={p}>Period {p}</option>))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <Label>Class</Label>
-                      <select value={formClassId} onChange={(e) => { setFormClassId(e.target.value); /* reset departmental choice when class changes */ setDepartmentalMode(false); }} className="w-full border rounded-md h-10 px-2" required>
-                        <option value="">Select class</option>
-                        {classes.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                      </select>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <input id="departmental" name="departmental" type="checkbox" className="h-4 w-4" checked={departmentalMode} onChange={(e) => setDepartmentalMode(e.target.checked)} disabled={!isSelectedClassSSS} />
-                      <Label htmlFor="departmental">Departmental Period (Science / Arts / Commercial)</Label>
-                      {!isSelectedClassSSS && <div className="text-xs text-gray-500 ml-2">(Available only for SSS classes)</div>}
-                    </div>
-
-                    {!departmentalMode && (
-                      <>
-                        <div>
-                          <Label>Subjects</Label>
-                          <select value={formSubjectId} onChange={(e) => setFormSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
-                            <option value="">Select subject</option>
-                            {subjectsByDepartment().map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                          </select>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Departmental pickers (visible when departmentalMode true) */}
-                    {departmentalMode && (
-                      <div className="border p-3 rounded">
-                        <div className="mb-2 font-semibold">Departmental Subjects (choose any)</div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div>
-                            <Label>Science Subject</Label>
-                            <select value={formScienceSubjectId} onChange={(e) => setFormScienceSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
-                              <option value="">No Science Subject</option>
-                              {subjectsByDepartment("Science").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <Label>Arts Subject</Label>
-                            <select value={formArtsSubjectId} onChange={(e) => setFormArtsSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
-                              <option value="">No Arts Subject</option>
-                              {subjectsByDepartment("Arts").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <Label>Commercial Subject</Label>
-                            <select value={formCommercialSubjectId} onChange={(e) => setFormCommercialSubjectId(e.target.value)} className="w-full border rounded-md h-10 px-2">
-                              <option value="">No Commercial Subject</option>
-                              {subjectsByDepartment("Commercial").map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      {editingEntry ? (
-                        <>
-                          <Button className="flex-1" type="button" onClick={() => handleSubmit()}>
-                            Update
-                          </Button>
-
-                          <Button
-                            variant="destructive"
-                            type="button"
-                            onClick={() => {
-                              deleteEntry(editingEntry.id);
-                              closeDialog();
-                            }}
-                          >
-                            Delete
-                          </Button>
-
-                          <Button variant="outline" type="button" onClick={closeDialog}>
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button className="flex-1" type="button" onClick={() => handleSubmit()}>
-                            Create
-                          </Button>
-                          <Button variant="outline" type="button" onClick={closeDialog}>
-                            Cancel
-                          </Button>
-                        </>
-                      )}
-                    </div>
-
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Timetable Management</h1>
+          <Button onClick={openAddDialog}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Entry
+          </Button>
         </div>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-          <Input placeholder="Search by class or subject..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-
-        <div className="space-y-4">
-          {classes.map((cls) => (
-            <Card key={cls.id}>
-              <CardHeader className="pb-2 flex justify-between items-center">
-                <CardTitle>{cls.name}</CardTitle>
-                <Button onClick={() => showTimetable(cls.id)}>View Timetable</Button>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
-
-        {filtered.length === 0 && (
-          <Card>
-            <CardContent className="p-12 text-center text-gray-500">No timetable entries found</CardContent>
-          </Card>
-        )}
-
-        <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
-            <DialogHeader>
-              <DialogTitle>
-                Timetable for {classes.find((c) => c.id === selectedClass)?.name}
-              </DialogTitle>
-
-              <div className="flex mt-2">
-                {/* Push buttons to the right */}
-                <div className="flex gap-2 ml-auto">
-                  <Button variant="outline" onClick={handlePrint}>
-                    <Printer className="h-4 w-4 mr-2" />
-                    Print
-                  </Button>
-
-                  <Button className="bg-black text-white" onClick={exportPDF}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export as PDF
-                  </Button>
-
-                  <Button className="bg-black text-white" onClick={exportExcel}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export as Excel
-                  </Button>
-                </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>All Entries</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Search by class or subject..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            </DialogHeader>
+            </div>
 
-
-            <div id="timetable-area">
-              <table className="w-full border-collapse text-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border px-2 py-1">Period</th>
-                    {DAYS_SHORT.map((d, i) => (<th key={d} className="border px-2 py-1">{DAYS[i].slice(0, 3)}</th>))}
+                  <tr className="border-b">
+                    <th className="text-left p-2">Class</th>
+                    <th className="text-left p-2">Day</th>
+                    <th className="text-left p-2">Period</th>
+                    <th className="text-left p-2">Subject(s)</th>
+                    <th className="text-left p-2">Teacher(s)</th>
+                    <th className="text-right p-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {TIMETABLE_PERIODS.map((period) => period.break ? (
-                    <tr key={String(period.id)} className="bg-gray-200 text-center">
-                      <td colSpan={6} className="py-1">{period.label} ({period.start}–{period.end})</td>
-                    </tr>
-                  ) : (
-                    <tr key={String(period.id)}>
-                      <td className="border px-2 py-1">
-                        <div>{period.label}</div>
-                        <div className="text-gray-500 text-xs">{period.start}-{period.end}</div>
+                  {filtered.map((entry) => (
+                    <tr key={entry.id} className="border-b hover:bg-gray-50">
+                      <td className="p-2">{entry.class_name}</td>
+                      <td className="p-2">{entry.day_of_week}</td>
+                      <td className="p-2">{entry.period_number}</td>
+                      <td className="p-2">{entry.subject_display}</td>
+                      <td className="p-2 text-sm text-gray-600">{entry.teacher_display}</td>
+                      <td className="p-2">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openEdit(entry.rows[0])}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => deleteEntry(entry.rows[0].id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
-                      {DAYS_SHORT.map((day, idx) => (
-                        <td
-                          key={day}
-                          className="border px-2 py-1 text-center cursor-pointer hover:bg-gray-50"
-                          onClick={() => {
-                            const cell = classTimetable[period.id]?.[day] || null;
-
-                            if (cell && cell.rows && cell.rows.length > 0) {
-                              // If the cell contains multiple rows (departmental), edit the first one or show choose-modal  
-                              openEdit(cell.rows[0]);
-                            } else {
-                              openAdd(DAYS[idx], Number(period.id), selectedClass);
-                            }
-                          }}
-
-                        >
-                          <div>{classTimetable[period.id]?.[day]?.subject ?? ""}</div>
-                          <div className="text-xs text-gray-600">{classTimetable[period.id]?.[day]?.teacher ?? ""}</div>
-                        </td>
-                      ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </DialogContent>
-        </Dialog>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>View Class Timetables</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {classes.map((cls) => (
+                <Button
+                  key={cls.id}
+                  variant="outline"
+                  onClick={() => showTimetable(cls.id)}
+                  className="h-auto py-4"
+                >
+                  {cls.name}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </DashboardLayout >
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingEntry ? "Edit Entry" : "Add Entry"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+                           <div>
+                <Label>Day</Label>
+                <select
+                  className="w-full border rounded p-2"
+                  value={formDay}
+                  onChange={(e) => setFormDay(e.target.value)}
+                >
+                  <option value="">Select Day</option>
+                  {DAYS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <Label>Period</Label>
+                <select
+                  className="w-full border rounded p-2"
+                  value={formPeriod}
+                  onChange={(e) => setFormPeriod(Number(e.target.value))}
+                >
+                  <option value="">Select Period</option>
+                  {PERIODS.map((p) => (
+                    <option key={p} value={p}>
+                      Period {p}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-2">
+                <Label>Class</Label>
+                <select
+                  className="w-full border rounded p-2"
+                  value={formClassId}
+                  onChange={(e) => setFormClassId(e.target.value)}
+                >
+                  <option value="">Select Class</option>
+                  {classes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {isSelectedClassSSS && (
+                <div className="col-span-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={departmentalMode}
+                    onChange={(e) => setDepartmentalMode(e.target.checked)}
+                  />
+                  <Label>Departmental Mode (SSS)</Label>
+                </div>
+              )}
+
+              {!departmentalMode && (
+                <div className="col-span-2">
+                  <Label>Subject</Label>
+                  <select
+                    className="w-full border rounded p-2"
+                    value={formSubjectClassId}
+                    onChange={(e) => setFormSubjectClassId(e.target.value)}
+                  >
+                    <option value="">Select Subject</option>
+                    {subjectClasses
+                      .filter((sc) => sc.class_id === formClassId)
+                      .map((sc) => (
+                        <option key={sc.id} value={sc.id}>
+                          {formatSubjectClassDisplay(sc)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {departmentalMode && (
+                <>
+                  <div className="col-span-2">
+                    <Label>Science Subject</Label>
+                    <select
+                      className="w-full border rounded p-2"
+                      value={formScienceSubjectClassId}
+                      onChange={(e) => setFormScienceSubjectClassId(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      {subjectClassesByDepartment("Science").map((sc) => (
+                        <option key={sc.id} value={sc.id}>
+                          {formatSubjectClassDisplay(sc)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label>Arts Subject</Label>
+                    <select
+                      className="w-full border rounded p-2"
+                      value={formArtsSubjectClassId}
+                      onChange={(e) => setFormArtsSubjectClassId(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      {subjectClassesByDepartment("Arts").map((sc) => (
+                        <option key={sc.id} value={sc.id}>
+                          {formatSubjectClassDisplay(sc)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label>Commercial Subject</Label>
+                    <select
+                      className="w-full border rounded p-2"
+                      value={formCommercialSubjectClassId}
+                      onChange={(e) => setFormCommercialSubjectClassId(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      {subjectClassesByDepartment("Commercial").map((sc) => (
+                        <option key={sc.id} value={sc.id}>
+                          {formatSubjectClassDisplay(sc)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={closeDialog}>
+                Cancel
+              </Button>
+              <Button type="submit">
+                {editingEntry ? "Update" : "Create"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Timetable Modal */}
+      <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
+        <DialogContent className="max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>Class Timetable</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex gap-2 mb-4">
+            <Button onClick={handlePrint}>
+              <Printer className="w-4 h-4 mr-2" /> Print
+            </Button>
+            <Button onClick={handleExportPDF}>
+              <Download className="w-4 h-4 mr-2" /> Export PDF
+            </Button>
+            <Button onClick={handleExportExcel}>
+              <Download className="w-4 h-4 mr-2" /> Export Excel
+            </Button>
+          </div>
+
+          <div id="timetable-area" className="overflow-auto">
+            <table className="w-full border">
+              <thead>
+                <tr>
+                  <th className="border p-2">Time</th>
+                  {DAYS.map((d) => (
+                    <th key={d} className="border p-2">
+                      {d}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {TIMETABLE_PERIODS.map((period) => (
+                  <tr key={period.id}>
+                    <td className="border p-2 font-medium">
+                      {period.start} - {period.end}
+                    </td>
+
+                    {period.break ? (
+                      <td colSpan={5} className="border p-2 text-center font-bold bg-gray-100">
+                        BREAK
+                      </td>
+                    ) : (
+                      DAYS_SHORT.map((day) => {
+                        const cell = classTimetable[period.id]?.[day];
+                        return (
+                          <td key={day} className="border p-2 text-sm text-center">
+                            {cell ? (
+                              <>
+                                <div className="font-semibold">{cell.subject}</div>
+                                <div className="text-xs text-gray-600">{cell.teacher}</div>
+                              </>
+                            ) : (
+                              ""
+                            )}
+                          </td>
+                        );
+                      })
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </DashboardLayout>
   );
 }
+

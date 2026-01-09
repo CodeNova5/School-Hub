@@ -42,15 +42,18 @@ ALTER TABLE results
 ADD CONSTRAINT results_unique_row
 UNIQUE (student_id, subject_class_id, session_id, term_id);
 
-
 CREATE OR REPLACE FUNCTION get_student_subjects(student_uuid uuid)
 RETURNS TABLE(
+  subject_class_id uuid,
   subject_id uuid,
-  name text
+  subject_name text
 ) AS $$
 BEGIN
   RETURN QUERY
-  SELECT DISTINCT s.id, s.name
+  SELECT DISTINCT
+    sc.id AS subject_class_id,
+    s.id AS subject_id,
+    s.name AS subject_name
   FROM students st
   JOIN classes c ON c.id = st.class_id
   JOIN subject_classes sc ON sc.class_id = c.id
@@ -69,6 +72,7 @@ BEGIN
   ORDER BY s.name;
 END;
 $$ LANGUAGE plpgsql;
+
 
 DROP TRIGGER IF EXISTS trg_link_class_to_subjects ON classes;
 
@@ -200,3 +204,68 @@ REFERENCES public.teachers(id)
 ON DELETE SET NULL;
 ALTER TABLE subject_classes
 ALTER COLUMN subject_code DROP NOT NULL;
+
+ALTER TABLE timetable_entries
+DROP COLUMN subject_id,
+
+ALTER TABLE timetable_entries
+ADD COLUMN subject_class_id uuid REFERENCES subject_classes(id) ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX timetable_unique_slot
+ON timetable_entries (day_of_week, period_number, subject_class_id);
+
+ALTER TABLE timetable_entries
+DROP COLUMN IF EXISTS department_subjects,
+DROP COLUMN IF EXISTS department;
+
+CREATE UNIQUE INDEX IF NOT EXISTS timetable_no_duplicate_class_slot
+ON timetable_entries (day_of_week, period_number, subject_class_id);
+
+ALTER TABLE timetable_entries
+ADD COLUMN class_id uuid;
+UPDATE timetable_entries te
+SET class_id = sc.class_id
+FROM subject_classes sc
+WHERE sc.id = te.subject_class_id;
+
+ALTER TABLE timetable_entries
+ADD CONSTRAINT fk_timetable_class
+FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE;
+
+
+CREATE UNIQUE INDEX IF NOT EXISTS timetable_no_double_class_slot
+ON timetable_entries (day_of_week, period_number, class_id);
+ALTER TABLE timetable_entries
+ADD COLUMN teacher_id uuid;
+
+UPDATE timetable_entries te
+SET teacher_id = sc.teacher_id
+FROM subject_classes sc
+WHERE sc.id = te.subject_class_id;
+
+ALTER TABLE timetable_entries
+ADD CONSTRAINT fk_timetable_teacher
+FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS timetable_no_double_teacher_slot
+ON timetable_entries (day_of_week, period_number, teacher_id);
+
+CREATE OR REPLACE FUNCTION sync_timetable_from_subject_class()
+RETURNS TRIGGER AS $$
+BEGIN
+  SELECT class_id, teacher_id
+  INTO NEW.class_id, NEW.teacher_id
+  FROM subject_classes
+  WHERE id = NEW.subject_class_id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_timetable_subject_class ON timetable_entries;
+
+CREATE TRIGGER trg_sync_timetable_subject_class
+BEFORE INSERT OR UPDATE OF subject_class_id
+ON timetable_entries
+FOR EACH ROW
+EXECUTE FUNCTION sync_timetable_from_subject_class();

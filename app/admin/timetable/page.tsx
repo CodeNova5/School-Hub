@@ -1008,10 +1008,7 @@ export default function TimetablePage() {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Timetable Modal */}
-     /* Replace the Timetable Modal section (starting from {/* Timetable Modal */}) with this: */
-
+      
       {/* Timetable Modal */}
       <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
         <DialogContent className="max-w-7xl max-h-[90vh]">

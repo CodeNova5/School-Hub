@@ -96,6 +96,10 @@ CREATE INDEX idx_results_subject_class ON results(subject_class_id);
 CREATE INDEX idx_results_term ON results(term_id);
 CREATE INDEX idx_results_session ON results(session_id);
 
+DROP INDEX IF EXISTS results_student_id_subject_id_term_id_key;
+
+CREATE UNIQUE INDEX results_unique_key
+ON results (student_id, subject_class_id, session_id, term_id);
 -- ============================================================================
 -- 3. TRIGGER TO AUTO-CALCULATE TOTAL AND GRADE
 -- ============================================================================

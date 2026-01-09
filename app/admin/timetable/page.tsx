@@ -1010,10 +1010,15 @@ export default function TimetablePage() {
       </Dialog>
 
       {/* Timetable Modal */}
+     /* Replace the Timetable Modal section (starting from {/* Timetable Modal */}) with this: */
+
+      {/* Timetable Modal */}
       <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
-        <DialogContent className="max-w-6xl">
+        <DialogContent className="max-w-7xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>Class Timetable</DialogTitle>
+            <DialogTitle>
+              {classes.find((c) => c.id === selectedClass)?.name || "Class"} - Weekly Timetable
+            </DialogTitle>
           </DialogHeader>
 
           <div className="flex gap-2 mb-4">
@@ -1028,99 +1033,90 @@ export default function TimetablePage() {
             </Button>
           </div>
 
-          <div id="timetable-area" className="overflow-auto">
-            <table className="w-full border">
+          <div id="timetable-area" className="overflow-auto border rounded-lg">
+            <table className="w-full border-collapse">
               <thead>
-                <tr>
-                  <th className="border p-2">Period</th>
-                  {DAYS.map((d, i) => (
-                    <th key={d} className="border p-2 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <span>{d}</span>
-                      </div>
-                    </th>
-                  ))}
-
-                  {DAYS.map((d) => (
-                    <th key={d} className="border p-2">
-                      {d}
+                {/* Header Row 1: Days */}
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[120px]">
+                    Time / Day
+                  </th>
+                  {DAYS.map((day) => (
+                    <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[160px]">
+                      {day}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {periodNumbers.map((periodNumber) => (
-                  <tr key={periodNumber}>
-                    {/* PERIOD LABEL */}
-                    <td className="border p-2 font-medium text-center">
-                      Period {periodNumber}
-                    </td>
+                {periodNumbers.map((periodNumber) => {
+                  // Get the time slot for this period (use day 0 as reference since times are same across days)
+                  const timeSlot = periodMap[periodNumber]?.[0];
+                  const timeDisplay = timeSlot
+                    ? `${timeSlot.start_time} - ${timeSlot.end_time}`
+                    : "N/A";
 
-                    {/* DAY COLUMNS */}
-                    {DAYS_SHORT.map((day, dayIndex) => {
-                      const slot = periodMap[periodNumber]?.[dayIndex];
-                      const cell = classTimetable[periodNumber]?.[day];
-
-                      return (
-                        <td key={day} className="border p-2 text-sm text-center">
-
-                          {/* TIME ROW HEADER INSIDE CELL */}
-                          <div className="flex items-center justify-center gap-1 mb-1 text-xs text-gray-600">
-                            <span>
-                              {slot ? `${slot.start_time} - ${slot.end_time}` : "--:--"}
-                            </span>
-
-                            {slot && (
+                  return (
+                    <tr key={periodNumber} className="hover:bg-gray-50">
+                      {/* Time Column */}
+                      <td className="border border-gray-300 p-3 bg-gray-50">
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="font-medium text-gray-700">Period {periodNumber}</div>
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <span>{timeDisplay}</span>
+                            {timeSlot && (
                               <button
-                                className="p-1 hover:text-blue-600"
+                                className="text-blue-600 hover:text-blue-800 p-1"
                                 title="Edit time"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openEditPeriodTime(slot);
+                                  openEditPeriodTime(timeSlot);
                                 }}
                               >
-                                ✏
+                                ✎
                               </button>
                             )}
                           </div>
+                        </div>
+                      </td>
 
-                          {/* SUBJECT CELL */}
-                          <div
-                            className="cursor-pointer hover:bg-blue-50 rounded p-1"
+                      {/* Day Columns */}
+                      {DAYS_SHORT.map((day, dayIndex) => {
+                        const cell = classTimetable[periodNumber]?.[day];
+
+                        return (
+                          <td
+                            key={day}
+                            className="border border-gray-300 p-3 text-center cursor-pointer hover:bg-blue-50 transition-colors"
                             onClick={() => {
                               if (!selectedClass) return;
 
                               if (cell?.rows?.length > 0) {
                                 openEdit(cell.rows[0]);
                               } else {
-                                const dayFull =
-                                  dayIndex === 0 ? "Monday" :
-                                    dayIndex === 1 ? "Tuesday" :
-                                      dayIndex === 2 ? "Wednesday" :
-                                        dayIndex === 3 ? "Thursday" :
-                                          "Friday";
-
+                                const dayFull = DAYS[dayIndex];
                                 openAdd(dayFull, periodNumber, selectedClass);
                               }
                             }}
                           >
                             {cell ? (
-                              <>
-                                <div className="font-semibold">{cell.subject}</div>
+                              <div className="space-y-1">
+                                <div className="font-semibold text-gray-800">{cell.subject}</div>
                                 <div className="text-xs text-gray-600">{cell.teacher}</div>
-                              </>
+                              </div>
                             ) : (
-                              <span className="text-xs text-gray-400">+ Add</span>
+                              <div className="text-gray-400 text-sm py-4">
+                                <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                                <span className="text-xs">Add Subject</span>
+                              </div>
                             )}
-                          </div>
-
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
-
             </table>
           </div>
         </DialogContent>

@@ -14,19 +14,10 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
-import { getPeriodSlots, updatePeriodSlot } from "@/lib/periodSlots";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
-
-interface PeriodSlot {
-  id: number;
-  day_of_week: number;
-  period_number: number;
-  start_time: string;
-  end_time: string;
-}
 
 
 export default function TimetablePage() {
@@ -51,38 +42,33 @@ export default function TimetablePage() {
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-
-  // Period slot editor states
-  const [editingSlot, setEditingSlot] = useState<PeriodSlot | null>(null);
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [isPeriodSlotDialogOpen, setIsPeriodSlotDialogOpen] = useState(false);
+  const [editingPeriodSlot, setEditingPeriodSlot] = useState<any | null>(null);
+  const [periodStartTime, setPeriodStartTime] = useState("");
+  const [periodEndTime, setPeriodEndTime] = useState("");
 
   useEffect(() => {
     fetchAll();
   }, []);
 
-  // Period slot editor functions
-  function openEditSlot(slot: PeriodSlot) {
-    setEditingSlot(slot);
-    setStartTime(slot.start_time);
-    setEndTime(slot.end_time);
-    setIsPeriodSlotDialogOpen(true);
+  async function fetchPeriodSlots() {
+    const { data, error } = await supabase.from("period_slots").select("*");
+    if (error) {
+      toast.error("Failed to fetch period slots");
+      return [];
+    }
+    return data;
   }
 
-  async function saveSlotEdit() {
-    if (!editingSlot) return;
-    try {
-      await updatePeriodSlot(editingSlot.id, startTime, endTime);
-      toast.success("Period slot updated");
-      setEditingSlot(null);
-      setIsPeriodSlotDialogOpen(false);
-      await fetchAll();
-    } catch (error) {
-      toast.error("Failed to update period slot");
-      console.error(error);
-    }
+  async function updatePeriodSlot(id: number, start: string, end: string) {
+    const { error } = await supabase
+      .from("period_slots")
+      .update({ start_time: start, end_time: end })
+      .eq("id", id);
+
+    if (error) toast.error("Failed to update period slot");
+    else toast.success("Period time updated");
   }
+
 
   async function fetchAll() {
     const [timetableRes, classRes, subjectClassRes] = await Promise.all([
@@ -119,6 +105,12 @@ export default function TimetablePage() {
     if (timetableRes.data) setEntries(timetableRes.data);
     if (classRes.data) setClasses(classRes.data);
     if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
+  }
+
+  function openEditPeriodTime(periodSlot: any) {
+    setEditingPeriodSlot(periodSlot);
+    setPeriodStartTime(periodSlot.start_time || "");
+    setPeriodEndTime(periodSlot.end_time || "");
   }
 
 
@@ -212,7 +204,8 @@ export default function TimetablePage() {
       .from("timetable_entries")
       .select(`
         id,
-        class_id,    
+        class_id,
+        
   period_slots (
     day_of_week,
     period_number,
@@ -846,51 +839,6 @@ export default function TimetablePage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Period Slot Manager</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="table-auto border-collapse border border-gray-300 w-full">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 p-2">Period</th>
-                    {DAYS.map((day) => (
-                      <th key={day} className="border border-gray-300 p-2">
-                        {day.slice(0, 3)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {PERIODS.map((periodNumber) => (
-                    <tr key={periodNumber}>
-                      <td className="border border-gray-300 p-2 font-semibold">
-                        Period {periodNumber}
-                      </td>
-                      {Array.from({ length: 5 }).map((_, dayIndex) => {
-                        const slot = periodSlots.find(
-                          (s) => s.day_of_week === dayIndex && s.period_number === periodNumber
-                        );
-                        return (
-                          <td
-                            key={dayIndex}
-                            className="border border-gray-300 p-2 cursor-pointer hover:bg-blue-100 text-center text-sm"
-                            onClick={() => slot && openEditSlot(slot)}
-                          >
-                            {slot ? `${slot.start_time} - ${slot.end_time}` : "N/A"}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -1078,9 +1026,25 @@ export default function TimetablePage() {
               <tbody>
                 {periodSlots.map((period) => (
                   <tr key={period.id}>
-                    <td className="border p-2 font-medium">
+                    <td
+                      className="border p-2 font-medium cursor-pointer hover:bg-gray-100"
+                      onClick={() => {
+                        // Find the period slot for this period/day
+                        const slot = periodSlots.find((p) => p.id === period.id);
+                        if (!slot?.id) return;
+
+                        // Assuming you have period_slots fetched separately
+                        const periodSlot = entries.find(
+                          (e) => e.period_number === period.id && e.day_of_week === 0 // just example Monday
+                        );
+
+                        // Open edit modal
+                        openEditPeriodTime(periodSlot || slot);
+                      }}
+                    >
                       {period.start} - {period.end}
                     </td>
+
 
                     {period.break ? (
                       <td colSpan={5} className="border p-2 text-center font-bold bg-gray-100">
@@ -1133,43 +1097,46 @@ export default function TimetablePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Period Slot Editor Dialog */}
-      <Dialog open={isPeriodSlotDialogOpen} onOpenChange={setIsPeriodSlotDialogOpen}>
-        <DialogContent>
+      {/* Period Slot Modal */}
+      <Dialog open={!!editingPeriodSlot} onOpenChange={() => setEditingPeriodSlot(null)}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Period Time</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col gap-4">
+          <div className="space-y-4">
             <div>
               <Label>Start Time</Label>
-              <Input 
-                type="time" 
-                value={startTime} 
-                onChange={(e) => setStartTime(e.target.value)} 
+              <Input
+                type="time"
+                value={periodStartTime}
+                onChange={(e) => setPeriodStartTime(e.target.value)}
               />
             </div>
             <div>
               <Label>End Time</Label>
-              <Input 
-                type="time" 
-                value={endTime} 
-                onChange={(e) => setEndTime(e.target.value)} 
+              <Input
+                type="time"
+                value={periodEndTime}
+                onChange={(e) => setPeriodEndTime(e.target.value)}
               />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setIsPeriodSlotDialogOpen(false)}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEditingPeriodSlot(null)}>Cancel</Button>
+              <Button
+                onClick={async () => {
+                  if (!editingPeriodSlot) return;
+                  await updatePeriodSlot(editingPeriodSlot.id, periodStartTime, periodEndTime);
+                  setEditingPeriodSlot(null);
+                  await showTimetable(selectedClass!); // refresh timetable
+                }}
               >
-                Cancel
-              </Button>
-              <Button onClick={saveSlotEdit}>
                 Save
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
     </DashboardLayout>
   );
 }

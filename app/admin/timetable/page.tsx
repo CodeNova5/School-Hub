@@ -17,8 +17,6 @@ import { Printer, Download } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
-const PERIODS = Array.from({ length: 10 }, (_, i) => i + 1);
-
 
 export default function TimetablePage() {
   const [entries, setEntries] = useState<any[]>([]);
@@ -31,7 +29,7 @@ export default function TimetablePage() {
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
 
   const [formDay, setFormDay] = useState("");
-  const [formPeriod, setFormPeriod] = useState<number | "">("");
+  const [formPeriodSlotId, setFormPeriodSlotId] = useState<string>("");
   const [formClassId, setFormClassId] = useState<string>("");
   const [departmentalMode, setDepartmentalMode] = useState(false);
   const [formSubjectClassId, setFormSubjectClassId] = useState<string>("");
@@ -40,7 +38,7 @@ export default function TimetablePage() {
   const [formCommercialSubjectClassId, setFormCommercialSubjectClassId] = useState<string>("");
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
-  const [classTimetable, setClassTimetable] = useState<Record<number | string, Record<string, any>>>({});
+  const [classTimetable, setClassTimetable] = useState<any>({});
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [editingPeriodSlot, setEditingPeriodSlot] = useState<any | null>(null);
   const [periodStartTime, setPeriodStartTime] = useState("");
@@ -50,15 +48,6 @@ export default function TimetablePage() {
     fetchAll();
   }, []);
 
-  async function fetchPeriodSlots() {
-    const { data, error } = await supabase.from("period_slots").select("*");
-    if (error) {
-      toast.error("Failed to fetch period slots");
-      return [];
-    }
-    return data;
-  }
-
   async function updatePeriodSlot(id: number, start: string, end: string) {
     const { error } = await supabase
       .from("period_slots")
@@ -66,9 +55,12 @@ export default function TimetablePage() {
       .eq("id", id);
 
     if (error) toast.error("Failed to update period slot");
-    else toast.success("Period time updated");
+    else {
+      toast.success("Period time updated");
+      await fetchAll();
+      if (selectedClass) await showTimetable(selectedClass);
+    }
   }
-
 
   async function fetchAll() {
     const [timetableRes, classRes, subjectClassRes] = await Promise.all([
@@ -77,6 +69,7 @@ export default function TimetablePage() {
         .select(`
           *,
           classes(name, level),
+          period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
           subject_classes (
             id,
             subject_code,
@@ -97,32 +90,46 @@ export default function TimetablePage() {
     const { data: periodSlots } = await supabase
       .from("period_slots")
       .select("*")
-      .order("period_number");
+      .order("day_of_week, period_number");
 
     if (periodSlots) setPeriodSlots(periodSlots);
-
-
     if (timetableRes.data) setEntries(timetableRes.data);
     if (classRes.data) setClasses(classRes.data);
     if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
   }
 
-  const periodMap = useMemo(() => {
-    const map: Record<number, Record<number, any>> = {};
-    // map[period_number][day_of_week] = slot
+  // Group period slots by day
+  const periodsByDay = useMemo(() => {
+    const dayMap: Record<string, any[]> = {
+      Monday: [],
+      Tuesday: [],
+      Wednesday: [],
+      Thursday: [],
+      Friday: [],
+    };
 
     periodSlots.forEach((slot) => {
-      if (!map[slot.period_number]) map[slot.period_number] = {};
-      map[slot.period_number][slot.day_of_week] = slot;
+      const dayName = slot.day_of_week;
+      if (dayMap[dayName]) {
+        dayMap[dayName].push(slot);
+      }
     });
 
-    return map;
+    // Sort each day's periods
+    Object.keys(dayMap).forEach((day) => {
+      dayMap[day].sort((a, b) => a.period_number - b.period_number);
+    });
+
+    return dayMap;
   }, [periodSlots]);
 
-  const periodNumbers = useMemo(() => {
-    return Object.keys(periodMap).map(Number).sort((a, b) => a - b);
-  }, [periodMap]);
-
+  // Find maximum number of periods across all days
+  const maxPeriods = useMemo(() => {
+    return Math.max(
+      ...Object.values(periodsByDay).map((periods) => periods.length),
+      0
+    );
+  }, [periodsByDay]);
 
   function openEditPeriodTime(periodSlot: any) {
     setEditingPeriodSlot(periodSlot);
@@ -130,11 +137,10 @@ export default function TimetablePage() {
     setPeriodEndTime(periodSlot.end_time || "");
   }
 
-
   function openAddDialog() {
     setEditingEntry(null);
     setFormDay("");
-    setFormPeriod("");
+    setFormPeriodSlotId("");
     setFormClassId("");
     setDepartmentalMode(false);
     setFormSubjectClassId("");
@@ -147,8 +153,8 @@ export default function TimetablePage() {
   function openEdit(entryRow: any) {
     if (!entryRow) return;
     setEditingEntry(entryRow);
-    setFormDay(entryRow.day_of_week || "");
-    setFormPeriod(entryRow.period_number || "");
+    setFormDay(entryRow.period_slots?.day_of_week || "");
+    setFormPeriodSlotId(entryRow.period_slot_id || "");
     setFormClassId(entryRow.class_id || "");
     setDepartmentalMode(false);
     setFormSubjectClassId(entryRow.subject_class_id || "");
@@ -163,10 +169,10 @@ export default function TimetablePage() {
     setIsDialogOpen(false);
   }
 
-  function openAdd(day: string, period: number, selectedClass: string | null) {
+  function openAdd(day: string, periodSlotId: string, selectedClass: string | null) {
     setEditingEntry(null);
     setFormDay(day);
-    setFormPeriod(period);
+    setFormPeriodSlotId(periodSlotId);
     if (selectedClass) {
       setFormClassId(selectedClass);
     } else {
@@ -210,26 +216,29 @@ export default function TimetablePage() {
 
   async function teacherHasClashDetailed(
     teacherIds: string[],
-    day: string,
-    period: number,
+    periodSlotId: string,
     classId: string,
     ignoreId?: string
   ) {
     if (teacherIds.length === 0) return null;
+
+    // Get the period slot info
+    const targetSlot = periodSlots.find(s => s.id === periodSlotId);
+    if (!targetSlot) return null;
 
     const { data, error } = await supabase
       .from("timetable_entries")
       .select(`
         id,
         class_id,
-        
-  period_slots (
-    day_of_week,
-    period_number,
-    start_time,
-    end_time,
-    is_break
-  ),
+        period_slot_id,
+        period_slots (
+          day_of_week,
+          period_number,
+          start_time,
+          end_time,
+          is_break
+        ),
         subject_classes (
           id,
           teacher_id,
@@ -237,8 +246,7 @@ export default function TimetablePage() {
           teachers ( first_name, last_name )
         )
       `)
-      .eq("day_of_week", day)
-      .eq("period_number", period);
+      .eq("period_slot_id", periodSlotId);
 
     if (error || !data) return null;
 
@@ -261,10 +269,16 @@ export default function TimetablePage() {
           ? subjectClassObj.subjects[0]
           : subjectClassObj.subjects;
 
+        const periodSlot = Array.isArray(row.period_slots)
+          ? row.period_slots[0]
+          : row.period_slots;
+
         return {
           className: classes.find((c) => c.id === row.class_id)?.name,
           subjectName: subject?.name,
           teacherName: teacher ? `${teacher.first_name} ${teacher.last_name}` : "",
+          dayOfWeek: periodSlot?.day_of_week,
+          periodNumber: periodSlot?.period_number,
         };
       }
     }
@@ -275,7 +289,7 @@ export default function TimetablePage() {
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
 
-    if (!formDay || !formPeriod || !formClassId) {
+    if (!formDay || !formPeriodSlotId || !formClassId) {
       toast.error("Please select day, period and class");
       return;
     }
@@ -287,8 +301,7 @@ export default function TimetablePage() {
         const inserts: any[] = [];
         if (formScienceSubjectClassId)
           inserts.push({
-            day_of_week: formDay,
-            period_number: Number(formPeriod),
+            period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formScienceSubjectClassId,
             department: "Science",
@@ -296,8 +309,7 @@ export default function TimetablePage() {
 
         if (formArtsSubjectClassId)
           inserts.push({
-            day_of_week: formDay,
-            period_number: Number(formPeriod),
+            period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formArtsSubjectClassId,
             department: "Arts",
@@ -305,8 +317,7 @@ export default function TimetablePage() {
 
         if (formCommercialSubjectClassId)
           inserts.push({
-            day_of_week: formDay,
-            period_number: Number(formPeriod),
+            period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formCommercialSubjectClassId,
             department: "Commercial",
@@ -336,8 +347,7 @@ export default function TimetablePage() {
       if (teacherId) {
         const clash = await teacherHasClashDetailed(
           [teacherId],
-          formDay,
-          Number(formPeriod),
+          formPeriodSlotId,
           formClassId,
           editingEntry?.id || undefined
         );
@@ -348,15 +358,14 @@ export default function TimetablePage() {
             `${clash.teacherName} is already teaching:\n` +
             `• Subject: ${clash.subjectName}\n` +
             `• Class: ${clash.className}\n` +
-            `• Period: ${formPeriod} on ${formDay}`
+            `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
           );
           return;
         }
       }
 
       const payload: any = {
-        day_of_week: formDay,
-        period_number: Number(formPeriod),
+        period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formSubjectClassId || null,
         department: null,
@@ -380,8 +389,7 @@ export default function TimetablePage() {
 
     if (!departmentalMode) {
       const payload: any = {
-        day_of_week: formDay,
-        period_number: Number(formPeriod),
+        period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formSubjectClassId || null,
         department: null,
@@ -392,8 +400,7 @@ export default function TimetablePage() {
       if (teacherId) {
         const clash = await teacherHasClashDetailed(
           [teacherId],
-          formDay,
-          Number(formPeriod),
+          formPeriodSlotId,
           formClassId
         );
         if (clash) {
@@ -402,7 +409,7 @@ export default function TimetablePage() {
             `${clash.teacherName} is already teaching:\n` +
             `• Subject: ${clash.subjectName}\n` +
             `• Class: ${clash.className}\n` +
-            `• Period: ${formPeriod} on ${formDay}`
+            `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
           );
           return;
         }
@@ -438,8 +445,7 @@ export default function TimetablePage() {
     if (teacherIds.length > 0) {
       const clash = await teacherHasClashDetailed(
         teacherIds,
-        formDay,
-        Number(formPeriod),
+        formPeriodSlotId,
         formClassId,
         editingEntry?.id || undefined
       );
@@ -450,7 +456,7 @@ export default function TimetablePage() {
           `${clash.teacherName} is already teaching:\n` +
           `• Subject: ${clash.subjectName}\n` +
           `• Class: ${clash.className}\n` +
-          `• Period: ${formPeriod} on ${formDay}`
+          `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
         );
         return;
       }
@@ -459,24 +465,21 @@ export default function TimetablePage() {
     const inserts: any[] = [];
     if (formScienceSubjectClassId)
       inserts.push({
-        day_of_week: formDay,
-        period_number: Number(formPeriod),
+        period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formScienceSubjectClassId,
         department: "Science",
       });
     if (formArtsSubjectClassId)
       inserts.push({
-        day_of_week: formDay,
-        period_number: Number(formPeriod),
+        period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formArtsSubjectClassId,
         department: "Arts",
       });
     if (formCommercialSubjectClassId)
       inserts.push({
-        day_of_week: formDay,
-        period_number: Number(formPeriod),
+        period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formCommercialSubjectClassId,
         department: "Commercial",
@@ -511,14 +514,15 @@ export default function TimetablePage() {
   const groupedEntries = useMemo(() => {
     const map: Record<string, any> = {};
     entries.forEach((en) => {
-      const key = `${en.class_id}||${en.day_of_week}||${en.period_number}`;
+      const key = `${en.class_id}||${en.period_slot_id}`;
       if (!map[key]) {
         map[key] = {
           id: key,
           class_id: en.class_id,
           class_name: en.classes?.name,
-          day_of_week: en.day_of_week,
-          period_number: en.period_number,
+          day_of_week: en.period_slots?.day_of_week,
+          period_number: en.period_slots?.period_number,
+          period_slot_id: en.period_slot_id,
           raw: [],
         };
       }
@@ -578,6 +582,7 @@ export default function TimetablePage() {
       .from("timetable_entries")
       .select(`
         *,
+        period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
         subject_classes (
           id,
           subject_code,
@@ -589,27 +594,28 @@ export default function TimetablePage() {
 
     if (!data) return;
 
-    const map: any = {};
+    // Build timetable structure: timetable[day][periodSlotId] = { subject, teacher, rows }
+    const timetable: any = {};
 
-    periodSlots
-      .filter(p => !p.is_break)
-      .forEach((p) => {
-        map[p.period_number] = { mon: null, tue: null, wed: null, thu: null, fri: null };
-      });
-
+    DAYS.forEach(day => {
+      timetable[day] = {};
+    });
 
     const tempGroup: Record<string, any[]> = {};
     data.forEach((entry) => {
-      const dow = (entry.day_of_week || "").toString();
-      const dayKey = dow.toLowerCase().slice(0, 3);
-      const key = `${entry.period_number}||${dayKey}`;
+      const periodSlot = Array.isArray(entry.period_slots)
+        ? entry.period_slots[0]
+        : entry.period_slots;
+
+      if (!periodSlot) return;
+
+      const key = `${periodSlot.day_of_week}||${entry.period_slot_id}`;
       tempGroup[key] = tempGroup[key] || [];
       tempGroup[key].push(entry);
     });
 
     Object.entries(tempGroup).forEach(([k, rows]) => {
-      const [periodIdStr, dayKey] = k.split("||");
-      const periodId = isNaN(Number(periodIdStr)) ? periodIdStr : Number(periodIdStr);
+      const [day, periodSlotId] = k.split("||");
       const order = ["Science", "Arts", "Commercial"];
       const deptMap: Record<string, string> = {};
       const teacherMap: Record<string, string> = {};
@@ -635,11 +641,11 @@ export default function TimetablePage() {
       if (teacherMap["_single"]) teacherDisplay = teacherMap["_single"];
       else teacherDisplay = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
 
-      if (!map[periodId]) map[periodId] = {};
-      map[periodId][dayKey] = { subject: display, teacher: teacherDisplay, rows };
+      if (!timetable[day]) timetable[day] = {};
+      timetable[day][periodSlotId] = { subject: display, teacher: teacherDisplay, rows };
     });
 
-    setClassTimetable(map);
+    setClassTimetable(timetable);
     setIsTableModalOpen(true);
   }
 
@@ -649,6 +655,12 @@ export default function TimetablePage() {
 
   const selectedClassLevel = classes.find((c) => c.id === formClassId)?.level || "";
   const isSelectedClassSSS = selectedClassLevel.startsWith("SSS");
+
+  // Get available periods for the selected day
+  const availablePeriodsForDay = useMemo(() => {
+    if (!formDay) return [];
+    return periodsByDay[formDay] || [];
+  }, [formDay, periodsByDay]);
 
   function handlePrint() {
     window.print();
@@ -714,42 +726,42 @@ export default function TimetablePage() {
       ws_data.push([`${className} - Weekly Timetable`]);
       ws_data.push([]);
 
-      const headerRow = ["Time", ...DAYS];
+      const headerRow = ["Period", ...DAYS];
       ws_data.push(headerRow);
 
-      periodSlots.forEach((period) => {
-        if (period.is_break) {
-          ws_data.push([
-            `${period.start_time} - ${period.end_time}`,
-            "BREAK",
-            "BREAK",
-            "BREAK",
-            "BREAK",
-            "BREAK",
-          ]);
-        } else {
-          const row = [`${period.start} - ${period.end}`];
-          DAYS_SHORT.forEach((day) => {
-            const cell = classTimetable[period.id]?.[day];
+      for (let rowIndex = 0; rowIndex < maxPeriods; rowIndex++) {
+        const row: any[] = [`Period ${rowIndex + 1}`];
+        
+        DAYS.forEach((day) => {
+          const dayPeriods = periodsByDay[day] || [];
+          const period = dayPeriods[rowIndex];
+
+          if (!period) {
+            row.push("—");
+          } else if (period.is_break) {
+            row.push(`BREAK\n${period.start_time} - ${period.end_time}`);
+          } else {
+            const cell = classTimetable[day]?.[period.id];
             if (cell) {
-              row.push(`${cell.subject}\n${cell.teacher}`);
+              row.push(`${period.start_time} - ${period.end_time}\n${cell.subject}\n${cell.teacher}`);
             } else {
-              row.push("");
+              row.push(`${period.start_time} - ${period.end_time}\n—`);
             }
-          });
-          ws_data.push(row);
-        }
-      });
+          }
+        });
+
+        ws_data.push(row);
+      }
 
       const ws = XLSX.utils.aoa_to_sheet(ws_data);
 
       ws["!cols"] = [
         { wch: 15 },
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 20 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 25 },
+        { wch: 25 },
       ];
 
       const wb = XLSX.utils.book_new();
@@ -798,39 +810,46 @@ export default function TimetablePage() {
                     <th className="text-left p-2">Class</th>
                     <th className="text-left p-2">Day</th>
                     <th className="text-left p-2">Period</th>
+                    <th className="text-left p-2">Time</th>
                     <th className="text-left p-2">Subject(s)</th>
                     <th className="text-left p-2">Teacher(s)</th>
                     <th className="text-right p-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((entry) => (
-                    <tr key={entry.id} className="border-b hover:bg-gray-50">
-                      <td className="p-2">{entry.class_name}</td>
-                      <td className="p-2">{entry.day_of_week}</td>
-                      <td className="p-2">{entry.period_number}</td>
-                      <td className="p-2">{entry.subject_display}</td>
-                      <td className="p-2 text-sm text-gray-600">{entry.teacher_display}</td>
-                      <td className="p-2">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openEdit(entry.rows[0])}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => deleteEntry(entry.rows[0].id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((entry) => {
+                    const periodSlot = periodSlots.find(p => p.id === entry.period_slot_id);
+                    return (
+                      <tr key={entry.id} className="border-b hover:bg-gray-50">
+                        <td className="p-2">{entry.class_name}</td>
+                        <td className="p-2">{entry.day_of_week}</td>
+                        <td className="p-2">{entry.period_number}</td>
+                        <td className="p-2 text-sm">
+                          {periodSlot ? `${periodSlot.start_time} - ${periodSlot.end_time}` : "—"}
+                        </td>
+                        <td className="p-2">{entry.subject_display}</td>
+                        <td className="p-2 text-sm text-gray-600">{entry.teacher_display}</td>
+                        <td className="p-2">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEdit(entry.rows[0])}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => deleteEntry(entry.rows[0].id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -870,7 +889,10 @@ export default function TimetablePage() {
                 <select
                   className="w-full border rounded p-2"
                   value={formDay}
-                  onChange={(e) => setFormDay(e.target.value)}
+                  onChange={(e) => {
+                    setFormDay(e.target.value);
+                    setFormPeriodSlotId(""); // Reset period when day changes
+                  }}
                 >
                   <option value="">Select Day</option>
                   {DAYS.map((d) => (
@@ -885,13 +907,14 @@ export default function TimetablePage() {
                 <Label>Period</Label>
                 <select
                   className="w-full border rounded p-2"
-                  value={formPeriod}
-                  onChange={(e) => setFormPeriod(Number(e.target.value))}
+                  value={formPeriodSlotId}
+                  onChange={(e) => setFormPeriodSlotId(e.target.value)}
+                  disabled={!formDay}
                 >
                   <option value="">Select Period</option>
-                  {PERIODS.map((p) => (
-                    <option key={p} value={p}>
-                      Period {p}
+                  {availablePeriodsForDay.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      Period {p.period_number} ({p.start_time} - {p.end_time})
                     </option>
                   ))}
                 </select>
@@ -1008,7 +1031,7 @@ export default function TimetablePage() {
           </form>
         </DialogContent>
       </Dialog>
-      
+
       {/* Timetable Modal */}
       <Dialog open={isTableModalOpen} onOpenChange={setIsTableModalOpen}>
         <DialogContent className="max-w-7xl max-h-[90vh]">
@@ -1033,99 +1056,123 @@ export default function TimetablePage() {
           <div id="timetable-area" className="overflow-auto border rounded-lg">
             <table className="w-full border-collapse">
               <thead>
-                {/* Header Row 1: Days */}
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[120px]">
-                    Time / Day
+                  <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
+                    Period
                   </th>
                   {DAYS.map((day) => (
-                    <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[160px]">
+                    <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
                       {day}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {periodNumbers.map((periodNumber) => {
-                  // Get the time slot for this period (use day 0 as reference since times are same across days)
-                  const timeSlot = periodMap[periodNumber]?.[0];
-                  const timeDisplay = timeSlot
-                    ? `${timeSlot.start_time} - ${timeSlot.end_time}`
-                    : "N/A";
+                {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
+                  <tr key={rowIndex} className="hover:bg-gray-50">
+                    <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
+                      {rowIndex + 1}
+                    </td>
 
-                  return (
-                    <tr key={periodNumber} className="hover:bg-gray-50">
-                      {/* Time Column */}
-                      <td className="border border-gray-300 p-3 bg-gray-50">
-                        <div className="flex flex-col items-center gap-1">
-                          <div className="font-medium text-gray-700">Period {periodNumber}</div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span>{timeDisplay}</span>
-                            {timeSlot && (
+                    {DAYS.map((day) => {
+                      const dayPeriods = periodsByDay[day] || [];
+                      const period = dayPeriods[rowIndex];
+
+                      if (!period) {
+                        return (
+                          <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
+                            —
+                          </td>
+                        );
+                      }
+
+                      if (period.is_break) {
+                        return (
+                          <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
+                            <div className="text-center">
+                              <div className="font-semibold text-yellow-800">BREAK</div>
+                              <div className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-1">
+                                <span>{period.start_time} - {period.end_time}</span>
+                                <button
+                                  className="text-blue-600 hover:text-blue-800"
+                                  title="Edit time"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEditPeriodTime(period);
+                                  }}
+                                >
+                                  ✎
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      const cell = classTimetable[day]?.[period.id];
+
+                      return (
+                        <td
+                          key={day}
+                          className="border border-gray-300 p-3 cursor-pointer hover:bg-blue-50 transition-colors"
+                          onClick={() => {
+                            if (!selectedClass) return;
+
+                            if (cell?.rows?.length > 0) {
+                              openEdit(cell.rows[0]);
+                            } else {
+                              openAdd(day, period.id, selectedClass);
+                            }
+                          }}
+                        >
+                          <div className="space-y-1">
+                            <div className="text-xs text-gray-600 flex items-center justify-center gap-2">
+                              <span>{period.start_time} - {period.end_time}</span>
                               <button
-                                className="text-blue-600 hover:text-blue-800 p-1"
+                                className="text-blue-600 hover:text-blue-800"
                                 title="Edit time"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openEditPeriodTime(timeSlot);
+                                  openEditPeriodTime(period);
                                 }}
                               >
                                 ✎
                               </button>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Day Columns */}
-                      {DAYS_SHORT.map((day, dayIndex) => {
-                        const cell = classTimetable[periodNumber]?.[day];
-
-                        return (
-                          <td
-                            key={day}
-                            className="border border-gray-300 p-3 text-center cursor-pointer hover:bg-blue-50 transition-colors"
-                            onClick={() => {
-                              if (!selectedClass) return;
-
-                              if (cell?.rows?.length > 0) {
-                                openEdit(cell.rows[0]);
-                              } else {
-                                const dayFull = DAYS[dayIndex];
-                                openAdd(dayFull, periodNumber, selectedClass);
-                              }
-                            }}
-                          >
+                            </div>
+                            
                             {cell ? (
-                              <div className="space-y-1">
-                                <div className="font-semibold text-gray-800">{cell.subject}</div>
-                                <div className="text-xs text-gray-600">{cell.teacher}</div>
-                              </div>
+                              <>
+                                <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>
+                                <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
+                              </>
                             ) : (
-                              <div className="text-gray-400 text-sm py-4">
+                              <div className="text-gray-400 text-center py-2">
                                 <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
                                 <span className="text-xs">Add Subject</span>
                               </div>
                             )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Period Slot Modal */}
+      {/* Period Slot Edit Modal */}
       <Dialog open={!!editingPeriodSlot} onOpenChange={() => setEditingPeriodSlot(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Period Time</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="text-sm text-gray-600">
+              {editingPeriodSlot?.day_of_week} - Period {editingPeriodSlot?.period_number}
+            </div>
             <div>
               <Label>Start Time</Label>
               <Input
@@ -1149,7 +1196,6 @@ export default function TimetablePage() {
                   if (!editingPeriodSlot) return;
                   await updatePeriodSlot(editingPeriodSlot.id, periodStartTime, periodEndTime);
                   setEditingPeriodSlot(null);
-                  await showTimetable(selectedClass!); // refresh timetable
                 }}
               >
                 Save
@@ -1162,4 +1208,3 @@ export default function TimetablePage() {
     </DashboardLayout>
   );
 }
-

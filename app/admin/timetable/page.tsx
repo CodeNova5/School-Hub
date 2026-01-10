@@ -1053,45 +1053,81 @@ export default function TimetablePage() {
             </Button>
           </div>
 
-          <div id="timetable-area" className="overflow-auto border rounded-lg">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
-                    Period
-                  </th>
-                  {DAYS.map((day) => (
-                    <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
-                      {day}
+          <div className="border rounded-lg" style={{ maxHeight: "70vh", overflow: "auto" }}>
+            <div id="timetable-area" className="min-w-[900px]">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
+                      Period
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
-                  <tr key={rowIndex} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
-                      {rowIndex + 1}
-                    </td>
+                    {DAYS.map((day) => (
+                      <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
+                    <tr key={rowIndex} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
+                        {rowIndex + 1}
+                      </td>
 
-                    {DAYS.map((day) => {
-                      const dayPeriods = periodsByDay[day] || [];
-                      const period = dayPeriods[rowIndex];
+                      {DAYS.map((day) => {
+                        const dayPeriods = periodsByDay[day] || [];
+                        const period = dayPeriods[rowIndex];
 
-                      if (!period) {
+                        if (!period) {
+                          return (
+                            <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
+                              —
+                            </td>
+                          );
+                        }
+
+                        if (period.is_break) {
+                          return (
+                            <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
+                              <div className="text-center">
+                                <div className="font-semibold text-yellow-800">BREAK</div>
+                                <div className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-1">
+                                  <span>{period.start_time} - {period.end_time}</span>
+                                  <button
+                                    className="text-blue-600 hover:text-blue-800"
+                                    title="Edit time"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openEditPeriodTime(period);
+                                    }}
+                                  >
+                                    ✎
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          );
+                        }
+
+                        const cell = classTimetable[day]?.[period.id];
+
                         return (
-                          <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
-                            —
-                          </td>
-                        );
-                      }
+                          <td
+                            key={day}
+                            className="border border-gray-300 p-3 cursor-pointer hover:bg-blue-50 transition-colors"
+                            onClick={() => {
+                              if (!selectedClass) return;
 
-                      if (period.is_break) {
-                        return (
-                          <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
-                            <div className="text-center">
-                              <div className="font-semibold text-yellow-800">BREAK</div>
-                              <div className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-1">
+                              if (cell?.rows?.length > 0) {
+                                openEdit(cell.rows[0]);
+                              } else {
+                                openAdd(day, period.id, selectedClass);
+                              }
+                            }}
+                          >
+                            <div className="space-y-1">
+                              <div className="text-xs text-gray-600 flex items-center justify-center gap-2">
                                 <span>{period.start_time} - {period.end_time}</span>
                                 <button
                                   className="text-blue-600 hover:text-blue-800"
@@ -1104,61 +1140,27 @@ export default function TimetablePage() {
                                   ✎
                                 </button>
                               </div>
+                              
+                              {cell ? (
+                                <>
+                                  <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>
+                                  <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
+                                </>
+                              ) : (
+                                <div className="text-gray-400 text-center py-2">
+                                  <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                                  <span className="text-xs">Add Subject</span>
+                                </div>
+                              )}
                             </div>
                           </td>
                         );
-                      }
-
-                      const cell = classTimetable[day]?.[period.id];
-
-                      return (
-                        <td
-                          key={day}
-                          className="border border-gray-300 p-3 cursor-pointer hover:bg-blue-50 transition-colors"
-                          onClick={() => {
-                            if (!selectedClass) return;
-
-                            if (cell?.rows?.length > 0) {
-                              openEdit(cell.rows[0]);
-                            } else {
-                              openAdd(day, period.id, selectedClass);
-                            }
-                          }}
-                        >
-                          <div className="space-y-1">
-                            <div className="text-xs text-gray-600 flex items-center justify-center gap-2">
-                              <span>{period.start_time} - {period.end_time}</span>
-                              <button
-                                className="text-blue-600 hover:text-blue-800"
-                                title="Edit time"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditPeriodTime(period);
-                                }}
-                              >
-                                ✎
-                              </button>
-                            </div>
-                            
-                            {cell ? (
-                              <>
-                                <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>
-                                <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
-                              </>
-                            ) : (
-                              <div className="text-gray-400 text-center py-2">
-                                <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
-                                <span className="text-xs">Add Subject</span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

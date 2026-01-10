@@ -235,20 +235,348 @@ ON timetable_entries
 FOR EACH ROW
 EXECUTE FUNCTION sync_timetable_from_subject_class();
 
-ALTER TABLE timetable_entries
-DROP COLUMN IF EXISTS start_time,
-DROP COLUMN IF EXISTS end_time;
 
-ALTER TABLE timetable_entries
-ADD COLUMN IF NOT EXISTS day_of_week text NOT NULL,
-ADD COLUMN IF NOT EXISTS period_number smallint NOT NULL;
--- Table to store period times for each day
+
+-- =====================================================
+-- SUPABASE SQL MIGRATION: Flexible Timetable System
+-- =====================================================
+-- This script creates a timetable system where each day 
+-- can have different numbers of periods with varying durations
+-- =====================================================
+
+-- Step 1: Drop existing timetable tables if they exist
+-- (Use with caution in production - backup data first!)
+DROP TABLE IF EXISTS timetable_entries CASCADE;
+DROP TABLE IF EXISTS period_slots CASCADE;
+
+-- =====================================================
+-- Step 2: Create the period_slots table
+-- =====================================================
+-- This table defines all available period slots across the week
+-- Each day can have different numbers of periods with different times
+
 CREATE TABLE period_slots (
-    id SERIAL PRIMARY KEY,
-    day_of_week INT NOT NULL CHECK (day_of_week BETWEEN 0 AND 4), -- 0 = Monday, 4 = Friday
-    period_number INT NOT NULL CHECK (period_number >= 1 AND period_number <= 11),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    day_of_week TEXT NOT NULL CHECK (day_of_week IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')),
+    period_number INTEGER NOT NULL CHECK (period_number > 0),
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
-    CONSTRAINT unique_period_per_day UNIQUE(day_of_week, period_number),
-    CONSTRAINT valid_time_range CHECK (start_time < end_time)
+    is_break BOOLEAN DEFAULT FALSE,
+    duration_minutes INTEGER GENERATED ALWAYS AS (
+        EXTRACT(EPOCH FROM (end_time - start_time)) / 60
+    ) STORED,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Ensure no duplicate period numbers per day
+    CONSTRAINT unique_day_period UNIQUE (day_of_week, period_number),
+    
+    -- Ensure end time is after start time
+    CONSTRAINT valid_time_range CHECK (end_time > start_time)
 );
+
+-- Add index for faster queries
+CREATE INDEX idx_period_slots_day ON period_slots(day_of_week);
+CREATE INDEX idx_period_slots_day_period ON period_slots(day_of_week, period_number);
+
+-- Add comment
+COMMENT ON TABLE period_slots IS 'Defines all period time slots for each day of the week. Each day can have different numbers of periods with varying durations.';
+
+-- =====================================================
+-- Step 3: Create the timetable_entries table
+-- =====================================================
+-- Links classes to subjects for specific period slots
+
+CREATE TABLE timetable_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    class_id UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+    period_slot_id UUID NOT NULL REFERENCES period_slots(id) ON DELETE CASCADE,
+    subject_class_id UUID REFERENCES subject_classes(id) ON DELETE SET NULL,
+    department TEXT CHECK (department IN ('Science', 'Arts', 'Commercial', NULL)),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Prevent duplicate entries for the same class and period slot
+    -- Unless it's departmental mode (different departments can share same slot)
+    CONSTRAINT unique_class_period_dept UNIQUE (class_id, period_slot_id, department)
+);
+
+-- Add indexes for performance
+CREATE INDEX idx_timetable_class ON timetable_entries(class_id);
+CREATE INDEX idx_timetable_period_slot ON timetable_entries(period_slot_id);
+CREATE INDEX idx_timetable_subject_class ON timetable_entries(subject_class_id);
+
+-- Add comment
+COMMENT ON TABLE timetable_entries IS 'Maps classes to subjects for specific period slots. Supports departmental mode for senior classes.';
+
+-- =====================================================
+-- Step 4: Create trigger for updated_at timestamp
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_period_slots_updated_at
+    BEFORE UPDATE ON period_slots
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_timetable_entries_updated_at
+    BEFORE UPDATE ON timetable_entries
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- Step 5: Seed default period slots
+-- =====================================================
+-- Example: Monday-Thursday (11 periods × 40 min), Friday (8 periods × 30 min)
+
+-- MONDAY: 11 periods × 40 minutes (8:00 AM - 3:20 PM)
+INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
+('Monday', 1, '08:00', '08:40', false),
+('Monday', 2, '08:40', '09:20', false),
+('Monday', 3, '09:20', '10:00', false),
+('Monday', 4, '10:00', '10:40', false),
+('Monday', 5, '10:40', '11:20', false),
+('Monday', 6, '11:20', '12:00', true),  -- break
+('Monday', 7, '12:00', '12:40', false),
+('Monday', 8, '12:40', '13:20', false),
+('Monday', 9, '13:20', '14:00', false),
+('Monday', 10, '14:00', '14:15', true), -- short break
+('Monday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
+('Monday', 12, '15:00', '15:35', false),
+('Monday', 13, '15:35', '16:00', false);
+
+-- TUESDAY: 11 periods × 40 minutes (8:00 AM - 3:20 PM)
+INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
+('Tuesday', 1, '08:00', '08:40', false),
+('Tuesday', 2, '08:40', '09:20', false),
+('Tuesday', 3, '09:20', '10:00', false),
+('Tuesday', 4, '10:00', '10:40', false),
+('Tuesday', 5, '10:40', '11:20', false),
+('Tuesday', 6, '11:20', '12:00', true),  -- break
+('Tuesday', 7, '12:00', '12:40', false),
+('Tuesday', 8, '12:40', '13:20', false),
+('Tuesday', 9, '13:20', '14:00', false),
+('Tuesday', 10, '14:00', '14:15', true), -- short break
+('Tuesday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
+('Tuesday', 12, '15:00', '15:35', false),
+('Tuesday', 13, '15:35', '16:00', false);
+-- WEDNESDAY: 11 periods × 40 minutes (8:00 AM - 3:20 PM)
+INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
+('Wednesday', 1, '08:00', '08:40', false),
+('Wednesday', 2, '08:40', '09:20', false),
+('Wednesday', 3, '09:20', '10:00', false),
+('Wednesday', 4, '10:00', '10:40', false),
+('Wednesday', 5, '10:40', '11:20', false),
+('Wednesday', 6, '11:20', '12:00', true),  -- break
+('Wednesday', 7, '12:00', '12:40', false),
+('Wednesday', 8, '12:40', '13:20', false),
+('Wednesday', 9, '13:20', '14:00', false),
+('Wednesday', 10, '14:00', '14:15', true), -- short break
+('Wednesday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
+('Wednesday', 12, '15:00', '15:35', false),
+('Wednesday', 13, '15:35', '16:00', false);
+
+-- THURSDAY: 11 periods × 40 minutes (8:00 AM - 3:20 PM)
+INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
+('Thursday', 1, '08:00', '08:40', false),
+('Thursday', 2, '08:40', '09:20', false),
+('Thursday', 3, '09:20', '10:00', false),
+('Thursday', 4, '10:00', '10:40', false),
+('Thursday', 5, '10:40', '11:20', false),
+('Thursday', 6, '11:20', '12:00', true),  -- break
+('Thursday', 7, '12:00', '12:40', false),
+('Thursday', 8, '12:40', '13:20', false),
+('Thursday', 9, '13:20', '14:00', false),
+('Thursday', 10, '14:00', '14:15', true), -- short break
+('Thursday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
+('Thursday', 12, '15:00', '15:35', false),
+('Thursday', 13, '15:35', '16:00', false);
+-- FRIDAY: 8 periods × 30 minutes (8:00 AM - 12:30 PM)
+INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
+('Friday', 1, '08:00', '08:30', false),
+('Friday', 2, '08:30', '09:00', false),
+('Friday', 3, '09:00', '09:30', false),
+('Friday', 4, '09:30', '10:00', false),
+('Friday', 5, '10:00', '10:30', false),
+('Friday', 6, '10:30', '11:00', true),  -- break
+('Friday', 7, '11:00', '11:30', false),
+('Friday', 8, '11:30', '12:00', false),
+('Friday', 9, '12:00', '12:30', false);
+
+
+ALTER TABLE period_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timetable_entries ENABLE ROW LEVEL SECURITY;
+
+-- =====================================================
+-- Step 7: Create RLS Policies
+-- =====================================================
+
+-- Period Slots Policies
+-- Allow all authenticated users to read period slots
+CREATE POLICY "Anyone can view period slots"
+    ON period_slots FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Only admins can insert/update/delete period slots
+CREATE POLICY "Admins can insert period slots"
+    ON period_slots FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE auth.users.id = auth.uid()
+            AND auth.users.raw_user_meta_data->>'role' = 'admin'
+        )
+    );
+
+CREATE POLICY "Admins can update period slots"
+    ON period_slots FOR UPDATE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE auth.users.id = auth.uid()
+            AND auth.users.raw_user_meta_data->>'role' = 'admin'
+        )
+    );
+
+CREATE POLICY "Admins can delete period slots"
+    ON period_slots FOR DELETE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE auth.users.id = auth.uid()
+            AND auth.users.raw_user_meta_data->>'role' = 'admin'
+        )
+    );
+
+-- Timetable Entries Policies
+-- Allow all authenticated users to read timetable entries
+CREATE POLICY "Anyone can view timetable entries"
+    ON timetable_entries FOR SELECT
+    TO authenticated
+    USING (true);
+
+-- Only admins can insert/update/delete timetable entries
+CREATE POLICY "Admins can insert timetable entries"
+    ON timetable_entries FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE auth.users.id = auth.uid()
+            AND auth.users.raw_user_meta_data->>'role' = 'admin'
+        )
+    );
+
+CREATE POLICY "Admins can update timetable entries"
+    ON timetable_entries FOR UPDATE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE auth.users.id = auth.uid()
+            AND auth.users.raw_user_meta_data->>'role' = 'admin'
+        )
+    );
+
+CREATE POLICY "Admins can delete timetable entries"
+    ON timetable_entries FOR DELETE
+    TO authenticated
+    USING (
+        EXISTS (
+            SELECT 1 FROM auth.users
+            WHERE auth.users.id = auth.uid()
+            AND auth.users.raw_user_meta_data->>'role' = 'admin'
+        )
+    );
+
+-- =====================================================
+-- Step 8: Create helpful views (optional)
+-- =====================================================
+
+-- View to see complete timetable with all relations
+CREATE OR REPLACE VIEW v_complete_timetable AS
+SELECT 
+    te.id,
+    te.class_id,
+    c.name AS class_name,
+    c.level AS class_level,
+    ps.day_of_week,
+    ps.period_number,
+    ps.start_time,
+    ps.end_time,
+    ps.is_break,
+    ps.duration_minutes,
+    te.subject_class_id,
+    te.department,
+    sc.subject_code,
+    s.name AS subject_name,
+    s.department AS subject_department,
+    t.first_name AS teacher_first_name,
+    t.last_name AS teacher_last_name,
+    t.first_name || ' ' || t.last_name AS teacher_full_name
+FROM timetable_entries te
+JOIN period_slots ps ON te.period_slot_id = ps.id
+JOIN classes c ON te.class_id = c.id
+LEFT JOIN subject_classes sc ON te.subject_class_id = sc.id
+LEFT JOIN subjects s ON sc.subject_id = s.id
+LEFT JOIN teachers t ON sc.teacher_id = t.id
+ORDER BY c.name, ps.day_of_week, ps.period_number;
+
+-- Grant access to the view
+GRANT SELECT ON v_complete_timetable TO authenticated;
+
+-- =====================================================
+-- Step 9: Create helper functions (optional)
+-- =====================================================
+
+-- Function to check for teacher conflicts
+CREATE OR REPLACE FUNCTION check_teacher_conflict(
+    p_period_slot_id UUID,
+    p_subject_class_id UUID,
+    p_exclude_entry_id UUID DEFAULT NULL
+)
+RETURNS TABLE (
+    conflict_exists BOOLEAN,
+    conflict_teacher_name TEXT,
+    conflict_class_name TEXT,
+    conflict_subject_name TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        TRUE AS conflict_exists,
+        t.first_name || ' ' || t.last_name AS conflict_teacher_name,
+        c.name AS conflict_class_name,
+        s.name AS conflict_subject_name
+    FROM timetable_entries te
+    JOIN subject_classes sc1 ON te.subject_class_id = sc1.id
+    JOIN subject_classes sc2 ON sc2.id = p_subject_class_id
+    JOIN classes c ON te.class_id = c.id
+    JOIN subjects s ON sc1.subject_id = s.id
+    JOIN teachers t ON sc1.teacher_id = t.id
+    WHERE te.period_slot_id = p_period_slot_id
+        AND sc1.teacher_id = sc2.teacher_id
+        AND (p_exclude_entry_id IS NULL OR te.id != p_exclude_entry_id)
+    LIMIT 1;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- MIGRATION COMPLETE
+-- =====================================================
+
+-- To verify the setup, run these queries:
+-- SELECT * FROM period_slots ORDER BY day_of_week, period_number;
+-- SELECT * FROM v_complete_timetable;
+-- SELECT day_of_week, COUNT(*) as period_count FROM period_slots GROUP BY day_of_week;

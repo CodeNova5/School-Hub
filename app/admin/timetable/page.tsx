@@ -1,9 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
@@ -668,45 +666,102 @@ export default function TimetablePage() {
     window.print();
   }
 
+  function applyExportStyles() {
+    document.body.classList.add("export-mode");
+  }
 
+  function removeExportStyles() {
+    document.body.classList.remove("export-mode");
+  }
   async function handleExportPDF() {
+    const element = document.getElementById("timetable-area");
+    if (!element) {
+      toast.error("Timetable not found");
+      return;
+    }
+
     try {
-      const doc = new jsPDF("landscape");
+      toast.info("Generating PDF...");
 
-      const head = [[
-        "Class",
-        "Day",
-        "Period",
-        "Time",
-        "Subject(s)",
-        "Teacher(s)",
-      ]];
+      // Save original styles
+      const originalOverflow = element.style.overflow;
+      const originalMaxHeight = element.style.maxHeight;
 
-      const body = filtered.map((entry) => {
-        const periodSlot = periodSlots.find(p => p.id === entry.period_slot_id);
+      // Expand element
+      element.style.overflow = "visible";
+      element.style.maxHeight = "none";
 
-        return [
-          entry.class_name,
-          entry.day_of_week,
-          entry.period_number,
-          periodSlot ? `${periodSlot.start_time} - ${periodSlot.end_time}` : "—",
-          entry.subject_display,
-          entry.teacher_display,
-        ];
+      applyExportStyles();
+
+      // Wait for layout to settle
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
 
-      autoTable(doc, {
-        head,
-        body,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [40, 40, 40], textColor: 255 },
-        margin: { top: 10 },
+      // Restore styles
+      element.style.overflow = originalOverflow;
+      element.style.maxHeight = originalMaxHeight;
+      removeExportStyles();
+
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
       });
+
+      // A4 landscape size
+      const pdfWidth = 297;
+      const pdfHeight = 210;
+      const margin = 10;
+
+      const availableWidth = pdfWidth - margin * 2;
+      const availableHeight = pdfHeight - margin * 2;
+
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+
+      const ratio = imgWidth / imgHeight;
+
+      const renderWidth = availableWidth;
+      const renderHeight = renderWidth / ratio;
+
+      // How many pages needed
+      let heightLeft = renderHeight;
+      let position = margin;
+
+      let page = 0;
+
+      while (heightLeft > 0) {
+        if (page > 0) {
+          pdf.addPage();
+        }
+
+        pdf.addImage(
+          imgData,
+          "PNG",
+          margin,
+          position - page * availableHeight,
+          renderWidth,
+          renderHeight
+        );
+
+        heightLeft -= availableHeight;
+        page++;
+      }
 
       const className =
         classes.find((c) => c.id === selectedClass)?.name || "Timetable";
 
-      doc.save(`${className}_timetable.pdf`);
+      pdf.save(`${className}_timetable.pdf`);
+
       toast.success("PDF exported successfully");
     } catch (error) {
       console.error(error);
@@ -805,7 +860,7 @@ export default function TimetablePage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table id="timetable-area" className="w-full">
+              <table className="w-full">
                 <thead>
                   <tr className="border-b">
                     <th className="text-left p-2">Class</th>
@@ -1054,81 +1109,45 @@ export default function TimetablePage() {
             </Button>
           </div>
 
-          <div className="border rounded-lg" style={{ maxHeight: "70vh", overflow: "auto" }}>
-            <div id="timetable-area" className="min-w-[900px]">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
-                      Period
+          <div id="timetable-area" className="overflow-auto border rounded-lg">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
+                    Period
+                  </th>
+                  {DAYS.map((day) => (
+                    <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
+                      {day}
                     </th>
-                    {DAYS.map((day) => (
-                      <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
-                        {day}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
-                    <tr key={rowIndex} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
-                        {rowIndex + 1}
-                      </td>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
+                  <tr key={rowIndex} className="hover:bg-gray-50">
+                    <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
+                      {rowIndex + 1}
+                    </td>
 
-                      {DAYS.map((day) => {
-                        const dayPeriods = periodsByDay[day] || [];
-                        const period = dayPeriods[rowIndex];
+                    {DAYS.map((day) => {
+                      const dayPeriods = periodsByDay[day] || [];
+                      const period = dayPeriods[rowIndex];
 
-                        if (!period) {
-                          return (
-                            <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
-                              —
-                            </td>
-                          );
-                        }
-
-                        if (period.is_break) {
-                          return (
-                            <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
-                              <div className="text-center">
-                                <div className="font-semibold text-yellow-800">BREAK</div>
-                                <div className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-1">
-                                  <span>{period.start_time} - {period.end_time}</span>
-                                  <button
-                                    className="text-blue-600 hover:text-blue-800"
-                                    title="Edit time"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openEditPeriodTime(period);
-                                    }}
-                                  >
-                                    ✎
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          );
-                        }
-
-                        const cell = classTimetable[day]?.[period.id];
-
+                      if (!period) {
                         return (
-                          <td
-                            key={day}
-                            className="border border-gray-300 p-3 cursor-pointer hover:bg-blue-50 transition-colors"
-                            onClick={() => {
-                              if (!selectedClass) return;
+                          <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
+                            —
+                          </td>
+                        );
+                      }
 
-                              if (cell?.rows?.length > 0) {
-                                openEdit(cell.rows[0]);
-                              } else {
-                                openAdd(day, period.id, selectedClass);
-                              }
-                            }}
-                          >
-                            <div className="space-y-1">
-                              <div className="text-xs text-gray-600 flex items-center justify-center gap-2">
+                      if (period.is_break) {
+                        return (
+                          <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
+                            <div className="text-center">
+                              <div className="font-semibold text-yellow-800">BREAK</div>
+                              <div className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-1">
                                 <span>{period.start_time} - {period.end_time}</span>
                                 <button
                                   className="text-blue-600 hover:text-blue-800"
@@ -1141,27 +1160,61 @@ export default function TimetablePage() {
                                   ✎
                                 </button>
                               </div>
-
-                              {cell ? (
-                                <>
-                                  <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>
-                                  <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
-                                </>
-                              ) : (
-                                <div className="text-gray-400 text-center py-2">
-                                  <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
-                                  <span className="text-xs">Add Subject</span>
-                                </div>
-                              )}
                             </div>
                           </td>
                         );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      }
+
+                      const cell = classTimetable[day]?.[period.id];
+
+                      return (
+                        <td
+                          key={day}
+                          className="border border-gray-300 p-3 cursor-pointer hover:bg-blue-50 transition-colors"
+                          onClick={() => {
+                            if (!selectedClass) return;
+
+                            if (cell?.rows?.length > 0) {
+                              openEdit(cell.rows[0]);
+                            } else {
+                              openAdd(day, period.id, selectedClass);
+                            }
+                          }}
+                        >
+                          <div className="space-y-1">
+                            <div className="text-xs text-gray-600 flex items-center justify-center gap-2">
+                              <span>{period.start_time} - {period.end_time}</span>
+                              <button
+                                className="text-blue-600 hover:text-blue-800"
+                                title="Edit time"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditPeriodTime(period);
+                                }}
+                              >
+                                ✎
+                              </button>
+                            </div>
+
+                            {cell ? (
+                              <>
+                                <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>
+                                <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
+                              </>
+                            ) : (
+                              <div className="text-gray-400 text-center py-2">
+                                <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                                <span className="text-xs">Add Subject</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </DialogContent>
       </Dialog>

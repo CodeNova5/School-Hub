@@ -668,38 +668,49 @@ export default function TimetablePage() {
     window.print();
   }
 
-  function applyExportStyles() {
-    document.body.classList.add("export-mode");
-  }
-
-  function removeExportStyles() {
-    document.body.classList.remove("export-mode");
-  }
 
   async function handleExportPDF() {
-    const element = document.getElementById("timetable-area");
-    if (!element) {
-      toast.error("Timetable not found");
-      return;
-    }
-
     try {
       const doc = new jsPDF("landscape");
-      autoTable(doc, {
-        html: '#timetable-area',
-        styles: { fontSize: 8, cellPadding: 2  },
-        headStyles: { 
-          fillColor: [40, 40, 40],
-          textColor: 255,
-         },
-         margin: { top: 10, bottom: 10, left: 10, right: 10 },
+
+      const head = [[
+        "Class",
+        "Day",
+        "Period",
+        "Time",
+        "Subject(s)",
+        "Teacher(s)",
+      ]];
+
+      const body = filtered.map((entry) => {
+        const periodSlot = periodSlots.find(p => p.id === entry.period_slot_id);
+
+        return [
+          entry.class_name,
+          entry.day_of_week,
+          entry.period_number,
+          periodSlot ? `${periodSlot.start_time} - ${periodSlot.end_time}` : "—",
+          entry.subject_display,
+          entry.teacher_display,
+        ];
       });
-      const className = classes.find((c) => c.id === selectedClass)?.name || "Timetable";
+
+      autoTable(doc, {
+        head,
+        body,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [40, 40, 40], textColor: 255 },
+        margin: { top: 10 },
+      });
+
+      const className =
+        classes.find((c) => c.id === selectedClass)?.name || "Timetable";
+
       doc.save(`${className}_timetable.pdf`);
       toast.success("PDF exported successfully");
     } catch (error) {
-      toast.error("Failed to export PDF");
       console.error(error);
+      toast.error("Failed to export PDF");
     }
   }
 
@@ -721,7 +732,7 @@ export default function TimetablePage() {
 
       for (let rowIndex = 0; rowIndex < maxPeriods; rowIndex++) {
         const row: any[] = [`Period ${rowIndex + 1}`];
-        
+
         DAYS.forEach((day) => {
           const dayPeriods = periodsByDay[day] || [];
           const period = dayPeriods[rowIndex];
@@ -1130,7 +1141,7 @@ export default function TimetablePage() {
                                   ✎
                                 </button>
                               </div>
-                              
+
                               {cell ? (
                                 <>
                                   <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>

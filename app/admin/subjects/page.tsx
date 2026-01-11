@@ -19,6 +19,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { sub } from 'date-fns';
 
 const PREDEFINED_SUBJECTS = {
   'Pre-Primary': [
@@ -142,6 +143,11 @@ export default function SubjectsPage() {
     }
   }
 
+  function generateSubjectCode(subjectName: string, className: string): string {
+    const subjectCode = subjectName.replace(/\s+/g, '').substring(0, 3).toUpperCase();
+    const classCode = className.substring(0, 2).toUpperCase();
+    return `${subjectCode}-${classCode}`;
+  }
 
   function getAvailableSubjects(): string[] {
     if (!selectedLevel) return [];
@@ -270,6 +276,7 @@ export default function SubjectsPage() {
     const subjectClasses = classes.map((c) => ({
       class_id: c.id,
       subject_id: newSubject.id,
+      subject_code: generateSubjectCode(subjectName, c.id),
     }));
 
     await supabase.from('subject_classes').insert(subjectClasses);

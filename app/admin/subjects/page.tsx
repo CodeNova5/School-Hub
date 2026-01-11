@@ -19,7 +19,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { sub } from 'date-fns';
 
 const PREDEFINED_SUBJECTS = {
   'Pre-Primary': [
@@ -143,11 +142,6 @@ export default function SubjectsPage() {
     }
   }
 
-  function generateSubjectCode(subjectName: string, className: string): string {
-    const subjectCode = subjectName.replace(/\s+/g, '').substring(0, 3).toUpperCase();
-    const classCode = className.substring(0, 2).toUpperCase();
-    return `${subjectCode}-${classCode}`;
-  }
 
   function getAvailableSubjects(): string[] {
     if (!selectedLevel) return [];
@@ -259,26 +253,31 @@ export default function SubjectsPage() {
       return;
     }
 
-    // 1️⃣ Get all classes in level
-    let query = supabase
+
+    // 1️⃣ Get all classes in level (with names)
+    const { data: classes, error: classesError } = await supabase
       .from('classes')
       .select('id, name')
       .eq('education_level', selectedLevel);
-    const { data: classes, error: classesError } = await query;
 
     if (classesError || !classes) {
       toast.error('Could not find classes to apply subjects to.');
       return;
     }
 
-    // 2️⃣ Create subject_classes rows
+    // 2️⃣ Generate subject code
+    function generateSubjectCode(subjectName: string, className: string) {
+      const clean = subjectName.replace(/\s+/g, "");
+      const prefix = clean.slice(0, 3).toUpperCase();
+      return `${prefix}-${className}`;
+    }
+
+    // 3️⃣ Create subject_classes rows with subject_code
     const subjectClasses = classes.map((c) => ({
       class_id: c.id,
       subject_id: newSubject.id,
-      subject_code: generateSubjectCode(subjectName, c.name),
+      subject_code: generateSubjectCode(newSubject.name, c.name),
     }));
-
-    console.log('Creating subject_classes:', subjectClasses);
 
     await supabase.from('subject_classes').insert(subjectClasses);
 

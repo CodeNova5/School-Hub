@@ -272,10 +272,6 @@ export default function SubjectsPage() {
       return `${prefix}-${className}`;
     }
 
-    const subjectCode = generateSubjectCode(newSubject.name, classes[0].name);
-    console.log('Generated subject code example:', subjectCode);
-
-
     // 3️⃣ Create subject_classes rows with subject_code
     const subjectClasses = classes.map((c) => ({
       class_id: c.id,
@@ -283,7 +279,6 @@ export default function SubjectsPage() {
       subject_code: generateSubjectCode(newSubject.name, c.name),
     }));
 
-    console.log(subjectClasses);
     await supabase.from('subject_classes').insert(subjectClasses);
 
     // 3️⃣ Auto assign to empty classes only

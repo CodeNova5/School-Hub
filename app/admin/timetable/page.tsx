@@ -1,6 +1,9 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +13,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
@@ -682,32 +684,20 @@ export default function TimetablePage() {
     }
 
     try {
-      applyExportStyles();
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
+      const doc = new jsPDF("landscape");
+      autoTable(doc, {
+        html: '#timetable-area',
+        styles: { fontSize: 8, cellPadding: 2  },
+        headStyles: { 
+          fillColor: [40, 40, 40],
+          textColor: 255,
+         },
+         margin: { top: 10, bottom: 10, left: 10, right: 10 },
       });
-      removeExportStyles();
-
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const imgWidth = 280;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
-
       const className = classes.find((c) => c.id === selectedClass)?.name || "Timetable";
-      pdf.save(`${className}_timetable.pdf`);
-
+      doc.save(`${className}_timetable.pdf`);
       toast.success("PDF exported successfully");
     } catch (error) {
-      removeExportStyles();
       toast.error("Failed to export PDF");
       console.error(error);
     }
@@ -804,7 +794,7 @@ export default function TimetablePage() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table id="timetable-area" className="w-full">
                 <thead>
                   <tr className="border-b">
                     <th className="text-left p-2">Class</th>

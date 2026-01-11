@@ -262,9 +262,8 @@ export default function SubjectsPage() {
     // 1️⃣ Get all classes in level
     let query = supabase
       .from('classes')
-      .select('id')
+      .select('id, name')
       .eq('education_level', selectedLevel);
-
     const { data: classes, error: classesError } = await query;
 
     if (classesError || !classes) {
@@ -276,8 +275,10 @@ export default function SubjectsPage() {
     const subjectClasses = classes.map((c) => ({
       class_id: c.id,
       subject_id: newSubject.id,
-      subject_code: generateSubjectCode(subjectName, c.id),
+      subject_code: generateSubjectCode(subjectName, c.name),
     }));
+
+    console.log('Creating subject_classes:', subjectClasses);
 
     await supabase.from('subject_classes').insert(subjectClasses);
 

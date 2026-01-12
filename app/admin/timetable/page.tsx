@@ -672,8 +672,7 @@ export default function TimetablePage() {
 
   function removeExportStyles() {
     document.body.classList.remove("export-mode");
-  }
-  async function handleExportPDF() {
+  } async function handleExportPDF() {
     const element = document.getElementById("timetable-area");
     if (!element) {
       toast.error("Timetable not found");
@@ -696,7 +695,7 @@ export default function TimetablePage() {
       // Wait for layout to settle
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const canvas = await html2canvas(element, {
+      const fullCanvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
@@ -709,15 +708,13 @@ export default function TimetablePage() {
       element.style.maxHeight = originalMaxHeight;
       removeExportStyles();
 
-      const imgData = canvas.toDataURL("image/png");
-
       const pdf = new jsPDF({
         orientation: "landscape",
         unit: "mm",
         format: "a4",
       });
 
-      // A4 landscape size
+      // A4 landscape
       const pdfWidth = 297;
       const pdfHeight = 210;
       const margin = 10;
@@ -725,36 +722,43 @@ export default function TimetablePage() {
       const availableWidth = pdfWidth - margin * 2;
       const availableHeight = pdfHeight - margin * 2;
 
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
+      // Split canvas into 2 equal vertical parts
+      const partHeight = fullCanvas.height / 2;
 
-      const ratio = imgWidth / imgHeight;
+      for (let i = 0; i < 2; i++) {
+        const partCanvas = document.createElement("canvas");
+        partCanvas.width = fullCanvas.width;
+        partCanvas.height = partHeight;
 
-      const renderWidth = availableWidth;
-      const renderHeight = renderWidth / ratio;
+        const ctx = partCanvas.getContext("2d");
 
-      // How many pages needed
-      let heightLeft = renderHeight;
-      let position = margin;
-
-      let page = 0;
-
-      while (heightLeft > 0) {
-        if (page > 0) {
-          pdf.addPage();
+        if (ctx) {
+          ctx.drawImage(
+            fullCanvas,
+            0,
+            i * partHeight,                // source Y
+            fullCanvas.width,
+            partHeight,                    // source height
+            0,
+            0,
+            fullCanvas.width,
+            partHeight                     // destination height
+          );
         }
 
-        pdf.addImage(
-          imgData,
-          "PNG",
-          margin,
-          position - page * availableHeight,
-          renderWidth,
-          renderHeight
-        );
+        const imgData = partCanvas.toDataURL("image/png");
 
-        heightLeft -= availableHeight;
-        page++;
+        if (i > 0) pdf.addPage();
+
+        // Scale to fit page width
+        const ratio = partCanvas.width / partCanvas.height;
+        const renderWidth = availableWidth;
+        const renderHeight = renderWidth / ratio;
+
+        const x = margin;
+        const y = (pdfHeight - renderHeight) / 2;
+
+        pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
       }
 
       const className =
@@ -768,6 +772,7 @@ export default function TimetablePage() {
       toast.error("Failed to export PDF");
     }
   }
+
 
   async function handleExportExcel() {
     if (!selectedClass) {

@@ -144,3 +144,12 @@
   );
   animation: shimmer 1.2s infinite;
 }
+
+/* Export mode styles for timetable */
+body.export-mode .export-hide {
+  display: none !important;
+}
+
+body.export-mode .export-show {
+  display: block !important;
+}

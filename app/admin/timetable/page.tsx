@@ -687,30 +687,6 @@ export default function TimetablePage() {
     try {
       toast.info("Generating PDF...");
 
-      // Before exporting, update all empty subject cells to show 'Free Period' for the PDF export
-      const timetableArea = element;
-      const tableRows = timetableArea.querySelectorAll("tbody tr");
-      const freePeriodClass = "__free-period-temp";
-      interface FreePeriodCell {
-        cell: HTMLTableCellElement;
-        original: string;
-      }
-      const originalFreePeriodTexts: FreePeriodCell[] = [];
-
-      tableRows.forEach((row) => {
-        // For each cell except the first (period number)
-        const cells = Array.from(row.querySelectorAll("td")).slice(1);
-        cells.forEach((cell) => {
-          // If cell is empty or contains only whitespace or '—', treat as free period
-          const isEmpty = !cell.textContent || cell.textContent.trim() === "" || cell.textContent.trim() === "—";
-          if (isEmpty) {
-            originalFreePeriodTexts.push({ cell, original: cell.innerHTML });
-            cell.innerHTML = '<span class="font-semibold text-green-700">Free Period</span>';
-            cell.classList.add(freePeriodClass);
-          }
-        });
-      });
-
       // Find the row where we want to split (Period 6 / BREAK)
       const rows = Array.from(element.querySelectorAll("tbody tr"));
 
@@ -727,11 +703,6 @@ export default function TimetablePage() {
       });
 
       if (splitRowIndex === -1) {
-        // Restore original free period cells before returning
-        originalFreePeriodTexts.forEach(({ cell, original }) => {
-          cell.innerHTML = original;
-          cell.classList.remove(freePeriodClass);
-        });
         toast.error("Could not find period 6 / break row");
         return;
       }
@@ -766,13 +737,8 @@ export default function TimetablePage() {
       wrapper.style.height = originalHeight;
       wrapper.style.overflow = originalOverflow;
 
-      removeExportStyles();
 
-      // Restore original free period cells after export
-      originalFreePeriodTexts.forEach(({ cell, original }) => {
-        cell.innerHTML = original;
-        cell.classList.remove(freePeriodClass);
-      });
+      removeExportStyles();
 
       // Convert DOM split Y to canvas Y
       const scale = fullCanvas.height / element.scrollHeight;
@@ -874,7 +840,7 @@ export default function TimetablePage() {
             if (cell) {
               row.push(`${period.start_time} - ${period.end_time}\n${cell.subject}\n${cell.teacher}`);
             } else {
-              row.push(`${period.start_time} - ${period.end_time}\n—`);
+              row.push(`${period.start_time} - ${period.end_time}\nFree Period`);
             }
           }
         });
@@ -1276,10 +1242,15 @@ export default function TimetablePage() {
                                   <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
                                 </>
                               ) : (
-                                <div className="text-gray-400 text-center py-2">
-                                  <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
-                                  <span className="text-xs">Add Subject</span>
-                                </div>
+                                <>
+                                  <div className="text-gray-400 text-center py-2 export-hide">
+                                    <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                                    <span className="text-xs">Add Subject</span>
+                                  </div>
+                                  <div className="text-gray-600 text-center py-2 export-show" style={{ display: 'none' }}>
+                                    <div className="font-semibold">Free Period</div>
+                                  </div>
+                                </>
                               )}
                             </div>
                           </td>

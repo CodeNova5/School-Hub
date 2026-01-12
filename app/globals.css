@@ -83,24 +83,6 @@
   }
 }
 
-.export-mode #timetable-area table {
-  border-collapse: collapse !important;
-}
-
-.export-mode #timetable-area td,
-.export-mode #timetable-area th {
-  padding: 6px !important;
-  text-align: center !important;
-  vertical-align: middle !important;
-  margin: 0 !important;
-  line-height: 1.2 !important;
-}
-
-.export-mode #timetable-area {
-  background: white !important;
-  zoom: 1.0;
-}
-
 .ProseMirror h1 {
   font-size: 2.2rem;
   font-weight: 700;

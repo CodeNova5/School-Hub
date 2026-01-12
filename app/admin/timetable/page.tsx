@@ -673,6 +673,7 @@ export default function TimetablePage() {
   function removeExportStyles() {
     document.body.classList.remove("export-mode");
   } 
+  
   async function handleExportPDF() {
     const element = document.getElementById("timetable-area");
     if (!element) {
@@ -751,7 +752,7 @@ export default function TimetablePage() {
 
       const pdfWidth = 297;
       const pdfHeight = 210;
-      const margin = 5;
+      const margin = 10;
       const availableWidth = pdfWidth - margin * 2;
 
       for (let i = 0; i < parts.length; i++) {
@@ -763,22 +764,18 @@ export default function TimetablePage() {
 
         const ctx = partCanvas.getContext("2d");
 
-        if (ctx) {
-          ctx.drawImage(
-            fullCanvas,
-            0,
-            part.y,
-            fullCanvas.width,
-            part.height,
-            0,
-            0,
-            fullCanvas.width,
-            part.height
-          );
-        } else {
-          toast.error("Failed to get canvas context for export.");
-          continue;
-        }
+        if (!ctx) continue;
+        ctx.drawImage(
+          fullCanvas,
+          0,
+          part.y,
+          fullCanvas.width,
+          part.height,
+          0,
+          0,
+          fullCanvas.width,
+          part.height
+        );
 
         const imgData = partCanvas.toDataURL("image/png");
 
@@ -789,7 +786,7 @@ export default function TimetablePage() {
         const renderHeight = renderWidth / ratio;
 
         const x = margin;
-        const y = margin;
+        const y = (pdfHeight - renderHeight) / 2;
 
         pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
       }

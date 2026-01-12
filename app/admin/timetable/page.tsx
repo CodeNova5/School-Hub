@@ -672,135 +672,140 @@ export default function TimetablePage() {
 
   function removeExportStyles() {
     document.body.classList.remove("export-mode");
-  } 
-  
-  async function handleExportPDF() {
-  const element = document.getElementById("timetable-area");
-  if (!element) {
-    toast.error("Timetable not found");
-    return;
   }
 
-  try {
-    toast.info("Generating PDF...");
+  async function handleExportPDF() {
+    const wrapper = document.getElementById("timetable-scroll-wrapper");
+    const element = document.getElementById("timetable-area");
 
-    // Find the row where we want to split (Period 6 / BREAK)
-    const rows = Array.from(element.querySelectorAll("tbody tr"));
-
-    let splitRowIndex = -1;
-
-    rows.forEach((row, index) => {
-      const firstCell = row.querySelector("td");
-      if (!firstCell) return;
-
-      const text = firstCell.textContent?.trim();
-      if (text === "6" || text?.includes("BREAK")) {
-        splitRowIndex = index;
-      }
-    });
-
-    if (splitRowIndex === -1) {
-      toast.error("Could not find period 6 / break row");
+    if (!wrapper || !element) {
+      toast.error("Timetable not found");
       return;
     }
 
-    const splitRow = rows[splitRowIndex];
-    const tableRect = element.getBoundingClientRect();
-    const rowRect = splitRow.getBoundingClientRect();
 
-    // Y position in the DOM where we split
-    const splitYDom = rowRect.bottom - tableRect.top;
+    try {
+      toast.info("Generating PDF...");
 
-    // Save original styles
-    const originalOverflow = element.style.overflow;
-    const originalMaxHeight = element.style.maxHeight;
+      // Find the row where we want to split (Period 6 / BREAK)
+      const rows = Array.from(element.querySelectorAll("tbody tr"));
 
-    element.style.overflow = "visible";
-    element.style.maxHeight = "none";
+      let splitRowIndex = -1;
 
-    applyExportStyles();
+      rows.forEach((row, index) => {
+        const firstCell = row.querySelector("td");
+        if (!firstCell) return;
 
-    await new Promise((resolve) => setTimeout(resolve, 100));
+        const text = firstCell.textContent?.trim();
+        if (text === "6" || text?.includes("BREAK")) {
+          splitRowIndex = index;
+        }
+      });
 
-    const fullCanvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      windowWidth: element.scrollWidth,
-      windowHeight: element.scrollHeight,
-    });
+      if (splitRowIndex === -1) {
+        toast.error("Could not find period 6 / break row");
+        return;
+      }
 
-    // Restore styles
-    element.style.overflow = originalOverflow;
-    element.style.maxHeight = originalMaxHeight;
-    removeExportStyles();
+      const splitRow = rows[splitRowIndex];
+      const tableRect = element.getBoundingClientRect();
+      const rowRect = splitRow.getBoundingClientRect();
 
-    // Convert DOM split Y to canvas Y
-    const scale = fullCanvas.height / element.scrollHeight;
-    const splitYCanvas = splitYDom * scale;
+      // Y position in the DOM where we split
+      const splitYDom = rowRect.bottom - tableRect.top;
 
-    const parts = [
-      { y: 0, height: splitYCanvas },
-      { y: splitYCanvas, height: fullCanvas.height - splitYCanvas },
-    ];
+      // Save original styles
+      const originalHeight = wrapper.style.height;
+      const originalOverflow = wrapper.style.overflow;
 
-    const pdf = new jsPDF({
-      orientation: "landscape",
-      unit: "mm",
-      format: "a4",
-    });
+      wrapper.style.height = "auto";
+      wrapper.style.overflow = "visible";
 
-    const pdfWidth = 297;
-    const pdfHeight = 210;
-    const margin = 10;
-    const availableWidth = pdfWidth - margin * 2;
+      applyExportStyles();
 
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const partCanvas = document.createElement("canvas");
-      partCanvas.width = fullCanvas.width;
-      partCanvas.height = part.height;
+      const fullCanvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      });
 
-      const ctx = partCanvas.getContext("2d");
-      if (!ctx) continue;
-      ctx.drawImage(
-        fullCanvas,
-        0,
-        part.y,
-        fullCanvas.width,
-        part.height,
-        0,
-        0,
-        fullCanvas.width,
-        part.height
-      );
+      // Restore styles
+      wrapper.style.height = originalHeight;
+      wrapper.style.overflow = originalOverflow;
 
-      const imgData = partCanvas.toDataURL("image/png");
 
-      if (i > 0) pdf.addPage();
+      removeExportStyles();
 
-      const ratio = partCanvas.width / partCanvas.height;
-      const renderWidth = availableWidth;
-      const renderHeight = renderWidth / ratio;
+      // Convert DOM split Y to canvas Y
+      const scale = fullCanvas.height / element.scrollHeight;
+      const splitYCanvas = splitYDom * scale;
 
-      const x = margin;
-      const y = (pdfHeight - renderHeight) / 2;
+      const parts = [
+        { y: 0, height: splitYCanvas },
+        { y: splitYCanvas, height: fullCanvas.height - splitYCanvas },
+      ];
 
-      pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = 297;
+      const pdfHeight = 210;
+      const margin = 10;
+      const availableWidth = pdfWidth - margin * 2;
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+
+        const partCanvas = document.createElement("canvas");
+        partCanvas.width = fullCanvas.width;
+        partCanvas.height = part.height;
+
+        const ctx = partCanvas.getContext("2d");
+        if (!ctx) continue;
+        ctx.drawImage(
+          fullCanvas,
+          0,
+          part.y,
+          fullCanvas.width,
+          part.height,
+          0,
+          0,
+          fullCanvas.width,
+          part.height
+        );
+
+        const imgData = partCanvas.toDataURL("image/png");
+
+        if (i > 0) pdf.addPage();
+
+        const ratio = partCanvas.width / partCanvas.height;
+        const renderWidth = availableWidth;
+        const renderHeight = renderWidth / ratio;
+
+        const x = margin;
+        const y = (pdfHeight - renderHeight) / 2;
+
+        pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
+      }
+
+      const className =
+        classes.find((c) => c.id === selectedClass)?.name || "Timetable";
+
+      pdf.save(`${className}_timetable.pdf`);
+
+      toast.success("PDF exported successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to export PDF");
     }
-
-    const className =
-      classes.find((c) => c.id === selectedClass)?.name || "Timetable";
-
-    pdf.save(`${className}_timetable.pdf`);
-
-    toast.success("PDF exported successfully");
-  } catch (error) {
-    console.error(error);
-    toast.error("Failed to export PDF");
   }
-}
 
 
   async function handleExportExcel() {
@@ -1143,45 +1148,81 @@ export default function TimetablePage() {
             </Button>
           </div>
 
-          <div id="timetable-area" className="overflow-auto border rounded-lg">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
-                    Period
-                  </th>
-                  {DAYS.map((day) => (
-                    <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
-                      {day}
+          <div id="timetable-scroll-wrapper" className="h-[70vh] overflow-auto border rounded-lg">
+            <div id="timetable-area" className="p-2 bg-white">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
+                      Period
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
-                  <tr key={rowIndex} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
-                      {rowIndex + 1}
-                    </td>
+                    {DAYS.map((day) => (
+                      <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
+                    <tr key={rowIndex} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
+                        {rowIndex + 1}
+                      </td>
 
-                    {DAYS.map((day) => {
-                      const dayPeriods = periodsByDay[day] || [];
-                      const period = dayPeriods[rowIndex];
+                      {DAYS.map((day) => {
+                        const dayPeriods = periodsByDay[day] || [];
+                        const period = dayPeriods[rowIndex];
 
-                      if (!period) {
+                        if (!period) {
+                          return (
+                            <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
+                              —
+                            </td>
+                          );
+                        }
+
+                        if (period.is_break) {
+                          return (
+                            <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
+                              <div className="text-center">
+                                <div className="font-semibold text-yellow-800">BREAK</div>
+                                <div className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-1">
+                                  <span>{period.start_time} - {period.end_time}</span>
+                                  <button
+                                    className="text-blue-600 hover:text-blue-800"
+                                    title="Edit time"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openEditPeriodTime(period);
+                                    }}
+                                  >
+                                    ✎
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          );
+                        }
+
+                        const cell = classTimetable[day]?.[period.id];
+
                         return (
-                          <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
-                            —
-                          </td>
-                        );
-                      }
+                          <td
+                            key={day}
+                            className="border border-gray-300 p-3 cursor-pointer hover:bg-blue-50 transition-colors"
+                            onClick={() => {
+                              if (!selectedClass) return;
 
-                      if (period.is_break) {
-                        return (
-                          <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
-                            <div className="text-center">
-                              <div className="font-semibold text-yellow-800">BREAK</div>
-                              <div className="text-xs text-gray-600 flex items-center justify-center gap-2 mt-1">
+                              if (cell?.rows?.length > 0) {
+                                openEdit(cell.rows[0]);
+                              } else {
+                                openAdd(day, period.id, selectedClass);
+                              }
+                            }}
+                          >
+                            <div className="space-y-1">
+                              <div className="text-xs text-gray-600 flex items-center justify-center gap-2">
                                 <span>{period.start_time} - {period.end_time}</span>
                                 <button
                                   className="text-blue-600 hover:text-blue-800"
@@ -1194,61 +1235,27 @@ export default function TimetablePage() {
                                   ✎
                                 </button>
                               </div>
+
+                              {cell ? (
+                                <>
+                                  <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>
+                                  <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
+                                </>
+                              ) : (
+                                <div className="text-gray-400 text-center py-2">
+                                  <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                                  <span className="text-xs">Add Subject</span>
+                                </div>
+                              )}
                             </div>
                           </td>
                         );
-                      }
-
-                      const cell = classTimetable[day]?.[period.id];
-
-                      return (
-                        <td
-                          key={day}
-                          className="border border-gray-300 p-3 cursor-pointer hover:bg-blue-50 transition-colors"
-                          onClick={() => {
-                            if (!selectedClass) return;
-
-                            if (cell?.rows?.length > 0) {
-                              openEdit(cell.rows[0]);
-                            } else {
-                              openAdd(day, period.id, selectedClass);
-                            }
-                          }}
-                        >
-                          <div className="space-y-1">
-                            <div className="text-xs text-gray-600 flex items-center justify-center gap-2">
-                              <span>{period.start_time} - {period.end_time}</span>
-                              <button
-                                className="text-blue-600 hover:text-blue-800"
-                                title="Edit time"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditPeriodTime(period);
-                                }}
-                              >
-                                ✎
-                              </button>
-                            </div>
-
-                            {cell ? (
-                              <>
-                                <div className="font-semibold text-gray-800 text-center">{cell.subject}</div>
-                                <div className="text-xs text-gray-600 text-center">{cell.teacher}</div>
-                              </>
-                            ) : (
-                              <div className="text-gray-400 text-center py-2">
-                                <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
-                                <span className="text-xs">Add Subject</span>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

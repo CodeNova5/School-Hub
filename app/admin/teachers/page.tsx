@@ -2,12 +2,12 @@
 
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, MoreVertical, Eye } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Teacher, Class, Subject } from '@/lib/types';
+import { Teacher } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -16,23 +16,29 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+
+type TeacherWithDetails = Teacher & {
+  assignedClass?: string;
+  assignedSubjects?: string[];
+};
 
 export default function TeachersPage() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [classes, setClasses] = useState<Class[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [assignedSubjects, setAssignedSubjects] = useState<string[]>([]);
+  const [teachers, setTeachers] = useState<TeacherWithDetails[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-  const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
 
   useEffect(() => {
     fetchTeachers();
-    fetchUnassignedData();
   }, []);
 
   async function fetchTeachers() {
@@ -41,45 +47,32 @@ export default function TeachersPage() {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (data) setTeachers(data);
-  }
+    if (data) {
+      // Fetch additional details for each teacher
+      const teachersWithDetails = await Promise.all(
+        data.map(async (teacher) => {
+          // Get assigned class
+          const { data: classData } = await supabase
+            .from('classes')
+            .select('name')
+            .eq('class_teacher_id', teacher.id)
+            .single();
 
-  async function fetchUnassignedData() {
-    // Fetch classes that are not assigned to any teacher
-    const { data: classData } = await supabase
-      .from('classes')
-      .select('*')
-      .is('class_teacher_id', null)
-      .order('name');
-    if (classData) setClasses(classData);
+          // Get assigned subjects from subject_classes
+          const { data: subjectClassData } = await supabase
+            .from('subject_classes')
+            .select('subjects(name)')
+            .eq('teacher_id', teacher.id);
 
-    // Fetch all subjects
-    const { data: subjectData } = await supabase.from('subjects').select('*').order('name');
-    if (subjectData) setSubjects(subjectData);
+          return {
+            ...teacher,
+            assignedClass: classData?.name,
+            assignedSubjects: subjectClassData?.map((sc: any) => sc.subjects?.name).filter(Boolean) || [],
+          };
+        })
+      );
 
-    // Fetch subjects that are already assigned
-    const { data: assignedSubjectData } = await supabase.from('subject_assignments').select('subject_id');
-    if (assignedSubjectData) {
-      setAssignedSubjects(assignedSubjectData.map((s) => s.subject_id));
-    }
-  }
-
-  async function loadTeacherData(teacher: Teacher) {
-    // Load assigned class
-    const { data: classData } = await supabase
-      .from('classes')
-      .select('id')
-      .eq('class_teacher_id', teacher.id)
-      .single();
-    if (classData) setSelectedClass(classData.id);
-
-    // Load assigned subjects
-    const { data: subjectData } = await supabase
-      .from('subject_assignments')
-      .select('subject_id')
-      .eq('teacher_id', teacher.id);
-    if (subjectData) {
-      setSelectedSubjects(subjectData.map((s) => s.subject_id));
+      setTeachers(teachersWithDetails);
     }
   }
 
@@ -100,7 +93,19 @@ export default function TeachersPage() {
     };
 
     if (editingTeacher) {
-      // Update teacher logic
+      // Update teacher
+      const { error } = await supabase
+        .from('teachers')
+        .update(teacherData)
+        .eq('id', editingTeacher.id);
+
+      if (error) {
+        toast.error('Failed to update teacher');
+      } else {
+        toast.success('Teacher updated successfully!');
+        closeDialog();
+        fetchTeachers();
+      }
     } else {
       const savingToast = toast.loading('Creating teacher account...');
 
@@ -111,8 +116,6 @@ export default function TeachersPage() {
           body: JSON.stringify({
             email,
             teacherData,
-            selectedClass,
-            selectedSubjects,
           }),
         });
 
@@ -126,7 +129,6 @@ export default function TeachersPage() {
         toast.success('Teacher created successfully!', { id: savingToast });
         closeDialog();
         fetchTeachers();
-        fetchUnassignedData();
       } catch (error: any) {
         toast.error(error.message || 'Failed to create teacher', { id: savingToast });
       }
@@ -151,23 +153,16 @@ export default function TeachersPage() {
 
   async function openEditDialog(teacher: Teacher) {
     setEditingTeacher(teacher);
-    await loadTeacherData(teacher);
     setIsDialogOpen(true);
   }
 
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingTeacher(null);
-    setSelectedClass('');
-    setSelectedSubjects([]);
   }
 
-  function toggleSubjectSelection(subjectId: string) {
-    setSelectedSubjects((prev) =>
-      prev.includes(subjectId)
-        ? prev.filter((id) => id !== subjectId)
-        : [...prev, subjectId]
-    );
+  function getInitials(firstName: string, lastName: string) {
+    return `${firstName[0]}${lastName[0]}`.toUpperCase();
   }
 
   const filteredTeachers = teachers.filter((teacher) =>
@@ -178,7 +173,7 @@ export default function TeachersPage() {
 
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Teachers</h1>
@@ -224,7 +219,11 @@ export default function TeachersPage() {
                     type="email"
                     defaultValue={editingTeacher?.email}
                     required
+                    disabled={!!editingTeacher}
                   />
+                  {editingTeacher && (
+                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="phone">Phone</Label>
@@ -251,48 +250,6 @@ export default function TeachersPage() {
                 <div>
                   <Label htmlFor="address">Address</Label>
                   <Input id="address" name="address" defaultValue={editingTeacher?.address} />
-                </div>
-                <div>
-                  <Label>Assign Class</Label>
-                  <select
-                    id="class_id"
-                    name="class_id"
-                    className="w-full h-10 px-3 border rounded-md"
-                    value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>Select a class</option>
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id}>{cls.name}</option>
-                    ))}
-                  </select>
-                   {classes.length === 0 && (
-                      <p className="text-sm text-gray-500 mt-1">No classes available for assignment</p>
-                    )}
-                </div>
-                <div>
-                  <Label>Assign Subjects</Label>
-                  <div className="border rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
-                    {subjects.map((subject) => {
-                      const isAssigned = assignedSubjects.includes(subject.id);
-                      return (
-                        <label key={subject.id} className={`flex items-center gap-2 ${isAssigned ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
-                          <input
-                            type="checkbox"
-                            checked={selectedSubjects.includes(subject.id)}
-                            onChange={() => toggleSubjectSelection(subject.id)}
-                            disabled={isAssigned}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm">{subject.name} {isAssigned && '(Assigned)'}</span>
-                        </label>
-                      );
-                    })}
-                     {subjects.length === 0 && (
-                      <p className="text-sm text-gray-500">No subjects available</p>
-                    )}
-                  </div>
                 </div>
                 <div>
                   <Label htmlFor="status">Status</Label>
@@ -330,70 +287,119 @@ export default function TeachersPage() {
           />
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredTeachers.map((teacher) => (
-            <Card key={teacher.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                      <span className="text-lg font-semibold text-green-700">
-                        {teacher.first_name[0]}
-                        {teacher.last_name[0]}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">
-                        {teacher.first_name} {teacher.last_name}
-                      </h3>
-                      <p className="text-sm text-gray-600">{teacher.staff_id}</p>
-                      <Badge
-                        className="mt-2"
-                        variant={teacher.status === 'active' ? 'default' : 'secondary'}
-                      >
-                        {teacher.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(teacher)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(teacher.id, teacher.user_id || undefined)}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">Specialization:</span>
-                    <p className="font-medium">{teacher.specialization || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Email:</span>
-                    <p className="font-medium">{teacher.email}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Phone:</span>
-                    <p className="font-medium">{teacher.phone || 'N/A'}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>All Teachers ({filteredTeachers.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="border rounded-md overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-3 w-12">#</th>
+                    <th className="text-left p-3">Teacher</th>
+                    <th className="text-left p-3">Staff ID</th>
+                    <th className="text-left p-3">Specialization</th>
+                    <th className="text-left p-3">Email</th>
+                    <th className="text-left p-3">Phone</th>
+                    <th className="text-left p-3">Class Teacher</th>
+                    <th className="text-left p-3">Subjects</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-right p-3 w-16">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTeachers.map((teacher, index) => (
+                    <tr key={teacher.id} className="border-t hover:bg-muted/50">
+                      <td className="p-3">{index + 1}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarFallback className="bg-green-100 text-green-700 font-semibold">
+                              {getInitials(teacher.first_name, teacher.last_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold">
+                              {teacher.first_name} {teacher.last_name}
+                            </p>
+                            <p className="text-xs text-gray-500">{teacher.qualification || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">{teacher.staff_id}</code>
+                      </td>
+                      <td className="p-3">{teacher.specialization || 'N/A'}</td>
+                      <td className="p-3 text-sm">{teacher.email}</td>
+                      <td className="p-3 text-sm">{teacher.phone || 'N/A'}</td>
+                      <td className="p-3">
+                        {teacher.assignedClass ? (
+                          <Badge variant="outline">{teacher.assignedClass}</Badge>
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {teacher.assignedSubjects && teacher.assignedSubjects.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {teacher.assignedSubjects.slice(0, 2).map((subject, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {subject}
+                              </Badge>
+                            ))}
+                            {teacher.assignedSubjects.length > 2 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{teacher.assignedSubjects.length - 2}
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Badge
+                          variant={teacher.status === 'active' ? 'default' : 'secondary'}
+                        >
+                          {teacher.status}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(teacher)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => handleDelete(teacher.id, teacher.user_id || undefined)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-        {filteredTeachers.length === 0 && (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <p className="text-gray-500">No teachers found</p>
-            </CardContent>
-          </Card>
-        )}
+              {filteredTeachers.length === 0 && (
+                <div className="p-12 text-center">
+                  <p className="text-gray-500">No teachers found</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

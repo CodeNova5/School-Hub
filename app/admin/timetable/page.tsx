@@ -921,26 +921,6 @@ export default function TimetablePage() {
             </div>
           </CardContent>
         </Card>
-      
-        <Card>
-          <CardHeader>
-            <CardTitle>View Class Timetables</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {classes.map((cls) => (
-                <Button
-                  key={cls.id}
-                  variant="outline"
-                  onClick={() => showTimetable(cls.id)}
-                  className="h-auto py-4"
-                >
-                  {cls.name}
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

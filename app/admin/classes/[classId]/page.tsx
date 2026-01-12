@@ -87,7 +87,7 @@ export default function ClassPage() {
   const [search, setSearch] = useState("");
   const [filterOptional, setFilterOptional] = useState<"all" | "optional" | "compulsory">("all");
   const [filterReligion, setFilterReligion] = useState<"all" | "Christian" | "Muslim">("all");
-
+  const [filterDepartment, setFilterDepartment] = useState<"all" | "Science" | "Arts" | "Commercial">("all");
   useEffect(() => {
     fetchClass();
     fetchTeachers();
@@ -184,9 +184,10 @@ export default function ClassPage() {
       if (filterOptional === "optional" && !s.subject.is_optional) return false;
       if (filterOptional === "compulsory" && s.subject.is_optional) return false;
       if (filterReligion !== "all" && s.subject.religion !== filterReligion) return false;
+      if (filterDepartment !== "all" && s.subject.department !== filterDepartment) return false;
       return true;
     });
-  }, [subjects, search, filterOptional, filterReligion]);
+  }, [subjects, search, filterOptional, filterReligion, filterDepartment]);
 
   if (loading || !classData) {
     return <DashboardLayout role="admin"><div className="p-6">Loading...</div></DashboardLayout>;
@@ -261,10 +262,11 @@ export default function ClassPage() {
                     <option value="optional">Optional</option>
                   </select>
 
-                  <select className="border rounded-md p-2" value={filterReligion} onChange={(e) => setFilterReligion(e.target.value as any)}>
-                    <option value="all">All Religions</option>
-                    <option value="Christian">Christian</option>
-                    <option value="Muslim">Muslim</option>
+                  <select className="border rounded-md p-2" value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value as any)}>
+                    <option value="all">All Departments</option>
+                    <option value="Science">Science</option>
+                    <option value="Arts">Arts</option>
+                    <option value="Commercial">Commercial</option>
                   </select>
                 </div>
 

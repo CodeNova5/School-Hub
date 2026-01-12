@@ -675,133 +675,132 @@ export default function TimetablePage() {
   } 
   
   async function handleExportPDF() {
-    const element = document.getElementById("timetable-area");
-    if (!element) {
-      toast.error("Timetable not found");
+  const element = document.getElementById("timetable-area");
+  if (!element) {
+    toast.error("Timetable not found");
+    return;
+  }
+
+  try {
+    toast.info("Generating PDF...");
+
+    // Find the row where we want to split (Period 6 / BREAK)
+    const rows = Array.from(element.querySelectorAll("tbody tr"));
+
+    let splitRowIndex = -1;
+
+    rows.forEach((row, index) => {
+      const firstCell = row.querySelector("td");
+      if (!firstCell) return;
+
+      const text = firstCell.textContent?.trim();
+      if (text === "6" || text?.includes("BREAK")) {
+        splitRowIndex = index;
+      }
+    });
+
+    if (splitRowIndex === -1) {
+      toast.error("Could not find period 6 / break row");
       return;
     }
 
-    try {
-      toast.info("Generating PDF...");
+    const splitRow = rows[splitRowIndex];
+    const tableRect = element.getBoundingClientRect();
+    const rowRect = splitRow.getBoundingClientRect();
 
-      // Find the row where we want to split (Period 6 / BREAK)
-      const rows = Array.from(element.querySelectorAll("tbody tr"));
+    // Y position in the DOM where we split
+    const splitYDom = rowRect.bottom - tableRect.top;
 
-      let splitRowIndex = -1;
+    // Save original styles
+    const originalOverflow = element.style.overflow;
+    const originalMaxHeight = element.style.maxHeight;
 
-      rows.forEach((row, index) => {
-        const firstCell = row.querySelector("td");
-        if (!firstCell) return;
+    element.style.overflow = "visible";
+    element.style.maxHeight = "none";
 
-        const text = firstCell.textContent?.trim();
-        if (text === "6" || text?.includes("BREAK")) {
-          splitRowIndex = index;
-        }
-      });
+    applyExportStyles();
 
-      if (splitRowIndex === -1) {
-        toast.error("Could not find period 6 / break row");
-        return;
-      }
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const splitRow = rows[splitRowIndex];
-      const tableRect = element.getBoundingClientRect();
-      const rowRect = splitRow.getBoundingClientRect();
+    const fullCanvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: element.scrollWidth,
+      windowHeight: element.scrollHeight,
+    });
 
-      // Y position in the DOM where we split
-      const splitYDom = rowRect.bottom - tableRect.top;
+    // Restore styles
+    element.style.overflow = originalOverflow;
+    element.style.maxHeight = originalMaxHeight;
+    removeExportStyles();
 
-      // Save original styles
-      const originalOverflow = element.style.overflow;
-      const originalMaxHeight = element.style.maxHeight;
+    // Convert DOM split Y to canvas Y
+    const scale = fullCanvas.height / element.scrollHeight;
+    const splitYCanvas = splitYDom * scale;
 
-      element.style.overflow = "visible";
-      element.style.maxHeight = "none";
+    const parts = [
+      { y: 0, height: splitYCanvas },
+      { y: splitYCanvas, height: fullCanvas.height - splitYCanvas },
+    ];
 
-      applyExportStyles();
+    const pdf = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
+    });
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    const pdfWidth = 297;
+    const pdfHeight = 210;
+    const margin = 10;
+    const availableWidth = pdfWidth - margin * 2;
 
-      const fullCanvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-      });
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
 
-      // Restore styles
-      element.style.overflow = originalOverflow;
-      element.style.maxHeight = originalMaxHeight;
-      removeExportStyles();
+      const partCanvas = document.createElement("canvas");
+      partCanvas.width = fullCanvas.width;
+      partCanvas.height = part.height;
 
-      // Convert DOM split Y to canvas Y
-      const scale = fullCanvas.height / element.scrollHeight;
-      const splitYCanvas = splitYDom * scale;
+      const ctx = partCanvas.getContext("2d");
+      if (!ctx) continue;
+      ctx.drawImage(
+        fullCanvas,
+        0,
+        part.y,
+        fullCanvas.width,
+        part.height,
+        0,
+        0,
+        fullCanvas.width,
+        part.height
+      );
 
-      const parts = [
-        { y: 0, height: splitYCanvas },
-        { y: splitYCanvas, height: fullCanvas.height - splitYCanvas },
-      ];
+      const imgData = partCanvas.toDataURL("image/png");
 
-      const pdf = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-      });
+      if (i > 0) pdf.addPage();
 
-      const pdfWidth = 297;
-      const pdfHeight = 210;
-      const margin = 10;
-      const availableWidth = pdfWidth - margin * 2;
+      const ratio = partCanvas.width / partCanvas.height;
+      const renderWidth = availableWidth;
+      const renderHeight = renderWidth / ratio;
 
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
+      const x = margin;
+      const y = (pdfHeight - renderHeight) / 2;
 
-        const partCanvas = document.createElement("canvas");
-        partCanvas.width = fullCanvas.width;
-        partCanvas.height = part.height;
-
-        const ctx = partCanvas.getContext("2d");
-
-        if (!ctx) continue;
-        ctx.drawImage(
-          fullCanvas,
-          0,
-          part.y,
-          fullCanvas.width,
-          part.height,
-          0,
-          0,
-          fullCanvas.width,
-          part.height
-        );
-
-        const imgData = partCanvas.toDataURL("image/png");
-
-        if (i > 0) pdf.addPage();
-
-        const ratio = partCanvas.width / partCanvas.height;
-        const renderWidth = availableWidth;
-        const renderHeight = renderWidth / ratio;
-
-        const x = margin;
-        const y = (pdfHeight - renderHeight) / 2;
-
-        pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
-      }
-
-      const className =
-        classes.find((c) => c.id === selectedClass)?.name || "Timetable";
-
-      pdf.save(`${className}_timetable.pdf`);
-
-      toast.success("PDF exported successfully");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to export PDF");
+      pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
     }
+
+    const className =
+      classes.find((c) => c.id === selectedClass)?.name || "Timetable";
+
+    pdf.save(`${className}_timetable.pdf`);
+
+    toast.success("PDF exported successfully");
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to export PDF");
   }
+}
 
 
   async function handleExportExcel() {
@@ -1144,7 +1143,7 @@ export default function TimetablePage() {
             </Button>
           </div>
 
-          <div id="timetable-area" className="h-[70vh] overflow-auto border rounded-lg">
+          <div id="timetable-area" className="overflow-auto border rounded-lg">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-100">

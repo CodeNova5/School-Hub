@@ -733,6 +733,7 @@ export default function TimetablePage() {
         windowHeight: element.scrollHeight,
       });
 
+
       // Restore styles
       wrapper.style.height = originalHeight;
       wrapper.style.overflow = originalOverflow;
@@ -740,14 +741,6 @@ export default function TimetablePage() {
 
       removeExportStyles();
 
-      // Convert DOM split Y to canvas Y
-      const scale = fullCanvas.height / element.scrollHeight;
-      const splitYCanvas = splitYDom * scale;
-
-      const parts = [
-        { y: 0, height: splitYCanvas },
-        { y: splitYCanvas, height: fullCanvas.height - splitYCanvas },
-      ];
 
       const pdf = new jsPDF({
         orientation: "landscape",
@@ -760,39 +753,38 @@ export default function TimetablePage() {
       const margin = 10;
       const availableWidth = pdfWidth - margin * 2;
 
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
+      // Convert PDF mm to canvas px scale
+      const scaleFactor = fullCanvas.height / pdfHeight;
+      const pageHeightPx = pdfHeight * scaleFactor - margin * 2;
+
+      let y = 0;
+
+      while (y < fullCanvas.height) {
+        const partHeight = Math.min(pageHeightPx, fullCanvas.height - y);
 
         const partCanvas = document.createElement("canvas");
         partCanvas.width = fullCanvas.width;
-        partCanvas.height = part.height;
+        partCanvas.height = partHeight;
 
         const ctx = partCanvas.getContext("2d");
         if (!ctx) continue;
-        ctx.drawImage(
-          fullCanvas,
-          0,
-          part.y,
-          fullCanvas.width,
-          part.height,
-          0,
-          0,
-          fullCanvas.width,
-          part.height
-        );
+
+        ctx.drawImage(fullCanvas, 0, y, fullCanvas.width, partHeight, 0, 0, fullCanvas.width, partHeight);
 
         const imgData = partCanvas.toDataURL("image/png");
 
-        if (i > 0) pdf.addPage();
+        if (y > 0) pdf.addPage();
 
         const ratio = partCanvas.width / partCanvas.height;
         const renderWidth = availableWidth;
         const renderHeight = renderWidth / ratio;
 
         const x = margin;
-        const y = (pdfHeight - renderHeight) / 2;
+        const vertMargin = (pdfHeight - renderHeight) / 2;
 
-        pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
+        pdf.addImage(imgData, "PNG", x, vertMargin, renderWidth, renderHeight);
+
+        y += partHeight;
       }
 
       const className =

@@ -672,106 +672,138 @@ export default function TimetablePage() {
 
   function removeExportStyles() {
     document.body.classList.remove("export-mode");
-  } async function handleExportPDF() {
-    const element = document.getElementById("timetable-area");
-    if (!element) {
-      toast.error("Timetable not found");
+  }async function handleExportPDF() {
+  const element = document.getElementById("timetable-area");
+  if (!element) {
+    toast.error("Timetable not found");
+    return;
+  }
+
+  try {
+    toast.info("Generating PDF...");
+
+    // Find the row where we want to split (Period 6 / BREAK)
+    const rows = Array.from(element.querySelectorAll("tbody tr"));
+
+    let splitRowIndex = -1;
+
+    rows.forEach((row, index) => {
+      const firstCell = row.querySelector("td");
+      if (!firstCell) return;
+
+      const text = firstCell.textContent?.trim();
+      if (text === "6" || text?.includes("BREAK")) {
+        splitRowIndex = index;
+      }
+    });
+
+    if (splitRowIndex === -1) {
+      toast.error("Could not find period 6 / break row");
       return;
     }
 
-    try {
-      toast.info("Generating PDF...");
+    const splitRow = rows[splitRowIndex];
+    const tableRect = element.getBoundingClientRect();
+    const rowRect = splitRow.getBoundingClientRect();
 
-      // Save original styles
-      const originalOverflow = element.style.overflow;
-      const originalMaxHeight = element.style.maxHeight;
+    // Y position in the DOM where we split
+    const splitYDom = rowRect.bottom - tableRect.top;
 
-      // Expand element
-      element.style.overflow = "visible";
-      element.style.maxHeight = "none";
+    // Save original styles
+    const originalOverflow = element.style.overflow;
+    const originalMaxHeight = element.style.maxHeight;
 
-      applyExportStyles();
+    element.style.overflow = "visible";
+    element.style.maxHeight = "none";
 
-      // Wait for layout to settle
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    applyExportStyles();
 
-      const fullCanvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
-      });
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Restore styles
-      element.style.overflow = originalOverflow;
-      element.style.maxHeight = originalMaxHeight;
-      removeExportStyles();
+    const fullCanvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: element.scrollWidth,
+      windowHeight: element.scrollHeight,
+    });
 
-      const pdf = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-      });
+    // Restore styles
+    element.style.overflow = originalOverflow;
+    element.style.maxHeight = originalMaxHeight;
+    removeExportStyles();
 
-      // A4 landscape
-      const pdfWidth = 297;
-      const pdfHeight = 210;
-      const margin = 10;
+    // Convert DOM split Y to canvas Y
+    const scale = fullCanvas.height / element.scrollHeight;
+    const splitYCanvas = splitYDom * scale;
 
-      const availableWidth = pdfWidth - margin * 2;
-      const availableHeight = pdfHeight - margin * 2;
+    const parts = [
+      { y: 0, height: splitYCanvas },
+      { y: splitYCanvas, height: fullCanvas.height - splitYCanvas },
+    ];
 
-      // Split canvas into 2 equal vertical parts
-      const partHeight = fullCanvas.height / 2;
+    const pdf = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
+    });
 
-      for (let i = 0; i < 2; i++) {
-        const partCanvas = document.createElement("canvas");
-        partCanvas.width = fullCanvas.width;
-        partCanvas.height = partHeight;
+    const pdfWidth = 297;
+    const pdfHeight = 210;
+    const margin = 10;
+    const availableWidth = pdfWidth - margin * 2;
 
-        const ctx = partCanvas.getContext("2d");
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
 
-        if (ctx) {
-          ctx.drawImage(
-            fullCanvas,
-            0,
-            i * partHeight,                // source Y
-            fullCanvas.width,
-            partHeight,                    // source height
-            0,
-            0,
-            fullCanvas.width,
-            partHeight                     // destination height
-          );
-        }
+      const partCanvas = document.createElement("canvas");
+      partCanvas.width = fullCanvas.width;
+      partCanvas.height = part.height;
 
-        const imgData = partCanvas.toDataURL("image/png");
+      const ctx = partCanvas.getContext("2d");
 
-        if (i > 0) pdf.addPage();
-
-        // Scale to fit page width
-        const ratio = partCanvas.width / partCanvas.height;
-        const renderWidth = availableWidth;
-        const renderHeight = renderWidth / ratio;
-
-        const x = margin;
-        const y = (pdfHeight - renderHeight) / 2;
-
-        pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
+      if (ctx) {
+        ctx.drawImage(
+          fullCanvas,
+          0,
+          part.y,
+          fullCanvas.width,
+          part.height,
+          0,
+          0,
+          fullCanvas.width,
+          part.height
+        );
+      } else {
+        toast.error("Failed to get canvas context for export.");
+        continue;
       }
 
-      const className =
-        classes.find((c) => c.id === selectedClass)?.name || "Timetable";
+      const imgData = partCanvas.toDataURL("image/png");
 
-      pdf.save(`${className}_timetable.pdf`);
+      if (i > 0) pdf.addPage();
 
-      toast.success("PDF exported successfully");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to export PDF");
+      const ratio = partCanvas.width / partCanvas.height;
+      const renderWidth = availableWidth;
+      const renderHeight = renderWidth / ratio;
+
+      const x = margin;
+      const y = (pdfHeight - renderHeight) / 2;
+
+      pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
     }
+
+    const className =
+      classes.find((c) => c.id === selectedClass)?.name || "Timetable";
+
+    pdf.save(`${className}_timetable.pdf`);
+
+    toast.success("PDF exported successfully");
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to export PDF");
   }
+}
 
 
   async function handleExportExcel() {

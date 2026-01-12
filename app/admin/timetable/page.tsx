@@ -683,36 +683,8 @@ export default function TimetablePage() {
       return;
     }
 
-
     try {
       toast.info("Generating PDF...");
-
-      // Find the row where we want to split (Period 6 / BREAK)
-      const rows = Array.from(element.querySelectorAll("tbody tr"));
-
-      let splitRowIndex = -1;
-
-      rows.forEach((row, index) => {
-        const firstCell = row.querySelector("td");
-        if (!firstCell) return;
-
-        const text = firstCell.textContent?.trim();
-        if (text === "6" || text?.includes("BREAK")) {
-          splitRowIndex = index;
-        }
-      });
-
-      if (splitRowIndex === -1) {
-        toast.error("Could not find period 6 / break row");
-        return;
-      }
-
-      const splitRow = rows[splitRowIndex];
-      const tableRect = element.getBoundingClientRect();
-      const rowRect = splitRow.getBoundingClientRect();
-
-      // Y position in the DOM where we split
-      const splitYDom = rowRect.bottom - tableRect.top;
 
       // Save original styles
       const originalHeight = wrapper.style.height;
@@ -733,14 +705,11 @@ export default function TimetablePage() {
         windowHeight: element.scrollHeight,
       });
 
-
       // Restore styles
       wrapper.style.height = originalHeight;
       wrapper.style.overflow = originalOverflow;
 
-
       removeExportStyles();
-
 
       const pdf = new jsPDF({
         orientation: "landscape",
@@ -752,40 +721,30 @@ export default function TimetablePage() {
       const pdfHeight = 210;
       const margin = 10;
       const availableWidth = pdfWidth - margin * 2;
+      const availableHeight = pdfHeight - margin * 2;
 
-      // Convert PDF mm to canvas px scale
-      const scaleFactor = fullCanvas.height / pdfHeight;
-      const pageHeightPx = pdfHeight * scaleFactor - margin * 2;
+      const imgData = fullCanvas.toDataURL("image/png");
 
-      let y = 0;
+      // Calculate dimensions to fit the entire timetable on one page
+      const canvasRatio = fullCanvas.width / fullCanvas.height;
+      const availableRatio = availableWidth / availableHeight;
 
-      while (y < fullCanvas.height) {
-        const partHeight = Math.min(pageHeightPx, fullCanvas.height - y);
+      let renderWidth, renderHeight;
 
-        const partCanvas = document.createElement("canvas");
-        partCanvas.width = fullCanvas.width;
-        partCanvas.height = partHeight;
-
-        const ctx = partCanvas.getContext("2d");
-        if (!ctx) continue;
-
-        ctx.drawImage(fullCanvas, 0, y, fullCanvas.width, partHeight, 0, 0, fullCanvas.width, partHeight);
-
-        const imgData = partCanvas.toDataURL("image/png");
-
-        if (y > 0) pdf.addPage();
-
-        const ratio = partCanvas.width / partCanvas.height;
-        const renderWidth = availableWidth;
-        const renderHeight = renderWidth / ratio;
-
-        const x = margin;
-        const vertMargin = (pdfHeight - renderHeight) / 2;
-
-        pdf.addImage(imgData, "PNG", x, vertMargin, renderWidth, renderHeight);
-
-        y += partHeight;
+      if (canvasRatio > availableRatio) {
+        // Canvas is wider - fit to width
+        renderWidth = availableWidth;
+        renderHeight = availableWidth / canvasRatio;
+      } else {
+        // Canvas is taller - fit to height
+        renderHeight = availableHeight;
+        renderWidth = availableHeight * canvasRatio;
       }
+
+      const x = margin + (availableWidth - renderWidth) / 2;
+      const y = margin + (availableHeight - renderHeight) / 2;
+
+      pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
 
       const className =
         classes.find((c) => c.id === selectedClass)?.name || "Timetable";

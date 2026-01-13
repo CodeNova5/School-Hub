@@ -27,6 +27,17 @@ import {
   Filter,
   UserPlus,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import { MoreHorizontal, Trash2, User, BarChart3 } from "lucide-react";
+import { useRouter } from "next/navigation";
+const router = useRouter();
+
 
 type ClassData = {
   id: string;
@@ -216,6 +227,25 @@ export default function ClassPage() {
     fetchClassSubjects();
   }
 
+  function handleDeleteSubjectClass(sc: any) {
+  if (!confirm(`Remove ${sc.subject.name} from this class?`)) return;
+  deleteSubjectClass(sc.id); // your existing function
+}
+
+  async function deleteSubjectClass(subjectClassId: string) {
+    const { error } = await supabase
+      .from("subject_classes")
+      .delete()
+      .eq("id", subjectClassId);
+    if (error) {
+      toast.error("Failed to delete subject from class");
+      console.error(error);
+      return;
+    }
+    toast.success("Subject removed from class");
+    fetchClassSubjects();
+  }
+
   const filteredSubjects = useMemo(() => {
     return subjects.filter((s) => {
       if (!s.subject) return false;
@@ -326,7 +356,8 @@ export default function ClassPage() {
                         <th className="p-3 text-left">Code</th>
                         <th className="p-3 text-left">Teacher</th>
                         <th className="p-3 text-left">Type</th>
-                        <th className="p-3 text-right">Actions</th>
+                        <th className="p-3 text-right w-12"></th>
+
                       </tr>
                     </thead>
                     <tbody>
@@ -334,12 +365,7 @@ export default function ClassPage() {
                         <tr key={sc.id} className="border-t hover:bg-muted/50">
                           <td className="p-3">{i + 1}</td>
                           <td className="p-3 font-medium">
-                            <Link
-                              href={`/admin/subject-classes/${sc.id}/analytics`}
-                              className="hover:underline text-blue-600"
-                            >
-                              {sc.subject.name}
-                            </Link>
+                            <span>{sc.subject.name}</span>
                           </td>
                           <td className="p-3 font-mono flex items-center gap-2">
                             {sc.subject_code}
@@ -365,9 +391,42 @@ export default function ClassPage() {
                             )}
                           </td>
                           <td className="p-3 text-right">
-                            <Button size="sm" variant="outline" onClick={() => openAssignTeacherDialog(sc)}>
-                              Assign
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+
+                              <DropdownMenuContent align="end">
+
+                                {/* 📊 View Analysis */}
+                                <DropdownMenuItem
+                                  onClick={() => router.push(`/admin/subject-classes/${sc.id}/analytics`)}
+                                >
+                                  <BarChart3 className="mr-2 h-4 w-4" />
+                                  View Analysis
+                                </DropdownMenuItem>
+
+                                {/* 👨‍🏫 Assign Teacher */}
+                                <DropdownMenuItem
+                                  onClick={() => openAssignTeacherDialog(sc)}
+                                >
+                                  <User className="mr-2 h-4 w-4" />
+                                  Assign Teacher
+                                </DropdownMenuItem>
+
+                                {/* 🗑️ Delete */}
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => handleDeleteSubjectClass(sc)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </td>
                         </tr>
                       ))}

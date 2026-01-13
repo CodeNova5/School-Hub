@@ -573,6 +573,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+UPDATE subject_classes sc
+SET subject_code = 'CHEM-' || c.name
+FROM subjects s, classes c
+WHERE sc.subject_id = s.id
+  AND sc.class_id = c.id
+  AND s.name ILIKE 'chemistry';
+
+
 -- =====================================================
 -- MIGRATION COMPLETE
 -- =====================================================

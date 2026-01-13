@@ -454,39 +454,28 @@ export default function TimetablePage() {
       return;
     }
 
-    const teacherIds: string[] = [];
+    const teacherIds = [
+      formScienceSubjectClassId,
+      formArtsSubjectClassId,
+      formCommercialSubjectClassId,
+    ]
+      .map((id) =>
+        subjectClasses.find((sc) => sc.id === id)?.teachers?.id || null
+      )
+      .filter(Boolean);
 
-    if (formScienceSubjectClassId) {
-      const sc = subjectClasses.find((x) => x.id === formScienceSubjectClassId);
-      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
-    }
-    if (formArtsSubjectClassId) {
-      const sc = subjectClasses.find((x) => x.id === formArtsSubjectClassId);
-      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
-    }
-    if (formCommercialSubjectClassId) {
-      const sc = subjectClasses.find((x) => x.id === formCommercialSubjectClassId);
-      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
-    }
+    const conflict = await teacherHasClashDetailed(
+      teacherIds,
+      formPeriodSlotId,
+      formClassId,
+      editingEntry?.id
+    );
 
-    if (teacherIds.length > 0) {
-      const clash = await teacherHasClashDetailed(
-        teacherIds,
-        formPeriodSlotId,
-        formClassId,
-        editingEntry?.id || undefined
+    if (conflict) {
+      toast.error(
+        `Teacher ${conflict.teacherName} already assigned to ${conflict.subjectName} in ${conflict.className} on ${conflict.dayOfWeek}, period ${conflict.periodNumber}`
       );
-
-      if (clash) {
-        toast.error(
-          `Clash detected!\n\n` +
-          `${clash.teacherName} is already teaching:\n` +
-          `• Subject: ${clash.subjectName}\n` +
-          `• Class: ${clash.className}\n` +
-          `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
-        );
-        return;
-      }
+      return;
     }
 
     const inserts: any[] = [];

@@ -165,16 +165,18 @@ export default function TimetablePage() {
     setFormCommercialSubjectClassId("");
 
     // Check if the entry is departmental
-    if (entryRow.department) {
+    if (entryRow.raw && Array.isArray(entryRow.raw)) {
       setDepartmentalMode(true);
 
-      if (entryRow.department === "Science") {
-        setFormScienceSubjectClassId(entryRow.subject_class_id || "");
-      } else if (entryRow.department === "Arts") {
-        setFormArtsSubjectClassId(entryRow.subject_class_id || "");
-      } else if (entryRow.department === "Commercial") {
-        setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
-      }
+      entryRow.raw.forEach((entry: any) => {
+        if (entry.department === "Science") {
+          setFormScienceSubjectClassId(entry.subject_class_id || "");
+        } else if (entry.department === "Arts") {
+          setFormArtsSubjectClassId(entry.subject_class_id || "");
+        } else if (entry.department === "Commercial") {
+          setFormCommercialSubjectClassId(entry.subject_class_id || "");
+        }
+      });
     } else {
       setFormSubjectClassId(entryRow.subject_class_id || "");
     }
@@ -523,6 +525,7 @@ export default function TimetablePage() {
       if (formClassId) await showTimetable(formClassId);
     }
   }
+  
 
   async function deleteEntry(id: string) {
     if (!confirm("Delete this entry?")) return;
@@ -532,6 +535,27 @@ export default function TimetablePage() {
       toast.success("Entry deleted");
       await fetchAll();
       if (selectedClass) await showTimetable(selectedClass);
+    }
+  }
+
+  async function handleDeleteAllSubjects() {
+    if (!editingEntry) return;
+
+    if (!confirm("Are you sure you want to delete all subjects in this slot?")) return;
+
+    const { error } = await supabase
+      .from("timetable_entries")
+      .delete()
+      .eq("period_slot_id", editingEntry.period_slot_id)
+      .eq("class_id", editingEntry.class_id);
+
+    if (error) {
+      toast.error("Failed to delete all subjects in the slot");
+    } else {
+      toast.success("All subjects in the slot deleted successfully");
+      closeDialog();
+      await fetchAll();
+      if (formClassId) await showTimetable(formClassId);
     }
   }
 
@@ -1091,11 +1115,14 @@ export default function TimetablePage() {
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={closeDialog}>
+              <Button type="button" variant="destructive" onClick={handleDeleteAllSubjects}>
+                Delete All Subjects
+              </Button>
+              <Button type="button" variant="secondary" onClick={closeDialog}>
                 Cancel
               </Button>
-              <Button type="submit">
-                {editingEntry ? "Update" : "Create"}
+              <Button type="submit" variant="default">
+                Save
               </Button>
             </div>
           </form>

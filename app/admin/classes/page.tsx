@@ -131,7 +131,8 @@ export default function ClassesPage() {
       const exists = classes.some(
         c =>
           c.education_level === selectedEducationLevel &&
-          c.level === selectedLevel
+          c.level === selectedLevel &&
+          c.stream === normalizedStream // Include stream in uniqueness check
       );
       if (exists) {
         toast.error("This class already exists");

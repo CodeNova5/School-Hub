@@ -25,6 +25,7 @@ import {
   Search,
   Filter,
   UserPlus,
+  MoreVertical,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -393,7 +394,7 @@ export default function ClassPage() {
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
+                                  <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
 

@@ -1085,6 +1085,11 @@ export default function TimetablePage() {
                     <option value="">Select Subject</option>
                     {subjectClasses
                       .filter((sc) => sc.class_id === formClassId)
+                      .sort((a, b) => {
+                        const nameA = a.subjects?.name?.toLowerCase() || "";
+                        const nameB = b.subjects?.name?.toLowerCase() || "";
+                        return nameA.localeCompare(nameB);
+                      })
                       .map((sc) => (
                         <option key={sc.id} value={sc.id}>
                           {formatSubjectClassDisplay(sc)}

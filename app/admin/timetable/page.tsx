@@ -167,18 +167,18 @@ export default function TimetablePage() {
 
     // Check if the entry is departmental
     if (entryRow.department) {
-        setDepartmentalMode(true);
+      setDepartmentalMode(true);
 
-        // Append departmental subjects accurately
-        if (entryRow.department === "Science") {
-            setFormScienceSubjectClassId(entryRow.subject_class_id || "");
-        } else if (entryRow.department === "Arts") {
-            setFormArtsSubjectClassId(entryRow.subject_class_id || "");
-        } else if (entryRow.department === "Commercial") {
-            setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
-        }
+      // Append departmental subjects accurately
+      if (entryRow.department === "Science") {
+        setFormScienceSubjectClassId(entryRow.subject_class_id || "");
+      } else if (entryRow.department === "Arts") {
+        setFormArtsSubjectClassId(entryRow.subject_class_id || "");
+      } else if (entryRow.department === "Commercial") {
+        setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
+      }
     } else {
-        setFormSubjectClassId(entryRow.subject_class_id || "");
+      setFormSubjectClassId(entryRow.subject_class_id || "");
     }
 
 
@@ -715,6 +715,45 @@ export default function TimetablePage() {
     window.print();
   }
 
+  const displayPeriodRows = useMemo(() => {
+    // Build rows based on maximum actual rows (including breaks)
+    const rows: {
+      index: number;          // visual row index
+      label: string;          // "1", "2", "BREAK", etc
+      isBreakRow: boolean;
+    }[] = [];
+
+    let periodCounter = 0;
+
+    for (let rowIndex = 0; rowIndex < maxPeriods; rowIndex++) {
+      // Check if ANY day has a break at this row index
+      const isBreakRow = DAYS.some((day) => {
+        const dayPeriods = periodsByDay[day] || [];
+        const p = dayPeriods[rowIndex];
+        return p?.is_break;
+      });
+
+      if (isBreakRow) {
+        rows.push({
+          index: rowIndex,
+          label: "BREAK",
+          isBreakRow: true,
+        });
+      } else {
+        periodCounter++;
+        rows.push({
+          index: rowIndex,
+          label: String(periodCounter),
+          isBreakRow: false,
+        });
+      }
+    }
+
+    return rows;
+  }, [maxPeriods, periodsByDay]);
+
+
+
   function applyExportStyles() {
     document.body.classList.add("export-mode");
   }
@@ -804,69 +843,6 @@ export default function TimetablePage() {
     } catch (error) {
       console.error(error);
       toast.error("Failed to export PDF");
-    }
-  }
-
-
-  async function handleExportExcel() {
-    if (!selectedClass) {
-      toast.error("No class selected");
-      return;
-    }
-
-    try {
-      const className = classes.find((c) => c.id === selectedClass)?.name || "Class";
-      const ws_data: any[][] = [];
-
-      ws_data.push([`${className} - Weekly Timetable`]);
-      ws_data.push([]);
-
-      const headerRow = ["Period", ...DAYS];
-      ws_data.push(headerRow);
-
-      for (let rowIndex = 0; rowIndex < maxPeriods; rowIndex++) {
-        const row: any[] = [`Period ${rowIndex + 1}`];
-
-        DAYS.forEach((day) => {
-          const dayPeriods = periodsByDay[day] || [];
-          const period = dayPeriods[rowIndex];
-
-          if (!period) {
-            row.push("—");
-          } else if (period.is_break) {
-            row.push(`BREAK\n${period.start_time} - ${period.end_time}`);
-          } else {
-            const cell = classTimetable[day]?.[period.id];
-            if (cell) {
-              row.push(`${period.start_time} - ${period.end_time}\n${cell.subject}\n${cell.teacher}`);
-            } else {
-              row.push(`${period.start_time} - ${period.end_time}\nFree Period`);
-            }
-          }
-        });
-
-        ws_data.push(row);
-      }
-
-      const ws = XLSX.utils.aoa_to_sheet(ws_data);
-
-      ws["!cols"] = [
-        { wch: 15 },
-        { wch: 25 },
-        { wch: 25 },
-        { wch: 25 },
-        { wch: 25 },
-        { wch: 25 },
-      ];
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Timetable");
-
-      XLSX.writeFile(wb, `${className}_timetable.xlsx`);
-      toast.success("Excel file exported successfully");
-    } catch (error) {
-      toast.error("Failed to export Excel file");
-      console.error(error);
     }
   }
 
@@ -1183,9 +1159,6 @@ export default function TimetablePage() {
             <Button onClick={handleExportPDF}>
               <Download className="w-4 h-4 mr-2" /> Export PDF
             </Button>
-            <Button onClick={handleExportExcel}>
-              <Download className="w-4 h-4 mr-2" /> Export Excel
-            </Button>
           </div>
 
           <div id="timetable-scroll-wrapper" className="h-[70vh] overflow-auto border rounded-lg">
@@ -1204,15 +1177,16 @@ export default function TimetablePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {Array.from({ length: maxPeriods }).map((_, rowIndex) => (
-                    <tr key={rowIndex} className="hover:bg-gray-50">
+                  {displayPeriodRows.map((row) => (
+                    <tr key={row.index}>
                       <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
-                        {rowIndex + 1}
+                        {row.isBreakRow ? "" : row.label}
                       </td>
+
 
                       {DAYS.map((day) => {
                         const dayPeriods = periodsByDay[day] || [];
-                        const period = dayPeriods[rowIndex];
+                        const period = dayPeriods[row.index];
 
                         if (!period) {
                           return (

@@ -870,6 +870,23 @@ export default function TimetablePage() {
     }
   }
 
+  // Group classes by their educational level for clearer layout
+  const classesByLevel = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    classes.forEach((c) => {
+      const level = c.level || "Unspecified";
+      if (!map[level]) map[level] = [];
+      map[level].push(c);
+    });
+
+    // Sort classes inside each level by name
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    });
+
+    return map;
+  }, [classes]);
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
@@ -957,28 +974,38 @@ export default function TimetablePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {classes.reduce((levels, cls) => {
-                const level = cls.level || "Unknown Level";
-                if (!levels[level]) levels[level] = [];
-                levels[level].push(cls);
-                return levels;
-              }, {}).map(([level, levelClasses]: [string, any[]]) => (
-                <div key={level} className="space-y-4">
-                  <h2 className="text-xl font-semibold text-gray-700">{level}</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {levelClasses.map((cls:any) => (
-                      <Button
-                        key={cls.id}
-                        variant="outline"
-                        onClick={() => showTimetable(cls.id)}
-                        className="h-auto py-4"
-                      >
-                        {cls.name}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {Object.keys(classesByLevel).length === 0 ? (
+                <div className="text-sm text-gray-600">No classes available.</div>
+              ) : (
+                Object.keys(classesByLevel)
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((level) => (
+                    <div key={level} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">{level}</h3>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800">
+                          {classesByLevel[level].length} classes
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                        {classesByLevel[level].map((cls) => (
+                          <Button
+                            key={cls.id}
+                            variant="outline"
+                            onClick={() => showTimetable(cls.id)}
+                            className="h-auto py-3 text-sm justify-start"
+                          >
+                            <div className="flex flex-col items-start text-left w-full">
+                              <span className="font-medium">{cls.name}</span>
+                              <span className="text-xs text-gray-500">{cls.level}</span>
+                            </div>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+              )}
             </div>
           </CardContent>
         </Card>

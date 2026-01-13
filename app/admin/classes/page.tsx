@@ -112,7 +112,8 @@ export default function ClassesPage() {
       level: selectedLevel,
       name: className,
       education_level: selectedEducationLevel,
-      class_teacher_id: formData.get("class_teacher_id") as string || null,
+      stream: normalizedStream || null,   // ✅ ADD THIS
+      class_teacher_id: (formData.get("class_teacher_id") as string) || null,
     };
 
     if (editingClass) {

@@ -711,10 +711,6 @@ export default function TimetablePage() {
     return periodsByDay[formDay] || [];
   }, [formDay, periodsByDay]);
 
-  function handlePrint() {
-    window.print();
-  }
-
   const displayPeriodRows = useMemo(() => {
     // Build rows based on maximum actual rows (including breaks)
     const rows: {
@@ -1153,9 +1149,7 @@ export default function TimetablePage() {
           </DialogHeader>
 
           <div className="flex gap-2 mb-4">
-            <Button onClick={handlePrint}>
-              <Printer className="w-4 h-4 mr-2" /> Print
-            </Button>
+
             <Button onClick={handleExportPDF}>
               <Download className="w-4 h-4 mr-2" /> Export PDF
             </Button>

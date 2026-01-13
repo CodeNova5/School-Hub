@@ -158,6 +158,45 @@ export default function ClassPage() {
     setTeachers(data || []);
   }
 
+  // 2️⃣ Generate subject code
+  function generateSubjectCode(subjectName: string, className: string) {
+    const clean = subjectName.replace(/\s+/g, "");
+    const prefix = clean.slice(0, 3).toUpperCase();
+    return `${prefix}-${className}`;
+  }
+  // if a subject doesnt have the subject code, generate and assign to all
+
+  // 3️⃣ Generate and assign subject codes for missing ones
+  async function generateMissingSubjectCodes() {
+    if (!classData) return;
+
+    const subjectsWithoutCode = subjects.filter(sc => !sc.subject_code);
+
+    if (subjectsWithoutCode.length === 0) {
+      toast.info("All subjects already have codes");
+      return;
+    }
+
+    const updates = subjectsWithoutCode.map(sc => {
+      const newCode = generateSubjectCode(sc.subject.name, classData.name);
+      return supabase
+        .from("subject_classes")
+        .update({ subject_code: newCode })
+        .eq("id", sc.id);
+    });
+
+    const results = await Promise.all(updates);
+    const errors = results.filter(r => r.error);
+
+    if (errors.length > 0) {
+      toast.error("Failed to update some subject codes");
+      console.error(errors);
+    } else {
+      toast.success(`Generated codes for ${subjectsWithoutCode.length} subject(s)`);
+      fetchClassSubjects(); // Refresh the list
+    }
+  }
+
   function openAssignTeacherDialog(sc: SubjectClass) {
     setSelectedSubjectClass(sc);
     setSelectedTeacherId(sc.teacher?.id || "");
@@ -239,6 +278,13 @@ export default function ClassPage() {
               <CardHeader>
                 <CardTitle className="flex justify-between items-center">
                   <span>Class Subjects</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={generateMissingSubjectCodes}
+                  >
+                    Generate Missing Codes
+                  </Button>
                 </CardTitle>
               </CardHeader>
 

@@ -956,16 +956,28 @@ export default function TimetablePage() {
             <CardTitle>View Class Timetables</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {classes.map((cls) => (
-                <Button
-                  key={cls.id}
-                  variant="outline"
-                  onClick={() => showTimetable(cls.id)}
-                  className="h-auto py-4"
-                >
-                  {cls.name}
-                </Button>
+            <div className="space-y-6">
+              {classes.reduce((levels, cls) => {
+                const level = cls.level || "Unknown Level";
+                if (!levels[level]) levels[level] = [];
+                levels[level].push(cls);
+                return levels;
+              }, {}).map(([level, levelClasses]: [string, any[]]) => (
+                <div key={level} className="space-y-4">
+                  <h2 className="text-xl font-semibold text-gray-700">{level}</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {levelClasses.map((cls:any) => (
+                      <Button
+                        key={cls.id}
+                        variant="outline"
+                        onClick={() => showTimetable(cls.id)}
+                        className="h-auto py-4"
+                      >
+                        {cls.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </CardContent>

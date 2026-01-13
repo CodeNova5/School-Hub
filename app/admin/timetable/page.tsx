@@ -14,8 +14,6 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
@@ -872,23 +870,6 @@ export default function TimetablePage() {
     }
   }
 
-  // Group classes by their educational level for clearer layout
-  const classesByLevel = useMemo(() => {
-    const map: Record<string, any[]> = {};
-    classes.forEach((c) => {
-      const level = c.level || "Unspecified";
-      if (!map[level]) map[level] = [];
-      map[level].push(c);
-    });
-
-    // Sort classes inside each level by name
-    Object.keys(map).forEach((k) => {
-      map[k].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    });
-
-    return map;
-  }, [classes]);
-
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
@@ -970,47 +951,55 @@ export default function TimetablePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>View Class Timetables</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {Object.keys(classesByLevel).length === 0 ? (
-                <div className="text-sm text-gray-600">No classes available.</div>
-              ) : (
-                Object.keys(classesByLevel)
-                  .sort((a, b) => a.localeCompare(b))
-                  .map((level) => (
-                    <Collapsible key={level}>
-                      <div className="flex items-center justify-between">
-                        <CollapsibleTrigger className="text-lg font-semibold">
-                          {level}
-                        </CollapsibleTrigger>
-                        <Badge>{classesByLevel[level].length} classes</Badge>
-                      </div>
-                      <CollapsibleContent>
-                        <div className="flex flex-wrap gap-3 mt-3">
-                          {classesByLevel[level].map((cls) => (
-                            <Button
-                              key={cls.id}
-                              variant="outline"
-                              onClick={() => showTimetable(cls.id)}
-                              className="h-auto py-3 text-sm justify-start"
-                            >
-                              <div className="flex flex-col items-start text-left w-full">
-                                <span className="font-medium">{cls.name}</span>
-                                <span className="text-xs text-gray-500">{cls.level}</span>
-                              </div>
-                            </Button>
-                          ))}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ))
-              )}
-
+        <Card className="border-2 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-2xl text-gray-800">View Class Timetables</CardTitle>
+                <p className="text-sm text-gray-600 mt-1">Select a class to view its weekly schedule</p>
+              </div>
+              <div className="bg-blue-100 p-3 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
             </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {classes.map((cls) => (
+                <Button
+                  key={cls.id}
+                  variant="outline"
+                  onClick={() => showTimetable(cls.id)}
+                  className="h-auto py-6 px-4 flex flex-col items-center justify-center gap-2 hover:bg-blue-50 hover:border-blue-400 transition-all duration-200 group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 opacity-0 group-hover:opacity-5 transition-opacity duration-200" />
+                  <div className="bg-blue-100 group-hover:bg-blue-200 p-2 rounded-lg transition-colors duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <span className="font-semibold text-gray-800 group-hover:text-blue-700 transition-colors duration-200">
+                    {cls.name}
+                  </span>
+                  <span className="text-xs text-gray-500 group-hover:text-blue-600 transition-colors duration-200">
+                    View Schedule
+                  </span>
+                </Button>
+              ))}
+            </div>
+            {classes.length === 0 && (
+              <div className="text-center py-12">
+                <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                </div>
+                <p className="text-gray-500 font-medium">No classes available</p>
+                <p className="text-sm text-gray-400 mt-1">Classes will appear here once they are created</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

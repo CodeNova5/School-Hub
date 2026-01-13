@@ -167,18 +167,18 @@ export default function TimetablePage() {
 
     // Check if the entry is departmental
     if (entryRow.department) {
-      setDepartmentalMode(true);
+        setDepartmentalMode(true);
 
-      // Append departmental subjects accurately
-      if (entryRow.department === "Science") {
-        setFormScienceSubjectClassId(entryRow.subject_class_id || "");
-      } else if (entryRow.department === "Arts") {
-        setFormArtsSubjectClassId(entryRow.subject_class_id || "");
-      } else if (entryRow.department === "Commercial") {
-        setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
-      }
+        // Append departmental subjects accurately
+        if (entryRow.department === "Science") {
+            setFormScienceSubjectClassId(entryRow.subject_class_id || "");
+        } else if (entryRow.department === "Arts") {
+            setFormArtsSubjectClassId(entryRow.subject_class_id || "");
+        } else if (entryRow.department === "Commercial") {
+            setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
+        }
     } else {
-      setFormSubjectClassId(entryRow.subject_class_id || "");
+        setFormSubjectClassId(entryRow.subject_class_id || "");
     }
 
 
@@ -249,23 +249,30 @@ export default function TimetablePage() {
   ) {
     if (teacherIds.length === 0) return null;
 
+    // Get the period slot info
+    const targetSlot = periodSlots.find(s => s.id === periodSlotId);
+    if (!targetSlot) return null;
+
     const { data, error } = await supabase
       .from("timetable_entries")
       .select(`
-      id,
-      class_id,
-      period_slot_id,
-      period_slots (
-        day_of_week,
-        period_number
-      ),
-      subject_classes (
         id,
-        teacher_id,
-        subjects ( name ),
-        teachers ( first_name, last_name )
-      )
-    `)
+        class_id,
+        period_slot_id,
+        period_slots (
+          day_of_week,
+          period_number,
+          start_time,
+          end_time,
+          is_break
+        ),
+        subject_classes (
+          id,
+          teacher_id,
+          subjects ( name ),
+          teachers ( first_name, last_name )
+        )
+      `)
       .eq("period_slot_id", periodSlotId);
 
     if (error || !data) return null;
@@ -273,17 +280,26 @@ export default function TimetablePage() {
     for (const row of data) {
       if (ignoreId && row.id === ignoreId) continue;
 
-      const subjectClassObj = row.subject_classes?.[0];
+      const subjectClassObj = Array.isArray(row.subject_classes)
+        ? row.subject_classes[0]
+        : row.subject_classes;
+
       if (!subjectClassObj) continue;
 
       const teacherId = subjectClassObj.teacher_id;
 
-
       if (teacherId && teacherIds.includes(teacherId)) {
-        const teacher = subjectClassObj.teachers?.[0];
-        const subject = subjectClassObj.subjects?.[0];
+        const teacher = Array.isArray(subjectClassObj.teachers)
+          ? subjectClassObj.teachers[0]
+          : subjectClassObj.teachers;
+        const subject = Array.isArray(subjectClassObj.subjects)
+          ? subjectClassObj.subjects[0]
+          : subjectClassObj.subjects;
 
-        const periodSlot = row.period_slots?.[0];
+        const periodSlot = Array.isArray(row.period_slots)
+          ? row.period_slots[0]
+          : row.period_slots;
+
         return {
           className: classes.find((c) => c.id === row.class_id)?.name,
           subjectName: subject?.name,
@@ -291,13 +307,11 @@ export default function TimetablePage() {
           dayOfWeek: periodSlot?.day_of_week,
           periodNumber: periodSlot?.period_number,
         };
-
       }
     }
 
     return null;
   }
-
 
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -440,28 +454,39 @@ export default function TimetablePage() {
       return;
     }
 
-    const teacherIds = [
-      formScienceSubjectClassId,
-      formArtsSubjectClassId,
-      formCommercialSubjectClassId,
-    ]
-      .map((id) =>
-        subjectClasses.find((sc) => sc.id === id)?.teacher_id || null
-      )
-      .filter(Boolean);
+    const teacherIds: string[] = [];
 
-    const conflict = await teacherHasClashDetailed(
-      teacherIds,
-      formPeriodSlotId,
-      formClassId,
-      editingEntry?.id
-    );
+    if (formScienceSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formScienceSubjectClassId);
+      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+    }
+    if (formArtsSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formArtsSubjectClassId);
+      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+    }
+    if (formCommercialSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formCommercialSubjectClassId);
+      if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+    }
 
-    if (conflict) {
-      toast.error(
-        `Teacher ${conflict.teacherName} already assigned to ${conflict.subjectName} in ${conflict.className} on ${conflict.dayOfWeek}, period ${conflict.periodNumber}`
+    if (teacherIds.length > 0) {
+      const clash = await teacherHasClashDetailed(
+        teacherIds,
+        formPeriodSlotId,
+        formClassId,
+        editingEntry?.id || undefined
       );
-      return;
+
+      if (clash) {
+        toast.error(
+          `Clash detected!\n\n` +
+          `${clash.teacherName} is already teaching:\n` +
+          `• Subject: ${clash.subjectName}\n` +
+          `• Class: ${clash.className}\n` +
+          `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+        );
+        return;
+      }
     }
 
     const inserts: any[] = [];

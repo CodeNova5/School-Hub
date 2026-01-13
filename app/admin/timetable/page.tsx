@@ -273,7 +273,8 @@ export default function TimetablePage() {
           teachers ( first_name, last_name )
         )
       `)
-      .eq("period_slot_id", periodSlotId);
+      .eq("period_slot_id", periodSlotId)
+      .neq("class_id", classId); // Exclude the current class
 
     if (error || !data) return null;
 

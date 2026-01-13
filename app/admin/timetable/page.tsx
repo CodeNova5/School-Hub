@@ -156,11 +156,29 @@ export default function TimetablePage() {
     setFormDay(entryRow.period_slots?.day_of_week || "");
     setFormPeriodSlotId(entryRow.period_slot_id || "");
     setFormClassId(entryRow.class_id || "");
+
+    // Reset departmental mode and fields
     setDepartmentalMode(false);
-    setFormSubjectClassId(entryRow.subject_class_id || "");
+    setFormSubjectClassId("");
     setFormScienceSubjectClassId("");
     setFormArtsSubjectClassId("");
     setFormCommercialSubjectClassId("");
+
+    // Check if the entry is departmental
+    if (entryRow.department) {
+      setDepartmentalMode(true);
+
+      if (entryRow.department === "Science") {
+        setFormScienceSubjectClassId(entryRow.subject_class_id || "");
+      } else if (entryRow.department === "Arts") {
+        setFormArtsSubjectClassId(entryRow.subject_class_id || "");
+      } else if (entryRow.department === "Commercial") {
+        setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
+      }
+    } else {
+      setFormSubjectClassId(entryRow.subject_class_id || "");
+    }
+
     setIsDialogOpen(true);
   }
 
@@ -187,11 +205,17 @@ export default function TimetablePage() {
   }
 
   function subjectClassesByDepartment(dept?: string) {
-    return subjectClasses.filter((sc) => {
-      if (sc.class_id !== formClassId) return false;
-      if (!dept) return !sc.subjects?.department;
-      return sc.subjects?.department === dept;
-    });
+    return subjectClasses
+      .filter((sc) => {
+        if (sc.class_id !== formClassId) return false;
+        if (!dept) return !sc.subjects?.department;
+        return sc.subjects?.department === dept;
+      })
+      .sort((a, b) => {
+        const nameA = a.subjects?.name?.toLowerCase() || "";
+        const nameB = b.subjects?.name?.toLowerCase() || "";
+        return nameA.localeCompare(nameB);
+      });
   }
 
   function shortCode(name: string | undefined | null) {

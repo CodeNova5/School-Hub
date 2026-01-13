@@ -14,6 +14,8 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
@@ -980,32 +982,34 @@ export default function TimetablePage() {
                 Object.keys(classesByLevel)
                   .sort((a, b) => a.localeCompare(b))
                   .map((level) => (
-                    <div key={level} className="space-y-2">
+                    <Collapsible key={level}>
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold">{level}</h3>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-800">
-                          {classesByLevel[level].length} classes
-                        </span>
+                        <CollapsibleTrigger className="text-lg font-semibold">
+                          {level}
+                        </CollapsibleTrigger>
+                        <Badge>{classesByLevel[level].length} classes</Badge>
                       </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                        {classesByLevel[level].map((cls) => (
-                          <Button
-                            key={cls.id}
-                            variant="outline"
-                            onClick={() => showTimetable(cls.id)}
-                            className="h-auto py-3 text-sm justify-start"
-                          >
-                            <div className="flex flex-col items-start text-left w-full">
-                              <span className="font-medium">{cls.name}</span>
-                              <span className="text-xs text-gray-500">{cls.level}</span>
-                            </div>
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
+                      <CollapsibleContent>
+                        <div className="flex flex-wrap gap-3 mt-3">
+                          {classesByLevel[level].map((cls) => (
+                            <Button
+                              key={cls.id}
+                              variant="outline"
+                              onClick={() => showTimetable(cls.id)}
+                              className="h-auto py-3 text-sm justify-start"
+                            >
+                              <div className="flex flex-col items-start text-left w-full">
+                                <span className="font-medium">{cls.name}</span>
+                                <span className="text-xs text-gray-500">{cls.level}</span>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))
               )}
+
             </div>
           </CardContent>
         </Card>

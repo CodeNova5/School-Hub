@@ -164,22 +164,20 @@ export default function TimetablePage() {
     setFormArtsSubjectClassId("");
     setFormCommercialSubjectClassId("");
 
-    // Check if the entry is departmental
-    if (entryRow.raw && Array.isArray(entryRow.raw)) {
-      setDepartmentalMode(true);
 
-      entryRow.raw.forEach((entry: any) => {
-        if (entry.department === "Science") {
-          setFormScienceSubjectClassId(entry.subject_class_id || "");
-        } else if (entry.department === "Arts") {
-          setFormArtsSubjectClassId(entry.subject_class_id || "");
-        } else if (entry.department === "Commercial") {
-          setFormCommercialSubjectClassId(entry.subject_class_id || "");
-        }
-      });
+    // Check if the entry is departmental
+    if (entryRow.department) {
+      setDepartmentalMode(true);
+      setFormScienceSubjectClassId(entryRow.subject_class_id || "");
+
+      setFormArtsSubjectClassId(entryRow.subject_class_id || "");
+
+      setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
+
     } else {
       setFormSubjectClassId(entryRow.subject_class_id || "");
     }
+
 
     setIsDialogOpen(true);
   }
@@ -525,7 +523,7 @@ export default function TimetablePage() {
       if (formClassId) await showTimetable(formClassId);
     }
   }
-  
+
 
   async function deleteEntry(id: string) {
     if (!confirm("Delete this entry?")) return;

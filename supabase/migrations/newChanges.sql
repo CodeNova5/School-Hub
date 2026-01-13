@@ -348,9 +348,9 @@ INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_b
 ('Monday', 8, '12:40', '13:20', false),
 ('Monday', 9, '13:20', '14:00', false),
 ('Monday', 10, '14:00', '14:15', true), -- short break
-('Monday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
-('Monday', 12, '15:00', '15:35', false),
-('Monday', 13, '15:35', '16:00', false);
+('Monday', 11, '14:15', '14:50', false), -- 35 minutes each till 4:00 PM
+('Monday', 12, '14:50', '15:25', false),
+('Monday', 13, '15:25', '16:00', false);
 
 -- TUESDAY: 11 periods × 40 minutes (8:00 AM - 3:20 PM)
 INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
@@ -364,9 +364,9 @@ INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_b
 ('Tuesday', 8, '12:40', '13:20', false),
 ('Tuesday', 9, '13:20', '14:00', false),
 ('Tuesday', 10, '14:00', '14:15', true), -- short break
-('Tuesday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
-('Tuesday', 12, '15:00', '15:35', false),
-('Tuesday', 13, '15:35', '16:00', false);
+('Tuesday', 11, '14:15', '14:50', false), -- 35 minutes each till 4:00 PM
+('Tuesday', 12, '14:50', '15:25', false),
+('Tuesday', 13, '15:25', '16:00', false);
 -- WEDNESDAY: 11 periods × 40 minutes (8:00 AM - 3:20 PM)
 INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
 ('Wednesday', 1, '08:00', '08:40', false),
@@ -379,10 +379,9 @@ INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_b
 ('Wednesday', 8, '12:40', '13:20', false),
 ('Wednesday', 9, '13:20', '14:00', false),
 ('Wednesday', 10, '14:00', '14:15', true), -- short break
-('Wednesday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
-('Wednesday', 12, '15:00', '15:35', false),
-('Wednesday', 13, '15:35', '16:00', false);
-
+('Wednesday', 11, '14:15', '14:50', false), -- 35 minutes each till 4:00 PM
+('Wednesday', 12, '14:50', '15:25', false),
+('Wednesday', 13, '15:25', '16:00', false);
 -- THURSDAY: 11 periods × 40 minutes (8:00 AM - 3:20 PM)
 INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
 ('Thursday', 1, '08:00', '08:40', false),
@@ -395,9 +394,9 @@ INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_b
 ('Thursday', 8, '12:40', '13:20', false),
 ('Thursday', 9, '13:20', '14:00', false),
 ('Thursday', 10, '14:00', '14:15', true), -- short break
-('Thursday', 11, '14:15', '15:00', false), -- 35 minutes each till 4:00 PM
-('Thursday', 12, '15:00', '15:35', false),
-('Thursday', 13, '15:35', '16:00', false);
+('Thursday', 11, '14:15', '14:50', false), -- 35 minutes each till 4:00 PM
+('Thursday', 12, '14:50', '15:25', false),
+('Thursday', 13, '15:25', '16:00', false);
 -- FRIDAY: 8 periods × 30 minutes (8:00 AM - 12:30 PM)
 INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_break) VALUES
 ('Friday', 1, '08:00', '08:30', false),
@@ -409,6 +408,8 @@ INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_b
 ('Friday', 7, '11:00', '11:30', false),
 ('Friday', 8, '11:30', '12:00', false),
 ('Friday', 9, '12:00', '12:30', false);
+
+
 
 
 ALTER TABLE period_slots ENABLE ROW LEVEL SECURITY;

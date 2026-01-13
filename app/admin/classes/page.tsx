@@ -102,7 +102,7 @@ export default function ClassesPage() {
 
     const formData = new FormData(e.currentTarget);
 
-    const normalizedStream = stream.trim() || null;
+    const normalizedStream = stream.trim() || ""; // Normalize stream to an empty string if not provided
 
     const className = normalizedStream
       ? `${selectedLevel} ${normalizedStream}`

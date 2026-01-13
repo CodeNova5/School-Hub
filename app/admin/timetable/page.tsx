@@ -167,15 +167,18 @@ export default function TimetablePage() {
 
     // Check if the entry is departmental
     if (entryRow.department) {
-      setDepartmentalMode(true);
-      setFormScienceSubjectClassId(entryRow.subject_class_id || "");
+        setDepartmentalMode(true);
 
-      setFormArtsSubjectClassId(entryRow.subject_class_id || "");
-
-      setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
-
+        // Append departmental subjects accurately
+        if (entryRow.department === "Science") {
+            setFormScienceSubjectClassId(entryRow.subject_class_id || "");
+        } else if (entryRow.department === "Arts") {
+            setFormArtsSubjectClassId(entryRow.subject_class_id || "");
+        } else if (entryRow.department === "Commercial") {
+            setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
+        }
     } else {
-      setFormSubjectClassId(entryRow.subject_class_id || "");
+        setFormSubjectClassId(entryRow.subject_class_id || "");
     }
 
 

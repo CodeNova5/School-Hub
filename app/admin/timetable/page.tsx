@@ -167,18 +167,18 @@ export default function TimetablePage() {
 
     // Check if the entry is departmental
     if (entryRow.department) {
-        setDepartmentalMode(true);
+      setDepartmentalMode(true);
 
-        // Append departmental subjects accurately
-        if (entryRow.department === "Science") {
-            setFormScienceSubjectClassId(entryRow.subject_class_id || "");
-        } else if (entryRow.department === "Arts") {
-            setFormArtsSubjectClassId(entryRow.subject_class_id || "");
-        } else if (entryRow.department === "Commercial") {
-            setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
-        }
+      // Append departmental subjects accurately
+      if (entryRow.department === "Science") {
+        setFormScienceSubjectClassId(entryRow.subject_class_id || "");
+      } else if (entryRow.department === "Arts") {
+        setFormArtsSubjectClassId(entryRow.subject_class_id || "");
+      } else if (entryRow.department === "Commercial") {
+        setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
+      }
     } else {
-        setFormSubjectClassId(entryRow.subject_class_id || "");
+      setFormSubjectClassId(entryRow.subject_class_id || "");
     }
 
 
@@ -249,58 +249,41 @@ export default function TimetablePage() {
   ) {
     if (teacherIds.length === 0) return null;
 
-    // Get the period slot info
-    const targetSlot = periodSlots.find(s => s.id === periodSlotId);
-    if (!targetSlot) return null;
-
     const { data, error } = await supabase
       .from("timetable_entries")
       .select(`
+      id,
+      class_id,
+      period_slot_id,
+      period_slots (
+        day_of_week,
+        period_number
+      ),
+      subject_classes (
         id,
-        class_id,
-        period_slot_id,
-        period_slots (
-          day_of_week,
-          period_number,
-          start_time,
-          end_time,
-          is_break
-        ),
-        subject_classes (
-          id,
-          teacher_id,
-          subjects ( name ),
-          teachers ( first_name, last_name )
-        )
-      `)
-      .eq("period_slot_id", periodSlotId)
-      .neq("class_id", classId); // Exclude the current class
+        teacher_id,
+        subjects ( name ),
+        teachers ( first_name, last_name )
+      )
+    `)
+      .eq("period_slot_id", periodSlotId);
 
     if (error || !data) return null;
 
     for (const row of data) {
       if (ignoreId && row.id === ignoreId) continue;
 
-      const subjectClassObj = Array.isArray(row.subject_classes)
-        ? row.subject_classes[0]
-        : row.subject_classes;
-
+      const subjectClassObj = row.subject_classes?.[0];
       if (!subjectClassObj) continue;
 
       const teacherId = subjectClassObj.teacher_id;
 
+
       if (teacherId && teacherIds.includes(teacherId)) {
-        const teacher = Array.isArray(subjectClassObj.teachers)
-          ? subjectClassObj.teachers[0]
-          : subjectClassObj.teachers;
-        const subject = Array.isArray(subjectClassObj.subjects)
-          ? subjectClassObj.subjects[0]
-          : subjectClassObj.subjects;
+        const teacher = subjectClassObj.teachers?.[0];
+        const subject = subjectClassObj.subjects?.[0];
 
-        const periodSlot = Array.isArray(row.period_slots)
-          ? row.period_slots[0]
-          : row.period_slots;
-
+        const periodSlot = row.period_slots?.[0];
         return {
           className: classes.find((c) => c.id === row.class_id)?.name,
           subjectName: subject?.name,
@@ -308,11 +291,13 @@ export default function TimetablePage() {
           dayOfWeek: periodSlot?.day_of_week,
           periodNumber: periodSlot?.period_number,
         };
+
       }
     }
 
     return null;
   }
+
 
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -461,7 +446,7 @@ export default function TimetablePage() {
       formCommercialSubjectClassId,
     ]
       .map((id) =>
-        subjectClasses.find((sc) => sc.id === id)?.teachers?.id || null
+        subjectClasses.find((sc) => sc.id === id)?.teacher_id || null
       )
       .filter(Boolean);
 

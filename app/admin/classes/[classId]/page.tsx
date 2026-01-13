@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,7 +35,6 @@ import {
 
 import { MoreHorizontal, Trash2, User, BarChart3 } from "lucide-react";
 import { useRouter } from "next/navigation";
-const router = useRouter();
 
 
 type ClassData = {
@@ -78,6 +76,7 @@ type Teacher = {
 };
 
 export default function ClassPage() {
+  const router = useRouter();
   const params = useParams();
   const classId = params.classId as string;
 

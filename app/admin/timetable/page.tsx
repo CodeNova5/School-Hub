@@ -14,6 +14,8 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
 import { Printer, Download } from "lucide-react";
+import { AutoTimetableWizard } from "@/components/auto-timetable-wizard";
+import { Sparkles } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
@@ -24,6 +26,7 @@ export default function TimetablePage() {
   const [subjectClasses, setSubjectClasses] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [periodSlots, setPeriodSlots] = useState<any[]>([]);
+  const [isAutoGenerateOpen, setIsAutoGenerateOpen] = useState(false);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any | null>(null);
@@ -847,10 +850,19 @@ export default function TimetablePage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Timetable Management</h1>
-          <Button onClick={openAddDialog}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Entry
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setIsAutoGenerateOpen(true)}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Auto-Generate Timetable
+            </Button>
+            <Button onClick={openAddDialog} variant="outline">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Entry
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -1314,6 +1326,19 @@ export default function TimetablePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Auto-Generate Wizard */}
+      <AutoTimetableWizard
+        isOpen={isAutoGenerateOpen}
+        onClose={() => setIsAutoGenerateOpen(false)}
+        classes={classes}
+        subjectClasses={subjectClasses}
+        periodSlots={periodSlots}
+        onGenerated={async () => {
+          await fetchAll();
+          if (selectedClass) await showTimetable(selectedClass);
+        }}
+      />
 
     </DashboardLayout>
   );

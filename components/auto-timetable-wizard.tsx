@@ -263,96 +263,123 @@ export function AutoTimetableWizard({
     // Track last subject per day to avoid consecutive
     const lastSubjectPerDay: Record<string, string> = {};
     const teacherDailyLoad: Record<string, Record<string, number>> = {};
+    const subjectDailyCount: Record<string, Record<string, number>> = {};
 
-    // Distribute subjects across the week
-    for (const day of DAYS) {
+    // Create a pool of all period slots across the week
+    const allPeriodSlots: Array<{ day: string; period: any; index: number }> = [];
+    DAYS.forEach(day => {
       const dayPeriods = periodsByDay[day];
+      dayPeriods.forEach((period, index) => {
+        allPeriodSlots.push({ day, period, index });
+      });
+    });
+
+    // Shuffle the period slots to randomize distribution
+    for (let i = allPeriodSlots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allPeriodSlots[i], allPeriodSlots[j]] = [allPeriodSlots[j], allPeriodSlots[i]];
+    }
+
+    // Distribute subjects across the shuffled week
+    for (const { day, period, index } of allPeriodSlots) {
+      // Find available subjects (not yet fully assigned AND allowed on this day)
+      const available = subjectPool.filter(s => 
+        s.assignedCount < s.targetCount && 
+        s.allowedDays.includes(day)
+      );
       
-      for (let i = 0; i < dayPeriods.length; i++) {
-        const period = dayPeriods[i];
-        
-        // Find available subjects (not yet fully assigned AND allowed on this day)
-        const available = subjectPool.filter(s => 
-          s.assignedCount < s.targetCount && 
-          s.allowedDays.includes(day)
-        );
-        
-        if (available.length === 0) break;
+      if (available.length === 0) continue;
 
-        // Rank subjects by constraints
-        const ranked = available.map(subject => {
-          let score = 100;
-          
-          // Avoid consecutive same subjects
-          if (avoidConsecutive && lastSubjectPerDay[day] === subject.subjectClassId) {
-            score -= 50;
-          }
-          
-          // Check teacher clash
-          if (preventTeacherClash && subject.teacherId) {
-            const busyTeachers = teacherSlotMap.get(period.id);
-            if (busyTeachers?.has(subject.teacherId)) {
-              score -= 1000; // Hard constraint
-            }
-          }
-          
-          // Balance workload - prefer subjects with more remaining slots
-          const remaining = subject.targetCount - subject.assignedCount;
-          score += remaining * 10;
-          
-          // Teacher daily load - avoid overloading
-          if (subject.teacherId) {
-            const teacherLoad = teacherDailyLoad[subject.teacherId]?.[day] || 0;
-            if (teacherLoad >= 6) score -= 80;
-            else if (teacherLoad >= 4) score -= 30;
-          }
-          
-          return { subject, score };
-        });
-
-        ranked.sort((a, b) => b.score - a.score);
+      // Rank subjects by constraints
+      const ranked = available.map(subject => {
+        let score = 100;
         
-        const best = ranked[0];
+        // Avoid consecutive same subjects
+        if (avoidConsecutive && lastSubjectPerDay[day] === subject.subjectClassId) {
+          score -= 50;
+        }
         
-        // Check if this is a conflict
-        if (best.score < 0) {
-          conflicts.push({
-            type: "teacher_clash",
-            severity: "error",
-            message: `Cannot assign ${best.subject.subjectName} on ${day} Period ${period.period_number}`,
-            details: { day, period: period.period_number, subject: best.subject.subjectName },
-          });
-          continue;
+        // Check teacher clash
+        if (preventTeacherClash && subject.teacherId) {
+          const busyTeachers = teacherSlotMap.get(period.id);
+          if (busyTeachers?.has(subject.teacherId)) {
+            score -= 1000; // Hard constraint
+          }
+        }
+        
+        // Balance workload - prefer subjects with more remaining slots
+        const remaining = subject.targetCount - subject.assignedCount;
+        score += remaining * 10;
+        
+        // Teacher daily load - avoid overloading
+        if (subject.teacherId) {
+          const teacherLoad = teacherDailyLoad[subject.teacherId]?.[day] || 0;
+          if (teacherLoad >= 6) score -= 80;
+          else if (teacherLoad >= 4) score -= 30;
         }
 
-        // Assign the period
-        entries.push({
-          periodSlotId: period.id,
-          subjectClassId: best.subject.subjectClassId,
-          day: day,
-          periodNumber: period.period_number,
-          subjectName: best.subject.subjectName,
-          teacherName: best.subject.teacherName,
-          department: best.subject.department,
-        });
-
-        // Update tracking
-        best.subject.assignedCount++;
-        lastSubjectPerDay[day] = best.subject.subjectClassId;
-        
-        if (best.subject.teacherId) {
-          if (!teacherDailyLoad[best.subject.teacherId]) {
-            teacherDailyLoad[best.subject.teacherId] = {};
-          }
-          teacherDailyLoad[best.subject.teacherId][day] = 
-            (teacherDailyLoad[best.subject.teacherId][day] || 0) + 1;
-          
-          // Mark teacher as busy in this slot
-          if (!teacherSlotMap.has(period.id)) {
-            teacherSlotMap.set(period.id, new Set());
-          }
-          teacherSlotMap.get(period.id)!.add(best.subject.teacherId);
+        // Distribute subjects evenly across days - penalize if already assigned too many times today
+        const subjectDayCount = subjectDailyCount[subject.subjectClassId]?.[day] || 0;
+        const avgPerDay = subject.targetCount / DAYS.length;
+        if (subjectDayCount >= Math.ceil(avgPerDay) + 1) {
+          score -= 40; // Encourage spreading across other days
         }
+
+        // Add small random factor to break ties and create variety
+        score += Math.random() * 5;
+        
+        return { subject, score };
+      });
+
+      ranked.sort((a, b) => b.score - a.score);
+      
+      const best = ranked[0];
+      
+      // Check if this is a conflict
+      if (best.score < 0) {
+        conflicts.push({
+          type: "teacher_clash",
+          severity: "error",
+          message: `Cannot assign ${best.subject.subjectName} on ${day} Period ${period.period_number}`,
+          details: { day, period: period.period_number, subject: best.subject.subjectName },
+        });
+        continue;
+      }
+
+      // Assign the period
+      entries.push({
+        periodSlotId: period.id,
+        subjectClassId: best.subject.subjectClassId,
+        day: day,
+        periodNumber: period.period_number,
+        subjectName: best.subject.subjectName,
+        teacherName: best.subject.teacherName,
+        department: best.subject.department,
+      });
+
+      // Update tracking
+      best.subject.assignedCount++;
+      lastSubjectPerDay[day] = best.subject.subjectClassId;
+      
+      // Track subject distribution per day
+      if (!subjectDailyCount[best.subject.subjectClassId]) {
+        subjectDailyCount[best.subject.subjectClassId] = {};
+      }
+      subjectDailyCount[best.subject.subjectClassId][day] = 
+        (subjectDailyCount[best.subject.subjectClassId][day] || 0) + 1;
+      
+      if (best.subject.teacherId) {
+        if (!teacherDailyLoad[best.subject.teacherId]) {
+          teacherDailyLoad[best.subject.teacherId] = {};
+        }
+        teacherDailyLoad[best.subject.teacherId][day] = 
+          (teacherDailyLoad[best.subject.teacherId][day] || 0) + 1;
+        
+        // Mark teacher as busy in this slot
+        if (!teacherSlotMap.has(period.id)) {
+          teacherSlotMap.set(period.id, new Set());
+        }
+        teacherSlotMap.get(period.id)!.add(best.subject.teacherId);
       }
     }
 

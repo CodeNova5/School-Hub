@@ -106,7 +106,7 @@ export default function ResultEntryPage() {
         .from("subject_classes")
         .select(`
     id,
-    subject:subjects (
+    subjects (
         id,
         name,
         is_optional,
@@ -123,7 +123,7 @@ export default function ResultEntryPage() {
 
 
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
-        const subject = sc.subject;
+        const subject = sc.subjects;
         if (!subject) return false;
 
         // ✅ 1. Religion filter

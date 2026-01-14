@@ -102,7 +102,7 @@ export default function ResultEntryPage() {
       setTerm(termData);
 
       // 4. Load subject_classes for this student's class
-      let query = supabase
+      const { data: subjectClasses, error: scError } = await supabase
         .from("subject_classes")
         .select(`
     id,
@@ -114,19 +114,10 @@ export default function ResultEntryPage() {
   `)
         .eq("class_id", studentData.class_id);
 
-      // ✅ Religion filter
-      query = query.or(
-        `subjects.religion.eq.Both,subjects.religion.eq.${studentData.religion}`
-      );
-
-      // ✅ Department filter (only if SSS)
-      if (classData.level === "SSS" && studentData.department) {
-        query = query.or(
-          `subjects.department.eq.All,subjects.department.eq.${studentData.department}`
-        );
+      if (scError || !subjectClasses || subjectClasses.length === 0) {
+        toast.error("No subjects assigned to this class");
+        return;
       }
-
-      const { data: subjectClasses, error: scError } = await query;
 
       const filteredSubjectClasses = (subjectClasses || []).filter((sc: any) => {
         const subject = sc.subjects;

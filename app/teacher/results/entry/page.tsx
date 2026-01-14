@@ -126,17 +126,29 @@ export default function ResultEntryPage() {
         const subject = sc.subjects;
         if (!subject) return false;
 
-        // ✅ 1. Religion filter
-        const religionOk = subject.religion === studentData.religion || subject.religion === null;
+        // -------------------------------
+        // 1. Religion Filter
+        // -------------------------------
+        // If subject.religion is NULL => all religions
+        const religionOk =
+          !subject.religion || subject.religion === studentData.religion;
 
-        // ✅ 2. Department filter (ONLY for SSS)
+        // -------------------------------
+        // 2. Department Filter
+        // -------------------------------
         let departmentOk = true;
+
+        // Only check for SSS classes
         if (classData.level === "SSS") {
-          departmentOk = subject.department === studentData.department || subject.department === null;
+          // If subject.department is NULL => all departments
+          departmentOk =
+            !subject.department || subject.department === studentData.department;
         }
 
+        // -------------------------------
         return religionOk && departmentOk;
       });
+
 
       if (filteredSubjectClasses.length === 0) {
         toast.error("No subjects match this student's category");
@@ -156,6 +168,7 @@ export default function ResultEntryPage() {
         grade: "",
         remark: "",
       }));
+
 
 
       // 6. Load existing results

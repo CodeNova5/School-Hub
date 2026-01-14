@@ -439,7 +439,7 @@ export default function SessionsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {term.is_current && (
-                          <Badge variant="default">Current</Badge>
+                          <Badge variant="success">Current</Badge>
                         )}
                         {!isPast(term.end_date) && (
                           <>

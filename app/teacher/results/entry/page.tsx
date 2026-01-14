@@ -102,23 +102,60 @@ export default function ResultEntryPage() {
       setTerm(termData);
 
       // 4. Load subject_classes for this student's class
-      const { data: subjectClasses, error: scError } = await supabase
+      let query = supabase
         .from("subject_classes")
         .select(`
-          id,
-          subjects (
-            name
-          )
-        `)
+    id,
+    subjects (
+      name,
+      religion,
+      department
+    )
+  `)
         .eq("class_id", studentData.class_id);
 
-      if (scError || !subjectClasses || subjectClasses.length === 0) {
+      // ✅ Religion filter
+      query = query.or(
+        `subjects.religion.eq.Both,subjects.religion.eq.${studentData.religion}`
+      );
+
+      // ✅ Department filter (only if SSS)
+      if (classData.level === "SSS" && studentData.department) {
+        query = query.or(
+          `subjects.department.eq.All,subjects.department.eq.${studentData.department}`
+        );
+      }
+
+      const { data: subjectClasses, error: scError } = await query;
+
+      const filteredSubjectClasses = (subjectClasses || []).filter((sc: any) => {
+        const subject = sc.subjects;
+        if (!subject) return false;
+
+        // Religion check
+        const religionOk =
+          subject.religion === "Both" || subject.religion === studentData.religion;
+
+        // Department check
+        let deptOk = true;
+        if (classData.level === "SSS" && studentData.department) {
+          deptOk =
+            subject.department === "All" ||
+            subject.department === studentData.department;
+        }
+
+        return religionOk && deptOk;
+      });
+
+
+      if (scError || filteredSubjectClasses.length === 0) {
+
         toast.error("No subjects assigned to this class");
         return;
       }
 
       // 5. Build initial scores
-      let initialScores: SubjectScore[] = subjectClasses.map((sc: any) => ({
+      let initialScores: SubjectScore[] = filteredSubjectClasses.map((sc: any) => ({
         subject_class_id: sc.id,
         subject_name: sc.subjects?.name ?? "Unknown",
         welcome_test: 0,
@@ -144,7 +181,7 @@ export default function ResultEntryPage() {
         setPrincipalRemark(first.principal_remark || "");
         setNextTermBegins(first.next_term_begins || "");
 
-        
+
         for (const res of existingResults) {
           const idx = initialScores.findIndex(
             (s) => s.subject_class_id === res.subject_class_id
@@ -179,7 +216,10 @@ export default function ResultEntryPage() {
         .from("attendance")
         .select("*", { count: "exact" })
         .eq("student_id", studentId)
-        .eq("status", "present");
+        .eq("status", "present")
+        .eq("session_id", sessionData.id)
+        .eq("term_id", termData.id);
+
 
       setAttendance(count || 0);
     } catch (err: any) {
@@ -303,7 +343,7 @@ export default function ResultEntryPage() {
   if (!student) return null;
 
   return (
-      <DashboardLayout role="teacher">
+    <DashboardLayout role="teacher">
       <div className="space-y-6 mb-12">
         <div className="flex items-center justify-between print:hidden">
           <Button variant="ghost" onClick={() => router.push('/teacher/results')}>
@@ -332,7 +372,7 @@ export default function ResultEntryPage() {
         </div>
 
         <Card className="print:shadow-none print:border-0">
-          <CardContent ref={printRef} className="p-8">
+          <CardContent id="printable-content" ref={printRef} className="p-8">
             <div className="space-y-6">
               <div className="flex items-start justify-between border-b pb-6">
                 <div className="w-20 h-20 bg-gray-100 rounded flex items-center justify-center">
@@ -529,9 +569,7 @@ export default function ResultEntryPage() {
 
       <style jsx global>{`
         @media print {
-          body * {
-            visibility: hidden;
-          }
+        
           .print\\:hidden {
             display: none !important;
           }

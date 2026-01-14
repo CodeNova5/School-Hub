@@ -75,17 +75,13 @@ export default function TeachersPage() {
       setTeachers(teachersWithDetails);
     }
   }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    const email = formData.get('email') as string;
     const teacherData = {
       first_name: formData.get('first_name') as string,
       last_name: formData.get('last_name') as string,
-      email,
-      phone: formData.get('phone') as string,
       qualification: formData.get('qualification') as string,
       specialization: formData.get('specialization') as string,
       address: formData.get('address') as string,
@@ -93,47 +89,29 @@ export default function TeachersPage() {
     };
 
     if (editingTeacher) {
-      // Update teacher
       const { error } = await supabase
         .from('teachers')
         .update(teacherData)
         .eq('id', editingTeacher.id);
 
-      if (error) {
-        toast.error('Failed to update teacher');
-      } else {
+      if (error) toast.error('Failed to update teacher');
+      else {
         toast.success('Teacher updated successfully!');
         closeDialog();
         fetchTeachers();
       }
     } else {
-      const savingToast = toast.loading('Creating teacher account...');
+      const { data, error } = await supabase.from('teachers').insert([teacherData]);
 
-      try {
-        const res = await fetch('/api/create-teacher', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            teacherData,
-          }),
-        });
-
-        const json = await res.json();
-
-        if (!res.ok) {
-          toast.error(json.error || 'Failed to create teacher', { id: savingToast });
-          return;
-        }
-
-        toast.success('Teacher created successfully!', { id: savingToast });
+      if (error) toast.error('Failed to create teacher');
+      else {
+        toast.success('Teacher created successfully!');
         closeDialog();
         fetchTeachers();
-      } catch (error: any) {
-        toast.error(error.message || 'Failed to create teacher', { id: savingToast });
       }
     }
   }
+
 
   async function handleDelete(id: string, userId?: string) {
     if (!confirm('Are you sure you want to delete this teacher?')) return;
@@ -210,24 +188,6 @@ export default function TeachersPage() {
                       required
                     />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    defaultValue={editingTeacher?.email}
-                    required
-                    disabled={!!editingTeacher}
-                  />
-                  {editingTeacher && (
-                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" name="phone" defaultValue={editingTeacher?.phone} />
                 </div>
                 <div>
                   <Label htmlFor="qualification">Qualification</Label>

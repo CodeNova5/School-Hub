@@ -24,6 +24,7 @@ interface SubjectFrequency {
   teacherName: string;
   frequency: number;
   department?: string;
+  allowedDays?: string[]; // Days this subject can be taught on
 }
 
 interface Conflict {
@@ -59,6 +60,7 @@ export function AutoTimetableWizard({
   const [searchClass, setSearchClass] = useState("");
   const [searchSubject, setSearchSubject] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const [generatedEntries, setGeneratedEntries] = useState<GeneratedEntry[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   
@@ -93,7 +95,6 @@ export function AutoTimetableWizard({
   const availablePeriods = useMemo(() => {
     return periodSlots.filter(p => !p.is_break).length;
   }, [periodSlots]);
-
   // Reset when class changes
   useEffect(() => {
     if (selectedClassId && step === 2) {
@@ -105,6 +106,7 @@ export function AutoTimetableWizard({
           : "No teacher",
         frequency: getDefaultFrequency(sc.subjects?.name),
         department: sc.subjects?.department,
+        allowedDays: [...DAYS], // By default, all days allowed
       }));
       setSubjectFrequencies(subjects);
     }
@@ -130,6 +132,41 @@ export function AutoTimetableWizard({
           ? { ...sf, frequency: Math.max(0, Math.min(10, frequency)) }
           : sf
       )
+    );
+  }
+
+  function toggleDay(subjectClassId: string, day: string) {
+    setSubjectFrequencies(prev =>
+      prev.map(sf => {
+        if (sf.subjectClassId !== subjectClassId) return sf;
+        
+        const allowedDays = sf.allowedDays || [...DAYS];
+        const newAllowedDays = allowedDays.includes(day)
+          ? allowedDays.filter(d => d !== day)
+          : [...allowedDays, day];
+        
+        // Ensure at least one day is selected
+        if (newAllowedDays.length === 0) {
+          toast.error("Subject must be available on at least one day");
+          return sf;
+        }
+        
+        return { ...sf, allowedDays: newAllowedDays };
+      })
+    );
+  }
+
+  function toggleAllDays(subjectClassId: string) {
+    setSubjectFrequencies(prev =>
+      prev.map(sf => {
+        if (sf.subjectClassId !== subjectClassId) return sf;
+        
+        const allowedDays = sf.allowedDays || [...DAYS];
+        // If all days selected, keep all (do nothing). If partial, select all
+        const allSelected = allowedDays.length === DAYS.length;
+        
+        return { ...sf, allowedDays: allSelected ? [...DAYS] : [...DAYS] };
+      })
     );
   }
 
@@ -184,6 +221,7 @@ export function AutoTimetableWizard({
       department?: string;
       assignedCount: number;
       targetCount: number;
+      allowedDays: string[];
     }> = [];
 
     for (const sf of subjectFrequencies) {
@@ -198,6 +236,7 @@ export function AutoTimetableWizard({
         department: sf.department,
         assignedCount: 0,
         targetCount: sf.frequency,
+        allowedDays: sf.allowedDays || [...DAYS],
       });
     }
 
@@ -220,8 +259,11 @@ export function AutoTimetableWizard({
       for (let i = 0; i < dayPeriods.length; i++) {
         const period = dayPeriods[i];
         
-        // Find available subjects
-        const available = subjectPool.filter(s => s.assignedCount < s.targetCount);
+        // Find available subjects (not yet fully assigned AND allowed on this day)
+        const available = subjectPool.filter(s => 
+          s.assignedCount < s.targetCount && 
+          s.allowedDays.includes(day)
+        );
         
         if (available.length === 0) break;
 
@@ -305,10 +347,13 @@ export function AutoTimetableWizard({
     // Check for unassigned subjects
     subjectPool.forEach(s => {
       if (s.assignedCount < s.targetCount) {
+        const dayRestriction = s.allowedDays.length < DAYS.length 
+          ? ` (only available on: ${s.allowedDays.join(", ")})`
+          : "";
         conflicts.push({
           type: "unassigned",
           severity: "warning",
-          message: `${s.subjectName} only assigned ${s.assignedCount}/${s.targetCount} periods`,
+          message: `${s.subjectName} only assigned ${s.assignedCount}/${s.targetCount} periods${dayRestriction}`,
         });
       }
     });
@@ -510,51 +555,121 @@ export function AutoTimetableWizard({
               <table className="w-full">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
+                    <th className="text-left p-3 font-semibold w-8"></th>
                     <th className="text-left p-3 font-semibold">Subject</th>
                     <th className="text-left p-3 font-semibold">Teacher</th>
                     <th className="text-center p-3 font-semibold">Periods/Week</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSubjects.map(sf => (
-                    <tr key={sf.subjectClassId} className="border-t">
-                      <td className="p-3">
-                        <div className="font-medium">{sf.subjectName}</div>
-                        {sf.department && (
-                          <div className="text-xs text-gray-500">{sf.department}</div>
+                  {filteredSubjects.map(sf => {
+                    const allowedDays = sf.allowedDays || [...DAYS];
+                    const isExpanded = expandedSubject === sf.subjectClassId;
+                    const hasRestrictions = allowedDays.length < DAYS.length;
+                    
+                    return (
+                      <React.Fragment key={sf.subjectClassId}>
+                        <tr className="border-t hover:bg-gray-50">
+                          <td className="p-3">
+                            <button
+                              onClick={() => setExpandedSubject(isExpanded ? null : sf.subjectClassId)}
+                              className="text-gray-500 hover:text-gray-700"
+                              title="Configure allowed days"
+                            >
+                              {isExpanded ? "▼" : "▶"}
+                            </button>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div>
+                                <div className="font-medium">{sf.subjectName}</div>
+                                {sf.department && (
+                                  <div className="text-xs text-gray-500">{sf.department}</div>
+                                )}
+                              </div>
+                              {hasRestrictions && (
+                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                                  {allowedDays.length} day{allowedDays.length !== 1 ? 's' : ''} only
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3 text-sm text-gray-600">{sf.teacherName}</td>
+                          <td className="p-3">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateFrequency(sf.subjectClassId, sf.frequency - 1)}
+                                disabled={sf.frequency <= 0}
+                              >
+                                −
+                              </Button>
+                              <Input
+                                type="number"
+                                value={sf.frequency}
+                                onChange={(e) => updateFrequency(sf.subjectClassId, parseInt(e.target.value) || 0)}
+                                className="w-16 text-center"
+                                min="0"
+                                max="10"
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateFrequency(sf.subjectClassId, sf.frequency + 1)}
+                                disabled={sf.frequency >= 10}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="border-t bg-blue-50">
+                            <td colSpan={4} className="p-4">
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <Label className="font-semibold text-sm">Available Days:</Label>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => toggleAllDays(sf.subjectClassId)}
+                                    className="text-xs"
+                                  >
+                                    {allowedDays.length === DAYS.length ? "Clear All" : "Select All"}
+                                  </Button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {DAYS.map(day => {
+                                    const isAllowed = allowedDays.includes(day);
+                                    return (
+                                      <button
+                                        key={day}
+                                        onClick={() => toggleDay(sf.subjectClassId, day)}
+                                        className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                                          isAllowed
+                                            ? "bg-blue-600 text-white hover:bg-blue-700"
+                                            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                        }`}
+                                      >
+                                        {day.slice(0, 3)}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <p className="text-xs text-gray-600 mt-2">
+                                  {allowedDays.length === DAYS.length
+                                    ? "Subject can be scheduled on any day"
+                                    : `Subject can only be scheduled on: ${allowedDays.join(", ")}`
+                                  }
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="p-3 text-sm text-gray-600">{sf.teacherName}</td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateFrequency(sf.subjectClassId, sf.frequency - 1)}
-                            disabled={sf.frequency <= 0}
-                          >
-                            −
-                          </Button>
-                          <Input
-                            type="number"
-                            value={sf.frequency}
-                            onChange={(e) => updateFrequency(sf.subjectClassId, parseInt(e.target.value) || 0)}
-                            className="w-16 text-center"
-                            min="0"
-                            max="10"
-                          />
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => updateFrequency(sf.subjectClassId, sf.frequency + 1)}
-                            disabled={sf.frequency >= 10}
-                          >
-                            +
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

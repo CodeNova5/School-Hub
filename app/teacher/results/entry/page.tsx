@@ -107,6 +107,7 @@ export default function ResultEntryPage() {
         .select(`
     id,
     subjects (
+      id,
       name,
       religion,
       department
@@ -119,31 +120,29 @@ export default function ResultEntryPage() {
         return;
       }
 
-      const filteredSubjectClasses = (subjectClasses || []).filter((sc: any) => {
+
+      const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
         if (!subject) return false;
 
-        // Religion check
-        const religionOk =
-          subject.religion === "Both" || subject.religion === studentData.religion;
+        // ✅ 1. Religion filter
+        const religionOk = subject.religion === studentData.religion;
 
-        // Department check
-        let deptOk = true;
-        if (classData.level === "SSS" && studentData.department) {
-          deptOk =
-            subject.department === "All" ||
-            subject.department === studentData.department;
+        // ✅ 2. Department filter (ONLY for SSS)
+        let departmentOk = true;
+
+        if (classData.level === "SSS") {
+          departmentOk = subject.department === studentData.department;
         }
 
-        return religionOk && deptOk;
+        return religionOk && departmentOk;
       });
 
-
-      if (scError || filteredSubjectClasses.length === 0) {
-
-        toast.error("No subjects assigned to this class");
+      if (filteredSubjectClasses.length === 0) {
+        toast.error("No subjects match this student's category");
         return;
       }
+
 
       // 5. Build initial scores
       let initialScores: SubjectScore[] = filteredSubjectClasses.map((sc: any) => ({
@@ -157,6 +156,7 @@ export default function ResultEntryPage() {
         grade: "",
         remark: "",
       }));
+
 
       // 6. Load existing results
       const { data: existingResults } = await supabase

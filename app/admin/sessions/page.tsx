@@ -291,9 +291,20 @@ export default function SessionsPage() {
               </DialogHeader>
               <form onSubmit={handleCreateSession} className="space-y-4">
                 <div>
-                  <Label htmlFor="name">Session Name</Label>
-                  <Input id="name" name="name" placeholder="e.g., 2024/2025" required />
+                  <Label>Session Name</Label>
+                  <Input name="name" placeholder="e.g. 2025/2026" required />
                 </div>
+
+                <div>
+                  <Label>Session Start Date</Label>
+                  <Input name="start_date" type="date" required />
+                </div>
+
+                <div>
+                  <Label>Session End Date</Label>
+                  <Input name="end_date" type="date" required />
+                </div>
+
                 <h3 className="font-semibold pt-4">First Term</h3>
                 <Input name="t1_start" type="date" required />
                 <Input name="t1_end" type="date" required />
@@ -308,6 +319,7 @@ export default function SessionsPage() {
 
                 <Button type="submit" className="w-full">Create Session</Button>
               </form>
+
             </DialogContent>
           </Dialog>
         </div>

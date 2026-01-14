@@ -248,15 +248,16 @@ export function AutoTimetableWizard({
       });
     }
 
-    // Get non-break periods grouped by day (limit to first 8 periods)
+    // Get non-break periods grouped by day (limit to first 8 non-break periods)
     const periodsByDay: Record<string, any[]> = {};
     DAYS.forEach(day => {
-      const allPeriods = periodSlots
+      // First filter out breaks, then sort, then take first 8
+      const nonBreakPeriods = periodSlots
         .filter(p => p.day_of_week === day && !p.is_break)
-        .sort((a, b) => a.period_number - b.period_number);
+        .sort((a, b) => a.period_number - b.period_number)
+        .slice(0, 8); // Only take first 8 non-break periods for timetable generation
       
-      // Only take first 8 periods for timetable generation
-      periodsByDay[day] = allPeriods.slice(0, 8);
+      periodsByDay[day] = nonBreakPeriods;
     });
 
     // Track last subject per day to avoid consecutive

@@ -126,33 +126,49 @@ export default function SessionsPage() {
   }
 
   async function autoUpdateCurrentSessionAndTerm() {
-    const today = new Date().toLocaleDateString("en-CA"); // local date
+    const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
 
-    // 1. Reset all sessions
+    // 1️⃣ Reset all sessions and terms
     await supabase.from("sessions").update({ is_current: false }).neq("id", "");
-
-    // 2. Activate current session
-    const { data: currentSession } = await supabase
-      .from("sessions")
-      .update({ is_current: true })
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .select()
-      .single();
-
-    // 3. Reset all terms
     await supabase.from("terms").update({ is_current: false }).neq("id", "");
 
-    if (!currentSession) return;
+    // 2️⃣ Find the session that contains today
+    const { data: sessionsData } = await supabase
+      .from("sessions")
+      .select("*")
+      .lte("start_date", today)
+      .gte("end_date", today)
+      .limit(1);
 
-    // 4. Activate ONLY term inside current session
+    if (!sessionsData || sessionsData.length === 0) return; // no current session
+
+    const currentSession = sessionsData[0];
+
+    // 3️⃣ Activate only this session
+    await supabase
+      .from("sessions")
+      .update({ is_current: true })
+      .eq("id", currentSession.id);
+
+    // 4️⃣ Activate only the term inside this session that contains today
+    const { data: termsData } = await supabase
+      .from("terms")
+      .select("*")
+      .eq("session_id", currentSession.id)
+      .lte("start_date", today)
+      .gte("end_date", today)
+      .limit(1);
+
+    if (!termsData || termsData.length === 0) return;
+
+    const currentTerm = termsData[0];
+
     await supabase
       .from("terms")
       .update({ is_current: true })
-      .eq("session_id", currentSession.id)
-      .lte("start_date", today)
-      .gte("end_date", today);
+      .eq("id", currentTerm.id);
   }
+
 
 
   useEffect(() => {

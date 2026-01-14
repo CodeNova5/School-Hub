@@ -24,6 +24,8 @@ export default function SessionsPage() {
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
   const [isTermDialogOpen, setIsTermDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<string>('');
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editingTerm, setEditingTerm] = useState<Term | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -53,18 +55,57 @@ export default function SessionsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    const { error } = await supabase.from('sessions').insert({
-      name: formData.get('name') as string,
-      start_date: formData.get('start_date') as string,
-      end_date: formData.get('end_date') as string,
-      is_current: false,
-    });
+    const name = formData.get("name") as string;
+    const start = formData.get("start_date") as string;
+    const end = formData.get("end_date") as string;
 
-    if (!error) {
-      setIsSessionDialogOpen(false);
-      fetchSessions();
+    if (await isSessionOverlapping(start, end)) {
+      alert("Session dates overlap with an existing session.");
+      return;
     }
+
+    const { data: session, error } = await supabase
+      .from("sessions")
+      .insert({
+        name,
+        start_date: start,
+        end_date: end,
+        is_current: false,
+      })
+      .select()
+      .single();
+
+    if (error || !session) return;
+
+    // Create 3 terms
+    const terms = [
+      {
+        session_id: session.id,
+        name: "First Term",
+        start_date: formData.get("t1_start"),
+        end_date: formData.get("t1_end"),
+      },
+      {
+        session_id: session.id,
+        name: "Second Term",
+        start_date: formData.get("t2_start"),
+        end_date: formData.get("t2_end"),
+      },
+      {
+        session_id: session.id,
+        name: "Third Term",
+        start_date: formData.get("t3_start"),
+        end_date: formData.get("t3_end"),
+      },
+    ];
+
+    await supabase.from("terms").insert(terms);
+
+    setIsSessionDialogOpen(false);
+    fetchSessions();
+    fetchTerms();
   }
+
 
   async function handleCreateTerm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -83,6 +124,151 @@ export default function SessionsPage() {
       fetchTerms();
     }
   }
+
+  async function autoUpdateCurrentSessionAndTerm() {
+    const today = new Date().toISOString().split("T")[0];
+
+    // Reset all sessions
+    await supabase.from("sessions").update({ is_current: false }).neq("id", "");
+
+    // Set current session by date
+    const { data: currentSession } = await supabase
+      .from("sessions")
+      .update({ is_current: true })
+      .lte("start_date", today)
+      .gte("end_date", today)
+      .select()
+      .single();
+
+    // Reset all terms
+    await supabase.from("terms").update({ is_current: false }).neq("id", "");
+
+    // Set current term by date
+    await supabase
+      .from("terms")
+      .update({ is_current: true })
+      .lte("start_date", today)
+      .gte("end_date", today);
+  }
+
+  useEffect(() => {
+    autoUpdateCurrentSessionAndTerm().then(() => {
+      fetchSessions();
+      fetchTerms();
+    });
+  }, []);
+
+  async function handleUpdateSession(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingSession) return;
+
+    const formData = new FormData(e.currentTarget);
+
+    const start = formData.get("start_date") as string;
+    const end = formData.get("end_date") as string;
+
+    if (await isSessionOverlapping(start, end)) {
+      alert("This session overlaps with an existing session.");
+      return;
+    }
+
+
+    const { error } = await supabase
+      .from("sessions")
+      .update({
+        name: formData.get("name"),
+        start_date: formData.get("start_date"),
+        end_date: formData.get("end_date"),
+      })
+      .eq("id", editingSession.id);
+
+    if (!error) {
+      setEditingSession(null);
+      fetchSessions();
+    }
+  }
+
+  async function handleDeleteSession(id: string) {
+    const session = sessions.find(s => s.id === id);
+
+    if (session?.is_current) {
+      alert("You cannot delete the current active session");
+      return;
+    }
+
+    if (!confirm("Delete this session and all its terms?")) return;
+
+    await supabase.from("terms").delete().eq("session_id", id);
+    await supabase.from("sessions").delete().eq("id", id);
+
+    fetchSessions();
+    fetchTerms();
+  }
+
+  async function handleUpdateTerm(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingTerm) return;
+
+    const formData = new FormData(e.currentTarget);
+
+    await supabase
+      .from("terms")
+      .update({
+        name: formData.get("name"),
+        start_date: formData.get("start_date"),
+        end_date: formData.get("end_date"),
+      })
+      .eq("id", editingTerm.id);
+
+    setEditingTerm(null);
+    fetchTerms();
+  }
+
+
+  async function handleDeleteTerm(id: string) {
+    const term = terms.find(t => t.id === id);
+
+    if (term?.is_current) {
+      alert("You cannot delete the current active term");
+      return;
+    }
+
+    if (!confirm("Delete this term?")) return;
+
+    await supabase.from("terms").delete().eq("id", id);
+    fetchTerms();
+  }
+
+  function isPast(date: string) {
+    return new Date(date) < new Date(new Date().toDateString());
+  }
+
+  async function isSessionOverlapping(start: string, end: string, excludeId?: string) {
+    let query = supabase
+      .from("sessions")
+      .select("id")
+      .or(`and(start_date.lte.${end},end_date.gte.${start})`);
+
+    if (excludeId) query = query.neq("id", excludeId);
+
+    const { data } = await query;
+    return (data?.length || 0) > 0;
+  }
+
+  async function isTermOverlapping(sessionId: string, start: string, end: string, excludeId?: string) {
+    let query = supabase
+      .from("terms")
+      .select("id")
+      .eq("session_id", sessionId)
+      .or(`and(start_date.lte.${end},end_date.gte.${start})`);
+
+    if (excludeId) query = query.neq("id", excludeId);
+
+    const { data } = await query;
+    return (data?.length || 0) > 0;
+  }
+
+
 
   return (
     <DashboardLayout role="admin">
@@ -108,14 +294,18 @@ export default function SessionsPage() {
                   <Label htmlFor="name">Session Name</Label>
                   <Input id="name" name="name" placeholder="e.g., 2024/2025" required />
                 </div>
-                <div>
-                  <Label htmlFor="start_date">Start Date</Label>
-                  <Input id="start_date" name="start_date" type="date" required />
-                </div>
-                <div>
-                  <Label htmlFor="end_date">End Date</Label>
-                  <Input id="end_date" name="end_date" type="date" required />
-                </div>
+                <h3 className="font-semibold pt-4">First Term</h3>
+                <Input name="t1_start" type="date" required />
+                <Input name="t1_end" type="date" required />
+
+                <h3 className="font-semibold pt-4">Second Term</h3>
+                <Input name="t2_start" type="date" required />
+                <Input name="t2_end" type="date" required />
+
+                <h3 className="font-semibold pt-4">Third Term</h3>
+                <Input name="t3_start" type="date" required />
+                <Input name="t3_end" type="date" required />
+
                 <Button type="submit" className="w-full">Create Session</Button>
               </form>
             </DialogContent>
@@ -142,14 +332,24 @@ export default function SessionsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {session.is_current && (
-                        <Badge variant="default">Current</Badge>
+                        <Badge variant="success">Current</Badge>
                       )}
-                      <Button variant="ghost" size="icon">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon">
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
+                      {!isPast(session.end_date) && (
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => setEditingSession(session)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteSession(session.id)}>
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </>
+                      )}
+
+                      {isPast(session.end_date) && (
+                        <Badge variant="secondary">Locked</Badge>
+                      )}
+
+
                     </div>
                   </div>
                 ))}
@@ -229,12 +429,20 @@ export default function SessionsPage() {
                         {term.is_current && (
                           <Badge variant="default">Current</Badge>
                         )}
-                        <Button variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
+                        {!isPast(term.end_date) && (
+                          <>
+                            <Button variant="ghost" size="icon" onClick={() => setEditingTerm(term)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteTerm(term.id)}>
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </>
+                        )}
+
+                        {isPast(term.end_date) && (
+                          <Badge variant="secondary">Locked</Badge>
+                        )}
                       </div>
                     </div>
                   );

@@ -106,12 +106,13 @@ export default function ResultEntryPage() {
         .from("subject_classes")
         .select(`
     id,
-    subjects (
-      id,
-      name,
-      religion,
-      department
-    )
+    subject:subjects (
+        id,
+        name,
+        is_optional,
+        religion,
+        department
+      )
   `)
         .eq("class_id", studentData.class_id);
 
@@ -122,17 +123,16 @@ export default function ResultEntryPage() {
 
 
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
-        const subject = sc.subjects;
+        const subject = sc.subject;
         if (!subject) return false;
 
         // ✅ 1. Religion filter
-        const religionOk = subject.religion === studentData.religion;
+        const religionOk = subject.religion === studentData.religion || subject.religion === null;
 
         // ✅ 2. Department filter (ONLY for SSS)
         let departmentOk = true;
-
         if (classData.level === "SSS") {
-          departmentOk = subject.department === studentData.department;
+          departmentOk = subject.department === studentData.department || subject.department === null;
         }
 
         return religionOk && departmentOk;

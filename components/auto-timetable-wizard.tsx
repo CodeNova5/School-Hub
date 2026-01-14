@@ -91,9 +91,17 @@ export function AutoTimetableWizard({
   // Calculate total periods
   const totalPeriods = subjectFrequencies.reduce((sum, sf) => sum + sf.frequency, 0);
   
-  // Calculate available periods (excluding breaks)
+  // Calculate available periods (excluding breaks, limited to first 8 periods per day)
   const availablePeriods = useMemo(() => {
-    return periodSlots.filter(p => !p.is_break).length;
+    let count = 0;
+    DAYS.forEach(day => {
+      const dayPeriods = periodSlots
+        .filter(p => p.day_of_week === day && !p.is_break)
+        .sort((a, b) => a.period_number - b.period_number)
+        .slice(0, 8); // Only count first 8 periods per day
+      count += dayPeriods.length;
+    });
+    return count;
   }, [periodSlots]);
   // Reset when class changes
   useEffect(() => {
@@ -240,12 +248,15 @@ export function AutoTimetableWizard({
       });
     }
 
-    // Get non-break periods grouped by day
+    // Get non-break periods grouped by day (limit to first 8 periods)
     const periodsByDay: Record<string, any[]> = {};
     DAYS.forEach(day => {
-      periodsByDay[day] = periodSlots
+      const allPeriods = periodSlots
         .filter(p => p.day_of_week === day && !p.is_break)
         .sort((a, b) => a.period_number - b.period_number);
+      
+      // Only take first 8 periods for timetable generation
+      periodsByDay[day] = allPeriods.slice(0, 8);
     });
 
     // Track last subject per day to avoid consecutive

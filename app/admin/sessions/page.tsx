@@ -126,12 +126,12 @@ export default function SessionsPage() {
   }
 
   async function autoUpdateCurrentSessionAndTerm() {
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toLocaleDateString("en-CA"); // local date
 
-    // Reset all sessions
+    // 1. Reset all sessions
     await supabase.from("sessions").update({ is_current: false }).neq("id", "");
 
-    // Set current session by date
+    // 2. Activate current session
     const { data: currentSession } = await supabase
       .from("sessions")
       .update({ is_current: true })
@@ -140,16 +140,20 @@ export default function SessionsPage() {
       .select()
       .single();
 
-    // Reset all terms
+    // 3. Reset all terms
     await supabase.from("terms").update({ is_current: false }).neq("id", "");
 
-    // Set current term by date
+    if (!currentSession) return;
+
+    // 4. Activate ONLY term inside current session
     await supabase
       .from("terms")
       .update({ is_current: true })
+      .eq("session_id", currentSession.id)
       .lte("start_date", today)
       .gte("end_date", today);
   }
+
 
   useEffect(() => {
     autoUpdateCurrentSessionAndTerm().then(() => {

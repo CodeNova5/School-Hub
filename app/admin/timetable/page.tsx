@@ -167,7 +167,7 @@ export default function TimetablePage() {
     setFormPeriodSlotId(entryRow.period_slot_id || "");
     setFormClassId(entryRow.class_id || "");
 
-    // Reset departmental mode and religion mode and fields
+    // Reset all modes and fields
     setDepartmentalMode(false);
     setReligionMode(false);
     setFormSubjectClassId("");
@@ -177,11 +177,9 @@ export default function TimetablePage() {
     setFormChristianSubjectClassId("");
     setFormMuslimSubjectClassId("");
 
-
     // Check if the entry is departmental
     if (entryRow.department) {
       setDepartmentalMode(true);
-
       // Append departmental subjects accurately
       if (entryRow.department === "Science") {
         setFormScienceSubjectClassId(entryRow.subject_class_id || "");
@@ -191,19 +189,22 @@ export default function TimetablePage() {
         setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
       }
     } else if (entryRow.religion) {
-      // Check if the entry is religious
+      // Check if the entry is religious (may be multiple for the same slot/class)
       setReligionMode(true);
-
-      // Append religious subjects accurately
-      if (entryRow.religion === "Christian") {
-        setFormChristianSubjectClassId(entryRow.subject_class_id || "");
-      } else if (entryRow.religion === "Muslim") {
-        setFormMuslimSubjectClassId(entryRow.subject_class_id || "");
-      }
+      // Find all entries for this period_slot_id and class_id with religion set
+      const allReligious = entries.filter(
+        (e) =>
+          e.period_slot_id === entryRow.period_slot_id &&
+          e.class_id === entryRow.class_id &&
+          e.religion
+      );
+      const christian = allReligious.find((e) => e.religion === "Christian");
+      const muslim = allReligious.find((e) => e.religion === "Muslim");
+      setFormChristianSubjectClassId(christian?.subject_class_id || "");
+      setFormMuslimSubjectClassId(muslim?.subject_class_id || "");
     } else {
       setFormSubjectClassId(entryRow.subject_class_id || "");
     }
-
 
     setIsDialogOpen(true);
   }

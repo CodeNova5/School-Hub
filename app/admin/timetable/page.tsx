@@ -999,9 +999,12 @@ export default function TimetablePage() {
         ? entry.subject_classes[0]
         : entry.subject_classes;
 
-      const className = Array.isArray(entry.classes)
-        ? entry.classes[0]?.name
-        : entry.classes?.name;
+      const classObj = Array.isArray(entry.classes)
+        ? entry.classes[0]
+        : entry.classes;
+
+      const className = classObj?.name;
+      const classId = classObj?.id;
 
       const subjectName = subjectClass?.subjects?.name || "";
       const subjectCode = subjectClass?.subject_code || shortCode(subjectName);
@@ -1009,10 +1012,15 @@ export default function TimetablePage() {
       if (!timetable[day][periodSlotId]) {
         timetable[day][periodSlotId] = {
           class: className,
+          classId: classId,
           subject: subjectCode || subjectName,
           fullSubject: subjectName,
           period: periodSlot,
+          rows: [entry],
         };
+      } else {
+        // If there are multiple entries in the same slot (rare for teacher view), add to rows
+        timetable[day][periodSlotId].rows.push(entry);
       }
     });
 
@@ -1811,7 +1819,20 @@ export default function TimetablePage() {
                         const cell = teacherTimetable[day]?.[period.id];
 
                         return (
-                          <td key={day} className="border border-gray-300 p-3">
+                          <td 
+                            key={day} 
+                            className="border border-gray-300 p-3 cursor-pointer hover:bg-green-50 transition-colors"
+                            onClick={() => {
+                              if (cell?.rows?.length > 0) {
+                                // Edit existing entry
+                                openEdit(cell.rows[0], cell.rows);
+                              } else {
+                                // Add new entry - use the class from the cell if available
+                                const classId = cell?.classId || null;
+                                openAdd(day, period.id, classId);
+                              }
+                            }}
+                          >
                             <div className="space-y-1">
                               <div className="text-xs text-gray-600 text-center">
                                 {period.start_time} - {period.end_time}
@@ -1832,9 +1853,12 @@ export default function TimetablePage() {
                                   )}
                                 </>
                               ) : (
-                                <div className="text-gray-400 text-center py-2">
-                                  <div className="text-sm">Free Period</div>
-                                </div>
+                                <>
+                                  <div className="text-gray-400 text-center py-2">
+                                    <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                                    <span className="text-xs">Add Subject</span>
+                                  </div>
+                                </>
                               )}
                             </div>
                           </td>

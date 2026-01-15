@@ -140,7 +140,7 @@ export function AutoTimetableWizard({
         frequency: getDefaultFrequency(sc.subjects?.name),
         department: sc.subjects?.department,
         religion: sc.subjects?.religion,
-        allowedDays: [...DAYS], // By default, all days allowed
+        allowedDays: getDefaultAllowedDays(sc.subjects?.name), // By default, subject-specific days
       }));
       setSubjectFrequencies(subjects);
     }
@@ -162,12 +162,25 @@ export function AutoTimetableWizard({
     const name = subjectName.toLowerCase();
     
     // Core subjects get more periods
-    if (name.includes("math") || name.includes("english")) return 5;
+    if (name.includes("math") || name.includes("english")) return 4;
     if (name.includes("physics") || name.includes("chemistry") || name.includes("biology")) return 3;
     if (name.includes("economics") || name.includes("accounting") || name.includes("commerce")) return 3;
     
     // Optional/elective subjects
     return 2;
+  }
+
+  function getDefaultAllowedDays(subjectName?: string): string[] {
+    if (!subjectName) return [...DAYS];
+    const name = subjectName.toLowerCase();
+    
+    // Subject-specific day restrictions
+    if (name.includes("yoruba")) return ["Monday", "Wednesday"];
+    if (name.includes("chess")) return ["Thursday"];
+    if (name.includes("agric")) return ["Tuesday", "Thursday"];
+    
+    // All other subjects can be scheduled on any day
+    return [...DAYS];
   }
 
   function updateFrequency(subjectClassId: string, frequency: number) {

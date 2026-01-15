@@ -768,17 +768,19 @@ export default function TimetablePage() {
 
       g.raw.forEach((r: any) => {
         const subjName = r.subject_classes?.subjects?.name || "";
-        const subjDept = r.subject_classes?.subjects?.department || r.department || "";
+        const subjDept = r.subject_classes?.subjects?.department; // ✅ ONLY from subjects table
         const code = shortCode(subjName);
 
-        if (subjDept) {
+        const teacherName = teacherForSubjectClass(r.subject_classes);
+
+        if (subjDept && order.includes(subjDept)) {
+          // Departmental subject → use short code
           deptMap[subjDept] = code;
-          const subjTeacherName = teacherForSubjectClass(r.subject_classes);
-          if (subjTeacherName) teacherMap[subjDept] = subjTeacherName;
+          if (teacherName) teacherMap[subjDept] = teacherName;
         } else {
+          // Non-departmental → use FULL NAME
           deptMap["_single"] = subjName;
-          const subjTeacherName = teacherForSubjectClass(r.subject_classes);
-          if (subjTeacherName) teacherMap["_single"] = subjTeacherName;
+          if (teacherName) teacherMap["_single"] = teacherName;
         }
       });
 

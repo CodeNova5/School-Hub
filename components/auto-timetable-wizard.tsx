@@ -241,6 +241,8 @@ export function AutoTimetableWizard({
   async function generateTimetable(existingEntries: any[]) {
     const entries: GeneratedEntry[] = [];
     const conflicts: Conflict[] = [];
+    const usedPeriodSlots = new Set<string>();
+
     
     // Build teacher usage map from existing entries
     const teacherSlotMap = new Map<string, Set<string>>();
@@ -348,6 +350,7 @@ export function AutoTimetableWizard({
 
     // Distribute subjects across the shuffled week
     for (const { day, period, index } of allPeriodSlots) {
+      if (usedPeriodSlots.has(period.id)) continue;
       // Check if we should assign CRS/IRS pair
       if (crsSubject && irsSubject && 
           crsSubject.assignedCount < crsSubject.targetCount &&
@@ -402,6 +405,9 @@ export function AutoTimetableWizard({
               pairedTeacherName: irsSubject.teacherName,
               pairedReligion: irsSubject.religion,
             });
+
+            usedPeriodSlots.add(period.id);
+
             
             // Update tracking for both subjects
             crsSubject.assignedCount++;
@@ -529,7 +535,7 @@ export function AutoTimetableWizard({
         department: best.subject.department,
         religion: best.subject.religion,
       });
-
+      usedPeriodSlots.add(period.id);
       // Update tracking
       best.subject.assignedCount++;
       lastSubjectPerDay[day] = best.subject.subjectClassId;

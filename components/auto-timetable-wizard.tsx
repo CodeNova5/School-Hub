@@ -125,23 +125,34 @@ export function AutoTimetableWizard({
 
   // Calculate total periods (accounting for paired religious subjects)
   const totalPeriods = useMemo(() => {
+    // CRS/IRS pairing
     const crs = subjectFrequencies.find(sf => sf.religion === 'Christian');
     const irs = subjectFrequencies.find(sf => sf.religion === 'Muslim');
-    
+
     let total = 0;
+    const countedGroups = new Set<string>();
+
     subjectFrequencies.forEach(sf => {
-      if (sf.religion === 'Christian' || sf.religion === 'Muslim') {
-        // For paired religious subjects, only count once (they share a period)
-        if (sf.religion === 'Christian') {
-          total += sf.frequency; // Only add CRS, IRS will share these periods
+      // Paired religious subjects: only count Christian
+      if (sf.religion === 'Christian') {
+        total += sf.frequency;
+      } else if (sf.religion === 'Muslim') {
+        // skip, already counted with Christian
+        return;
+      } else if (sf.departmentGroup && enableDepartmentalGrouping) {
+        // Only count the first subject in each group
+        if (!countedGroups.has(sf.departmentGroup)) {
+          total += sf.frequency;
+          countedGroups.add(sf.departmentGroup);
         }
       } else {
+        // Normal subject
         total += sf.frequency;
       }
     });
-    
+
     return total;
-  }, [subjectFrequencies]);
+  }, [subjectFrequencies, enableDepartmentalGrouping]);
   
   // Calculate available periods (excluding breaks, limited to first 8 periods per day)
   const availablePeriods = useMemo(() => {

@@ -160,14 +160,23 @@ export default function TimetablePage() {
     setIsDialogOpen(true);
   }
 
-  function openEdit(entryRow: any) {
+  function openEdit(entryRow: any, allRows?: any[]) {
     if (!entryRow) return;
-    setEditingEntry(entryRow);
-    setFormDay(entryRow.period_slots?.day_of_week || "");
-    setFormPeriodSlotId(entryRow.period_slot_id || "");
-    setFormClassId(entryRow.class_id || "");
 
-    // Reset all modes and fields
+    const groupedRows = (allRows && allRows.length)
+      ? allRows
+      : entries.filter((en) =>
+          en.class_id === entryRow.class_id && en.period_slot_id === entryRow.period_slot_id
+        );
+
+    const primaryRow = groupedRows[0] || entryRow;
+
+    setEditingEntry(primaryRow);
+    setFormDay(primaryRow.period_slots?.day_of_week || "");
+    setFormPeriodSlotId(primaryRow.period_slot_id || "");
+    setFormClassId(primaryRow.class_id || "");
+
+    // Reset departmental mode and religion mode and fields
     setDepartmentalMode(false);
     setReligionMode(false);
     setFormSubjectClassId("");
@@ -177,34 +186,36 @@ export default function TimetablePage() {
     setFormChristianSubjectClassId("");
     setFormMuslimSubjectClassId("");
 
+
     // Check if the entry is departmental
-    if (entryRow.department) {
+    const hasDepartmentalRows = groupedRows.some((row) => row.department);
+    const hasReligiousRows = groupedRows.some((row) => row.religion);
+
+    if (hasDepartmentalRows) {
       setDepartmentalMode(true);
-      // Append departmental subjects accurately
-      if (entryRow.department === "Science") {
-        setFormScienceSubjectClassId(entryRow.subject_class_id || "");
-      } else if (entryRow.department === "Arts") {
-        setFormArtsSubjectClassId(entryRow.subject_class_id || "");
-      } else if (entryRow.department === "Commercial") {
-        setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
-      }
-    } else if (entryRow.religion) {
-      // Check if the entry is religious (may be multiple for the same slot/class)
+
+      groupedRows.forEach((row) => {
+        if (row.department === "Science") {
+          setFormScienceSubjectClassId(row.subject_class_id || "");
+        } else if (row.department === "Arts") {
+          setFormArtsSubjectClassId(row.subject_class_id || "");
+        } else if (row.department === "Commercial") {
+          setFormCommercialSubjectClassId(row.subject_class_id || "");
+        }
+      });
+    } else if (hasReligiousRows) {
+      // Check if the entry is religious
       setReligionMode(true);
-      // Find all entries for this period_slot_id and class_id with religion set
-      const allReligious = entries.filter(
-        (e) =>
-          e.period_slot_id === entryRow.period_slot_id &&
-          e.class_id === entryRow.class_id &&
-          e.religion
-      );
-      const christian = allReligious.find((e) => e.religion === "Christian");
-      const muslim = allReligious.find((e) => e.religion === "Muslim");
-      setFormChristianSubjectClassId(christian?.subject_class_id || "");
-      setFormMuslimSubjectClassId(muslim?.subject_class_id || "");
+
+      const christianRow = groupedRows.find((row) => row.religion === "Christian");
+      const muslimRow = groupedRows.find((row) => row.religion === "Muslim");
+
+      if (christianRow) setFormChristianSubjectClassId(christianRow.subject_class_id || "");
+      if (muslimRow) setFormMuslimSubjectClassId(muslimRow.subject_class_id || "");
     } else {
-      setFormSubjectClassId(entryRow.subject_class_id || "");
+      setFormSubjectClassId(primaryRow.subject_class_id || "");
     }
+
 
     setIsDialogOpen(true);
   }
@@ -1095,7 +1106,7 @@ export default function TimetablePage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openEdit(entry.rows[0])}
+                              onClick={() => openEdit(entry.rows[0], entry.rows)}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
@@ -1468,7 +1479,7 @@ export default function TimetablePage() {
                               if (!selectedClass) return;
 
                               if (cell?.rows?.length > 0) {
-                                openEdit(cell.rows[0]);
+                                openEdit(cell.rows[0], cell.rows);
                               } else {
                                 openAdd(day, period.id, selectedClass);
                               }

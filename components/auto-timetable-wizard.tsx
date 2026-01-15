@@ -26,6 +26,7 @@ interface SubjectFrequency {
   department?: string;
   religion?: string;
   allowedDays?: string[]; // Days this subject can be taught on
+  departmentGroup?: string; // For grouping departmental subjects (e.g., "Group1")
 }
 
 interface Conflict {
@@ -50,6 +51,14 @@ interface GeneratedEntry {
   pairedTeacherName?: string;
   pairedReligion?: string;
   isPaired?: boolean;
+  // For departmental grouping
+  departmentGroup?: string;
+  groupedSubjects?: Array<{
+    subjectClassId: string;
+    subjectName: string;
+    teacherName: string;
+    department: string;
+  }>;
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -69,6 +78,7 @@ export function AutoTimetableWizard({
   const [searchSubject, setSearchSubject] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+  const [newGroupName, setNewGroupName] = useState("");
   const [generatedEntries, setGeneratedEntries] = useState<GeneratedEntry[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   
@@ -76,6 +86,14 @@ export function AutoTimetableWizard({
   const [avoidConsecutive, setAvoidConsecutive] = useState(true);
   const [preventTeacherClash, setPreventTeacherClash] = useState(true);
   const [balanceDifficulty, setBalanceDifficulty] = useState(true);
+  
+  // Departmental grouping
+  const [departmentalGroups, setDepartmentalGroups] = useState<Record<string, string[]>>({
+    // Default groups - can be customized
+    "Science Group 1": [], // Will be populated with Physics, Chemistry, Biology subject IDs
+    "Social Sciences Group 1": [], // Government, Economics, etc.
+  });
+  const [enableDepartmentalGrouping, setEnableDepartmentalGrouping] = useState(false);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isSSS = selectedClass?.level?.startsWith("SSS");
@@ -95,6 +113,15 @@ export function AutoTimetableWizard({
       sf.teacherName.toLowerCase().includes(searchSubject.toLowerCase())
     );
   }, [subjectFrequencies, searchSubject]);
+
+  // Get groups with their subjects (for display)
+  const groupsWithSubjects = useMemo(() => {
+    const groups: Record<string, SubjectFrequency[]> = {};
+    Object.keys(departmentalGroups).forEach(groupName => {
+      groups[groupName] = subjectFrequencies.filter(sf => sf.departmentGroup === groupName);
+    });
+    return groups;
+  }, [departmentalGroups, subjectFrequencies]);
 
   // Calculate total periods (accounting for paired religious subjects)
   const totalPeriods = useMemo(() => {
@@ -157,6 +184,10 @@ export function AutoTimetableWizard({
     return null;
   }
 
+  function validateAll(): string | null {
+    return validateReligionPairing() || validateDepartmentalGroups();
+  }
+
   function getDefaultFrequency(subjectName?: string): number {
     if (!subjectName) return 2;
     const name = subjectName.toLowerCase();
@@ -181,6 +212,76 @@ export function AutoTimetableWizard({
     
     // All other subjects can be scheduled on any day
     return [...DAYS];
+  }
+
+  function assignDepartmentGroup(subjectClassId: string, groupName: string | null) {
+    setSubjectFrequencies(prev =>
+      prev.map(sf =>
+        sf.subjectClassId === subjectClassId
+          ? { ...sf, departmentGroup: groupName || undefined }
+          : sf
+      )
+    );
+  }
+
+  function createDepartmentGroup() {
+    const trimmedName = newGroupName.trim();
+    if (!trimmedName) {
+      toast.error("Group name cannot be empty");
+      return;
+    }
+    if (departmentalGroups[trimmedName]) {
+      toast.error("Group already exists");
+      return;
+    }
+    setDepartmentalGroups(prev => ({ ...prev, [trimmedName]: [] }));
+    setNewGroupName("");
+    toast.success(`Created group: ${trimmedName}`);
+  }
+
+  function deleteDepartmentGroup(groupName: string) {
+    // Unassign all subjects from this group
+    setSubjectFrequencies(prev =>
+      prev.map(sf =>
+        sf.departmentGroup === groupName
+          ? { ...sf, departmentGroup: undefined }
+          : sf
+      )
+    );
+    // Remove the group
+    setDepartmentalGroups(prev => {
+      const updated = { ...prev };
+      delete updated[groupName];
+      return updated;
+    });
+    toast.success(`Deleted group: ${groupName}`);
+  }
+
+  function getSubjectsByGroup(groupName: string): SubjectFrequency[] {
+    return subjectFrequencies.filter(sf => sf.departmentGroup === groupName);
+  }
+
+  function validateDepartmentalGroups(): string | null {
+    if (!enableDepartmentalGrouping) return null;
+    
+    const groupFrequencies = new Map<string, Set<number>>();
+    
+    subjectFrequencies.forEach(sf => {
+      if (sf.departmentGroup) {
+        if (!groupFrequencies.has(sf.departmentGroup)) {
+          groupFrequencies.set(sf.departmentGroup, new Set());
+        }
+        groupFrequencies.get(sf.departmentGroup)!.add(sf.frequency);
+      }
+    });
+    
+    for (const [group, frequencies] of Array.from(groupFrequencies.entries())) {
+      if (frequencies.size > 1) {
+        return `All subjects in "${group}" must have equal frequencies`;
+      }
+    }
+    
+    return null;
   }
 
   function updateFrequency(subjectClassId: string, frequency: number) {
@@ -324,6 +425,9 @@ export function AutoTimetableWizard({
     let crsSubject: typeof subjectPool[0] | null = null;
     let irsSubject: typeof subjectPool[0] | null = null;
 
+    // Group departmental subjects
+    const departmentGroupsMap = new Map<string, typeof subjectPool>();
+
     for (const sf of subjectFrequencies) {
       if (sf.frequency === 0) continue;
       
@@ -344,6 +448,12 @@ export function AutoTimetableWizard({
         crsSubject = poolEntry;
       } else if (sf.religion === 'Muslim') {
         irsSubject = poolEntry;
+      } else if (enableDepartmentalGrouping && sf.departmentGroup) {
+        // Group departmental subjects together
+        if (!departmentGroupsMap.has(sf.departmentGroup)) {
+          departmentGroupsMap.set(sf.departmentGroup, []);
+        }
+        departmentGroupsMap.get(sf.departmentGroup)!.push(poolEntry);
       } else {
         subjectPool.push(poolEntry);
       }
@@ -402,6 +512,94 @@ export function AutoTimetableWizard({
     // Distribute subjects across the shuffled week
     for (const { day, period, index } of allPeriodSlots) {
       if (usedPeriodSlots.has(period.id)) continue;
+      
+      // Check if we should assign departmental group
+      if (enableDepartmentalGrouping && departmentGroupsMap.size > 0) {
+        for (const [groupName, groupSubjects] of Array.from(departmentGroupsMap.entries())) {
+          // Check if all subjects in group need assignment and can be scheduled on this day
+            const allNeedAssignment: boolean = groupSubjects.every((s: {
+            assignedCount: number;
+            targetCount: number;
+            allowedDays: string[];
+            }) => 
+            s.assignedCount < s.targetCount && s.allowedDays.includes(day)
+            );
+          
+          if (!allNeedAssignment) continue;
+          
+          // Check teacher availability for all subjects in group
+          const busyTeachers = teacherSlotMap.get(period.id);
+          const hasTeacherClash = groupSubjects.some((s: typeof groupSubjects[0]) => 
+            preventTeacherClash && s.teacherId && busyTeachers?.has(s.teacherId)
+          );
+          
+          if (hasTeacherClash) continue;
+          
+          // Calculate score for this group
+          let score = 100;
+          
+          groupSubjects.forEach((s: typeof groupSubjects[0]) => {
+            if (s.teacherId) {
+              const teacherLoad = teacherDailyLoad[s.teacherId]?.[day] || 0;
+              if (teacherLoad >= 6) score -= 40;
+              else if (teacherLoad >= 4) score -= 15;
+            }
+          });
+          
+          // Prefer to assign departmental groups
+          score += 60;
+          
+          if (score >= 0) {
+            // Assign the grouped period
+            const primarySubject = groupSubjects[0];
+            entries.push({
+              periodSlotId: period.id,
+              subjectClassId: primarySubject.subjectClassId,
+              day: day,
+              periodNumber: period.period_number,
+              subjectName: primarySubject.subjectName,
+              teacherName: primarySubject.teacherName,
+              department: primarySubject.department,
+              departmentGroup: groupName,
+              groupedSubjects: groupSubjects.slice(1).map((s: typeof groupSubjects[0]) => ({
+                subjectClassId: s.subjectClassId,
+                subjectName: s.subjectName,
+                teacherName: s.teacherName,
+                department: s.department!,
+              })),
+            });
+            
+            usedPeriodSlots.add(period.id);
+            
+            // Update tracking for all subjects in group
+            groupSubjects.forEach((s: typeof groupSubjects[0]) => {
+              s.assignedCount++;
+              
+              if (!subjectDailyCount[s.subjectClassId]) {
+                subjectDailyCount[s.subjectClassId] = {};
+              }
+              subjectDailyCount[s.subjectClassId][day] = 
+                (subjectDailyCount[s.subjectClassId][day] || 0) + 1;
+              
+              if (s.teacherId) {
+                if (!teacherDailyLoad[s.teacherId]) {
+                  teacherDailyLoad[s.teacherId] = {};
+                }
+                teacherDailyLoad[s.teacherId][day] = 
+                  (teacherDailyLoad[s.teacherId][day] || 0) + 1;
+                
+                if (!teacherSlotMap.has(period.id)) {
+                  teacherSlotMap.set(period.id, new Set());
+                }
+                teacherSlotMap.get(period.id)!.add(s.teacherId);
+              }
+            });
+            
+            continue; // Move to next period
+          }
+        }
+      }
+      
       // Check if we should assign CRS/IRS pair
       if (crsSubject && irsSubject && 
           crsSubject.assignedCount < crsSubject.targetCount &&
@@ -677,6 +875,19 @@ export function AutoTimetableWizard({
             religion: entry.pairedReligion || null,
           });
         }
+        
+        // If departmental group, add all grouped subjects
+        if (entry.groupedSubjects && entry.groupedSubjects.length > 0) {
+          entry.groupedSubjects.forEach(grouped => {
+            inserts.push({
+              period_slot_id: entry.periodSlotId,
+              class_id: selectedClassId,
+              subject_class_id: grouped.subjectClassId,
+              department: grouped.department || null,
+              religion: null,
+            });
+          });
+        }
       });
 
       const { error } = await supabase
@@ -687,7 +898,13 @@ export function AutoTimetableWizard({
 
       const totalPeriods = generatedEntries.length;
       const pairedCount = generatedEntries.filter(e => e.isPaired).length;
-      toast.success(`Generated timetable with ${totalPeriods} periods (${pairedCount} CRS/IRS paired)!`);
+      const groupedCount = generatedEntries.filter(e => e.departmentGroup).length;
+      
+      let message = `Generated timetable with ${totalPeriods} periods`;
+      if (pairedCount > 0) message += ` (${pairedCount} CRS/IRS paired)`;
+      if (groupedCount > 0) message += ` (${groupedCount} departmental groups)`;
+      
+      toast.success(message + "!");
       onGenerated();
       handleClose();
     } catch (error) {
@@ -839,6 +1056,93 @@ export function AutoTimetableWizard({
               onChange={(e) => setSearchSubject(e.target.value)}
             />
 
+            {/* Departmental Groups Management */}
+            {isSSS && (
+              <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-purple-900 flex items-center gap-2">
+                        <span>🎯</span> Departmental Subject Groups
+                      </h4>
+                      <p className="text-xs text-purple-700 mt-1">
+                        Group departmental subjects (e.g., PHY/GOV/ACC) to share the same period slot
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Create New Group */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter group name (e.g., Science Group 1)"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && createDepartmentGroup()}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={createDepartmentGroup}
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Group
+                    </Button>
+                  </div>
+
+                  {/* Display Existing Groups */}
+                  {Object.keys(departmentalGroups).length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold text-purple-900">Active Groups:</Label>
+                      <div className="space-y-2">
+                        {Object.entries(groupsWithSubjects).map(([groupName, subjects]) => (
+                          <div
+                            key={groupName}
+                            className="bg-white border border-purple-200 rounded-lg p-3"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <div className="font-semibold text-purple-900">{groupName}</div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {subjects.length === 0 ? (
+                                    <span className="text-orange-600">No subjects assigned</span>
+                                  ) : (
+                                    <span>
+                                      {subjects.length} subject{subjects.length !== 1 ? 's' : ''}: {' '}
+                                      {subjects.map(s => s.subjectName).join(', ')}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => deleteDepartmentGroup(groupName)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                            {subjects.length > 0 && (
+                              <div className="text-xs text-purple-700 bg-purple-50 rounded px-2 py-1">
+                                💡 These subjects will share {subjects[0].frequency} period{subjects[0].frequency !== 1 ? 's' : ''} per week
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Object.keys(departmentalGroups).length === 0 && (
+                    <div className="text-center py-4 text-sm text-gray-500">
+                      No groups created yet. Create a group to start organizing departmental subjects.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <div className="border rounded-lg max-h-96 overflow-y-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 sticky top-0">
@@ -846,6 +1150,9 @@ export function AutoTimetableWizard({
                     <th className="text-left p-3 font-semibold w-8"></th>
                     <th className="text-left p-3 font-semibold">Subject</th>
                     <th className="text-left p-3 font-semibold">Teacher</th>
+                    {isSSS && Object.keys(departmentalGroups).length > 0 && (
+                      <th className="text-left p-3 font-semibold">Group</th>
+                    )}
                     <th className="text-center p-3 font-semibold">Periods/Week</th>
                   </tr>
                 </thead>
@@ -866,9 +1173,13 @@ export function AutoTimetableWizard({
                       ? subjectFrequencies.find(s => s.religion === 'Muslim')
                       : null;
                     
+                    // Check if subject can be assigned to groups (not religious subjects)
+                    const canBeGrouped = isSSS && !sf.religion && sf.department;
+                    const availableGroups = Object.keys(departmentalGroups);
+                    
                     return (
                       <React.Fragment key={sf.subjectClassId}>
-                        <tr className="border-t hover:bg-gray-50">
+                        <tr className={`border-t hover:bg-gray-50 ${sf.departmentGroup ? 'bg-purple-50' : ''}`}>
                           <td className="p-3">
                             <button
                               onClick={() => setExpandedSubject(isExpanded ? null : sf.subjectClassId)}
@@ -893,6 +1204,9 @@ export function AutoTimetableWizard({
                                 {pairedSubject && (
                                   <div className="text-xs text-blue-600 font-medium">📚 Paired Religious Subjects</div>
                                 )}
+                                {sf.departmentGroup && (
+                                  <div className="text-xs text-purple-600 font-medium">🎯 {sf.departmentGroup}</div>
+                                )}
                               </div>
                               {hasRestrictions && (
                                 <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
@@ -907,6 +1221,24 @@ export function AutoTimetableWizard({
                               : sf.teacherName
                             }
                           </td>
+                          {isSSS && availableGroups.length > 0 && (
+                            <td className="p-3">
+                              {canBeGrouped ? (
+                                <select
+                                  value={sf.departmentGroup || ''}
+                                  onChange={(e) => assignDepartmentGroup(sf.subjectClassId, e.target.value || null)}
+                                  className="w-full text-xs border rounded px-2 py-1 bg-white"
+                                >
+                                  <option value="">None</option>
+                                  {availableGroups.map(group => (
+                                    <option key={group} value={group}>{group}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </td>
+                          )}
                           <td className="p-3">
                             <div className="flex items-center justify-center gap-2">
                               <Button
@@ -917,7 +1249,7 @@ export function AutoTimetableWizard({
                               >
                                 −
                               </Button>
-                              <div className="relative">
+                              
                                 <Input
                                   type="number"
                                   value={sf.frequency}
@@ -931,7 +1263,7 @@ export function AutoTimetableWizard({
                                     🔗
                                   </span>
                                 )}
-                              </div>
+                              
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -945,7 +1277,7 @@ export function AutoTimetableWizard({
                         </tr>
                         {isExpanded && (
                           <tr className="border-t bg-blue-50">
-                            <td colSpan={4} className="p-4">
+                            <td colSpan={isSSS && availableGroups.length > 0 ? 5 : 4} className="p-4">
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <Label className="font-semibold text-sm">
@@ -1081,6 +1413,21 @@ export function AutoTimetableWizard({
                     </p>
                   </div>
                 </div>
+
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={enableDepartmentalGrouping}
+                    onChange={(e) => setEnableDepartmentalGrouping(e.target.checked)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <Label className="font-semibold">Enable Departmental Subject Grouping</Label>
+                    <p className="text-xs text-gray-500">
+                      Groups departmental subjects (e.g., PHY/GOV/ACC) to share the same period slot
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -1094,13 +1441,13 @@ export function AutoTimetableWizard({
               </p>
             </div>
 
-            {validateReligionPairing() && (
+            {validateAll() && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex gap-2">
                   <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
                   <div className="text-sm">
-                    <p className="font-semibold text-red-800">Frequency Mismatch:</p>
-                    <p className="text-red-700">{validateReligionPairing()}</p>
+                    <p className="font-semibold text-red-800">Validation Error:</p>
+                    <p className="text-red-700">{validateAll()}</p>
                   </div>
                 </div>
               </div>
@@ -1108,7 +1455,7 @@ export function AutoTimetableWizard({
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(2)}>← Back</Button>
-              <Button onClick={handleGenerate} disabled={isGenerating || !!validateReligionPairing()}>
+              <Button onClick={handleGenerate} disabled={isGenerating || !!validateAll()}>
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

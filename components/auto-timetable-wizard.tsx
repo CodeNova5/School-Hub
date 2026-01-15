@@ -44,6 +44,12 @@ interface GeneratedEntry {
   teacherName: string;
   department?: string;
   religion?: string;
+  // For CRS/IRS pairing
+  pairedSubjectClassId?: string;
+  pairedSubjectName?: string;
+  pairedTeacherName?: string;
+  pairedReligion?: string;
+  isPaired?: boolean;
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -123,6 +129,17 @@ export function AutoTimetableWizard({
     }
   }, [selectedClassId, step]);
 
+  // Validate CRS/IRS frequency equality
+  function validateReligionPairing(): string | null {
+    const crs = subjectFrequencies.find(sf => sf.religion === 'CRS');
+    const irs = subjectFrequencies.find(sf => sf.religion === 'IRS');
+    
+    if (crs && irs && crs.frequency !== irs.frequency) {
+      return `CRS and IRS must have equal frequencies (CRS: ${crs.frequency}, IRS: ${irs.frequency})`;
+    }
+    return null;
+  }
+
   function getDefaultFrequency(subjectName?: string): number {
     if (!subjectName) return 2;
     const name = subjectName.toLowerCase();
@@ -137,13 +154,27 @@ export function AutoTimetableWizard({
   }
 
   function updateFrequency(subjectClassId: string, frequency: number) {
-    setSubjectFrequencies(prev =>
-      prev.map(sf =>
+    setSubjectFrequencies(prev => {
+      const normalizedFreq = Math.max(0, Math.min(10, frequency));
+      const updated = prev.map(sf =>
         sf.subjectClassId === subjectClassId
-          ? { ...sf, frequency: Math.max(0, Math.min(10, frequency)) }
+          ? { ...sf, frequency: normalizedFreq }
           : sf
-      )
-    );
+      );
+      
+      // Auto-sync CRS/IRS frequencies
+      const changedSubject = prev.find(sf => sf.subjectClassId === subjectClassId);
+      if (changedSubject?.religion === 'CRS' || changedSubject?.religion === 'IRS') {
+        const targetReligion = changedSubject.religion === 'CRS' ? 'IRS' : 'CRS';
+        return updated.map(sf =>
+          sf.religion === targetReligion
+            ? { ...sf, frequency: normalizedFreq }
+            : sf
+        );
+      }
+      
+      return updated;
+    });
   }
 
   function toggleDay(subjectClassId: string, day: string) {
@@ -236,11 +267,15 @@ export function AutoTimetableWizard({
       allowedDays: string[];
     }> = [];
 
+    // Identify CRS and IRS subjects for pairing
+    let crsSubject: typeof subjectPool[0] | null = null;
+    let irsSubject: typeof subjectPool[0] | null = null;
+
     for (const sf of subjectFrequencies) {
       if (sf.frequency === 0) continue;
       
       const subjectClass = classSubjects.find(sc => sc.id === sf.subjectClassId);
-      subjectPool.push({
+      const poolEntry = {
         subjectClassId: sf.subjectClassId,
         subjectName: sf.subjectName,
         teacherName: sf.teacherName,
@@ -250,7 +285,33 @@ export function AutoTimetableWizard({
         assignedCount: 0,
         targetCount: sf.frequency,
         allowedDays: sf.allowedDays || [...DAYS],
+      };
+      
+      if (sf.religion === 'CRS') {
+        crsSubject = poolEntry;
+      } else if (sf.religion === 'IRS') {
+        irsSubject = poolEntry;
+      } else {
+        subjectPool.push(poolEntry);
+      }
+    }
+    
+    // Validate CRS/IRS pairing
+    if ((crsSubject && !irsSubject) || (!crsSubject && irsSubject)) {
+      conflicts.push({
+        type: "unassigned",
+        severity: "error",
+        message: "Both CRS and IRS must be present for religion subject pairing",
       });
+    }
+    
+    if (crsSubject && irsSubject && crsSubject.targetCount !== irsSubject.targetCount) {
+      conflicts.push({
+        type: "unassigned",
+        severity: "error",
+        message: `CRS and IRS must have equal frequencies (CRS: ${crsSubject.targetCount}, IRS: ${irsSubject.targetCount})`,
+      });
+      return { entries, conflicts };
     }
 
     // Get non-break periods grouped by day (limit to first 8 non-break periods)
@@ -287,7 +348,113 @@ export function AutoTimetableWizard({
 
     // Distribute subjects across the shuffled week
     for (const { day, period, index } of allPeriodSlots) {
-      // Find available subjects (not yet fully assigned AND allowed on this day)
+      // Check if we should assign CRS/IRS pair
+      if (crsSubject && irsSubject && 
+          crsSubject.assignedCount < crsSubject.targetCount &&
+          crsSubject.allowedDays.includes(day) && 
+          irsSubject.allowedDays.includes(day)) {
+        
+        // Check teacher availability for both
+        const busyTeachers = teacherSlotMap.get(period.id);
+        const crsTeacherBusy = preventTeacherClash && crsSubject.teacherId && busyTeachers?.has(crsSubject.teacherId);
+        const irsTeacherBusy = preventTeacherClash && irsSubject.teacherId && busyTeachers?.has(irsSubject.teacherId);
+        
+        if (!crsTeacherBusy && !irsTeacherBusy) {
+          // Calculate score for religion pairing
+          let score = 100;
+          
+          // Check teacher daily loads
+          if (crsSubject.teacherId) {
+            const teacherLoad = teacherDailyLoad[crsSubject.teacherId]?.[day] || 0;
+            if (teacherLoad >= 6) score -= 80;
+            else if (teacherLoad >= 4) score -= 30;
+          }
+          if (irsSubject.teacherId) {
+            const teacherLoad = teacherDailyLoad[irsSubject.teacherId]?.[day] || 0;
+            if (teacherLoad >= 6) score -= 80;
+            else if (teacherLoad >= 4) score -= 30;
+          }
+          
+          // Distribute evenly across days
+          const crsDayCount = subjectDailyCount[crsSubject.subjectClassId]?.[day] || 0;
+          const avgPerDay = crsSubject.targetCount / DAYS.length;
+          if (crsDayCount >= Math.ceil(avgPerDay) + 1) {
+            score -= 40;
+          }
+          
+          // Prefer to assign religion subjects
+          score += 50;
+          
+          if (score >= 0) {
+            // Assign the paired period
+            entries.push({
+              periodSlotId: period.id,
+              subjectClassId: crsSubject.subjectClassId,
+              day: day,
+              periodNumber: period.period_number,
+              subjectName: crsSubject.subjectName,
+              teacherName: crsSubject.teacherName,
+              department: crsSubject.department,
+              religion: crsSubject.religion,
+              isPaired: true,
+              pairedSubjectClassId: irsSubject.subjectClassId,
+              pairedSubjectName: irsSubject.subjectName,
+              pairedTeacherName: irsSubject.teacherName,
+              pairedReligion: irsSubject.religion,
+            });
+            
+            // Update tracking for both subjects
+            crsSubject.assignedCount++;
+            irsSubject.assignedCount++;
+            lastSubjectPerDay[day] = crsSubject.subjectClassId;
+            
+            // Track CRS
+            if (!subjectDailyCount[crsSubject.subjectClassId]) {
+              subjectDailyCount[crsSubject.subjectClassId] = {};
+            }
+            subjectDailyCount[crsSubject.subjectClassId][day] = 
+              (subjectDailyCount[crsSubject.subjectClassId][day] || 0) + 1;
+            
+            // Track IRS
+            if (!subjectDailyCount[irsSubject.subjectClassId]) {
+              subjectDailyCount[irsSubject.subjectClassId] = {};
+            }
+            subjectDailyCount[irsSubject.subjectClassId][day] = 
+              (subjectDailyCount[irsSubject.subjectClassId][day] || 0) + 1;
+            
+            // Mark both teachers as busy
+            if (crsSubject.teacherId) {
+              if (!teacherDailyLoad[crsSubject.teacherId]) {
+                teacherDailyLoad[crsSubject.teacherId] = {};
+              }
+              teacherDailyLoad[crsSubject.teacherId][day] = 
+                (teacherDailyLoad[crsSubject.teacherId][day] || 0) + 1;
+              
+              if (!teacherSlotMap.has(period.id)) {
+                teacherSlotMap.set(period.id, new Set());
+              }
+              teacherSlotMap.get(period.id)!.add(crsSubject.teacherId);
+            }
+            
+            if (irsSubject.teacherId) {
+              if (!teacherDailyLoad[irsSubject.teacherId]) {
+                teacherDailyLoad[irsSubject.teacherId] = {};
+              }
+              teacherDailyLoad[irsSubject.teacherId][day] = 
+                (teacherDailyLoad[irsSubject.teacherId][day] || 0) + 1;
+              
+              if (!teacherSlotMap.has(period.id)) {
+                teacherSlotMap.set(period.id, new Set());
+              }
+              teacherSlotMap.get(period.id)!.add(irsSubject.teacherId);
+            }
+            
+            continue; // Move to next period
+          }
+        }
+      }
+      
+      // Find available non-religion subjects
       const available = subjectPool.filter(s => 
         s.assignedCount < s.targetCount && 
         s.allowedDays.includes(day)
@@ -323,14 +490,14 @@ export function AutoTimetableWizard({
           else if (teacherLoad >= 4) score -= 30;
         }
 
-        // Distribute subjects evenly across days - penalize if already assigned too many times today
+        // Distribute subjects evenly across days
         const subjectDayCount = subjectDailyCount[subject.subjectClassId]?.[day] || 0;
         const avgPerDay = subject.targetCount / DAYS.length;
         if (subjectDayCount >= Math.ceil(avgPerDay) + 1) {
-          score -= 40; // Encourage spreading across other days
+          score -= 40;
         }
 
-        // Add small random factor to break ties and create variety
+        // Add small random factor to break ties
         score += Math.random() * 5;
         
         return { subject, score };
@@ -430,14 +597,30 @@ export function AutoTimetableWizard({
         .delete()
         .eq("class_id", selectedClassId);
 
-      // Insert new entries
-      const inserts = generatedEntries.map(entry => ({
-        period_slot_id: entry.periodSlotId,
-        class_id: selectedClassId,
-        subject_class_id: entry.subjectClassId,
-        department: entry.department || null,
-        religion: entry.religion || null,
-      }));
+      // Insert new entries - create two entries for paired CRS/IRS periods
+      const inserts: any[] = [];
+      
+      generatedEntries.forEach(entry => {
+        // Add the main entry
+        inserts.push({
+          period_slot_id: entry.periodSlotId,
+          class_id: selectedClassId,
+          subject_class_id: entry.subjectClassId,
+          department: entry.department || null,
+          religion: entry.religion || null,
+        });
+        
+        // If paired (CRS/IRS), add the second entry for the same period
+        if (entry.isPaired && entry.pairedSubjectClassId) {
+          inserts.push({
+            period_slot_id: entry.periodSlotId,
+            class_id: selectedClassId,
+            subject_class_id: entry.pairedSubjectClassId,
+            department: entry.department || null,
+            religion: entry.pairedReligion || null,
+          });
+        }
+      });
 
       const { error } = await supabase
         .from("timetable_entries")
@@ -445,7 +628,9 @@ export function AutoTimetableWizard({
 
       if (error) throw error;
 
-      toast.success(`Generated timetable with ${generatedEntries.length} periods!`);
+      const totalPeriods = generatedEntries.length;
+      const pairedCount = generatedEntries.filter(e => e.isPaired).length;
+      toast.success(`Generated timetable with ${totalPeriods} periods (${pairedCount} CRS/IRS paired)!`);
       onGenerated();
       handleClose();
     } catch (error) {
@@ -812,9 +997,21 @@ export function AutoTimetableWizard({
               </p>
             </div>
 
+            {validateReligionPairing() && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-red-800">Frequency Mismatch:</p>
+                    <p className="text-red-700">{validateReligionPairing()}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(2)}>← Back</Button>
-              <Button onClick={handleGenerate} disabled={isGenerating}>
+              <Button onClick={handleGenerate} disabled={isGenerating || !!validateReligionPairing()}>
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -890,10 +1087,16 @@ export function AutoTimetableWizard({
                               {entry ? (
                                 <div className="text-center">
                                   <div className="font-semibold text-gray-800">
-                                    {entry.subjectName}
+                                    {entry.isPaired 
+                                      ? `${entry.subjectName} / ${entry.pairedSubjectName}`
+                                      : entry.subjectName
+                                    }
                                   </div>
                                   <div className="text-xs text-gray-500">
-                                    {entry.teacherName}
+                                    {entry.isPaired
+                                      ? `${entry.teacherName} / ${entry.pairedTeacherName}`
+                                      : entry.teacherName
+                                    }
                                   </div>
                                 </div>
                               ) : (

@@ -75,11 +75,12 @@ export default function TimetablePage() {
         .select(`
           *,
           classes(name, level),
+          religion,
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
           subject_classes (
             id,
             subject_code,
-            subjects ( name, department ),
+            subjects ( name, department, religion ),
             teachers ( first_name, last_name )
           )
         `)
@@ -87,7 +88,7 @@ export default function TimetablePage() {
       supabase.from("classes").select("*").order("name"),
       supabase.from("subject_classes").select(`
         *,
-        subjects ( name, department ),
+        subjects ( name, department, religion ),
         teachers ( first_name, last_name ),
         classes ( name, level )
       `).order("subject_code"),
@@ -820,7 +821,7 @@ export default function TimetablePage() {
       subject_classes (
         id,
         subject_code,
-        subjects ( name, department ),
+        subjects ( name, department, religion ),
         teachers ( first_name, last_name )
       )
     `)

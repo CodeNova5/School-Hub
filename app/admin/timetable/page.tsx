@@ -35,10 +35,13 @@ export default function TimetablePage() {
   const [formPeriodSlotId, setFormPeriodSlotId] = useState<string>("");
   const [formClassId, setFormClassId] = useState<string>("");
   const [departmentalMode, setDepartmentalMode] = useState(false);
+  const [religionMode, setReligionMode] = useState(false);
   const [formSubjectClassId, setFormSubjectClassId] = useState<string>("");
   const [formScienceSubjectClassId, setFormScienceSubjectClassId] = useState<string>("");
   const [formArtsSubjectClassId, setFormArtsSubjectClassId] = useState<string>("");
   const [formCommercialSubjectClassId, setFormCommercialSubjectClassId] = useState<string>("");
+  const [formChristianSubjectClassId, setFormChristianSubjectClassId] = useState<string>("");
+  const [formMuslimSubjectClassId, setFormMuslimSubjectClassId] = useState<string>("");
 
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [classTimetable, setClassTimetable] = useState<any>({});
@@ -146,10 +149,13 @@ export default function TimetablePage() {
     setFormPeriodSlotId("");
     setFormClassId("");
     setDepartmentalMode(false);
+    setReligionMode(false);
     setFormSubjectClassId("");
     setFormScienceSubjectClassId("");
     setFormArtsSubjectClassId("");
     setFormCommercialSubjectClassId("");
+    setFormChristianSubjectClassId("");
+    setFormMuslimSubjectClassId("");
     setIsDialogOpen(true);
   }
 
@@ -160,12 +166,15 @@ export default function TimetablePage() {
     setFormPeriodSlotId(entryRow.period_slot_id || "");
     setFormClassId(entryRow.class_id || "");
 
-    // Reset departmental mode and fields
+    // Reset departmental mode and religion mode and fields
     setDepartmentalMode(false);
+    setReligionMode(false);
     setFormSubjectClassId("");
     setFormScienceSubjectClassId("");
     setFormArtsSubjectClassId("");
     setFormCommercialSubjectClassId("");
+    setFormChristianSubjectClassId("");
+    setFormMuslimSubjectClassId("");
 
 
     // Check if the entry is departmental
@@ -179,6 +188,16 @@ export default function TimetablePage() {
         setFormArtsSubjectClassId(entryRow.subject_class_id || "");
       } else if (entryRow.department === "Commercial") {
         setFormCommercialSubjectClassId(entryRow.subject_class_id || "");
+      }
+    } else if (entryRow.religion) {
+      // Check if the entry is religious
+      setReligionMode(true);
+
+      // Append religious subjects accurately
+      if (entryRow.religion === "Christian") {
+        setFormChristianSubjectClassId(entryRow.subject_class_id || "");
+      } else if (entryRow.religion === "Muslim") {
+        setFormMuslimSubjectClassId(entryRow.subject_class_id || "");
       }
     } else {
       setFormSubjectClassId(entryRow.subject_class_id || "");
@@ -203,10 +222,13 @@ export default function TimetablePage() {
       setFormClassId("");
     }
     setDepartmentalMode(false);
+    setReligionMode(false);
     setFormSubjectClassId("");
     setFormScienceSubjectClassId("");
     setFormArtsSubjectClassId("");
     setFormCommercialSubjectClassId("");
+    setFormChristianSubjectClassId("");
+    setFormMuslimSubjectClassId("");
     setIsDialogOpen(true);
   }
 
@@ -214,8 +236,22 @@ export default function TimetablePage() {
     return subjectClasses
       .filter((sc) => {
         if (sc.class_id !== formClassId) return false;
-        if (!dept) return !sc.subjects?.department;
+        if (!dept) return !sc.subjects?.department && !sc.subjects?.religion;
         return sc.subjects?.department === dept;
+      })
+      .sort((a, b) => {
+        const nameA = a.subjects?.name?.toLowerCase() || "";
+        const nameB = b.subjects?.name?.toLowerCase() || "";
+        return nameA.localeCompare(nameB);
+      });
+  }
+
+  function subjectClassesByReligion(religion?: string) {
+    return subjectClasses
+      .filter((sc) => {
+        if (sc.class_id !== formClassId) return false;
+        if (!religion) return !sc.subjects?.religion && !sc.subjects?.department;
+        return sc.subjects?.religion === religion;
       })
       .sort((a, b) => {
         const nameA = a.subjects?.name?.toLowerCase() || "";
@@ -371,6 +407,78 @@ export default function TimetablePage() {
         return;
       }
 
+      if (religionMode) {
+        const teacherIds: string[] = [];
+
+        if (formChristianSubjectClassId) {
+          const sc = subjectClasses.find((x) => x.id === formChristianSubjectClassId);
+          if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+        }
+        if (formMuslimSubjectClassId) {
+          const sc = subjectClasses.find((x) => x.id === formMuslimSubjectClassId);
+          if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+        }
+
+        if (teacherIds.length > 0) {
+          const clash = await teacherHasClashDetailed(
+            teacherIds,
+            formPeriodSlotId,
+            formClassId,
+            editingEntry.id
+          );
+
+          if (clash) {
+            toast.error(
+              `Clash detected!\n\n` +
+              `${clash.teacherName} is already teaching:\n` +
+              `• Subject: ${clash.subjectName}\n` +
+              `• Class: ${clash.className}\n` +
+              `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+            );
+            return;
+          }
+        }
+
+        await supabase
+          .from("timetable_entries")
+          .delete()
+          .eq("period_slot_id", editingEntry.period_slot_id)
+          .eq("class_id", editingEntry.class_id)
+          .not("religion", "is", null);
+
+        const inserts: any[] = [];
+        if (formChristianSubjectClassId)
+          inserts.push({
+            period_slot_id: formPeriodSlotId,
+            class_id: formClassId,
+            subject_class_id: formChristianSubjectClassId,
+            religion: "Christian",
+          });
+        if (formMuslimSubjectClassId)
+          inserts.push({
+            period_slot_id: formPeriodSlotId,
+            class_id: formClassId,
+            subject_class_id: formMuslimSubjectClassId,
+            religion: "Muslim",
+          });
+
+        if (inserts.length === 0) {
+          toast.error("Choose at least one religious subject to update");
+          return;
+        }
+
+        const { error } = await supabase.from("timetable_entries").insert(inserts);
+        if (error) toast.error(error.message || "Failed to update religious entries");
+        else {
+          toast.success("Religious entries updated");
+          closeDialog();
+          await fetchAll();
+          if (formClassId) await showTimetable(formClassId);
+        }
+
+        return;
+      }
+
       const selectedSubjectClass = subjectClasses.find((sc) => sc.id === formSubjectClassId);
       const teacherId = selectedSubjectClass?.teacher_id || null;
 
@@ -399,6 +507,7 @@ export default function TimetablePage() {
         class_id: formClassId,
         subject_class_id: formSubjectClassId || null,
         department: null,
+        religion: null,
       };
 
       const { error } = await supabase
@@ -417,12 +526,13 @@ export default function TimetablePage() {
       return;
     }
 
-    if (!departmentalMode) {
+    if (!departmentalMode && !religionMode) {
       const payload: any = {
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formSubjectClassId || null,
         department: null,
+        religion: null,
       };
 
       const selectedSubjectClass = subjectClasses.find((sc) => sc.id === formSubjectClassId);
@@ -449,6 +559,71 @@ export default function TimetablePage() {
       if (error) toast.error(error.message || "Failed to create entry");
       else {
         toast.success("Entry added");
+        closeDialog();
+        await fetchAll();
+        if (formClassId) await showTimetable(formClassId);
+      }
+
+      return;
+    }
+
+    if (religionMode) {
+      const teacherIds: string[] = [];
+
+      if (formChristianSubjectClassId) {
+        const sc = subjectClasses.find((x) => x.id === formChristianSubjectClassId);
+        if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+      }
+      if (formMuslimSubjectClassId) {
+        const sc = subjectClasses.find((x) => x.id === formMuslimSubjectClassId);
+        if (sc?.teacher_id) teacherIds.push(sc.teacher_id);
+      }
+
+      if (teacherIds.length > 0) {
+        const clash = await teacherHasClashDetailed(
+          teacherIds,
+          formPeriodSlotId,
+          formClassId,
+          editingEntry?.id || undefined
+        );
+
+        if (clash) {
+          toast.error(
+            `Clash detected!\n\n` +
+            `${clash.teacherName} is already teaching:\n` +
+            `• Subject: ${clash.subjectName}\n` +
+            `• Class: ${clash.className}\n` +
+            `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+          );
+          return;
+        }
+      }
+
+      const inserts: any[] = [];
+      if (formChristianSubjectClassId)
+        inserts.push({
+          period_slot_id: formPeriodSlotId,
+          class_id: formClassId,
+          subject_class_id: formChristianSubjectClassId,
+          religion: "Christian",
+        });
+      if (formMuslimSubjectClassId)
+        inserts.push({
+          period_slot_id: formPeriodSlotId,
+          class_id: formClassId,
+          subject_class_id: formMuslimSubjectClassId,
+          religion: "Muslim",
+        });
+
+      if (inserts.length === 0) {
+        toast.error("Choose at least one religious subject to add");
+        return;
+      }
+
+      const { error } = await supabase.from("timetable_entries").insert(inserts);
+      if (error) toast.error(error.message || "Failed to create religious entries");
+      else {
+        toast.success("Religious entries added");
         closeDialog();
         await fetchAll();
         if (formClassId) await showTimetable(formClassId);
@@ -1052,13 +1227,28 @@ export default function TimetablePage() {
                   <input
                     type="checkbox"
                     checked={departmentalMode}
-                    onChange={(e) => setDepartmentalMode(e.target.checked)}
+                    onChange={(e) => {
+                      setDepartmentalMode(e.target.checked);
+                      if (e.target.checked) setReligionMode(false);
+                    }}
                   />
                   <Label>Departmental Mode (SSS)</Label>
                 </div>
               )}
 
-              {!departmentalMode && (
+              <div className="col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={religionMode}
+                  onChange={(e) => {
+                    setReligionMode(e.target.checked);
+                    if (e.target.checked) setDepartmentalMode(false);
+                  }}
+                />
+                <Label>Religion Mode (CRS/IRS)</Label>
+              </div>
+
+              {!departmentalMode && !religionMode && (
                 <div className="col-span-2">
                   <Label>Subject</Label>
                   <select
@@ -1126,6 +1316,42 @@ export default function TimetablePage() {
                     >
                       <option value="">None</option>
                       {subjectClassesByDepartment("Commercial").map((sc) => (
+                        <option key={sc.id} value={sc.id}>
+                          {formatSubjectClassDisplay(sc)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {religionMode && (
+                <>
+                  <div className="col-span-2">
+                    <Label>Christian Religious Studies (CRS)</Label>
+                    <select
+                      className="w-full border rounded p-2"
+                      value={formChristianSubjectClassId}
+                      onChange={(e) => setFormChristianSubjectClassId(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      {subjectClassesByReligion("Christian").map((sc) => (
+                        <option key={sc.id} value={sc.id}>
+                          {formatSubjectClassDisplay(sc)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="col-span-2">
+                    <Label>Islamic Religious Studies (IRS)</Label>
+                    <select
+                      className="w-full border rounded p-2"
+                      value={formMuslimSubjectClassId}
+                      onChange={(e) => setFormMuslimSubjectClassId(e.target.value)}
+                    >
+                      <option value="">None</option>
+                      {subjectClassesByReligion("Muslim").map((sc) => (
                         <option key={sc.id} value={sc.id}>
                           {formatSubjectClassDisplay(sc)}
                         </option>

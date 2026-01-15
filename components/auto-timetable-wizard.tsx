@@ -24,6 +24,7 @@ interface SubjectFrequency {
   teacherName: string;
   frequency: number;
   department?: string;
+  religion?: string;
   allowedDays?: string[]; // Days this subject can be taught on
 }
 
@@ -42,6 +43,7 @@ interface GeneratedEntry {
   subjectName: string;
   teacherName: string;
   department?: string;
+  religion?: string;
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -114,6 +116,7 @@ export function AutoTimetableWizard({
           : "No teacher",
         frequency: getDefaultFrequency(sc.subjects?.name),
         department: sc.subjects?.department,
+        religion: sc.subjects?.religion,
         allowedDays: [...DAYS], // By default, all days allowed
       }));
       setSubjectFrequencies(subjects);
@@ -227,6 +230,7 @@ export function AutoTimetableWizard({
       teacherName: string;
       teacherId?: string;
       department?: string;
+      religion?: string;
       assignedCount: number;
       targetCount: number;
       allowedDays: string[];
@@ -242,6 +246,7 @@ export function AutoTimetableWizard({
         teacherName: sf.teacherName,
         teacherId: subjectClass?.teacher_id,
         department: sf.department,
+        religion: sf.religion,
         assignedCount: 0,
         targetCount: sf.frequency,
         allowedDays: sf.allowedDays || [...DAYS],

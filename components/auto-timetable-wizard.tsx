@@ -178,38 +178,59 @@ export function AutoTimetableWizard({
   }
 
   function toggleDay(subjectClassId: string, day: string) {
-    setSubjectFrequencies(prev =>
-      prev.map(sf => {
-        if (sf.subjectClassId !== subjectClassId) return sf;
-        
-        const allowedDays = sf.allowedDays || [...DAYS];
-        const newAllowedDays = allowedDays.includes(day)
-          ? allowedDays.filter(d => d !== day)
-          : [...allowedDays, day];
-        
-        // Ensure at least one day is selected
-        if (newAllowedDays.length === 0) {
-          toast.error("Subject must be available on at least one day");
-          return sf;
+    setSubjectFrequencies(prev => {
+      const changedSubject = prev.find(sf => sf.subjectClassId === subjectClassId);
+      const allowedDays = changedSubject?.allowedDays || [...DAYS];
+      const newAllowedDays = allowedDays.includes(day)
+        ? allowedDays.filter(d => d !== day)
+        : [...allowedDays, day];
+      
+      // Ensure at least one day is selected
+      if (newAllowedDays.length === 0) {
+        toast.error("Subject must be available on at least one day");
+        return prev;
+      }
+      
+      return prev.map(sf => {
+        // Update the target subject
+        if (sf.subjectClassId === subjectClassId) {
+          return { ...sf, allowedDays: newAllowedDays };
         }
         
-        return { ...sf, allowedDays: newAllowedDays };
-      })
-    );
+        // If this is CRS/IRS, sync the paired subject
+        if (changedSubject?.religion === 'CRS' && sf.religion === 'IRS') {
+          return { ...sf, allowedDays: newAllowedDays };
+        }
+        if (changedSubject?.religion === 'IRS' && sf.religion === 'CRS') {
+          return { ...sf, allowedDays: newAllowedDays };
+        }
+        
+        return sf;
+      });
+    });
   }
 
   function toggleAllDays(subjectClassId: string) {
-    setSubjectFrequencies(prev =>
-      prev.map(sf => {
-        if (sf.subjectClassId !== subjectClassId) return sf;
+    setSubjectFrequencies(prev => {
+      const changedSubject = prev.find(sf => sf.subjectClassId === subjectClassId);
+      
+      return prev.map(sf => {
+        // Update the target subject
+        if (sf.subjectClassId === subjectClassId) {
+          return { ...sf, allowedDays: [...DAYS] };
+        }
         
-        const allowedDays = sf.allowedDays || [...DAYS];
-        // If all days selected, keep all (do nothing). If partial, select all
-        const allSelected = allowedDays.length === DAYS.length;
+        // If this is CRS/IRS, sync the paired subject
+        if (changedSubject?.religion === 'CRS' && sf.religion === 'IRS') {
+          return { ...sf, allowedDays: [...DAYS] };
+        }
+        if (changedSubject?.religion === 'IRS' && sf.religion === 'CRS') {
+          return { ...sf, allowedDays: [...DAYS] };
+        }
         
-        return { ...sf, allowedDays: allSelected ? [...DAYS] : [...DAYS] };
-      })
-    );
+        return sf;
+      });
+    });
   }
 
   async function handleGenerate() {
@@ -800,9 +821,20 @@ export function AutoTimetableWizard({
                 </thead>
                 <tbody>
                   {filteredSubjects.map(sf => {
+                    // Skip IRS if we're showing CRS (they'll be paired)
+                    if (sf.religion === 'IRS') {
+                      const hasCRS = filteredSubjects.some(s => s.religion === 'CRS');
+                      if (hasCRS) return null;
+                    }
+                    
                     const allowedDays = sf.allowedDays || [...DAYS];
                     const isExpanded = expandedSubject === sf.subjectClassId;
                     const hasRestrictions = allowedDays.length < DAYS.length;
+                    
+                    // Find paired subject if this is CRS
+                    const pairedSubject = sf.religion === 'CRS' 
+                      ? subjectFrequencies.find(s => s.religion === 'IRS')
+                      : null;
                     
                     return (
                       <React.Fragment key={sf.subjectClassId}>
@@ -819,9 +851,17 @@ export function AutoTimetableWizard({
                           <td className="p-3">
                             <div className="flex items-center gap-2">
                               <div>
-                                <div className="font-medium">{sf.subjectName}</div>
+                                <div className="font-medium">
+                                  {pairedSubject 
+                                    ? `${sf.subjectName} / ${pairedSubject.subjectName}`
+                                    : sf.subjectName
+                                  }
+                                </div>
                                 {sf.department && (
                                   <div className="text-xs text-gray-500">{sf.department}</div>
+                                )}
+                                {pairedSubject && (
+                                  <div className="text-xs text-blue-600 font-medium">📚 Paired Religious Subjects</div>
                                 )}
                               </div>
                               {hasRestrictions && (
@@ -831,7 +871,12 @@ export function AutoTimetableWizard({
                               )}
                             </div>
                           </td>
-                          <td className="p-3 text-sm text-gray-600">{sf.teacherName}</td>
+                          <td className="p-3 text-sm text-gray-600">
+                            {pairedSubject
+                              ? `${sf.teacherName} / ${pairedSubject.teacherName}`
+                              : sf.teacherName
+                            }
+                          </td>
                           <td className="p-3">
                             <div className="flex items-center justify-center gap-2">
                               <Button
@@ -842,14 +887,21 @@ export function AutoTimetableWizard({
                               >
                                 −
                               </Button>
-                              <Input
-                                type="number"
-                                value={sf.frequency}
-                                onChange={(e) => updateFrequency(sf.subjectClassId, parseInt(e.target.value) || 0)}
-                                className="w-16 text-center"
-                                min="0"
-                                max="10"
-                              />
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  value={sf.frequency}
+                                  onChange={(e) => updateFrequency(sf.subjectClassId, parseInt(e.target.value) || 0)}
+                                  className={`w-16 text-center ${pairedSubject ? 'border-blue-400' : ''}`}
+                                  min="0"
+                                  max="10"
+                                />
+                                {pairedSubject && (
+                                  <span className="absolute -top-1 -right-1 text-xs bg-blue-600 text-white rounded-full w-4 h-4 flex items-center justify-center" title="Synced with paired subject">
+                                    🔗
+                                  </span>
+                                )}
+                              </div>
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -866,7 +918,12 @@ export function AutoTimetableWizard({
                             <td colSpan={4} className="p-4">
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                  <Label className="font-semibold text-sm">Available Days:</Label>
+                                  <Label className="font-semibold text-sm">
+                                    Available Days:
+                                    {pairedSubject && (
+                                      <span className="text-xs text-blue-600 ml-2">(applies to both CRS and IRS)</span>
+                                    )}
+                                  </Label>
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -896,8 +953,12 @@ export function AutoTimetableWizard({
                                 </div>
                                 <p className="text-xs text-gray-600 mt-2">
                                   {allowedDays.length === DAYS.length
-                                    ? "Subject can be scheduled on any day"
-                                    : `Subject can only be scheduled on: ${allowedDays.join(", ")}`
+                                    ? pairedSubject 
+                                      ? "Both CRS and IRS can be scheduled on any day"
+                                      : "Subject can be scheduled on any day"
+                                    : pairedSubject
+                                      ? `Both CRS and IRS can only be scheduled on: ${allowedDays.join(", ")}`
+                                      : `Subject can only be scheduled on: ${allowedDays.join(", ")}`
                                   }
                                 </p>
                               </div>

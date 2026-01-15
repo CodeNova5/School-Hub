@@ -75,12 +75,11 @@ export default function TimetablePage() {
         .select(`
           *,
           classes(name, level),
-          religion,
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
           subject_classes (
             id,
             subject_code,
-            subjects ( name, department, religion ),
+            subjects ( name, department ),
             teachers ( first_name, last_name )
           )
         `)
@@ -88,7 +87,7 @@ export default function TimetablePage() {
       supabase.from("classes").select("*").order("name"),
       supabase.from("subject_classes").select(`
         *,
-        subjects ( name, department, religion ),
+        subjects ( name, department ),
         teachers ( first_name, last_name ),
         classes ( name, level )
       `).order("subject_code"),
@@ -440,15 +439,12 @@ export default function TimetablePage() {
           }
         }
 
-        let del = supabase
+        await supabase
           .from("timetable_entries")
           .delete()
           .eq("period_slot_id", editingEntry.period_slot_id)
           .eq("class_id", editingEntry.class_id)
           .not("religion", "is", null);
-
-        await del;
-
 
         const inserts: any[] = [];
         if (formChristianSubjectClassId)
@@ -809,50 +805,31 @@ export default function TimetablePage() {
   async function showTimetable(classId: string) {
     setSelectedClass(classId);
 
-    let query = supabase
+    const { data } = await supabase
       .from("timetable_entries")
       .select(`
-      id,
-      period_slot_id,
-      class_id,
-      subject_class_id,
-      religion,
-      period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
-      subject_classes (
-        id,
-        subject_code,
-        subjects ( name, department, religion ),
-        teachers ( first_name, last_name )
-      )
-    `)
+        *,
+        period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
+        subject_classes (
+          id,
+          subject_code,
+          subjects ( name, department ),
+          teachers ( first_name, last_name )
+        )
+      `)
       .eq("class_id", classId);
-
-    // ✅ Filter by mode at DB level
-    if (religionMode) {
-      query = query.not("religion", "is", null);
-    } else {
-      query = query.is("religion", null);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error(error);
-      return;
-    }
 
     if (!data) return;
 
     // Build timetable structure: timetable[day][periodSlotId] = { subject, teacher, rows }
     const timetable: any = {};
 
-    DAYS.forEach((day) => {
+    DAYS.forEach(day => {
       timetable[day] = {};
     });
 
     const tempGroup: Record<string, any[]> = {};
-
-    data.forEach((entry: any) => {
+    data.forEach((entry) => {
       const periodSlot = Array.isArray(entry.period_slots)
         ? entry.period_slots[0]
         : entry.period_slots;
@@ -866,22 +843,19 @@ export default function TimetablePage() {
 
     Object.entries(tempGroup).forEach(([k, rows]) => {
       const [day, periodSlotId] = k.split("||");
-
       const order = ["Science", "Arts", "Commercial"];
       const deptMap: Record<string, string> = {};
       const teacherMap: Record<string, string> = {};
 
       rows.forEach((r: any) => {
         const sname = r.subject_classes?.subjects?.name || "";
-        const sdept = r.subject_classes?.subjects?.department || "";
+        const sdept = r.subject_classes?.subjects?.department || r.department || "";
         const code = shortCode(sname);
-
         if (sdept) {
           deptMap[sdept] = code;
           teacherMap[sdept] = teacherForSubjectClass(r.subject_classes);
         } else {
-          // For subjects without department (e.g. religion)
-          deptMap["_single"] = code || sname;
+          deptMap["_single"] = sname;
           teacherMap["_single"] = teacherForSubjectClass(r.subject_classes);
         }
       });
@@ -1052,7 +1026,7 @@ export default function TimetablePage() {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Timetable Management</h1>
           <div className="flex gap-2">
-            <Button
+            <Button 
               onClick={() => setIsAutoGenerateOpen(true)}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >

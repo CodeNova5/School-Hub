@@ -774,34 +774,58 @@ export default function TimetablePage() {
     });
 
     const order = ["Science", "Arts", "Commercial"];
+    const religionOrder = ["Christian", "Muslim"];
 
     const results = Object.values(map).map((g) => {
       const deptMap: Record<string, string> = {};
       const teacherMap: Record<string, string> = {};
+      const religionMap: Record<string, string> = {};
+      const religionTeacherMap: Record<string, string> = {};
 
       g.raw.forEach((r: any) => {
         const subjName = r.subject_classes?.subjects?.name || "";
         const subjDept = r.subject_classes?.subjects?.department || r.department || "";
-        const code = shortCode(subjName);
+        const subjReligion = r.subject_classes?.subjects?.religion || r.religion || "";
+        const code = r.subject_classes?.subject_code || shortCode(subjName);
+        const subjTeacherName = teacherForSubjectClass(r.subject_classes);
+
+        if (subjReligion) {
+          religionMap[subjReligion] = code || subjName;
+          if (subjTeacherName) religionTeacherMap[subjReligion] = subjTeacherName;
+          return;
+        }
 
         if (subjDept) {
           deptMap[subjDept] = code;
-          const subjTeacherName = teacherForSubjectClass(r.subject_classes);
           if (subjTeacherName) teacherMap[subjDept] = subjTeacherName;
         } else {
           deptMap["_single"] = subjName;
-          const subjTeacherName = teacherForSubjectClass(r.subject_classes);
           if (subjTeacherName) teacherMap["_single"] = subjTeacherName;
         }
       });
 
       let combined = "";
-      if (deptMap["_single"]) combined = deptMap["_single"];
-      else combined = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
+      if (Object.keys(religionMap).length > 0) {
+        combined = religionOrder.map((rel) => religionMap[rel]).filter(Boolean).join(" / ");
+      }
+
+      if (!combined) {
+        if (deptMap["_single"]) combined = deptMap["_single"];
+        else combined = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
+      }
 
       let teachersCombined = "";
-      if (teacherMap["_single"]) teachersCombined = teacherMap["_single"];
-      else teachersCombined = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
+      if (Object.keys(religionTeacherMap).length > 0) {
+        teachersCombined = religionOrder
+          .map((rel) => religionTeacherMap[rel])
+          .filter(Boolean)
+          .join(" / ");
+      }
+
+      if (!teachersCombined) {
+        if (teacherMap["_single"]) teachersCombined = teacherMap["_single"];
+        else teachersCombined = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
+      }
 
       return {
         ...g,
@@ -862,29 +886,54 @@ export default function TimetablePage() {
     Object.entries(tempGroup).forEach(([k, rows]) => {
       const [day, periodSlotId] = k.split("||");
       const order = ["Science", "Arts", "Commercial"];
+      const religionOrder = ["Christian", "Muslim"];
       const deptMap: Record<string, string> = {};
       const teacherMap: Record<string, string> = {};
+      const religionMap: Record<string, string> = {};
+      const religionTeacherMap: Record<string, string> = {};
 
       rows.forEach((r: any) => {
         const sname = r.subject_classes?.subjects?.name || "";
         const sdept = r.subject_classes?.subjects?.department || r.department || "";
-        const code = shortCode(sname);
+        const sreligion = r.subject_classes?.subjects?.religion || r.religion || "";
+        const code = r.subject_classes?.subject_code || shortCode(sname);
+        const teacherName = teacherForSubjectClass(r.subject_classes);
+        if (sreligion) {
+          religionMap[sreligion] = code || sname;
+          if (teacherName) religionTeacherMap[sreligion] = teacherName;
+          return;
+        }
         if (sdept) {
           deptMap[sdept] = code;
-          teacherMap[sdept] = teacherForSubjectClass(r.subject_classes);
+          if (teacherName) teacherMap[sdept] = teacherName;
         } else {
           deptMap["_single"] = sname;
-          teacherMap["_single"] = teacherForSubjectClass(r.subject_classes);
+          if (teacherName) teacherMap["_single"] = teacherName;
         }
       });
 
       let display = "";
-      if (deptMap["_single"]) display = deptMap["_single"];
-      else display = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
+      if (Object.keys(religionMap).length > 0) {
+        display = religionOrder.map((rel) => religionMap[rel]).filter(Boolean).join(" / ");
+      }
+
+      if (!display) {
+        if (deptMap["_single"]) display = deptMap["_single"];
+        else display = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
+      }
 
       let teacherDisplay = "";
-      if (teacherMap["_single"]) teacherDisplay = teacherMap["_single"];
-      else teacherDisplay = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
+      if (Object.keys(religionTeacherMap).length > 0) {
+        teacherDisplay = religionOrder
+          .map((rel) => religionTeacherMap[rel])
+          .filter(Boolean)
+          .join(" / ");
+      }
+
+      if (!teacherDisplay) {
+        if (teacherMap["_single"]) teacherDisplay = teacherMap["_single"];
+        else teacherDisplay = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
+      }
 
       if (!timetable[day]) timetable[day] = {};
       timetable[day][periodSlotId] = { subject: display, teacher: teacherDisplay, rows };

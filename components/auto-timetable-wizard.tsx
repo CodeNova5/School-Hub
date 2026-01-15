@@ -131,11 +131,11 @@ export function AutoTimetableWizard({
 
   // Validate CRS/IRS frequency equality
   function validateReligionPairing(): string | null {
-    const crs = subjectFrequencies.find(sf => sf.religion === 'CRS');
-    const irs = subjectFrequencies.find(sf => sf.religion === 'IRS');
+    const crs = subjectFrequencies.find(sf => sf.religion === 'Christian');
+    const irs = subjectFrequencies.find(sf => sf.religion === 'Muslim');
     
     if (crs && irs && crs.frequency !== irs.frequency) {
-      return `CRS and IRS must have equal frequencies (CRS: ${crs.frequency}, IRS: ${irs.frequency})`;
+      return `Christian and Muslim must have equal frequencies (Christian: ${crs.frequency}, Muslim: ${irs.frequency})`;
     }
     return null;
   }
@@ -164,8 +164,8 @@ export function AutoTimetableWizard({
       
       // Auto-sync CRS/IRS frequencies
       const changedSubject = prev.find(sf => sf.subjectClassId === subjectClassId);
-      if (changedSubject?.religion === 'CRS' || changedSubject?.religion === 'IRS') {
-        const targetReligion = changedSubject.religion === 'CRS' ? 'IRS' : 'CRS';
+      if (changedSubject?.religion === 'Christian' || changedSubject?.religion === 'Muslim') {
+        const targetReligion = changedSubject.religion === 'Christian' ? 'Muslim' : 'Christian';
         return updated.map(sf =>
           sf.religion === targetReligion
             ? { ...sf, frequency: normalizedFreq }
@@ -197,11 +197,11 @@ export function AutoTimetableWizard({
           return { ...sf, allowedDays: newAllowedDays };
         }
         
-        // If this is CRS/IRS, sync the paired subject
-        if (changedSubject?.religion === 'CRS' && sf.religion === 'IRS') {
+        // If this is Christian/Muslim, sync the paired subject
+        if (changedSubject?.religion === 'Christian' && sf.religion === 'Muslim') {
           return { ...sf, allowedDays: newAllowedDays };
         }
-        if (changedSubject?.religion === 'IRS' && sf.religion === 'CRS') {
+        if (changedSubject?.religion === 'Muslim' && sf.religion === 'Christian') {
           return { ...sf, allowedDays: newAllowedDays };
         }
         
@@ -220,11 +220,11 @@ export function AutoTimetableWizard({
           return { ...sf, allowedDays: [...DAYS] };
         }
         
-        // If this is CRS/IRS, sync the paired subject
-        if (changedSubject?.religion === 'CRS' && sf.religion === 'IRS') {
+        // If this is Christian/Muslim, sync the paired subject
+        if (changedSubject?.religion === 'Christian' && sf.religion === 'Muslim') {
           return { ...sf, allowedDays: [...DAYS] };
         }
-        if (changedSubject?.religion === 'IRS' && sf.religion === 'CRS') {
+        if (changedSubject?.religion === 'Muslim' && sf.religion === 'Christian') {
           return { ...sf, allowedDays: [...DAYS] };
         }
         
@@ -310,9 +310,9 @@ export function AutoTimetableWizard({
         allowedDays: sf.allowedDays || [...DAYS],
       };
       
-      if (sf.religion === 'CRS') {
+      if (sf.religion === 'Christian') {
         crsSubject = poolEntry;
-      } else if (sf.religion === 'IRS') {
+      } else if (sf.religion === 'Muslim') {
         irsSubject = poolEntry;
       } else {
         subjectPool.push(poolEntry);
@@ -822,8 +822,8 @@ export function AutoTimetableWizard({
                 <tbody>
                   {filteredSubjects.map(sf => {
                     // Skip IRS if we're showing CRS (they'll be paired)
-                    if (sf.religion === 'IRS') {
-                      const hasCRS = filteredSubjects.some(s => s.religion === 'CRS');
+                    if (sf.religion === 'Muslim') {
+                      const hasCRS = filteredSubjects.some(s => s.religion === 'Christian');
                       if (hasCRS) return null;
                     }
                     
@@ -832,8 +832,8 @@ export function AutoTimetableWizard({
                     const hasRestrictions = allowedDays.length < DAYS.length;
                     
                     // Find paired subject if this is CRS
-                    const pairedSubject = sf.religion === 'CRS' 
-                      ? subjectFrequencies.find(s => s.religion === 'IRS')
+                    const pairedSubject = sf.religion === 'Christian' 
+                      ? subjectFrequencies.find(s => s.religion === 'Muslim')
                       : null;
                     
                     return (

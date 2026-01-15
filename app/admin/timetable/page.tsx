@@ -76,10 +76,11 @@ export default function TimetablePage() {
           *,
           classes(name, level),
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
+          religion,
           subject_classes (
             id,
             subject_code,
-            subjects ( name, department ),
+            subjects ( name, department, religion ),
             teachers ( first_name, last_name )
           )
         `)
@@ -87,7 +88,7 @@ export default function TimetablePage() {
       supabase.from("classes").select("*").order("name"),
       supabase.from("subject_classes").select(`
         *,
-        subjects ( name, department ),
+        subjects ( name, department, religion ),
         teachers ( first_name, last_name ),
         classes ( name, level )
       `).order("subject_code"),
@@ -298,6 +299,7 @@ export default function TimetablePage() {
         id,
         class_id,
         period_slot_id,
+        religion,
         period_slots (
           day_of_week,
           period_number,
@@ -308,7 +310,7 @@ export default function TimetablePage() {
         subject_classes (
           id,
           teacher_id,
-          subjects ( name ),
+          subjects ( name, department, religion ),
           teachers ( first_name, last_name )
         )
       `)
@@ -439,12 +441,15 @@ export default function TimetablePage() {
           }
         }
 
-        await supabase
+        let del = supabase
           .from("timetable_entries")
           .delete()
           .eq("period_slot_id", editingEntry.period_slot_id)
           .eq("class_id", editingEntry.class_id)
           .not("religion", "is", null);
+
+        await del;
+
 
         const inserts: any[] = [];
         if (formChristianSubjectClassId)
@@ -810,10 +815,11 @@ export default function TimetablePage() {
       .select(`
         *,
         period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
+        religion,
         subject_classes (
           id,
           subject_code,
-          subjects ( name, department ),
+          subjects ( name, department, religion ),
           teachers ( first_name, last_name )
         )
       `)
@@ -1026,7 +1032,7 @@ export default function TimetablePage() {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Timetable Management</h1>
           <div className="flex gap-2">
-            <Button 
+            <Button
               onClick={() => setIsAutoGenerateOpen(true)}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >

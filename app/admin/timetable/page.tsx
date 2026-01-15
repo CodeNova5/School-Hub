@@ -808,31 +808,50 @@ export default function TimetablePage() {
   async function showTimetable(classId: string) {
     setSelectedClass(classId);
 
-    const { data } = await supabase
+    let query = supabase
       .from("timetable_entries")
       .select(`
-        *,
-        period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
-        subject_classes (
-          id,
-          subject_code,
-          subjects ( name, department ),
-          teachers ( first_name, last_name )
-        )
-      `)
+      id,
+      period_slot_id,
+      class_id,
+      subject_class_id,
+      religion,
+      period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
+      subject_classes (
+        id,
+        subject_code,
+        subjects ( name, department ),
+        teachers ( first_name, last_name )
+      )
+    `)
       .eq("class_id", classId);
+
+    // ✅ Filter by mode at DB level
+    if (religionMode) {
+      query = query.not("religion", "is", null);
+    } else {
+      query = query.is("religion", null);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error(error);
+      return;
+    }
 
     if (!data) return;
 
     // Build timetable structure: timetable[day][periodSlotId] = { subject, teacher, rows }
     const timetable: any = {};
 
-    DAYS.forEach(day => {
+    DAYS.forEach((day) => {
       timetable[day] = {};
     });
 
     const tempGroup: Record<string, any[]> = {};
-    data.forEach((entry) => {
+
+    data.forEach((entry: any) => {
       const periodSlot = Array.isArray(entry.period_slots)
         ? entry.period_slots[0]
         : entry.period_slots;
@@ -846,19 +865,22 @@ export default function TimetablePage() {
 
     Object.entries(tempGroup).forEach(([k, rows]) => {
       const [day, periodSlotId] = k.split("||");
+
       const order = ["Science", "Arts", "Commercial"];
       const deptMap: Record<string, string> = {};
       const teacherMap: Record<string, string> = {};
 
       rows.forEach((r: any) => {
         const sname = r.subject_classes?.subjects?.name || "";
-        const sdept = r.subject_classes?.subjects?.department || r.department || "";
+        const sdept = r.subject_classes?.subjects?.department || "";
         const code = shortCode(sname);
+
         if (sdept) {
           deptMap[sdept] = code;
           teacherMap[sdept] = teacherForSubjectClass(r.subject_classes);
         } else {
-          deptMap["_single"] = sname;
+          // For subjects without department (e.g. religion)
+          deptMap["_single"] = code || sname;
           teacherMap["_single"] = teacherForSubjectClass(r.subject_classes);
         }
       });

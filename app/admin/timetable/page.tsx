@@ -49,6 +49,10 @@ export default function TimetablePage() {
   const [editingPeriodSlot, setEditingPeriodSlot] = useState<any | null>(null);
   const [periodStartTime, setPeriodStartTime] = useState("");
   const [periodEndTime, setPeriodEndTime] = useState("");
+  const [selectedTeacher, setSelectedTeacher] = useState<string | null>(null);
+  const [teacherTimetable, setTeacherTimetable] = useState<any>({});
+  const [isTeacherTableModalOpen, setIsTeacherTableModalOpen] = useState(false);
+  const [teachers, setTeachers] = useState<any[]>([]);
 
   useEffect(() => {
     fetchAll();
@@ -69,7 +73,7 @@ export default function TimetablePage() {
   }
 
   async function fetchAll() {
-    const [timetableRes, classRes, subjectClassRes] = await Promise.all([
+    const [timetableRes, classRes, subjectClassRes, teacherRes] = await Promise.all([
       supabase
         .from("timetable_entries")
         .select(`
@@ -92,6 +96,7 @@ export default function TimetablePage() {
         teachers ( first_name, last_name ),
         classes ( name, level )
       `).order("subject_code"),
+      supabase.from("teachers").select("*").order("first_name, last_name"),
     ]);
 
     const { data: periodSlots } = await supabase
@@ -103,6 +108,7 @@ export default function TimetablePage() {
     if (timetableRes.data) setEntries(timetableRes.data);
     if (classRes.data) setClasses(classRes.data);
     if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
+    if (teacherRes.data) setTeachers(teacherRes.data);
   }
 
   // Group period slots by day
@@ -943,6 +949,77 @@ export default function TimetablePage() {
     setIsTableModalOpen(true);
   }
 
+  async function showTeacherTimetable(teacherId: string) {
+    setSelectedTeacher(teacherId);
+
+    const { data } = await supabase
+      .from("timetable_entries")
+      .select(`
+        *,
+        classes(id, name, level),
+        period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
+        religion,
+        subject_classes (
+          id,
+          subject_code,
+          teacher_id,
+          subjects ( name, department, religion ),
+          teachers ( first_name, last_name )
+        )
+      `);
+
+    if (!data) return;
+
+    // Filter entries where this teacher is teaching
+    const teacherEntries = data.filter((entry) => {
+      const subjectClass = Array.isArray(entry.subject_classes)
+        ? entry.subject_classes[0]
+        : entry.subject_classes;
+      return subjectClass?.teacher_id === teacherId;
+    });
+
+    // Build timetable structure: timetable[day][periodSlotId] = { class, subject, rows }
+    const timetable: any = {};
+
+    DAYS.forEach(day => {
+      timetable[day] = {};
+    });
+
+    teacherEntries.forEach((entry) => {
+      const periodSlot = Array.isArray(entry.period_slots)
+        ? entry.period_slots[0]
+        : entry.period_slots;
+
+      if (!periodSlot) return;
+
+      const day = periodSlot.day_of_week;
+      const periodSlotId = entry.period_slot_id;
+
+      const subjectClass = Array.isArray(entry.subject_classes)
+        ? entry.subject_classes[0]
+        : entry.subject_classes;
+
+      const className = Array.isArray(entry.classes)
+        ? entry.classes[0]?.name
+        : entry.classes?.name;
+
+      const subjectName = subjectClass?.subjects?.name || "";
+      const subjectCode = subjectClass?.subject_code || shortCode(subjectName);
+
+      if (!timetable[day][periodSlotId]) {
+        timetable[day][periodSlotId] = {
+          class: className,
+          subject: subjectCode || subjectName,
+          fullSubject: subjectName,
+          period: periodSlot,
+        };
+      }
+    });
+
+    setTeacherTimetable(timetable);
+    setIsTeacherTableModalOpen(true);
+  }
+
   const filtered = groupedEntries.filter((g) =>
     `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase())
   );
@@ -1224,6 +1301,58 @@ export default function TimetablePage() {
                 </div>
                 <p className="text-gray-500 font-medium">No classes available</p>
                 <p className="text-sm text-gray-400 mt-1">Classes will appear here once they are created</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-2 shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-green-50 to-teal-50 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-2xl text-gray-800">View Teacher Timetables</CardTitle>
+                <p className="text-sm text-gray-600 mt-1">Select a teacher to view their weekly teaching schedule</p>
+              </div>
+              <div className="bg-green-100 p-3 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {teachers.map((teacher) => (
+                <Button
+                  key={teacher.id}
+                  variant="outline"
+                  onClick={() => showTeacherTimetable(teacher.id)}
+                  className="h-auto py-6 px-4 flex flex-col items-center justify-center gap-2 hover:bg-green-50 hover:border-green-400 transition-all duration-200 group relative overflow-hidden"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-teal-500 opacity-0 group-hover:opacity-5 transition-opacity duration-200" />
+                  <div className="bg-green-100 group-hover:bg-green-200 p-2 rounded-lg transition-colors duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                  <span className="font-semibold text-gray-800 group-hover:text-green-700 transition-colors duration-200">
+                    {teacher.first_name} {teacher.last_name}
+                  </span>
+                  <span className="text-xs text-gray-500 group-hover:text-green-600 transition-colors duration-200">
+                    View Schedule
+                  </span>
+                </Button>
+              ))}
+            </div>
+            {teachers.length === 0 && (
+              <div className="text-center py-12">
+                <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <p className="text-gray-500 font-medium">No teachers available</p>
+                <p className="text-sm text-gray-400 mt-1">Teachers will appear here once they are created</p>
               </div>
             )}
           </CardContent>
@@ -1615,6 +1744,106 @@ export default function TimetablePage() {
               >
                 Save
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Teacher Timetable Modal */}
+      <Dialog open={isTeacherTableModalOpen} onOpenChange={setIsTeacherTableModalOpen}>
+        <DialogContent className="max-w-7xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>
+              {(() => {
+                const teacher = teachers.find((t) => t.id === selectedTeacher);
+                return teacher ? `${teacher.first_name} ${teacher.last_name} - Weekly Teaching Schedule` : "Teacher Schedule";
+              })()}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="h-[70vh] overflow-auto border rounded-lg">
+            <div className="p-2 bg-white">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
+                      Period
+                    </th>
+                    {DAYS.map((day) => (
+                      <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayPeriodRows.map((row) => (
+                    <tr key={row.index}>
+                      <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
+                        {row.isBreakRow ? "" : row.label}
+                      </td>
+
+                      {DAYS.map((day) => {
+                        const dayPeriods = periodsByDay[day] || [];
+                        const period = dayPeriods[row.index];
+
+                        if (!period) {
+                          return (
+                            <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
+                              —
+                            </td>
+                          );
+                        }
+
+                        if (period.is_break) {
+                          return (
+                            <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
+                              <div className="text-center">
+                                <div className="font-semibold text-yellow-800">BREAK</div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {period.start_time} - {period.end_time}
+                                </div>
+                              </div>
+                            </td>
+                          );
+                        }
+
+                        const cell = teacherTimetable[day]?.[period.id];
+
+                        return (
+                          <td key={day} className="border border-gray-300 p-3">
+                            <div className="space-y-1">
+                              <div className="text-xs text-gray-600 text-center">
+                                {period.start_time} - {period.end_time}
+                              </div>
+
+                              {cell ? (
+                                <>
+                                  <div className="font-semibold text-gray-800 text-center">
+                                    {cell.class}
+                                  </div>
+                                  <div className="text-sm text-blue-600 text-center">
+                                    {cell.subject}
+                                  </div>
+                                  {cell.fullSubject !== cell.subject && (
+                                    <div className="text-xs text-gray-500 text-center italic">
+                                      {cell.fullSubject}
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="text-gray-400 text-center py-2">
+                                  <div className="text-sm">Free Period</div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </DialogContent>

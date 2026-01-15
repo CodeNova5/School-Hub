@@ -360,6 +360,7 @@ export function AutoTimetableWizard({
         subjectName: best.subject.subjectName,
         teacherName: best.subject.teacherName,
         department: best.subject.department,
+        religion: best.subject.religion,
       });
 
       // Update tracking
@@ -435,6 +436,7 @@ export function AutoTimetableWizard({
         class_id: selectedClassId,
         subject_class_id: entry.subjectClassId,
         department: entry.department || null,
+        religion: entry.religion || null,
       }));
 
       const { error } = await supabase

@@ -439,12 +439,15 @@ export default function TimetablePage() {
           }
         }
 
-        await supabase
+        let del = supabase
           .from("timetable_entries")
           .delete()
           .eq("period_slot_id", editingEntry.period_slot_id)
           .eq("class_id", editingEntry.class_id)
           .not("religion", "is", null);
+
+        await del;
+
 
         const inserts: any[] = [];
         if (formChristianSubjectClassId)
@@ -1026,7 +1029,7 @@ export default function TimetablePage() {
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold">Timetable Management</h1>
           <div className="flex gap-2">
-            <Button 
+            <Button
               onClick={() => setIsAutoGenerateOpen(true)}
               className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >

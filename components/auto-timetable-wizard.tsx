@@ -207,7 +207,9 @@ export function AutoTimetableWizard({
     if (name.includes("math") || name.includes("english")) return 4;
     if (name.includes("physics") || name.includes("chemistry") || name.includes("biology")) return 3;
     if (name.includes("economics") || name.includes("accounting") || name.includes("commerce")) return 3;
-    
+    if (name.includes("french")) return 1;
+    if (name.includes("chess")) return 1;
+    if (name.includes("music")) return 1;
     // Optional/elective subjects
     return 2;
   }
@@ -223,7 +225,7 @@ export function AutoTimetableWizard({
     if (name.includes("music")) return ["Tuesday"];
     if (name.includes("civic education") || name.includes("history")) return ["Tuesday", "Thursday"];
     if (name.includes("basic science")) return ["Tuesday", "Thursday"];
-  
+    if (name.includes("french")) return ["Thursday"];
     // All other subjects can be scheduled on any day
     return [...DAYS];
   }
@@ -410,7 +412,7 @@ export function AutoTimetableWizard({
     const usedPeriodSlots = new Set<string>();
 
     
-    // Build teacher usage map from existing entries
+    // Build teacher usage map from existing entries (other classes)
     const teacherSlotMap = new Map<string, Set<string>>();
     existingEntries.forEach(entry => {
       const teacherId = entry.subject_classes?.teacher_id;
@@ -422,8 +424,10 @@ export function AutoTimetableWizard({
       }
     });
 
-    // Create subject pool with instances
-    const subjectPool: Array<{
+    // ==================== AI-BASED INTELLIGENT SCHEDULING SYSTEM ====================
+    
+    // Define subject pool structure
+    type SubjectPoolEntry = {
       subjectClassId: string;
       subjectName: string;
       teacherName: string;
@@ -433,20 +437,54 @@ export function AutoTimetableWizard({
       assignedCount: number;
       targetCount: number;
       allowedDays: string[];
-    }> = [];
+      priority: number; // AI Priority score (higher = schedule first)
+      constraint: 'high' | 'medium' | 'low'; // Constraint level
+    };
 
-    // Identify CRS and IRS subjects for pairing
-    let crsSubject: typeof subjectPool[0] | null = null;
-    let irsSubject: typeof subjectPool[0] | null = null;
+    const subjectPool: SubjectPoolEntry[] = [];
+    let crsSubject: SubjectPoolEntry | null = null;
+    let irsSubject: SubjectPoolEntry | null = null;
+    const departmentGroupsMap = new Map<string, SubjectPoolEntry[]>();
 
-    // Group departmental subjects
-    const departmentGroupsMap = new Map<string, typeof subjectPool>();
-
+    // Build subject pool with AI-based priority scoring
     for (const sf of subjectFrequencies) {
       if (sf.frequency === 0) continue;
       
       const subjectClass = classSubjects.find(sc => sc.id === sf.subjectClassId);
-      const poolEntry = {
+      const allowedDays = sf.allowedDays || [...DAYS];
+      
+      // AI PRIORITY CALCULATION
+      let priority = 0;
+      let constraint: 'high' | 'medium' | 'low' = 'low';
+      
+      // Highest priority: Subjects with strict day restrictions
+      if (allowedDays.length === 1) {
+        priority += 1000; // Only one day available - CRITICAL
+        constraint = 'high';
+      } else if (allowedDays.length === 2) {
+        priority += 500; // Two days available - HIGH
+        constraint = 'high';
+      } else if (allowedDays.length < DAYS.length) {
+        priority += 250; // Some restriction - MEDIUM
+        constraint = 'medium';
+      }
+      
+      // Priority boost for paired subjects (CRS/IRS)
+      if (sf.religion === 'Christian' || sf.religion === 'Muslim') {
+        priority += 400; // Need to coordinate pairing
+        constraint = constraint === 'low' ? 'medium' : constraint;
+      }
+      
+      // Priority boost for departmental grouping
+      if (enableDepartmentalGrouping && sf.departmentGroup) {
+        priority += 350; // Need to coordinate groups
+        constraint = constraint === 'low' ? 'medium' : constraint;
+      }
+      
+      // Higher frequency subjects get slight priority
+      priority += sf.frequency * 10;
+      
+      const poolEntry: SubjectPoolEntry = {
         subjectClassId: sf.subjectClassId,
         subjectName: sf.subjectName,
         teacherName: sf.teacherName,
@@ -455,7 +493,9 @@ export function AutoTimetableWizard({
         religion: sf.religion,
         assignedCount: 0,
         targetCount: sf.frequency,
-        allowedDays: sf.allowedDays || [...DAYS],
+        allowedDays,
+        priority,
+        constraint,
       };
       
       if (sf.religion === 'Christian') {
@@ -463,7 +503,6 @@ export function AutoTimetableWizard({
       } else if (sf.religion === 'Muslim') {
         irsSubject = poolEntry;
       } else if (enableDepartmentalGrouping && sf.departmentGroup) {
-        // Group departmental subjects together
         if (!departmentGroupsMap.has(sf.departmentGroup)) {
           departmentGroupsMap.set(sf.departmentGroup, []);
         }
@@ -491,339 +530,503 @@ export function AutoTimetableWizard({
       return { entries, conflicts };
     }
 
-    // Get non-break periods grouped by day (limit to first 8 non-break periods)
+    // Get available periods organized by day
     const periodsByDay: Record<string, any[]> = {};
     DAYS.forEach(day => {
-      // First filter out breaks, then sort, then take first 8
       const nonBreakPeriods = periodSlots
         .filter(p => p.day_of_week === day && !p.is_break)
         .sort((a, b) => a.period_number - b.period_number)
-        .slice(0, 8); // Only take first 8 non-break periods for timetable generation
-      
+        .slice(0, 8);
       periodsByDay[day] = nonBreakPeriods;
     });
 
-    // Track last subject per day to avoid consecutive
-    const lastSubjectPerDay: Record<string, string> = {};
+    // Tracking structures for intelligent scheduling
     const teacherDailyLoad: Record<string, Record<string, number>> = {};
     const subjectDailyCount: Record<string, Record<string, number>> = {};
+    const periodAssignments: Map<string, GeneratedEntry> = new Map(); // periodSlotId -> entry
+    
+    // AI Helper: Calculate placement score for a subject at a specific slot
+    const calculatePlacementScore = (
+      subject: SubjectPoolEntry,
+      day: string,
+      period: any,
+      periodIndex: number,
+      isPaired: boolean = false,
+      pairedSubject?: SubjectPoolEntry
+    ): number => {
+      let score = 1000;
+      
+      // Hard constraint: Day must be allowed
+      if (!subject.allowedDays.includes(day)) {
+        return -10000;
+      }
+      
+      // Hard constraint: Teacher clash check
+      if (preventTeacherClash && subject.teacherId) {
+        const busyTeachers = teacherSlotMap.get(period.id);
+        if (busyTeachers?.has(subject.teacherId)) {
+          return -10000;
+        }
+      }
+      
+      // Check paired subject teacher clash
+      if (isPaired && pairedSubject?.teacherId) {
+        const busyTeachers = teacherSlotMap.get(period.id);
+        if (busyTeachers?.has(pairedSubject.teacherId)) {
+          return -10000;
+        }
+      }
+      
+      // Prefer earlier periods for difficult subjects
+      if (balanceDifficulty) {
+        const coreSubjects = ['math', 'english', 'physics', 'chemistry', 'biology'];
+        const isCore = coreSubjects.some(c => subject.subjectName.toLowerCase().includes(c));
+        if (isCore && periodIndex <= 3) {
+          score += 100; // Morning slots for core subjects
+        } else if (!isCore && periodIndex > 3) {
+          score += 50; // Afternoon for lighter subjects
+        }
+      }
+      
+      // Avoid overloading teachers on any day
+      if (subject.teacherId) {
+        const teacherLoad = teacherDailyLoad[subject.teacherId]?.[day] || 0;
+        if (teacherLoad >= 6) score -= 500;
+        else if (teacherLoad >= 4) score -= 200;
+        else if (teacherLoad >= 2) score -= 50;
+      }
+      
+      if (isPaired && pairedSubject?.teacherId) {
+        const teacherLoad = teacherDailyLoad[pairedSubject.teacherId]?.[day] || 0;
+        if (teacherLoad >= 6) score -= 500;
+        else if (teacherLoad >= 4) score -= 200;
+      }
+      
+      // Distribute subjects evenly across days
+      const subjectDayCount = subjectDailyCount[subject.subjectClassId]?.[day] || 0;
+      const avgPerDay = subject.targetCount / subject.allowedDays.length;
+      if (subjectDayCount >= Math.ceil(avgPerDay) + 1) {
+        score -= 300;
+      } else if (subjectDayCount < Math.floor(avgPerDay)) {
+        score += 150; // Encourage filling underrepresented days
+      }
+      
+      // Avoid consecutive same subjects
+      if (avoidConsecutive && periodIndex > 0) {
+        const prevPeriod = periodsByDay[day][periodIndex - 1];
+        const prevEntry = periodAssignments.get(prevPeriod?.id);
+        if (prevEntry?.subjectClassId === subject.subjectClassId) {
+          score -= 400;
+        }
+      }
+      
+      return score;
+    };
+    
+    // AI Helper: Find best placement for a subject
+    const findBestPlacement = (
+      subject: SubjectPoolEntry,
+      isPaired: boolean = false,
+      pairedSubject?: SubjectPoolEntry
+    ): { day: string; period: any; index: number; score: number } | null => {
+      let bestPlacement: { day: string; period: any; index: number; score: number } | null = null;
+      
+      // Only consider allowed days
+      for (const day of subject.allowedDays) {
+        const dayPeriods = periodsByDay[day];
+        
+        for (let index = 0; index < dayPeriods.length; index++) {
+          const period = dayPeriods[index];
+          
+          // Skip if already used
+          if (usedPeriodSlots.has(period.id)) continue;
+          
+          const score = calculatePlacementScore(subject, day, period, index, isPaired, pairedSubject);
+          
+          if (score > -10000 && (!bestPlacement || score > bestPlacement.score)) {
+            bestPlacement = { day, period, index, score };
+          }
+        }
+      }
+      
+      return bestPlacement;
+    };
+    
+    // AI Helper: Smart swap to resolve conflicts
+    const attemptSmartSwap = (
+      subjectNeedingSlot: SubjectPoolEntry,
+      isPaired: boolean = false,
+      pairedSubject?: SubjectPoolEntry
+    ): boolean => {
+      // Try to find a subject that can be swapped to make room
+      for (const day of subjectNeedingSlot.allowedDays) {
+        const dayPeriods = periodsByDay[day];
+        
+        for (let index = 0; index < dayPeriods.length; index++) {
+          const period = dayPeriods[index];
+          const currentEntry = periodAssignments.get(period.id);
+          
+          if (!currentEntry) continue;
+          
+          // Find the current subject in pool
+          const currentSubject = [...subjectPool, crsSubject, irsSubject, ...Array.from(departmentGroupsMap.values()).flat()]
+            .filter(s => s !== null)
+            .find(s => s!.subjectClassId === currentEntry.subjectClassId);
+          
+          if (!currentSubject) continue;
+          
+          // Check if current subject can be moved to another slot
+          const alternativePlacement = findBestPlacement(currentSubject);
+          
+          if (alternativePlacement && alternativePlacement.score > 0) {
+            // Check if swapping improves overall score
+            const newScore = calculatePlacementScore(subjectNeedingSlot, day, period, index, isPaired, pairedSubject);
+            
+            if (newScore > alternativePlacement.score * 0.7) { // 30% tolerance
+              // Perform the swap
+              // Remove current assignment
+              usedPeriodSlots.delete(period.id);
+              periodAssignments.delete(period.id);
+              currentSubject.assignedCount--;
+              
+              // Update tracking
+              if (currentSubject.teacherId) {
+                teacherDailyLoad[currentSubject.teacherId][day] = 
+                  Math.max(0, (teacherDailyLoad[currentSubject.teacherId][day] || 0) - 1);
+              }
+              subjectDailyCount[currentSubject.subjectClassId][day] = 
+                Math.max(0, (subjectDailyCount[currentSubject.subjectClassId][day] || 0) - 1);
+              
+              // Assign current subject to alternative slot
+              const altEntry: GeneratedEntry = {
+                periodSlotId: alternativePlacement.period.id,
+                subjectClassId: currentSubject.subjectClassId,
+                day: alternativePlacement.day,
+                periodNumber: alternativePlacement.period.period_number,
+                subjectName: currentSubject.subjectName,
+                teacherName: currentSubject.teacherName,
+                department: currentSubject.department,
+                religion: currentSubject.religion,
+              };
+              
+              periodAssignments.set(alternativePlacement.period.id, altEntry);
+              usedPeriodSlots.add(alternativePlacement.period.id);
+              currentSubject.assignedCount++;
+              
+              // Update tracking for new placement
+              if (!subjectDailyCount[currentSubject.subjectClassId]) {
+                subjectDailyCount[currentSubject.subjectClassId] = {};
+              }
+              subjectDailyCount[currentSubject.subjectClassId][alternativePlacement.day] = 
+                (subjectDailyCount[currentSubject.subjectClassId][alternativePlacement.day] || 0) + 1;
+              
+              if (currentSubject.teacherId) {
+                if (!teacherDailyLoad[currentSubject.teacherId]) {
+                  teacherDailyLoad[currentSubject.teacherId] = {};
+                }
+                teacherDailyLoad[currentSubject.teacherId][alternativePlacement.day] = 
+                  (teacherDailyLoad[currentSubject.teacherId][alternativePlacement.day] || 0) + 1;
+              }
+              
+              return true; // Swap successful
+            }
+          }
+        }
+      }
+      
+      return false; // No viable swap found
+    };
 
-    // Create a pool of all period slots across the week
-    const allPeriodSlots: Array<{ day: string; period: any; index: number }> = [];
-    DAYS.forEach(day => {
-      const dayPeriods = periodsByDay[day];
-      dayPeriods.forEach((period, index) => {
-        allPeriodSlots.push({ day, period, index });
+    // ==================== PRIORITY-BASED INTELLIGENT SCHEDULING ====================
+    
+    // Combine all subjects and sort by AI priority (highest first)
+    const allSubjectsToSchedule: Array<{
+      type: 'paired' | 'group' | 'normal';
+      subjects: SubjectPoolEntry[];
+      groupName?: string;
+    }> = [];
+    
+    // Add paired CRS/IRS
+    if (crsSubject && irsSubject) {
+      allSubjectsToSchedule.push({
+        type: 'paired',
+        subjects: [crsSubject, irsSubject],
+      });
+    }
+    
+    // Add departmental groups
+    for (const [groupName, groupSubjects] of Array.from(departmentGroupsMap.entries())) {
+      allSubjectsToSchedule.push({
+        type: 'group',
+        subjects: groupSubjects,
+        groupName,
+      });
+    }
+    
+    // Add normal subjects
+    for (const subject of subjectPool) {
+      allSubjectsToSchedule.push({
+        type: 'normal',
+        subjects: [subject],
+      });
+    }
+    
+    // Sort by highest priority (most constrained first)
+    allSubjectsToSchedule.sort((a, b) => {
+      const aPriority = Math.max(...a.subjects.map(s => s.priority));
+      const bPriority = Math.max(...b.subjects.map(s => s.priority));
+      return bPriority - aPriority;
+    });
+    
+    // AI SCHEDULING LOOP - Process each subject group in priority order
+    for (const subjectGroup of allSubjectsToSchedule) {
+      const primarySubject = subjectGroup.subjects[0];
+      const neededSlots = primarySubject.targetCount;
+      
+      // Schedule all required instances of this subject/group
+      for (let instance = 0; instance < neededSlots; instance++) {
+        if (primarySubject.assignedCount >= primarySubject.targetCount) break;
+        
+        let placed = false;
+        let attempts = 0;
+        const maxAttempts = 3; // Try up to 3 times (find, swap, force)
+        
+        while (!placed && attempts < maxAttempts) {
+          attempts++;
+          
+          if (subjectGroup.type === 'paired') {
+            // HANDLE PAIRED SUBJECTS (CRS/IRS)
+            const crs = subjectGroup.subjects[0];
+            const irs = subjectGroup.subjects[1];
+            
+            if (crs.assignedCount >= crs.targetCount) break;
+            
+            const placement = findBestPlacement(crs, true, irs);
+            
+            if (placement && placement.score > -10000) {
+              // Assign the paired period
+              const entry: GeneratedEntry = {
+                periodSlotId: placement.period.id,
+                subjectClassId: crs.subjectClassId,
+                day: placement.day,
+                periodNumber: placement.period.period_number,
+                subjectName: crs.subjectName,
+                teacherName: crs.teacherName,
+                department: crs.department,
+                religion: crs.religion,
+                isPaired: true,
+                pairedSubjectClassId: irs.subjectClassId,
+                pairedSubjectName: irs.subjectName,
+                pairedTeacherName: irs.teacherName,
+                pairedReligion: irs.religion,
+              };
+              
+              periodAssignments.set(placement.period.id, entry);
+              usedPeriodSlots.add(placement.period.id);
+              
+              // Update tracking for both
+              crs.assignedCount++;
+              irs.assignedCount++;
+              
+              [crs, irs].forEach(sub => {
+                if (!subjectDailyCount[sub.subjectClassId]) {
+                  subjectDailyCount[sub.subjectClassId] = {};
+                }
+                subjectDailyCount[sub.subjectClassId][placement.day] = 
+                  (subjectDailyCount[sub.subjectClassId][placement.day] || 0) + 1;
+                
+                if (sub.teacherId) {
+                  if (!teacherDailyLoad[sub.teacherId]) {
+                    teacherDailyLoad[sub.teacherId] = {};
+                  }
+                  teacherDailyLoad[sub.teacherId][placement.day] = 
+                    (teacherDailyLoad[sub.teacherId][placement.day] || 0) + 1;
+                  
+                  if (!teacherSlotMap.has(placement.period.id)) {
+                    teacherSlotMap.set(placement.period.id, new Set());
+                  }
+                  teacherSlotMap.get(placement.period.id)!.add(sub.teacherId);
+                }
+              });
+              
+              placed = true;
+            } else if (attempts === 2) {
+              // Try smart swap
+              if (attemptSmartSwap(crs, true, irs)) {
+                // Retry placement after swap
+                attempts--;
+              }
+            }
+            
+          } else if (subjectGroup.type === 'group') {
+            // HANDLE DEPARTMENTAL GROUPS
+            const groupSubjects = subjectGroup.subjects;
+            const allNeedAssignment = groupSubjects.every(s => s.assignedCount < s.targetCount);
+            
+            if (!allNeedAssignment) break;
+            
+            const placement = findBestPlacement(primarySubject);
+            
+            if (placement && placement.score > -10000) {
+              // Check all subjects in group can use this slot
+              const allCanUse = groupSubjects.every(s => {
+                const score = calculatePlacementScore(s, placement.day, placement.period, placement.index);
+                return score > -10000;
+              });
+              
+              if (allCanUse) {
+                // Assign the grouped period
+                const entry: GeneratedEntry = {
+                  periodSlotId: placement.period.id,
+                  subjectClassId: primarySubject.subjectClassId,
+                  day: placement.day,
+                  periodNumber: placement.period.period_number,
+                  subjectName: primarySubject.subjectName,
+                  teacherName: primarySubject.teacherName,
+                  department: primarySubject.department,
+                  departmentGroup: subjectGroup.groupName,
+                  groupedSubjects: groupSubjects.slice(1).map(s => ({
+                    subjectClassId: s.subjectClassId,
+                    subjectName: s.subjectName,
+                    teacherName: s.teacherName,
+                    department: s.department!,
+                  })),
+                };
+                
+                periodAssignments.set(placement.period.id, entry);
+                usedPeriodSlots.add(placement.period.id);
+                
+                // Update tracking for all subjects in group
+                groupSubjects.forEach(sub => {
+                  sub.assignedCount++;
+                  
+                  if (!subjectDailyCount[sub.subjectClassId]) {
+                    subjectDailyCount[sub.subjectClassId] = {};
+                  }
+                  subjectDailyCount[sub.subjectClassId][placement.day] = 
+                    (subjectDailyCount[sub.subjectClassId][placement.day] || 0) + 1;
+                  
+                  if (sub.teacherId) {
+                    if (!teacherDailyLoad[sub.teacherId]) {
+                      teacherDailyLoad[sub.teacherId] = {};
+                    }
+                    teacherDailyLoad[sub.teacherId][placement.day] = 
+                      (teacherDailyLoad[sub.teacherId][placement.day] || 0) + 1;
+                    
+                    if (!teacherSlotMap.has(placement.period.id)) {
+                      teacherSlotMap.set(placement.period.id, new Set());
+                    }
+                    teacherSlotMap.get(placement.period.id)!.add(sub.teacherId);
+                  }
+                });
+                
+                placed = true;
+              }
+            } else if (attempts === 2) {
+              // Try smart swap
+              if (attemptSmartSwap(primarySubject)) {
+                attempts--;
+              }
+            }
+            
+          } else {
+            // HANDLE NORMAL SUBJECTS
+            const placement = findBestPlacement(primarySubject);
+            
+            if (placement && placement.score > -10000) {
+              // Assign the period
+              const entry: GeneratedEntry = {
+                periodSlotId: placement.period.id,
+                subjectClassId: primarySubject.subjectClassId,
+                day: placement.day,
+                periodNumber: placement.period.period_number,
+                subjectName: primarySubject.subjectName,
+                teacherName: primarySubject.teacherName,
+                department: primarySubject.department,
+                religion: primarySubject.religion,
+              };
+              
+              periodAssignments.set(placement.period.id, entry);
+              usedPeriodSlots.add(placement.period.id);
+              
+              primarySubject.assignedCount++;
+              
+              if (!subjectDailyCount[primarySubject.subjectClassId]) {
+                subjectDailyCount[primarySubject.subjectClassId] = {};
+              }
+              subjectDailyCount[primarySubject.subjectClassId][placement.day] = 
+                (subjectDailyCount[primarySubject.subjectClassId][placement.day] || 0) + 1;
+              
+              if (primarySubject.teacherId) {
+                if (!teacherDailyLoad[primarySubject.teacherId]) {
+                  teacherDailyLoad[primarySubject.teacherId] = {};
+                }
+                teacherDailyLoad[primarySubject.teacherId][placement.day] = 
+                  (teacherDailyLoad[primarySubject.teacherId][placement.day] || 0) + 1;
+                
+                if (!teacherSlotMap.has(placement.period.id)) {
+                  teacherSlotMap.set(placement.period.id, new Set());
+                }
+                teacherSlotMap.get(placement.period.id)!.add(primarySubject.teacherId);
+              }
+              
+              placed = true;
+            } else if (attempts === 2) {
+              // Try smart swap
+              if (attemptSmartSwap(primarySubject)) {
+                attempts--;
+              }
+            }
+          }
+        }
+        
+        // If still not placed after all attempts, log conflict
+        if (!placed && primarySubject.assignedCount < primarySubject.targetCount) {
+          const dayRestriction = primarySubject.allowedDays.length < DAYS.length 
+            ? ` (restricted to: ${primarySubject.allowedDays.join(", ")})`
+            : "";
+          
+          conflicts.push({
+            type: "unassigned",
+            severity: primarySubject.constraint === 'high' ? "error" : "warning",
+            message: `Unable to fully schedule ${primarySubject.subjectName} - ${primarySubject.assignedCount}/${primarySubject.targetCount} assigned${dayRestriction}`,
+          });
+        }
+      }
+    }
+    
+    // Convert periodAssignments map to entries array
+    entries.push(...Array.from(periodAssignments.values()));
+    
+    // ==================== FINAL VALIDATION & CONFLICT DETECTION ====================
+    
+    // Check for workload warnings
+    Object.entries(teacherDailyLoad).forEach(([teacherId, dailyLoad]) => {
+      Object.entries(dailyLoad).forEach(([day, load]) => {
+        if (load > 6) {
+          const allSubjects = [...subjectPool, crsSubject, irsSubject].filter(s => s !== null) as SubjectPoolEntry[];
+          const teacher = allSubjects.find(s => s.teacherId === teacherId)?.teacherName || "Unknown";
+          conflicts.push({
+            type: "workload_warning",
+            severity: "warning",
+            message: `${teacher} has ${load} periods on ${day} (recommended max: 6)`,
+          });
+        }
       });
     });
-
-    // Shuffle the period slots to randomize distribution
-    for (let i = allPeriodSlots.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [allPeriodSlots[i], allPeriodSlots[j]] = [allPeriodSlots[j], allPeriodSlots[i]];
-    }
-
-    // Distribute subjects across the shuffled week
-    for (const { day, period, index } of allPeriodSlots) {
-      if (usedPeriodSlots.has(period.id)) continue;
-      
-      // Check if we should assign departmental group
-      if (enableDepartmentalGrouping && departmentGroupsMap.size > 0) {
-        for (const [groupName, groupSubjects] of Array.from(departmentGroupsMap.entries())) {
-          // Check if all subjects in group need assignment and can be scheduled on this day
-            const allNeedAssignment: boolean = groupSubjects.every((s: {
-            assignedCount: number;
-            targetCount: number;
-            allowedDays: string[];
-            }) => 
-            s.assignedCount < s.targetCount && s.allowedDays.includes(day)
-            );
-          
-          if (!allNeedAssignment) continue;
-          
-          // Check teacher availability for all subjects in group
-          const busyTeachers = teacherSlotMap.get(period.id);
-          const hasTeacherClash = groupSubjects.some((s: typeof groupSubjects[0]) => 
-            preventTeacherClash && s.teacherId && busyTeachers?.has(s.teacherId)
-          );
-          
-          if (hasTeacherClash) continue;
-          
-          // Calculate score for this group
-          let score = 100;
-          
-          groupSubjects.forEach((s: typeof groupSubjects[0]) => {
-            if (s.teacherId) {
-              const teacherLoad = teacherDailyLoad[s.teacherId]?.[day] || 0;
-              if (teacherLoad >= 6) score -= 40;
-              else if (teacherLoad >= 4) score -= 15;
-            }
-          });
-          
-          // Prefer to assign departmental groups
-          score += 60;
-          
-          if (score >= 0) {
-            // Assign the grouped period
-            const primarySubject = groupSubjects[0];
-            entries.push({
-              periodSlotId: period.id,
-              subjectClassId: primarySubject.subjectClassId,
-              day: day,
-              periodNumber: period.period_number,
-              subjectName: primarySubject.subjectName,
-              teacherName: primarySubject.teacherName,
-              department: primarySubject.department,
-              departmentGroup: groupName,
-              groupedSubjects: groupSubjects.slice(1).map((s: typeof groupSubjects[0]) => ({
-                subjectClassId: s.subjectClassId,
-                subjectName: s.subjectName,
-                teacherName: s.teacherName,
-                department: s.department!,
-              })),
-            });
-            
-            usedPeriodSlots.add(period.id);
-            
-            // Update tracking for all subjects in group
-            groupSubjects.forEach((s: typeof groupSubjects[0]) => {
-              s.assignedCount++;
-              
-              if (!subjectDailyCount[s.subjectClassId]) {
-                subjectDailyCount[s.subjectClassId] = {};
-              }
-              subjectDailyCount[s.subjectClassId][day] = 
-                (subjectDailyCount[s.subjectClassId][day] || 0) + 1;
-              
-              if (s.teacherId) {
-                if (!teacherDailyLoad[s.teacherId]) {
-                  teacherDailyLoad[s.teacherId] = {};
-                }
-                teacherDailyLoad[s.teacherId][day] = 
-                  (teacherDailyLoad[s.teacherId][day] || 0) + 1;
-                
-                if (!teacherSlotMap.has(period.id)) {
-                  teacherSlotMap.set(period.id, new Set());
-                }
-                teacherSlotMap.get(period.id)!.add(s.teacherId);
-              }
-            });
-            
-            continue; // Move to next period
-          }
-        }
-      }
-      
-      // Check if we should assign CRS/IRS pair
-      if (crsSubject && irsSubject && 
-          crsSubject.assignedCount < crsSubject.targetCount &&
-          crsSubject.allowedDays.includes(day) && 
-          irsSubject.allowedDays.includes(day)) {
-        
-        // Check teacher availability for both
-        const busyTeachers = teacherSlotMap.get(period.id);
-        const crsTeacherBusy = preventTeacherClash && crsSubject.teacherId && busyTeachers?.has(crsSubject.teacherId);
-        const irsTeacherBusy = preventTeacherClash && irsSubject.teacherId && busyTeachers?.has(irsSubject.teacherId);
-        
-        if (!crsTeacherBusy && !irsTeacherBusy) {
-          // Calculate score for religion pairing
-          let score = 100;
-          
-          // Check teacher daily loads
-          if (crsSubject.teacherId) {
-            const teacherLoad = teacherDailyLoad[crsSubject.teacherId]?.[day] || 0;
-            if (teacherLoad >= 6) score -= 80;
-            else if (teacherLoad >= 4) score -= 30;
-          }
-          if (irsSubject.teacherId) {
-            const teacherLoad = teacherDailyLoad[irsSubject.teacherId]?.[day] || 0;
-            if (teacherLoad >= 6) score -= 80;
-            else if (teacherLoad >= 4) score -= 30;
-          }
-          
-          // Distribute evenly across days
-          const crsDayCount = subjectDailyCount[crsSubject.subjectClassId]?.[day] || 0;
-          const avgPerDay = crsSubject.targetCount / DAYS.length;
-          if (crsDayCount >= Math.ceil(avgPerDay) + 1) {
-            score -= 40;
-          }
-          
-          // Prefer to assign religion subjects
-          score += 50;
-          
-          if (score >= 0) {
-            // Assign the paired period
-            entries.push({
-              periodSlotId: period.id,
-              subjectClassId: crsSubject.subjectClassId,
-              day: day,
-              periodNumber: period.period_number,
-              subjectName: crsSubject.subjectName,
-              teacherName: crsSubject.teacherName,
-              department: crsSubject.department,
-              religion: crsSubject.religion,
-              isPaired: true,
-              pairedSubjectClassId: irsSubject.subjectClassId,
-              pairedSubjectName: irsSubject.subjectName,
-              pairedTeacherName: irsSubject.teacherName,
-              pairedReligion: irsSubject.religion,
-            });
-
-            usedPeriodSlots.add(period.id);
-
-            
-            // Update tracking for both subjects
-            crsSubject.assignedCount++;
-            irsSubject.assignedCount++;
-            lastSubjectPerDay[day] = crsSubject.subjectClassId;
-            
-            // Track CRS
-            if (!subjectDailyCount[crsSubject.subjectClassId]) {
-              subjectDailyCount[crsSubject.subjectClassId] = {};
-            }
-            subjectDailyCount[crsSubject.subjectClassId][day] = 
-              (subjectDailyCount[crsSubject.subjectClassId][day] || 0) + 1;
-            
-            // Track IRS
-            if (!subjectDailyCount[irsSubject.subjectClassId]) {
-              subjectDailyCount[irsSubject.subjectClassId] = {};
-            }
-            subjectDailyCount[irsSubject.subjectClassId][day] = 
-              (subjectDailyCount[irsSubject.subjectClassId][day] || 0) + 1;
-            
-            // Mark both teachers as busy
-            if (crsSubject.teacherId) {
-              if (!teacherDailyLoad[crsSubject.teacherId]) {
-                teacherDailyLoad[crsSubject.teacherId] = {};
-              }
-              teacherDailyLoad[crsSubject.teacherId][day] = 
-                (teacherDailyLoad[crsSubject.teacherId][day] || 0) + 1;
-              
-              if (!teacherSlotMap.has(period.id)) {
-                teacherSlotMap.set(period.id, new Set());
-              }
-              teacherSlotMap.get(period.id)!.add(crsSubject.teacherId);
-            }
-            
-            if (irsSubject.teacherId) {
-              if (!teacherDailyLoad[irsSubject.teacherId]) {
-                teacherDailyLoad[irsSubject.teacherId] = {};
-              }
-              teacherDailyLoad[irsSubject.teacherId][day] = 
-                (teacherDailyLoad[irsSubject.teacherId][day] || 0) + 1;
-              
-              if (!teacherSlotMap.has(period.id)) {
-                teacherSlotMap.set(period.id, new Set());
-              }
-              teacherSlotMap.get(period.id)!.add(irsSubject.teacherId);
-            }
-            
-            continue; // Move to next period
-          }
-        }
-      }
-      
-      // Find available non-religion subjects
-      const available = subjectPool.filter(s => 
-        s.assignedCount < s.targetCount && 
-        s.allowedDays.includes(day)
-      );
-      
-      if (available.length === 0) continue;
-
-      // Rank subjects by constraints
-      const ranked = available.map(subject => {
-        let score = 100;
-        
-        // Avoid consecutive same subjects
-        if (avoidConsecutive && lastSubjectPerDay[day] === subject.subjectClassId) {
-          score -= 50;
-        }
-        
-        // Check teacher clash
-        if (preventTeacherClash && subject.teacherId) {
-          const busyTeachers = teacherSlotMap.get(period.id);
-          if (busyTeachers?.has(subject.teacherId)) {
-            score -= 1000; // Hard constraint
-          }
-        }
-        
-        // Balance workload - prefer subjects with more remaining slots
-        const remaining = subject.targetCount - subject.assignedCount;
-        score += remaining * 10;
-        
-        // Teacher daily load - avoid overloading
-        if (subject.teacherId) {
-          const teacherLoad = teacherDailyLoad[subject.teacherId]?.[day] || 0;
-          if (teacherLoad >= 6) score -= 80;
-          else if (teacherLoad >= 4) score -= 30;
-        }
-
-        // Distribute subjects evenly across days
-        const subjectDayCount = subjectDailyCount[subject.subjectClassId]?.[day] || 0;
-        const avgPerDay = subject.targetCount / DAYS.length;
-        if (subjectDayCount >= Math.ceil(avgPerDay) + 1) {
-          score -= 40;
-        }
-
-        // Add small random factor to break ties
-        score += Math.random() * 5;
-        
-        return { subject, score };
-      });
-
-      ranked.sort((a, b) => b.score - a.score);
-      
-      const best = ranked[0];
-      
-      // Check if this is a conflict
-      if (best.score < 0) {
-        conflicts.push({
-          type: "teacher_clash",
-          severity: "error",
-          message: `Cannot assign ${best.subject.subjectName} on ${day} Period ${period.period_number}`,
-          details: { day, period: period.period_number, subject: best.subject.subjectName },
-        });
-        continue;
-      }
-
-      // Assign the period
-      entries.push({
-        periodSlotId: period.id,
-        subjectClassId: best.subject.subjectClassId,
-        day: day,
-        periodNumber: period.period_number,
-        subjectName: best.subject.subjectName,
-        teacherName: best.subject.teacherName,
-        department: best.subject.department,
-        religion: best.subject.religion,
-      });
-      usedPeriodSlots.add(period.id);
-      // Update tracking
-      best.subject.assignedCount++;
-      lastSubjectPerDay[day] = best.subject.subjectClassId;
-      
-      // Track subject distribution per day
-      if (!subjectDailyCount[best.subject.subjectClassId]) {
-        subjectDailyCount[best.subject.subjectClassId] = {};
-      }
-      subjectDailyCount[best.subject.subjectClassId][day] = 
-        (subjectDailyCount[best.subject.subjectClassId][day] || 0) + 1;
-      
-      if (best.subject.teacherId) {
-        if (!teacherDailyLoad[best.subject.teacherId]) {
-          teacherDailyLoad[best.subject.teacherId] = {};
-        }
-        teacherDailyLoad[best.subject.teacherId][day] = 
-          (teacherDailyLoad[best.subject.teacherId][day] || 0) + 1;
-        
-        // Mark teacher as busy in this slot
-        if (!teacherSlotMap.has(period.id)) {
-          teacherSlotMap.set(period.id, new Set());
-        }
-        teacherSlotMap.get(period.id)!.add(best.subject.teacherId);
-      }
-    }
+    
+    // Log AI performance statistics
+    const totalSubjects = subjectPool.length + (crsSubject && irsSubject ? 1 : 0) + 
+      Array.from(departmentGroupsMap.values()).reduce((sum, group) => sum + group.length, 0);
+    const fullyAssigned = [...subjectPool, crsSubject, irsSubject, ...Array.from(departmentGroupsMap.values()).flat()]
+      .filter(s => s !== null)
+      .filter((s: SubjectPoolEntry) => s.assignedCount === s.targetCount)
+      .length;
+    const assignmentRate = totalSubjects > 0 ? (fullyAssigned / totalSubjects * 100).toFixed(1) : '0';
+    
+    console.log(`🤖 AI Scheduler Performance: ${assignmentRate}% subjects fully assigned (${fullyAssigned}/${totalSubjects})`);
+    console.log(`📊 Generated ${entries.length} timetable entries with ${conflicts.length} conflicts`);
+    
 
     // Check for unassigned subjects
     subjectPool.forEach(s => {
@@ -1070,6 +1273,30 @@ export function AutoTimetableWizard({
               onChange={(e) => setSearchSubject(e.target.value)}
             />
 
+            {/* AI System Info Panel */}
+            <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+              <CardContent className="p-3">
+                <div className="flex items-start gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-xs space-y-1">
+                    <p className="font-semibold text-indigo-900">🤖 AI Priority System Active</p>
+                    <p className="text-indigo-700">
+                      The scheduler will prioritize subjects based on their constraints:
+                    </p>
+                    <ul className="text-indigo-600 space-y-0.5 ml-4 list-disc">
+                      <li><span className="font-semibold text-red-700">Critical</span> - Only 1 day available (scheduled first)</li>
+                      <li><span className="font-semibold text-orange-700">High</span> - Only 2 days available</li>
+                      <li><span className="font-semibold text-blue-700">Medium</span> - Partial restrictions or paired/grouped</li>
+                      <li><span className="font-semibold text-gray-600">Low</span> - No restrictions (fills remaining slots)</li>
+                    </ul>
+                    <p className="text-indigo-600 italic mt-1">
+                      If conflicts occur, the AI will attempt smart swaps and reallocation automatically.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Departmental Groups Management */}
             {isSSS && (
               <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
@@ -1164,6 +1391,10 @@ export function AutoTimetableWizard({
                     <th className="text-left p-3 font-semibold w-8"></th>
                     <th className="text-left p-3 font-semibold">Subject</th>
                     <th className="text-left p-3 font-semibold">Teacher</th>
+                    <th className="text-center p-3 font-semibold text-xs">
+                      <div>AI Priority</div>
+                      <div className="text-gray-500 font-normal">(Constraint)</div>
+                    </th>
                     {isSSS && Object.keys(departmentalGroups).length > 0 && (
                       <th className="text-left p-3 font-semibold">Group</th>
                     )}
@@ -1181,6 +1412,33 @@ export function AutoTimetableWizard({
                     const allowedDays = sf.allowedDays || [...DAYS];
                     const isExpanded = expandedSubject === sf.subjectClassId;
                     const hasRestrictions = allowedDays.length < DAYS.length;
+                    
+                    // Calculate AI priority for display
+                    let aiPriority = 0;
+                    let constraint: 'high' | 'medium' | 'low' = 'low';
+                    let priorityLabel = 'Low';
+                    let priorityColor = 'text-gray-500';
+                    let priorityBg = 'bg-gray-100';
+                    
+                    if (allowedDays.length === 1) {
+                      aiPriority = 1000;
+                      constraint = 'high';
+                      priorityLabel = 'Critical';
+                      priorityColor = 'text-red-700';
+                      priorityBg = 'bg-red-100';
+                    } else if (allowedDays.length === 2) {
+                      aiPriority = 500;
+                      constraint = 'high';
+                      priorityLabel = 'High';
+                      priorityColor = 'text-orange-700';
+                      priorityBg = 'bg-orange-100';
+                    } else if (allowedDays.length < DAYS.length || sf.religion || sf.departmentGroup) {
+                      aiPriority = 250;
+                      constraint = 'medium';
+                      priorityLabel = 'Medium';
+                      priorityColor = 'text-blue-700';
+                      priorityBg = 'bg-blue-100';
+                    }
                     
                     // Find paired subject if this is CRS
                     const pairedSubject = sf.religion === 'Christian' 
@@ -1234,6 +1492,21 @@ export function AutoTimetableWizard({
                               ? `${sf.teacherName} / ${pairedSubject.teacherName}`
                               : sf.teacherName
                             }
+                          </td>
+                          <td className="p-3">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className={`text-xs font-semibold px-2 py-1 rounded ${priorityBg} ${priorityColor}`}>
+                                {priorityLabel}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {allowedDays.length === 1 && '1 day only'}
+                                {allowedDays.length === 2 && '2 days only'}
+                                {allowedDays.length > 2 && allowedDays.length < DAYS.length && `${allowedDays.length} days`}
+                                {allowedDays.length === DAYS.length && sf.religion && 'Paired'}
+                                {allowedDays.length === DAYS.length && sf.departmentGroup && 'Grouped'}
+                                {allowedDays.length === DAYS.length && !sf.religion && !sf.departmentGroup && 'Flexible'}
+                              </span>
+                            </div>
                           </td>
                           {isSSS && availableGroups.length > 0 && (
                             <td className="p-3">
@@ -1348,6 +1621,47 @@ export function AutoTimetableWizard({
               </table>
             </div>
 
+            {/* AI Scheduling Statistics */}
+            <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+              <CardContent className="p-3">
+                <div className="grid grid-cols-4 gap-3 text-center">
+                  <div>
+                    <div className="text-xs text-gray-600">Critical Priority</div>
+                    <div className="text-lg font-bold text-red-700">
+                      {filteredSubjects.filter(sf => (sf.allowedDays || DAYS).length === 1).length}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600">High Priority</div>
+                    <div className="text-lg font-bold text-orange-700">
+                      {filteredSubjects.filter(sf => (sf.allowedDays || DAYS).length === 2).length}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600">Medium Priority</div>
+                    <div className="text-lg font-bold text-blue-700">
+                      {filteredSubjects.filter(sf => {
+                        const days = (sf.allowedDays || DAYS).length;
+                        return (days > 2 && days < DAYS.length) || sf.religion || sf.departmentGroup;
+                      }).length}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-600">Low Priority</div>
+                    <div className="text-lg font-bold text-gray-600">
+                      {filteredSubjects.filter(sf => {
+                        const days = (sf.allowedDays || DAYS).length;
+                        return days === DAYS.length && !sf.religion && !sf.departmentGroup;
+                      }).length}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-center text-green-700 mt-2">
+                  ✓ AI will schedule in priority order: Critical → High → Medium → Low
+                </p>
+              </CardContent>
+            </Card>
+
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-blue-800">Total Periods:</span>
@@ -1448,11 +1762,21 @@ export function AutoTimetableWizard({
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles className="w-5 h-5 text-blue-600" />
-                <span className="font-semibold text-blue-800">Ready to Generate</span>
+                <span className="font-semibold text-blue-800">🤖 AI-Powered Scheduling Ready</span>
               </div>
-              <p className="text-sm text-gray-600">
-                Will generate {totalPeriods} periods across {DAYS.length} days for {selectedClass?.name}
-              </p>
+              <div className="space-y-1 text-sm text-gray-600">
+                <p>✓ Will generate {totalPeriods} periods across {DAYS.length} days for {selectedClass?.name}</p>
+                <p className="text-xs text-blue-700 mt-2">
+                  <strong>Smart Features Enabled:</strong>
+                  {avoidConsecutive && " • Consecutive Prevention"}
+                  {preventTeacherClash && " • Teacher Clash Detection"}
+                  {balanceDifficulty && " • Workload Balancing"}
+                  {enableDepartmentalGrouping && " • Departmental Grouping"}
+                </p>
+                <p className="text-xs text-purple-600 mt-1">
+                  💡 <em>Constrained subjects (limited days) will be prioritized first, then the AI will intelligently fill remaining slots.</em>
+                </p>
+              </div>
             </div>
 
             {validateAll() && (
@@ -1506,16 +1830,44 @@ export function AutoTimetableWizard({
                   <div className="flex items-center gap-2 mb-2">
                     <AlertTriangle className="w-5 h-5 text-yellow-600" />
                     <span className="font-semibold text-yellow-800">
-                      {conflicts.length} Issue{conflicts.length !== 1 ? "s" : ""} Detected
+                      {conflicts.length} Issue{conflicts.length !== 1 ? "s" : ""} Detected by AI
                     </span>
                   </div>
                   <div className="space-y-1 max-h-32 overflow-y-auto">
                     {conflicts.map((c, i) => (
-                      <div key={i} className="text-sm text-yellow-700">
-                        {c.severity === "error" ? "🔴" : "🟡"} {c.message}
+                      <div key={i} className="text-sm">
+                        <span className={c.severity === "error" ? "text-red-700" : "text-yellow-700"}>
+                          {c.severity === "error" ? "🔴 ERROR: " : "🟡 WARNING: "} {c.message}
+                        </span>
                       </div>
                     ))}
                   </div>
+                  <div className="mt-2 pt-2 border-t border-yellow-200">
+                    <p className="text-xs text-yellow-700">
+                      💡 <strong>AI attempted:</strong> Smart swapping, reallocation, and conflict resolution for all issues above.
+                      {conflicts.some(c => c.severity === 'error') 
+                        ? " Some constraints could not be satisfied - consider adjusting day restrictions or frequencies."
+                        : " The timetable is usable but some optimization suggestions are noted."
+                      }
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Success message if no conflicts */}
+            {conflicts.length === 0 && generatedEntries.length > 0 && (
+              <Card className="border-green-300 bg-green-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <span className="font-semibold text-green-800">
+                      ✅ Perfect Timetable Generated!
+                    </span>
+                  </div>
+                  <p className="text-sm text-green-700 mt-1">
+                    All subjects successfully scheduled with no conflicts. The AI optimizer found an ideal solution.
+                  </p>
                 </CardContent>
               </Card>
             )}

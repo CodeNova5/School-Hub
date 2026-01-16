@@ -172,8 +172,8 @@ export default function TimetablePage() {
     const groupedRows = (allRows && allRows.length)
       ? allRows
       : entries.filter((en) =>
-          en.class_id === entryRow.class_id && en.period_slot_id === entryRow.period_slot_id
-        );
+        en.class_id === entryRow.class_id && en.period_slot_id === entryRow.period_slot_id
+      );
 
     const primaryRow = groupedRows[0] || entryRow;
 
@@ -282,9 +282,8 @@ export default function TimetablePage() {
   function shortCode(name: string | undefined | null) {
     if (!name) return "";
     const cleaned = name.trim();
-    // Split by '-' and take the first part only
-    const firstPart = cleaned.split('-')[0];
-    return firstPart.toUpperCase();
+    if (cleaned.length <= 3) return cleaned.toUpperCase();
+    return cleaned.slice(0, 3).toUpperCase();
   }
 
   function teacherForSubjectClass(subjectClass: any) {
@@ -1820,8 +1819,8 @@ export default function TimetablePage() {
                         const cell = teacherTimetable[day]?.[period.id];
 
                         return (
-                          <td 
-                            key={day} 
+                          <td
+                            key={day}
                             className="border border-gray-300 p-3 cursor-pointer hover:bg-green-50 transition-colors"
                             onClick={() => {
                               if (cell?.rows?.length > 0) {

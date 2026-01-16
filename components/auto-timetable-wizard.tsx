@@ -997,6 +997,56 @@ export function AutoTimetableWizard({
     
     // Convert periodAssignments map to entries array
     entries.push(...Array.from(periodAssignments.values()));
+
+    // ==================== FILL REMAINING EMPTY SLOTS ====================
+    // Find all unused period slots
+    const allPeriodSlotIds: string[] = [];
+    DAYS.forEach(day => {
+      const dayPeriods = periodsByDay[day];
+      dayPeriods.forEach(period => {
+        allPeriodSlotIds.push(period.id);
+      });
+    });
+
+    const unusedSlots = allPeriodSlotIds.filter(id => !usedPeriodSlots.has(id));
+
+    // Find flexible subjects (not at max frequency, allowed on that day)
+    unusedSlots.forEach(slotId => {
+      const period = Object.values(periodsByDay).flat().find(p => p.id === slotId);
+      if (!period) return;
+      const day = period.day_of_week;
+      // Find a flexible subject
+      const candidate = subjectPool.find(s =>
+        s.allowedDays.includes(day) &&
+        s.assignedCount < s.targetCount + 100 // allow overflow for filling
+      );
+      if (candidate) {
+        // Assign this slot to the flexible subject
+        const entry: GeneratedEntry = {
+          periodSlotId: period.id,
+          subjectClassId: candidate.subjectClassId,
+          day: day,
+          periodNumber: period.period_number,
+          subjectName: candidate.subjectName,
+          teacherName: candidate.teacherName,
+          department: candidate.department,
+          religion: candidate.religion,
+        };
+        entries.push(entry);
+        usedPeriodSlots.add(period.id);
+        candidate.assignedCount++;
+        if (!subjectDailyCount[candidate.subjectClassId]) {
+          subjectDailyCount[candidate.subjectClassId] = {};
+        }
+        subjectDailyCount[candidate.subjectClassId][day] = (subjectDailyCount[candidate.subjectClassId][day] || 0) + 1;
+        if (candidate.teacherId) {
+          if (!teacherDailyLoad[candidate.teacherId]) {
+            teacherDailyLoad[candidate.teacherId] = {};
+          }
+          teacherDailyLoad[candidate.teacherId][day] = (teacherDailyLoad[candidate.teacherId][day] || 0) + 1;
+        }
+      }
+    });
     
     // ==================== FINAL VALIDATION & CONFLICT DETECTION ====================
     

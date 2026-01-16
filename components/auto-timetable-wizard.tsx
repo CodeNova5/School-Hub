@@ -1069,7 +1069,7 @@ export function AutoTimetableWizard({
     const totalSubjects = subjectPool.length + (crsSubject && irsSubject ? 1 : 0) + 
       Array.from(departmentGroupsMap.values()).reduce((sum, group) => sum + group.length, 0);
     const fullyAssigned = [...subjectPool, crsSubject, irsSubject, ...Array.from(departmentGroupsMap.values()).flat()]
-      .filter(s => s !== null)
+      .filter((s): s is SubjectPoolEntry => s !== null)
       .filter((s: SubjectPoolEntry) => s.assignedCount === s.targetCount)
       .length;
     const assignmentRate = totalSubjects > 0 ? (fullyAssigned / totalSubjects * 100).toFixed(1) : '0';

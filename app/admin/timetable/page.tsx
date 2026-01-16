@@ -903,7 +903,7 @@ export default function TimetablePage() {
         const sname = r.subject_classes?.subjects?.name || "";
         const sdept = r.subject_classes?.subjects?.department || r.department || "";
         const sreligion = r.subject_classes?.subjects?.religion || r.religion || "";
-        const code = r.subject_classes?.subject_code || shortCode(sname);
+        const code = shortCode(sname);
         const teacherName = teacherForSubjectClass(r.subject_classes);
         if (sreligion) {
           religionMap[sreligion] = code || sname;
@@ -986,7 +986,7 @@ export default function TimetablePage() {
       timetable[day] = {};
     });
 
-    teacherEntries.forEach((entry) => {
+    teacherEntries.forEach((entry: any) => {
       const periodSlot = Array.isArray(entry.period_slots)
         ? entry.period_slots[0]
         : entry.period_slots;
@@ -1008,7 +1008,7 @@ export default function TimetablePage() {
       const classId = classObj?.id;
 
       const subjectName = subjectClass?.subjects?.name || "";
-      const subjectCode = subjectClass?.subject_code || shortCode(subjectName);
+      const subjectCode = shortCode(subjectName);
 
       if (!timetable[day][periodSlotId]) {
         timetable[day][periodSlotId] = {

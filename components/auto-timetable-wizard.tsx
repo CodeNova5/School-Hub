@@ -220,7 +220,10 @@ export function AutoTimetableWizard({
     if (name.includes("yoruba")) return ["Monday", "Wednesday"];
     if (name.includes("chess")) return ["Thursday"];
     if (name.includes("agric")) return ["Tuesday", "Thursday"];
-    
+    if (name.includes("music")) return ["Tuesday"];
+    if (name.includes("civic education") || name.includes("history")) return ["Tuesday", "Thursday"];
+    if (name.includes("basic science")) return ["Tuesday", "Thursday"];
+  
     // All other subjects can be scheduled on any day
     return [...DAYS];
   }

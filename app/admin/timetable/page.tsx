@@ -792,7 +792,7 @@ export default function TimetablePage() {
         const subjName = r.subject_classes?.subjects?.name || "";
         const subjDept = r.subject_classes?.subjects?.department || r.department || "";
         const subjReligion = r.subject_classes?.subjects?.religion || r.religion || "";
-        const code = r.subject_classes?.subject_code || shortCode(subjName);
+        const code = shortCode(subjName);
         const subjTeacherName = teacherForSubjectClass(r.subject_classes);
 
         if (subjReligion) {

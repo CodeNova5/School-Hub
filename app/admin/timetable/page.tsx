@@ -282,8 +282,9 @@ export default function TimetablePage() {
   function shortCode(name: string | undefined | null) {
     if (!name) return "";
     const cleaned = name.trim();
-    if (cleaned.length <= 3) return cleaned.toUpperCase();
-    return cleaned.slice(0, 3).toUpperCase();
+    // Split by '-' and take the first part only
+    const firstPart = cleaned.split('-')[0];
+    return firstPart.toUpperCase();
   }
 
   function teacherForSubjectClass(subjectClass: any) {

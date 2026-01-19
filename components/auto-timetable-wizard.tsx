@@ -321,24 +321,24 @@ export function AutoTimetableWizard({
 
   function updateGroupFrequency(groupName: string, frequency: number) {
     const normalizedFreq = Math.max(0, Math.min(10, frequency));
-    
+
     // Update group data
-    setDepartmentalGroups(prev => ({
+    setDepartmentalGroups((prev) => ({
       ...prev,
-      [groupName]: { ...prev[groupName], frequency: normalizedFreq }
+      [groupName]: { ...prev[groupName], frequency: normalizedFreq },
     }));
-    
+
     // Sync all subjects in the group
-    const groupData = departmentalGroups[groupName];
-    if (groupData) {
-      setSubjectFrequencies(prev =>
-        prev.map(sf =>
-          groupData.subjectClassIds.includes(sf.subjectClassId)
-            ? { ...sf, frequency: normalizedFreq }
-            : sf
-        )
+    setSubjectFrequencies((prev) => {
+      const groupData = departmentalGroups[groupName];
+      if (!groupData) return prev;
+
+      return prev.map((sf) =>
+        groupData.subjectClassIds.includes(sf.subjectClassId)
+          ? { ...sf, frequency: normalizedFreq } // Apply the same frequency to all grouped subjects
+          : sf
       );
-    }
+    });
   }
 
   // Get available departments (subjects not in any group)
@@ -1422,7 +1422,7 @@ export function AutoTimetableWizard({
                       The scheduler will prioritize subjects based on their constraints:
                     </p>
                     <ul className="text-indigo-600 space-y-0.5 ml-4 list-disc">
-                      <li><span className="font-semibold text-red-700">Critical</span> - Only 1 day available (scheduled first)</li>
+                      <li><span className="font-semibold text-red-700">Critical</span> - Only 1 day available - scheduled first</li>
                       <li><span className="font-semibold text-orange-700">High</span> - Only 2 days available</li>
                       <li><span className="font-semibold text-blue-700">Medium</span> - Partial restrictions or paired/grouped</li>
                       <li><span className="font-semibold text-gray-600">Low</span> - No restrictions (fills remaining slots)</li>

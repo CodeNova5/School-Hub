@@ -89,12 +89,8 @@ export function AutoTimetableWizard({
   const [preventTeacherClash, setPreventTeacherClash] = useState(true);
   const [balanceDifficulty, setBalanceDifficulty] = useState(true);
   
-  // Departmental grouping
-  const [departmentalGroups, setDepartmentalGroups] = useState<Record<string, {
-    subjectClassIds: string[];
-    frequency: number;
-  }>>({});
-  const [enableDepartmentalGrouping, setEnableDepartmentalGrouping] = useState(false);
+  // Departmental grouping - stores groups with their subject mappings (like CRS/IRS pairing but max 3 subjects)
+  const [departmentalGroups, setDepartmentalGroups] = useState<Record<string, string[]>>({});
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
   const isSSS = selectedClass?.level?.startsWith("SSS");
@@ -110,7 +106,7 @@ export function AutoTimetableWizard({
   // Filter subjects by search (exclude individually grouped subjects)
   const filteredSubjects = useMemo(() => {
     const groupedIds = new Set(
-      Object.values(departmentalGroups).flatMap(g => g.subjectClassIds)
+      Object.values(departmentalGroups).flatMap(g => g)
     );
     
     return subjectFrequencies.filter(sf => {
@@ -126,44 +122,47 @@ export function AutoTimetableWizard({
 
   // Get groups with their subjects (for display)
   const groupsWithSubjects = useMemo(() => {
-    const groups: Record<string, { subjects: SubjectFrequency[]; frequency: number }> = {};
-    Object.entries(departmentalGroups).forEach(([groupName, groupData]) => {
-      const subjects = subjectFrequencies.filter(sf => groupData.subjectClassIds.includes(sf.subjectClassId));
-      groups[groupName] = { subjects, frequency: groupData.frequency };
+    const groups: Record<string, SubjectFrequency[]> = {};
+    Object.entries(departmentalGroups).forEach(([groupName, subjectIds]) => {
+      const subjects = subjectFrequencies.filter(sf => subjectIds.includes(sf.subjectClassId));
+      groups[groupName] = subjects;
     });
     return groups;
   }, [departmentalGroups, subjectFrequencies]);
 
-  // Calculate total periods (accounting for paired religious subjects)
+  // Calculate total periods (accounting for paired religious subjects and departmental groups)
   const totalPeriods = useMemo(() => {
     // CRS/IRS pairing
     const crs = subjectFrequencies.find(sf => sf.religion === 'Christian');
     const irs = subjectFrequencies.find(sf => sf.religion === 'Muslim');
 
     let total = 0;
-    const countedGroups = new Set<string>();
+    const countedSubjects = new Set<string>();
 
     subjectFrequencies.forEach(sf => {
-      // Paired religious subjects: only count Christian
+      if (countedSubjects.has(sf.subjectClassId)) return;
+      
+      // Paired religious subjects: only count Christian (IRS is paired)
       if (sf.religion === 'Christian') {
         total += sf.frequency;
+        if (irs) countedSubjects.add(irs.subjectClassId);
       } else if (sf.religion === 'Muslim') {
         // skip, already counted with Christian
         return;
-      } else if (sf.departmentGroup && enableDepartmentalGrouping) {
-        // Only count the first subject in each group
-        if (!countedGroups.has(sf.departmentGroup)) {
-          total += sf.frequency;
-          countedGroups.add(sf.departmentGroup);
-        }
+      } else if (sf.departmentGroup) {
+        // For grouped subjects, count only once (all subjects in group share same slot)
+        const groupSubjects = subjectFrequencies.filter(s => s.departmentGroup === sf.departmentGroup);
+        total += sf.frequency;
+        groupSubjects.forEach(gs => countedSubjects.add(gs.subjectClassId));
       } else {
         // Normal subject
         total += sf.frequency;
       }
+      countedSubjects.add(sf.subjectClassId);
     });
 
     return total;
-  }, [subjectFrequencies, enableDepartmentalGrouping]);
+  }, [subjectFrequencies]);
   
   // Calculate available periods (excluding breaks, limited to first 8 periods per day)
   const availablePeriods = useMemo(() => {
@@ -272,18 +271,25 @@ export function AutoTimetableWizard({
       toast.error("Please select at least one subject");
       return;
     }
+    if (subjectIds.length > 3) {
+      toast.error("Maximum 3 subjects per group");
+      return;
+    }
     
-    // Create group with default frequency of 2
+    // Create group - subjects will share the same time slot (like CRS/IRS)
     setDepartmentalGroups(prev => ({
       ...prev,
-      [trimmedName]: { subjectClassIds: subjectIds, frequency: 2 }
+      [trimmedName]: subjectIds
     }));
     
-    // Update subject frequencies to mark them as grouped
+    // Update subject frequencies to mark them as grouped with same frequency
+    const firstSubject = subjectFrequencies.find(sf => sf.subjectClassId === subjectIds[0]);
+    const groupFrequency = firstSubject?.frequency || getDefaultFrequency(firstSubject?.subjectName) || 2;
+    
     setSubjectFrequencies(prev =>
       prev.map(sf =>
         subjectIds.includes(sf.subjectClassId)
-          ? { ...sf, departmentGroup: trimmedName, frequency: 2 }
+          ? { ...sf, departmentGroup: trimmedName, frequency: groupFrequency }
           : sf
       )
     );
@@ -295,13 +301,13 @@ export function AutoTimetableWizard({
   }
 
   function deleteDepartmentGroup(groupName: string) {
-    const groupData = departmentalGroups[groupName];
-    if (!groupData) return;
+    const groupSubjectIds = departmentalGroups[groupName];
+    if (!groupSubjectIds) return;
     
     // Unassign all subjects from this group
     setSubjectFrequencies(prev =>
       prev.map(sf =>
-        groupData.subjectClassIds.includes(sf.subjectClassId)
+        groupSubjectIds.includes(sf.subjectClassId)
           ? { ...sf, departmentGroup: undefined, frequency: getDefaultFrequency(sf.subjectName) }
           : sf
       )
@@ -316,26 +322,22 @@ export function AutoTimetableWizard({
   }
 
   function getSubjectsByGroup(groupName: string): SubjectFrequency[] {
-    return subjectFrequencies.filter(sf => sf.departmentGroup === groupName);
+    const groupSubjectIds = departmentalGroups[groupName];
+    if (!groupSubjectIds) return [];
+    return subjectFrequencies.filter(sf => groupSubjectIds.includes(sf.subjectClassId));
   }
 
   function updateGroupFrequency(groupName: string, frequency: number) {
     const normalizedFreq = Math.max(0, Math.min(10, frequency));
 
-    // Update group data
-    setDepartmentalGroups((prev) => ({
-      ...prev,
-      [groupName]: { ...prev[groupName], frequency: normalizedFreq },
-    }));
-
-    // Sync all subjects in the group
+    // Sync all subjects in the group to have same frequency (like CRS/IRS pairing)
     setSubjectFrequencies((prev) => {
-      const groupData = departmentalGroups[groupName];
-      if (!groupData) return prev;
+      const groupSubjectIds = departmentalGroups[groupName];
+      if (!groupSubjectIds) return prev;
 
       return prev.map((sf) =>
-        groupData.subjectClassIds.includes(sf.subjectClassId)
-          ? { ...sf, frequency: normalizedFreq } // Apply the same frequency to all grouped subjects
+        groupSubjectIds.includes(sf.subjectClassId)
+          ? { ...sf, frequency: normalizedFreq }
           : sf
       );
     });
@@ -344,7 +346,7 @@ export function AutoTimetableWizard({
   // Get available departments (subjects not in any group)
   const availableDepartments = useMemo(() => {
     const grouped = new Set(
-      Object.values(departmentalGroups).flatMap(g => g.subjectClassIds)
+      Object.values(departmentalGroups).flatMap(g => g)
     );
     const depts = new Map<string, SubjectFrequency[]>();
     
@@ -366,8 +368,6 @@ export function AutoTimetableWizard({
   }
 
   function validateDepartmentalGroups(): string | null {
-    if (!enableDepartmentalGrouping) return null;
-    
     const groupFrequencies = new Map<string, Set<number>>();
     
     subjectFrequencies.forEach(sf => {
@@ -382,6 +382,13 @@ export function AutoTimetableWizard({
     for (const [group, frequencies] of Array.from(groupFrequencies.entries())) {
       if (frequencies.size > 1) {
         return `All subjects in "${group}" must have equal frequencies`;
+      }
+    }
+    
+    // Validate group size (max 3 subjects)
+    for (const [group, subjectIds] of Object.entries(departmentalGroups)) {
+      if (subjectIds.length > 3) {
+        return `Group "${group}" has too many subjects (max 3 allowed)`;
       }
     }
     
@@ -564,7 +571,7 @@ export function AutoTimetableWizard({
       }
       
       // Priority boost for departmental grouping
-      if (enableDepartmentalGrouping && sf.departmentGroup) {
+      if (sf.departmentGroup) {
         priority += 350; // Need to coordinate groups
         constraint = constraint === 'low' ? 'medium' : constraint;
       }
@@ -590,7 +597,7 @@ export function AutoTimetableWizard({
         crsSubject = poolEntry;
       } else if (sf.religion === 'Muslim') {
         irsSubject = poolEntry;
-      } else if (enableDepartmentalGrouping && sf.departmentGroup) {
+      } else if (sf.departmentGroup) {
         if (!departmentGroupsMap.has(sf.departmentGroup)) {
           departmentGroupsMap.set(sf.departmentGroup, []);
         }
@@ -1462,7 +1469,8 @@ export function AutoTimetableWizard({
                   {/* Display Existing Groups */}
                   {Object.keys(departmentalGroups).length > 0 ? (
                     <div className="space-y-2">
-                      {Object.entries(groupsWithSubjects).map(([groupName, { subjects, frequency }]) => {
+                      {Object.entries(groupsWithSubjects).map(([groupName, subjects]) => {
+                        const frequency = subjects[0]?.frequency || 0; // All subjects in group have same frequency
                         const abbr = subjects.map(s => getSubjectAbbr(s.subjectName)).join('/');
                         return (
                           <div
@@ -1547,7 +1555,8 @@ export function AutoTimetableWizard({
                 </thead>
                 <tbody>
                   {/* Show departmental groups first */}
-                  {Object.entries(groupsWithSubjects).map(([groupName, { subjects, frequency }]) => {
+                  {Object.entries(groupsWithSubjects).map(([groupName, subjects]) => {
+                    const frequency = subjects[0]?.frequency || 0; // All subjects in group have same frequency
                     const abbr = subjects.map(s => getSubjectAbbr(s.subjectName)).join('/');
                     const allowedDays = subjects[0]?.allowedDays || [...DAYS];
                     const hasRestrictions = allowedDays.length < DAYS.length;
@@ -1992,21 +2001,6 @@ export function AutoTimetableWizard({
                     </p>
                   </div>
                 </div>
-
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={enableDepartmentalGrouping}
-                    onChange={(e) => setEnableDepartmentalGrouping(e.target.checked)}
-                    className="mt-1"
-                  />
-                  <div>
-                    <Label className="font-semibold">Enable Departmental Subject Grouping</Label>
-                    <p className="text-xs text-gray-500">
-                      Groups departmental subjects (e.g., PHY/GOV/ACC) to share the same period slot
-                    </p>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
@@ -2022,7 +2016,7 @@ export function AutoTimetableWizard({
                   {avoidConsecutive && " • Consecutive Prevention"}
                   {preventTeacherClash && " • Teacher Clash Detection"}
                   {balanceDifficulty && " • Workload Balancing"}
-                  {enableDepartmentalGrouping && " • Departmental Grouping"}
+                  {Object.keys(departmentalGroups).length > 0 && " • Departmental Grouping"}
                 </p>
                 <p className="text-xs text-purple-600 mt-1">
                   💡 <em>Constrained subjects (limited days) will be prioritized first, then the AI will intelligently fill remaining slots.</em>

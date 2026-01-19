@@ -81,6 +81,8 @@ export function AutoTimetableWizard({
   const [newGroupName, setNewGroupName] = useState("");
   const [generatedEntries, setGeneratedEntries] = useState<GeneratedEntry[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
+  const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [selectedGroupSubjects, setSelectedGroupSubjects] = useState<Record<string, string>>({});
   
   // Advanced settings
   const [avoidConsecutive, setAvoidConsecutive] = useState(true);
@@ -88,11 +90,10 @@ export function AutoTimetableWizard({
   const [balanceDifficulty, setBalanceDifficulty] = useState(true);
   
   // Departmental grouping
-  const [departmentalGroups, setDepartmentalGroups] = useState<Record<string, string[]>>({
-    // Default groups - can be customized
-    "Science Group 1": [], // Will be populated with Physics, Chemistry, Biology subject IDs
-    "Social Sciences Group 1": [], // Government, Economics, etc.
-  });
+  const [departmentalGroups, setDepartmentalGroups] = useState<Record<string, {
+    subjectClassIds: string[];
+    frequency: number;
+  }>>({});
   const [enableDepartmentalGrouping, setEnableDepartmentalGrouping] = useState(false);
 
   const selectedClass = classes.find(c => c.id === selectedClassId);
@@ -106,19 +107,29 @@ export function AutoTimetableWizard({
   // Get subjects for selected class
   const classSubjects = subjectClasses.filter(sc => sc.class_id === selectedClassId);
 
-  // Filter subjects by search
+  // Filter subjects by search (exclude individually grouped subjects)
   const filteredSubjects = useMemo(() => {
-    return subjectFrequencies.filter(sf =>
-      sf.subjectName.toLowerCase().includes(searchSubject.toLowerCase()) ||
-      sf.teacherName.toLowerCase().includes(searchSubject.toLowerCase())
+    const groupedIds = new Set(
+      Object.values(departmentalGroups).flatMap(g => g.subjectClassIds)
     );
-  }, [subjectFrequencies, searchSubject]);
+    
+    return subjectFrequencies.filter(sf => {
+      // Exclude subjects that are in a group (they'll be shown as group)
+      if (groupedIds.has(sf.subjectClassId)) return false;
+      
+      return (
+        sf.subjectName.toLowerCase().includes(searchSubject.toLowerCase()) ||
+        sf.teacherName.toLowerCase().includes(searchSubject.toLowerCase())
+      );
+    });
+  }, [subjectFrequencies, searchSubject, departmentalGroups]);
 
   // Get groups with their subjects (for display)
   const groupsWithSubjects = useMemo(() => {
-    const groups: Record<string, SubjectFrequency[]> = {};
-    Object.keys(departmentalGroups).forEach(groupName => {
-      groups[groupName] = subjectFrequencies.filter(sf => sf.departmentGroup === groupName);
+    const groups: Record<string, { subjects: SubjectFrequency[]; frequency: number }> = {};
+    Object.entries(departmentalGroups).forEach(([groupName, groupData]) => {
+      const subjects = subjectFrequencies.filter(sf => groupData.subjectClassIds.includes(sf.subjectClassId));
+      groups[groupName] = { subjects, frequency: groupData.frequency };
     });
     return groups;
   }, [departmentalGroups, subjectFrequencies]);
@@ -206,7 +217,6 @@ export function AutoTimetableWizard({
     // Core subjects get more periods
     if (name.includes("math") || name.includes("english")) return 4;
     if (name.includes("physics") || name.includes("chemistry") || name.includes("biology")) return 3;
-    if (name.includes("economics") || name.includes("accounting") || name.includes("commerce")) return 3;
     if (name.includes("french")) return 1;
     if (name.includes("chess")) return 1;
     if (name.includes("music")) return 1;
@@ -240,6 +250,12 @@ export function AutoTimetableWizard({
     );
   }
 
+  function openGroupDialog() {
+    setNewGroupName("");
+    setSelectedGroupSubjects({});
+    setShowGroupDialog(true);
+  }
+
   function createDepartmentGroup() {
     const trimmedName = newGroupName.trim();
     if (!trimmedName) {
@@ -250,17 +266,43 @@ export function AutoTimetableWizard({
       toast.error("Group already exists");
       return;
     }
-    setDepartmentalGroups(prev => ({ ...prev, [trimmedName]: [] }));
+    
+    const subjectIds = Object.values(selectedGroupSubjects).filter(Boolean);
+    if (subjectIds.length === 0) {
+      toast.error("Please select at least one subject");
+      return;
+    }
+    
+    // Create group with default frequency of 2
+    setDepartmentalGroups(prev => ({
+      ...prev,
+      [trimmedName]: { subjectClassIds: subjectIds, frequency: 2 }
+    }));
+    
+    // Update subject frequencies to mark them as grouped
+    setSubjectFrequencies(prev =>
+      prev.map(sf =>
+        subjectIds.includes(sf.subjectClassId)
+          ? { ...sf, departmentGroup: trimmedName, frequency: 2 }
+          : sf
+      )
+    );
+    
+    setShowGroupDialog(false);
     setNewGroupName("");
+    setSelectedGroupSubjects({});
     toast.success(`Created group: ${trimmedName}`);
   }
 
   function deleteDepartmentGroup(groupName: string) {
+    const groupData = departmentalGroups[groupName];
+    if (!groupData) return;
+    
     // Unassign all subjects from this group
     setSubjectFrequencies(prev =>
       prev.map(sf =>
-        sf.departmentGroup === groupName
-          ? { ...sf, departmentGroup: undefined }
+        groupData.subjectClassIds.includes(sf.subjectClassId)
+          ? { ...sf, departmentGroup: undefined, frequency: getDefaultFrequency(sf.subjectName) }
           : sf
       )
     );
@@ -275,6 +317,52 @@ export function AutoTimetableWizard({
 
   function getSubjectsByGroup(groupName: string): SubjectFrequency[] {
     return subjectFrequencies.filter(sf => sf.departmentGroup === groupName);
+  }
+
+  function updateGroupFrequency(groupName: string, frequency: number) {
+    const normalizedFreq = Math.max(0, Math.min(10, frequency));
+    
+    // Update group data
+    setDepartmentalGroups(prev => ({
+      ...prev,
+      [groupName]: { ...prev[groupName], frequency: normalizedFreq }
+    }));
+    
+    // Sync all subjects in the group
+    const groupData = departmentalGroups[groupName];
+    if (groupData) {
+      setSubjectFrequencies(prev =>
+        prev.map(sf =>
+          groupData.subjectClassIds.includes(sf.subjectClassId)
+            ? { ...sf, frequency: normalizedFreq }
+            : sf
+        )
+      );
+    }
+  }
+
+  // Get available departments (subjects not in any group)
+  const availableDepartments = useMemo(() => {
+    const grouped = new Set(
+      Object.values(departmentalGroups).flatMap(g => g.subjectClassIds)
+    );
+    const depts = new Map<string, SubjectFrequency[]>();
+    
+    subjectFrequencies.forEach(sf => {
+      if (!grouped.has(sf.subjectClassId) && sf.department && !sf.religion) {
+        if (!depts.has(sf.department)) {
+          depts.set(sf.department, []);
+        }
+        depts.get(sf.department)!.push(sf);
+      }
+    });
+    
+    return depts;
+  }, [subjectFrequencies, departmentalGroups]);
+
+  // Get subject abbreviation (first 3 letters uppercase)
+  function getSubjectAbbr(name: string): string {
+    return name.substring(0, 3).toUpperCase();
   }
 
   function validateDepartmentalGroups(): string | null {
@@ -1357,77 +1445,86 @@ export function AutoTimetableWizard({
                         <span>🎯</span> Departmental Subject Groups
                       </h4>
                       <p className="text-xs text-purple-700 mt-1">
-                        Group departmental subjects (e.g., PHY/GOV/ACC) to share the same period slot
+                        Group departmental subjects (e.g., PHY/LIT/ACC) to share the same period slot
                       </p>
                     </div>
-                  </div>
-
-                  {/* Create New Group */}
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Enter group name (e.g., Science Group 1)"
-                      value={newGroupName}
-                      onChange={(e) => setNewGroupName(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && createDepartmentGroup()}
-                      className="flex-1"
-                    />
                     <Button
-                      onClick={createDepartmentGroup}
+                      onClick={openGroupDialog}
                       size="sm"
                       className="bg-purple-600 hover:bg-purple-700"
+                      disabled={availableDepartments.size === 0}
                     >
                       <Plus className="w-4 h-4 mr-1" />
-                      Add Group
+                      Create Group
                     </Button>
                   </div>
 
                   {/* Display Existing Groups */}
-                  {Object.keys(departmentalGroups).length > 0 && (
+                  {Object.keys(departmentalGroups).length > 0 ? (
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold text-purple-900">Active Groups:</Label>
-                      <div className="space-y-2">
-                        {Object.entries(groupsWithSubjects).map(([groupName, subjects]) => (
+                      {Object.entries(groupsWithSubjects).map(([groupName, { subjects, frequency }]) => {
+                        const abbr = subjects.map(s => getSubjectAbbr(s.subjectName)).join('/');
+                        return (
                           <div
                             key={groupName}
                             className="bg-white border border-purple-200 rounded-lg p-3"
                           >
-                            <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-start justify-between gap-3">
                               <div className="flex-1">
                                 <div className="font-semibold text-purple-900">{groupName}</div>
+                                <div className="text-sm font-mono text-purple-700 mt-1">{abbr}</div>
                                 <div className="text-xs text-gray-600 mt-1">
-                                  {subjects.length === 0 ? (
-                                    <span className="text-orange-600">No subjects assigned</span>
-                                  ) : (
-                                    <span>
-                                      {subjects.length} subject{subjects.length !== 1 ? 's' : ''}: {' '}
-                                      {subjects.map(s => s.subjectName).join(', ')}
-                                    </span>
-                                  )}
+                                  {subjects.map(s => `${s.subjectName} (${s.teacherName})`).join(' • ')}
                                 </div>
                               </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteDepartmentGroup(groupName)}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                            {subjects.length > 0 && (
-                              <div className="text-xs text-purple-700 bg-purple-50 rounded px-2 py-1">
-                                💡 These subjects will share {subjects[0].frequency} period{subjects[0].frequency !== 1 ? 's' : ''} per week
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateGroupFrequency(groupName, frequency - 1)}
+                                    disabled={frequency <= 0}
+                                    className="h-7 w-7 p-0"
+                                  >
+                                    −
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    value={frequency}
+                                    onChange={(e) => updateGroupFrequency(groupName, parseInt(e.target.value) || 0)}
+                                    className="w-12 h-7 text-center text-sm border-purple-300"
+                                    min="0"
+                                    max="10"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => updateGroupFrequency(groupName, frequency + 1)}
+                                    disabled={frequency >= 10}
+                                    className="h-7 w-7 p-0"
+                                  >
+                                    +
+                                  </Button>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteDepartmentGroup(groupName)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7"
+                                >
+                                  Delete
+                                </Button>
                               </div>
-                            )}
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
-                  )}
-
-                  {Object.keys(departmentalGroups).length === 0 && (
+                  ) : (
                     <div className="text-center py-4 text-sm text-gray-500">
-                      No groups created yet. Create a group to start organizing departmental subjects.
+                      {availableDepartments.size === 0
+                        ? "All departmental subjects are already grouped"
+                        : "No groups created yet. Click 'Create Group' to start."}
                     </div>
                   )}
                 </CardContent>
@@ -1445,13 +1542,135 @@ export function AutoTimetableWizard({
                       <div>AI Priority</div>
                       <div className="text-gray-500 font-normal">(Constraint)</div>
                     </th>
-                    {isSSS && Object.keys(departmentalGroups).length > 0 && (
-                      <th className="text-left p-3 font-semibold">Group</th>
-                    )}
                     <th className="text-center p-3 font-semibold">Periods/Week</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {/* Show departmental groups first */}
+                  {Object.entries(groupsWithSubjects).map(([groupName, { subjects, frequency }]) => {
+                    const abbr = subjects.map(s => getSubjectAbbr(s.subjectName)).join('/');
+                    const allowedDays = subjects[0]?.allowedDays || [...DAYS];
+                    const hasRestrictions = allowedDays.length < DAYS.length;
+                    const isExpanded = expandedSubject === groupName;
+                    
+                    let priorityLabel = 'Medium';
+                    let priorityColor = 'text-blue-700';
+                    let priorityBg = 'bg-blue-100';
+                    
+                    return (
+                      <React.Fragment key={groupName}>
+                        <tr className="border-t bg-purple-50 hover:bg-purple-100">
+                          <td className="p-3">
+                            <button
+                              onClick={() => setExpandedSubject(isExpanded ? null : groupName)}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              {isExpanded ? "▼" : "▶"}
+                            </button>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <div>
+                                <div className="font-semibold text-purple-900 font-mono">{abbr}</div>
+                                <div className="text-xs text-purple-600">🎯 Departmental Group</div>
+                              </div>
+                              {hasRestrictions && (
+                                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
+                                  {allowedDays.length} day{allowedDays.length !== 1 ? 's' : ''} only
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3 text-sm text-gray-600">
+                            {subjects.map(s => s.teacherName).join(' / ')}
+                          </td>
+                          <td className="p-3">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className={`text-xs font-semibold px-2 py-1 rounded ${priorityBg} ${priorityColor}`}>
+                                {priorityLabel}
+                              </span>
+                              <span className="text-xs text-gray-500">Grouped</span>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center justify-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateGroupFrequency(groupName, frequency - 1)}
+                                disabled={frequency <= 0}
+                              >
+                                −
+                              </Button>
+                              <Input
+                                type="number"
+                                value={frequency}
+                                onChange={(e) => updateGroupFrequency(groupName, parseInt(e.target.value) || 0)}
+                                className="w-16 text-center border-purple-400"
+                                min="0"
+                                max="10"
+                              />
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => updateGroupFrequency(groupName, frequency + 1)}
+                                disabled={frequency >= 10}
+                              >
+                                +
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="border-t bg-purple-50">
+                            <td colSpan={5} className="p-4">
+                              <div className="space-y-3">
+                                <div className="bg-white rounded-lg p-3 border border-purple-200">
+                                  <Label className="font-semibold text-sm text-purple-900 mb-2 block">Group Subjects:</Label>
+                                  <div className="space-y-1">
+                                    {subjects.map(s => (
+                                      <div key={s.subjectClassId} className="text-sm text-gray-700">
+                                        <span className="font-medium">{s.subjectName}</span>
+                                        <span className="text-gray-500"> ({s.department}) - {s.teacherName}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="font-semibold text-sm">Available Days (synced for all subjects in group):</Label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {DAYS.map(day => {
+                                      const isAllowed = allowedDays.includes(day);
+                                      return (
+                                        <button
+                                          key={day}
+                                          onClick={() => {
+                                            // Toggle for first subject will sync to all
+                                            if (subjects[0]) {
+                                              toggleDay(subjects[0].subjectClassId, day);
+                                            }
+                                          }}
+                                          className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                                            isAllowed
+                                              ? "bg-purple-600 text-white hover:bg-purple-700"
+                                              : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                          }`}
+                                        >
+                                          {day.slice(0, 3)}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                  
+                  {/* Show individual subjects */}
                   {filteredSubjects.map(sf => {
                     // Skip IRS if we're showing CRS (they'll be paired)
                     if (sf.religion === 'Muslim') {
@@ -1558,24 +1777,6 @@ export function AutoTimetableWizard({
                               </span>
                             </div>
                           </td>
-                          {isSSS && availableGroups.length > 0 && (
-                            <td className="p-3">
-                              {canBeGrouped ? (
-                                <select
-                                  value={sf.departmentGroup || ''}
-                                  onChange={(e) => assignDepartmentGroup(sf.subjectClassId, e.target.value || null)}
-                                  className="w-full text-xs border rounded px-2 py-1 bg-white"
-                                >
-                                  <option value="">None</option>
-                                  {availableGroups.map(group => (
-                                    <option key={group} value={group}>{group}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span className="text-xs text-gray-400">—</span>
-                              )}
-                            </td>
-                          )}
                           <td className="p-3">
                             <div className="flex items-center justify-center gap-2">
                               <Button
@@ -1614,7 +1815,7 @@ export function AutoTimetableWizard({
                         </tr>
                         {isExpanded && (
                           <tr className="border-t bg-blue-50">
-                            <td colSpan={isSSS && availableGroups.length > 0 ? 5 : 4} className="p-4">
+                            <td colSpan={5} className="p-4">
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <Label className="font-semibold text-sm">
@@ -1856,6 +2057,93 @@ export function AutoTimetableWizard({
             </div>
           </div>
         )}
+
+        {/* Departmental Group Creation Dialog */}
+        <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Create Departmental Group</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-semibold mb-2 block">Group Name</Label>
+                <Input
+                  placeholder="e.g., Science Group 1, Arts Group A"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                />
+              </div>
+              
+              <div>
+                <Label className="text-sm font-semibold mb-2 block">
+                  Select One Subject from Each Department
+                </Label>
+                <p className="text-xs text-gray-600 mb-3">
+                  Choose one subject from each department to group together. They will share the same time slot.
+                </p>
+                
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {Array.from(availableDepartments.entries()).map(([dept, subjects]) => (
+                    <div key={dept} className="border rounded-lg p-3 bg-gray-50">
+                      <Label className="text-sm font-semibold text-purple-900 mb-2 block">
+                        {dept}
+                      </Label>
+                      <select
+                        value={selectedGroupSubjects[dept] || ''}
+                        onChange={(e) => setSelectedGroupSubjects(prev => ({
+                          ...prev,
+                          [dept]: e.target.value
+                        }))}
+                        className="w-full text-sm border rounded px-3 py-2 bg-white"
+                      >
+                        <option value="">-- Select a subject --</option>
+                        {subjects.map(subj => (
+                          <option key={subj.subjectClassId} value={subj.subjectClassId}>
+                            {subj.subjectName} ({subj.teacherName})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                
+                {availableDepartments.size === 0 && (
+                  <div className="text-center py-8 text-sm text-gray-500">
+                    No departmental subjects available for grouping
+                  </div>
+                )}
+              </div>
+              
+              {Object.values(selectedGroupSubjects).filter(Boolean).length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <Label className="text-sm font-semibold text-purple-900 mb-1 block">Preview:</Label>
+                  <div className="text-sm text-purple-700">
+                    {Object.values(selectedGroupSubjects)
+                      .filter(Boolean)
+                      .map(id => {
+                        const subj = subjectFrequencies.find(s => s.subjectClassId === id);
+                        return subj ? getSubjectAbbr(subj.subjectName) : '';
+                      })
+                      .join(' / ')}
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowGroupDialog(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={createDepartmentGroup}
+                  disabled={Object.values(selectedGroupSubjects).filter(Boolean).length === 0 || !newGroupName.trim()}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  Create Group
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Step 4: Preview & Confirm */}
         {step === 4 && (

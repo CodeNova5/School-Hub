@@ -39,9 +39,8 @@ import { useRouter } from "next/navigation";
 import { StudentDetailsModal } from "@/components/student-details-modal";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import * as XLSX from "xlsx-js-style";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { Label } from "@/components/ui/label";
+import { ClassTimetable } from "@/components/class-timetable";
 
 
 type ClassData = {
@@ -149,11 +148,6 @@ export default function ClassPage() {
   const [transferTargetClassId, setTransferTargetClassId] = useState("");
   const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
 
-  // Timetable States
-  const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
-  const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
-  const [timetableLoading, setTimetableLoading] = useState(false);
-
   // Attendance States
   const [attendanceStudents, setAttendanceStudents] = useState<StudentAttendance[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -260,44 +254,6 @@ export default function ClassPage() {
       .eq("status", "active")
       .order("first_name");
     setAvailableStudents(data || []);
-  }
-
-  async function fetchTimetable() {
-    setTimetableLoading(true);
-    const { data: entries } = await supabase
-      .from("timetable_entries")
-      .select(`
-        *,
-        classes(name, level),
-        period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
-        subject_classes (
-          id,
-          subject_code,
-          subjects ( name, department, religion ),
-          teachers ( first_name, last_name )
-        )
-      `)
-      .eq("class_id", classId)
-      .order("day_of_week")
-      .order("period_slot_id");
-
-    // Extract unique period slots from entries
-    const slots: PeriodSlot[] = [];
-    const slotMap = new Map();
-    (entries || []).forEach((entry: any) => {
-      if (entry.period_slots && !slotMap.has(entry.period_slots.id)) {
-        slotMap.set(entry.period_slots.id, entry.period_slots);
-      }
-    });
-    slotMap.forEach((v) => slots.push(v));
-    slots.sort((a, b) => {
-      if (a.day_of_week === b.day_of_week) return a.period_number - b.period_number;
-      return a.day_of_week.localeCompare(b.day_of_week);
-    });
-
-    setTimetableEntries(entries || []);
-    setPeriodSlots(slots);
-    setTimetableLoading(false);
   }
 
   async function fetchAttendance(date: string) {
@@ -606,71 +562,6 @@ export default function ClassPage() {
     reader.readAsArrayBuffer(file);
   }
 
-  // Timetable Functions
-  async function handleExportTimetablePDF() {
-    const element = document.getElementById("class-timetable");
-    if (!element) return;
-
-    const canvas = await html2canvas(element, { scale: 2 });
-    const img = canvas.toDataURL("image/png");
-
-    const pdf = new jsPDF("l", "mm", "a4");
-    const width = pdf.internal.pageSize.getWidth();
-    const height = (canvas.height * width) / canvas.width;
-
-    pdf.addImage(img, "PNG", 0, 0, width, height);
-    pdf.save(`${classData?.name || "class"}-timetable.pdf`);
-    toast.success("Timetable exported as PDF");
-  }
-
-  function handleExportTimetableExcel() {
-    const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-    const exportData: any[] = [];
-
-    const periodsByDay: Record<string, PeriodSlot[]> = {};
-    DAYS.forEach(day => {
-      periodsByDay[day] = periodSlots.filter(p => p.day_of_week === day);
-    });
-
-    const maxPeriods = Math.max(...Object.values(periodsByDay).map(p => p.length));
-
-    for (let i = 0; i < maxPeriods; i++) {
-      const row: any = { Period: `Period ${i + 1}` };
-      
-      DAYS.forEach(day => {
-        const period = periodsByDay[day]?.[i];
-        if (!period) {
-          row[day] = "";
-          return;
-        }
-
-        if (period.is_break) {
-          row[day] = `BREAK (${period.start_time}-${period.end_time})`;
-          return;
-        }
-
-        const entry = timetableEntries.find(
-          e => e.day_of_week === day && e.period_slot_id === period.id
-        );
-
-        if (entry) {
-          const teacher = entry.subject_classes?.teachers ? `${entry.subject_classes.teachers.first_name} ${entry.subject_classes.teachers.last_name}` : "";
-          row[day] = `${entry.subject_classes?.subjects?.name || ""} - ${teacher}`;
-        } else {
-          row[day] = "Free Period";
-        }
-      });
-
-      exportData.push(row);
-    }
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Timetable");
-    XLSX.writeFile(wb, `${classData?.name || "class"}-timetable.xlsx`);
-    toast.success("Timetable exported as Excel");
-  }
-
   // Attendance Functions
   function handleDateChange(date: string) {
     setSelectedDate(date);
@@ -807,7 +698,6 @@ export default function ClassPage() {
 
         {/* ================= TABS ================= */}
         <Tabs defaultValue="subjects" onValueChange={(value) => {
-          if (value === "timetable" && timetableEntries.length === 0) fetchTimetable();
           if (value === "attendance" && attendanceStudents.length === 0) fetchAttendance(selectedDate);
         }}>
           <TabsList>
@@ -1145,135 +1035,11 @@ export default function ClassPage() {
 
           {/* ================= TIMETABLE TAB ================= */}
           <TabsContent value="timetable">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <CardTitle>Class Timetable</CardTitle>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleExportTimetablePDF}
-                      disabled={timetableLoading}
-                    >
-                      <FileDown className="h-4 w-4 mr-1" />
-                      Export PDF
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleExportTimetableExcel}
-                      disabled={timetableLoading}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Export Excel
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {timetableLoading ? (
-                  <div className="text-center py-8 text-gray-500">Loading timetable...</div>
-                ) : (
-                  <div className="overflow-x-auto border rounded-lg" id="class-timetable">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-gray-100">
-                          <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
-                            Period
-                          </th>
-                          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map((day) => (
-                            <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
-                              {day}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(() => {
-                          const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-                          // Group period slots by day
-                          const periodsByDay: Record<string, PeriodSlot[]> = {};
-                          DAYS.forEach(day => {
-                            periodsByDay[day] = periodSlots.filter(p => p.day_of_week === day);
-                          });
-                          const maxPeriods = Math.max(...Object.values(periodsByDay).map(p => p.length), 0);
-
-                          return Array.from({ length: maxPeriods }, (_, i) => (
-                            <tr key={i}>
-                              <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
-                                Period {i + 1}
-                              </td>
-                              {DAYS.map((day) => {
-                                const period = periodsByDay[day]?.[i];
-                                if (!period) {
-                                  return (
-                                    <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
-                                      —
-                                    </td>
-                                  );
-                                }
-
-                                if (period.is_break) {
-                                  return (
-                                    <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
-                                      <div className="text-center">
-                                        <div className="font-semibold text-yellow-800">BREAK</div>
-                                        <div className="text-xs text-gray-600 mt-1">
-                                          {period.start_time} - {period.end_time}
-                                        </div>
-                                      </div>
-                                    </td>
-                                  );
-                                }
-
-                                // Find entry for this period slot
-                                const entry = timetableEntries.find(
-                                  e => e.period_slot_id === period.id
-                                );
-
-                                if (entry && entry.subject_classes) {
-                                  const subj = entry.subject_classes.subjects;
-                                  const teacher = entry.subject_classes.teachers;
-                                  return (
-                                    <td key={day} className="border border-gray-300 p-3">
-                                      <div className="space-y-1">
-                                        <div className="text-xs text-gray-600 text-center">
-                                          {period.start_time} - {period.end_time}
-                                        </div>
-                                        <div className="font-semibold text-gray-800 text-center">
-                                          {subj?.name || "—"}
-                                        </div>
-                                        <div className="text-xs text-gray-600 text-center">
-                                          {teacher ? `${teacher.first_name} ${teacher.last_name}` : "No teacher"}
-                                        </div>
-                                      </div>
-                                    </td>
-                                  );
-                                }
-
-                                return (
-                                  <td key={day} className="border border-gray-300 p-3">
-                                    <div className="text-gray-400 text-center py-2">
-                                      <span className="text-xs">Free Period</span>
-                                    </div>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ));
-                        })()}
-                      </tbody>
-                    </table>
-                    {periodSlots.length === 0 && (
-                      <div className="p-8 text-center text-muted-foreground">
-                        No timetable configured yet. Please set up period slots and entries in the Timetable Management page.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ClassTimetable 
+              classId={classId} 
+              className={classData?.name}
+              showExportButtons={true}
+            />
           </TabsContent>
 
           {/* ================= ATTENDANCE TAB ================= */}

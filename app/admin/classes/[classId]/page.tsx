@@ -34,11 +34,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { Trash2, User, BarChart3, Download, Upload, UserMinus, ArrowRightLeft, CheckSquare } from "lucide-react";
+import { Trash2, User, BarChart3, Download, Upload, UserMinus, ArrowRightLeft, CheckSquare, Calendar, Clock, Plus, FileDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { StudentDetailsModal } from "@/components/student-details-modal";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import * as XLSX from "xlsx-js-style";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { Label } from "@/components/ui/label";
 
 
 type ClassData = {
@@ -75,6 +78,38 @@ type Teacher = {
   last_name: string;
 };
 
+type PeriodSlot = {
+  id: string;
+  day_of_week: string;
+  period_number: number;
+  start_time: string;
+  end_time: string;
+  is_break: boolean;
+};
+
+type TimetableEntry = {
+  id: string;
+  class_id: string;
+  subject_id: string;
+  day_of_week: string;
+  period_slot_id: string;
+  subject?: { name: string; id: string };
+  teacher?: { first_name: string; last_name: string };
+};
+
+type AttendanceRecord = {
+  id: string;
+  student_id: string;
+  class_id: string;
+  date: string;
+  status: 'present' | 'absent' | 'late' | 'excused';
+};
+
+interface StudentAttendance extends Student {
+  attendanceStatus: 'present' | 'absent' | 'late' | 'excused' | 'not_marked';
+  attendanceId?: string;
+}
+
 export default function ClassPage() {
   const router = useRouter();
   const params = useParams();
@@ -107,6 +142,16 @@ export default function ClassPage() {
   const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
   const [transferTargetClassId, setTransferTargetClassId] = useState("");
   const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
+
+  // Timetable States
+  const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
+  const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
+  const [timetableLoading, setTimetableLoading] = useState(false);
+
+  // Attendance States
+  const [attendanceStudents, setAttendanceStudents] = useState<StudentAttendance[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -209,6 +254,58 @@ export default function ClassPage() {
       .eq("status", "active")
       .order("first_name");
     setAvailableStudents(data || []);
+  }
+
+  async function fetchTimetable() {
+    setTimetableLoading(true);
+    const { data: entries } = await supabase
+      .from("timetable_entries")
+      .select(`
+        *,
+        subject:subjects(id, name),
+        teacher:teachers(first_name, last_name)
+      `)
+      .eq("class_id", classId)
+      .order("day_of_week")
+      .order("period_slot_id");
+
+    const { data: slots } = await supabase
+      .from("period_slots")
+      .select("*")
+      .order("day_of_week")
+      .order("period_number");
+
+    setTimetableEntries(entries || []);
+    setPeriodSlots(slots || []);
+    setTimetableLoading(false);
+  }
+
+  async function fetchAttendance(date: string) {
+    setAttendanceLoading(true);
+    const { data: studentsData } = await supabase
+      .from("students")
+      .select("*")
+      .eq("class_id", classId)
+      .eq("status", "active")
+      .order("first_name");
+
+    const { data: attendanceData } = await supabase
+      .from("attendance")
+      .select("*")
+      .eq("class_id", classId)
+      .eq("date", date);
+
+    const studentsWithAttendance: StudentAttendance[] = (studentsData || []).map((student) => {
+      const attendance = attendanceData?.find((a) => a.student_id === student.id);
+      return {
+        ...student,
+        attendanceStatus: attendance ? (attendance.status as any) : 'not_marked',
+        attendanceId: attendance?.id,
+      };
+    });
+
+    setAttendanceStudents(studentsWithAttendance);
+    setAttendanceLoading(false);
   }
 
   async function fetchTeachers() {
@@ -489,6 +586,170 @@ export default function ClassPage() {
     reader.readAsArrayBuffer(file);
   }
 
+  // Timetable Functions
+  async function handleExportTimetablePDF() {
+    const element = document.getElementById("class-timetable");
+    if (!element) return;
+
+    const canvas = await html2canvas(element, { scale: 2 });
+    const img = canvas.toDataURL("image/png");
+
+    const pdf = new jsPDF("l", "mm", "a4");
+    const width = pdf.internal.pageSize.getWidth();
+    const height = (canvas.height * width) / canvas.width;
+
+    pdf.addImage(img, "PNG", 0, 0, width, height);
+    pdf.save(`${classData?.name || "class"}-timetable.pdf`);
+    toast.success("Timetable exported as PDF");
+  }
+
+  function handleExportTimetableExcel() {
+    const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+    const exportData: any[] = [];
+
+    const periodsByDay: Record<string, PeriodSlot[]> = {};
+    DAYS.forEach(day => {
+      periodsByDay[day] = periodSlots.filter(p => p.day_of_week === day);
+    });
+
+    const maxPeriods = Math.max(...Object.values(periodsByDay).map(p => p.length));
+
+    for (let i = 0; i < maxPeriods; i++) {
+      const row: any = { Period: `Period ${i + 1}` };
+      
+      DAYS.forEach(day => {
+        const period = periodsByDay[day]?.[i];
+        if (!period) {
+          row[day] = "";
+          return;
+        }
+
+        if (period.is_break) {
+          row[day] = `BREAK (${period.start_time}-${period.end_time})`;
+          return;
+        }
+
+        const entry = timetableEntries.find(
+          e => e.day_of_week === day && e.period_slot_id === period.id
+        );
+
+        if (entry) {
+          const teacher = entry.teacher ? `${entry.teacher.first_name} ${entry.teacher.last_name}` : "";
+          row[day] = `${entry.subject?.name || ""} - ${teacher}`;
+        } else {
+          row[day] = "Free Period";
+        }
+      });
+
+      exportData.push(row);
+    }
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Timetable");
+    XLSX.writeFile(wb, `${classData?.name || "class"}-timetable.xlsx`);
+    toast.success("Timetable exported as Excel");
+  }
+
+  // Attendance Functions
+  function handleDateChange(date: string) {
+    setSelectedDate(date);
+    fetchAttendance(date);
+  }
+
+  function setToday() {
+    const today = new Date().toISOString().split('T')[0];
+    setSelectedDate(today);
+    fetchAttendance(today);
+  }
+
+  function markAllPresent() {
+    setAttendanceStudents(prev =>
+      prev.map(student => ({
+        ...student,
+        attendanceStatus: 'present',
+      }))
+    );
+    toast.success('All students marked as present');
+  }
+
+  function updateStudentAttendanceStatus(
+    studentId: string,
+    status: StudentAttendance['attendanceStatus']
+  ) {
+    setAttendanceStudents(prev =>
+      prev.map(student =>
+        student.id === studentId ? { ...student, attendanceStatus: status } : student
+      )
+    );
+  }
+
+  async function submitAttendance() {
+    setAttendanceLoading(true);
+    const savingToast = toast.loading('Saving attendance...');
+
+    try {
+      const attendanceRecords = attendanceStudents
+        .filter(s => s.attendanceStatus !== 'not_marked')
+        .map(student => ({
+          student_id: student.id,
+          class_id: classId,
+          date: selectedDate,
+          status: student.attendanceStatus,
+          marked_by: null,
+        }));
+
+      const existingRecords = attendanceStudents.filter(s => s.attendanceId);
+
+      if (existingRecords.length > 0) {
+        const deleteIds = existingRecords.map(s => s.attendanceId).filter(Boolean);
+        if (deleteIds.length > 0) {
+          await supabase.from('attendance').delete().in('id', deleteIds);
+        }
+      }
+
+      if (attendanceRecords.length > 0) {
+        const { error } = await supabase.from('attendance').insert(attendanceRecords);
+        if (error) throw error;
+      }
+
+      toast.success('Attendance saved successfully!', { id: savingToast });
+      await fetchAttendance(selectedDate);
+    } catch (error) {
+      toast.error('Failed to save attendance', { id: savingToast });
+      console.error(error);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  }
+
+  function getFormattedDate(dateString: string) {
+    const date = new Date(dateString + 'T00:00:00');
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+
+  async function handleExportAttendance() {
+    const exportData = attendanceStudents.map((s, i) => ({
+      "#": i + 1,
+      "Student ID": s.student_id,
+      "Name": `${s.first_name} ${s.last_name}`,
+      "Gender": s.gender,
+      "Status": s.attendanceStatus.replace('_', ' ').toUpperCase(),
+      "Date": selectedDate,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+    XLSX.writeFile(wb, `${classData?.name || "class"}-attendance-${selectedDate}.xlsx`);
+    toast.success("Attendance exported successfully");
+  }
+
   if (loading || !classData) {
     return <DashboardLayout role="admin"><div className="p-6">Loading...</div></DashboardLayout>;
   }
@@ -525,10 +786,15 @@ export default function ClassPage() {
         </div>
 
         {/* ================= TABS ================= */}
-        <Tabs defaultValue="subjects">
+        <Tabs defaultValue="subjects" onValueChange={(value) => {
+          if (value === "timetable" && timetableEntries.length === 0) fetchTimetable();
+          if (value === "attendance" && attendanceStudents.length === 0) fetchAttendance(selectedDate);
+        }}>
           <TabsList>
             <TabsTrigger value="subjects"><BookOpen className="h-4 w-4 mr-1" /> Subjects</TabsTrigger>
             <TabsTrigger value="students"><Users className="h-4 w-4 mr-1" /> Students</TabsTrigger>
+            <TabsTrigger value="timetable"><Clock className="h-4 w-4 mr-1" /> Timetable</TabsTrigger>
+            <TabsTrigger value="attendance"><Calendar className="h-4 w-4 mr-1" /> Attendance</TabsTrigger>
             <TabsTrigger value="results">Results</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -853,6 +1119,273 @@ export default function ClassPage() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ================= TIMETABLE TAB ================= */}
+          <TabsContent value="timetable">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <CardTitle>Class Timetable</CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportTimetablePDF}
+                      disabled={timetableLoading}
+                    >
+                      <FileDown className="h-4 w-4 mr-1" />
+                      Export PDF
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportTimetableExcel}
+                      disabled={timetableLoading}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Export Excel
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {timetableLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading timetable...</div>
+                ) : (
+                  <div className="overflow-x-auto border rounded-lg" id="class-timetable">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
+                            Period
+                          </th>
+                          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map((day) => (
+                            <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
+                              {day}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+                          const periodsByDay: Record<string, PeriodSlot[]> = {};
+                          DAYS.forEach(day => {
+                            periodsByDay[day] = periodSlots.filter(p => p.day_of_week === day);
+                          });
+                          const maxPeriods = Math.max(...Object.values(periodsByDay).map(p => p.length), 0);
+
+                          return Array.from({ length: maxPeriods }, (_, i) => (
+                            <tr key={i}>
+                              <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
+                                Period {i + 1}
+                              </td>
+                              {DAYS.map((day) => {
+                                const period = periodsByDay[day]?.[i];
+                                if (!period) {
+                                  return (
+                                    <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
+                                      —
+                                    </td>
+                                  );
+                                }
+
+                                if (period.is_break) {
+                                  return (
+                                    <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
+                                      <div className="text-center">
+                                        <div className="font-semibold text-yellow-800">BREAK</div>
+                                        <div className="text-xs text-gray-600 mt-1">
+                                          {period.start_time} - {period.end_time}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  );
+                                }
+
+                                const entry = timetableEntries.find(
+                                  e => e.day_of_week === day && e.period_slot_id === period.id
+                                );
+
+                                return (
+                                  <td key={day} className="border border-gray-300 p-3">
+                                    <div className="space-y-1">
+                                      <div className="text-xs text-gray-600 text-center">
+                                        {period.start_time} - {period.end_time}
+                                      </div>
+                                      {entry ? (
+                                        <>
+                                          <div className="font-semibold text-gray-800 text-center">
+                                            {entry.subject?.name || "—"}
+                                          </div>
+                                          <div className="text-xs text-gray-600 text-center">
+                                            {entry.teacher
+                                              ? `${entry.teacher.first_name} ${entry.teacher.last_name}`
+                                              : "No teacher"}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="text-gray-400 text-center py-2">
+                                          <span className="text-xs">Free Period</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                    {periodSlots.length === 0 && (
+                      <div className="p-8 text-center text-muted-foreground">
+                        No timetable configured yet. Please set up period slots and entries in the Timetable Management page.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ================= ATTENDANCE TAB ================= */}
+          <TabsContent value="attendance">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <CardTitle>Class Attendance</CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportAttendance}
+                      disabled={attendanceLoading}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Export
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Date Selection and Quick Actions */}
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b">
+                  <div className="flex-1">
+                    <Label className="block text-sm font-medium mb-2">Select Date</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => handleDateChange(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button variant="outline" onClick={setToday}>
+                        Today
+                      </Button>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">{getFormattedDate(selectedDate)}</p>
+                  </div>
+
+                  <div>
+                    <Label className="block text-sm font-medium mb-2">Quick Actions</Label>
+                    <Button onClick={markAllPresent} variant="outline" disabled={attendanceLoading}>
+                      Mark All Present
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Attendance List */}
+                {attendanceLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading attendance data...</div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 rounded-lg font-medium text-sm">
+                      <div className="col-span-1">#</div>
+                      <div className="col-span-4">Student Name</div>
+                      <div className="col-span-2">Gender</div>
+                      <div className="col-span-2">Status</div>
+                      <div className="col-span-3">Action</div>
+                    </div>
+
+                    {attendanceStudents.map((student, index) => {
+                      const statusColors = {
+                        present: 'bg-green-100 text-green-800',
+                        absent: 'bg-red-100 text-red-800',
+                        late: 'bg-yellow-100 text-yellow-800',
+                        excused: 'bg-blue-100 text-blue-800',
+                        not_marked: 'bg-gray-100 text-gray-800',
+                      };
+
+                      return (
+                        <div
+                          key={student.id}
+                          className="grid grid-cols-12 gap-4 px-4 py-3 border rounded-lg items-center hover:bg-gray-50"
+                        >
+                          <div className="col-span-1 text-gray-600">{index + 1}</div>
+                          <div className="col-span-4">
+                            <p className="font-medium">
+                              {student.first_name} {student.last_name}
+                            </p>
+                            <p className="text-xs text-gray-500">{student.student_id}</p>
+                          </div>
+                          <div className="col-span-2 text-sm text-gray-600 capitalize">
+                            {student.gender || 'N/A'}
+                          </div>
+                          <div className="col-span-2">
+                            <span
+                              className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                statusColors[student.attendanceStatus]
+                              }`}
+                            >
+                              {student.attendanceStatus.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="col-span-3">
+                            <select
+                              value={student.attendanceStatus}
+                              onChange={(e) =>
+                                updateStudentAttendanceStatus(
+                                  student.id,
+                                  e.target.value as StudentAttendance['attendanceStatus']
+                                )
+                              }
+                              className="w-full px-2 py-1.5 border rounded text-sm"
+                            >
+                              <option value="not_marked">Not Marked</option>
+                              <option value="present">Present</option>
+                              <option value="absent">Absent</option>
+                              <option value="late">Late</option>
+                              <option value="excused">Excused</option>
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {attendanceStudents.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        No students found in this class
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Save Button */}
+                {attendanceStudents.length > 0 && (
+                  <div className="flex gap-2 pt-4 border-t">
+                    <Button
+                      onClick={submitAttendance}
+                      disabled={attendanceLoading}
+                      className="flex-1"
+                    >
+                      Save Attendance
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

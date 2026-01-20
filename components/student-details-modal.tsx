@@ -123,15 +123,6 @@ export function StudentDetailsModal({
           <DialogTitle>Student Details</DialogTitle>
         </DialogHeader>
 
-        <div className="absolute top-4 right-16 flex gap-2">
-          <Button variant="outline" size="icon" onClick={onPrevious}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={onNext}>
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-
         <div className="space-y-6">
           <Card>
             <CardContent className="p-6">

@@ -34,8 +34,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { MoreHorizontal, Trash2, User, BarChart3 } from "lucide-react";
+import { Trash2, User, BarChart3, Download, Upload, UserMinus, ArrowRightLeft, CheckSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { StudentDetailsModal } from "@/components/student-details-modal";
+import { Student as StudentType, Session, Term } from "@/lib/types";
+import * as XLSX from "xlsx-js-style";
 
 
 type ClassData = {
@@ -64,11 +67,7 @@ type SubjectClass = {
   } | null;
 };
 
-type Student = {
-  id: string;
-  first_name: string;
-  last_name: string;
-};
+type Student = StudentType;
 
 type Teacher = {
   id: string;
@@ -85,6 +84,9 @@ export default function ClassPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classData, setClassData] = useState<ClassData | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [allClasses, setAllClasses] = useState<ClassData[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
@@ -94,6 +96,18 @@ export default function ClassPage() {
   const [selectedSubjectClass, setSelectedSubjectClass] = useState<SubjectClass | null>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
 
+  // Student Management States
+  const [studentSearch, setStudentSearch] = useState("");
+  const [studentGenderFilter, setStudentGenderFilter] = useState<"all" | "male" | "female">("all");
+  const [studentStatusFilter, setStudentStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
+  const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
+  const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
+  const [transferTargetClassId, setTransferTargetClassId] = useState("");
+  const [availableStudents, setAvailableStudents] = useState<Student[]>([]);
+
   // Filters
   const [search, setSearch] = useState("");
   const [filterOptional, setFilterOptional] = useState<"all" | "optional" | "compulsory">("all");
@@ -102,6 +116,10 @@ export default function ClassPage() {
   useEffect(() => {
     fetchClass();
     fetchTeachers();
+    fetchSessions();
+    fetchTerms();
+    fetchAllClasses();
+    fetchAvailableStudents();
   }, []);
 
   useEffect(() => {
@@ -159,9 +177,38 @@ export default function ClassPage() {
 
   async function fetchStudents() {
     setStudentsLoading(true);
-    const { data } = await supabase.from("students").select("id, first_name, last_name").eq("class_id", classId);
+    const { data } = await supabase
+      .from("students")
+      .select("*")
+      .eq("class_id", classId)
+      .order("first_name");
     setStudents(data || []);
     setStudentsLoading(false);
+  }
+
+  async function fetchSessions() {
+    const { data } = await supabase.from("sessions").select("*").order("start_date", { ascending: false });
+    setSessions(data || []);
+  }
+
+  async function fetchTerms() {
+    const { data } = await supabase.from("terms").select("*").order("start_date");
+    setTerms(data || []);
+  }
+
+  async function fetchAllClasses() {
+    const { data } = await supabase.from("classes").select("*").order("level");
+    setAllClasses(data || []);
+  }
+
+  async function fetchAvailableStudents() {
+    const { data } = await supabase
+      .from("students")
+      .select("*")
+      .is("class_id", null)
+      .eq("status", "active")
+      .order("first_name");
+    setAvailableStudents(data || []);
   }
 
   async function fetchTeachers() {
@@ -257,6 +304,190 @@ export default function ClassPage() {
       return true;
     });
   }, [subjects, search, filterOptional, filterReligion, filterDepartment]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter((s) => {
+      const fullName = `${s.first_name} ${s.last_name}`.toLowerCase();
+      if (studentSearch && !fullName.includes(studentSearch.toLowerCase()) && !s.student_id.toLowerCase().includes(studentSearch.toLowerCase())) return false;
+      if (studentGenderFilter !== "all" && s.gender !== studentGenderFilter) return false;
+      if (studentStatusFilter !== "all" && s.status !== studentStatusFilter) return false;
+      return true;
+    });
+  }, [students, studentSearch, studentGenderFilter, studentStatusFilter]);
+
+  // Student Management Functions
+  function handleSelectAllStudents() {
+    if (selectedStudents.size === filteredStudents.length) {
+      setSelectedStudents(new Set());
+    } else {
+      setSelectedStudents(new Set(filteredStudents.map(s => s.id)));
+    }
+  }
+
+  function handleSelectStudent(studentId: string) {
+    const newSelected = new Set(selectedStudents);
+    if (newSelected.has(studentId)) {
+      newSelected.delete(studentId);
+    } else {
+      newSelected.add(studentId);
+    }
+    setSelectedStudents(newSelected);
+  }
+
+  function handleViewStudent(student: Student) {
+    setSelectedStudent(student);
+    setIsStudentDetailsOpen(true);
+  }
+
+  async function handleRemoveStudent(studentId: string) {
+    if (!confirm("Remove this student from the class? They will become unassigned.")) return;
+    
+    const { error } = await supabase
+      .from("students")
+      .update({ class_id: null })
+      .eq("id", studentId);
+    
+    if (error) {
+      toast.error("Failed to remove student");
+      return;
+    }
+    
+    toast.success("Student removed from class");
+    fetchStudents();
+    fetchAvailableStudents();
+  }
+
+  async function handleBulkRemove() {
+    if (selectedStudents.size === 0) return;
+    if (!confirm(`Remove ${selectedStudents.size} student(s) from this class?`)) return;
+
+    const updates = Array.from(selectedStudents).map(id =>
+      supabase.from("students").update({ class_id: null }).eq("id", id)
+    );
+
+    const results = await Promise.all(updates);
+    const errors = results.filter(r => r.error);
+
+    if (errors.length > 0) {
+      toast.error(`Failed to remove ${errors.length} student(s)`);
+    } else {
+      toast.success(`Removed ${selectedStudents.size} student(s)`);
+    }
+
+    setSelectedStudents(new Set());
+    fetchStudents();
+    fetchAvailableStudents();
+  }
+
+  async function handleAddStudentsToClass(studentIds: string[]) {
+    if (studentIds.length === 0) return;
+
+    const updates = studentIds.map(id =>
+      supabase.from("students").update({ class_id: classId }).eq("id", id)
+    );
+
+    const results = await Promise.all(updates);
+    const errors = results.filter(r => r.error);
+
+    if (errors.length > 0) {
+      toast.error(`Failed to add ${errors.length} student(s)`);
+    } else {
+      toast.success(`Added ${studentIds.length} student(s) to class`);
+    }
+
+    setIsAddStudentOpen(false);
+    fetchStudents();
+    fetchAvailableStudents();
+  }
+
+  async function handleTransferStudents() {
+    if (selectedStudents.size === 0 || !transferTargetClassId) return;
+    if (!confirm(`Transfer ${selectedStudents.size} student(s) to the selected class?`)) return;
+
+    const updates = Array.from(selectedStudents).map(id =>
+      supabase.from("students").update({ class_id: transferTargetClassId }).eq("id", id)
+    );
+
+    const results = await Promise.all(updates);
+    const errors = results.filter(r => r.error);
+
+    if (errors.length > 0) {
+      toast.error(`Failed to transfer ${errors.length} student(s)`);
+    } else {
+      toast.success(`Transferred ${selectedStudents.size} student(s)`);
+    }
+
+    setSelectedStudents(new Set());
+    setIsTransferStudentOpen(false);
+    setTransferTargetClassId("");
+    fetchStudents();
+  }
+
+  function handleExportStudents() {
+    const exportData = filteredStudents.map((s, i) => ({
+      "#": i + 1,
+      "Student ID": s.student_id,
+      "First Name": s.first_name,
+      "Last Name": s.last_name,
+      "Gender": s.gender,
+      "Email": s.email,
+      "Phone": s.phone,
+      "Date of Birth": s.date_of_birth || "",
+      "Parent Name": s.parent_name,
+      "Parent Email": s.parent_email,
+      "Parent Phone": s.parent_phone,
+      "Admission Date": s.admission_date,
+      "Status": s.status,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    XLSX.writeFile(wb, `${classData?.name || "class"}-students.xlsx`);
+    toast.success("Students exported successfully");
+  }
+
+  function handleImportStudents(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+        // Map imported data to student IDs (assuming Student ID column exists)
+        const studentIds = jsonData
+          .map(row => row["Student ID"])
+          .filter(Boolean);
+
+        if (studentIds.length === 0) {
+          toast.error("No valid student IDs found in the file");
+          return;
+        }
+
+        // Find students by ID and add them to class
+        const { data: foundStudents } = await supabase
+          .from("students")
+          .select("id")
+          .in("student_id", studentIds);
+
+        if (!foundStudents || foundStudents.length === 0) {
+          toast.error("No matching students found");
+          return;
+        }
+
+        await handleAddStudentsToClass(foundStudents.map(s => s.id));
+      } catch (error) {
+        console.error(error);
+        toast.error("Failed to import students");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
 
   if (loading || !classData) {
     return <DashboardLayout role="admin"><div className="p-6">Loading...</div></DashboardLayout>;
@@ -447,36 +678,178 @@ export default function ClassPage() {
           <TabsContent value="students">
             <Card>
               <CardHeader>
-                <CardTitle>Class Students</CardTitle>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <CardTitle>Class Students ({students.length})</CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportStudents}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Export
+                    </Button>
+                    <label>
+                      <Button size="sm" variant="outline" asChild>
+                        <span>
+                          <Upload className="h-4 w-4 mr-1" />
+                          Import
+                        </span>
+                      </Button>
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        onChange={handleImportStudents}
+                      />
+                    </label>
+                    <Button
+                      size="sm"
+                      onClick={() => setIsAddStudentOpen(true)}
+                    >
+                      <UserPlus className="h-4 w-4 mr-1" />
+                      Add Students
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
+
+              <CardContent className="space-y-4">
+                {/* Search and Filters */}
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by name or student ID..."
+                      className="pl-9"
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                    />
+                  </div>
+                  <select
+                    className="border rounded-md p-2"
+                    value={studentGenderFilter}
+                    onChange={(e) => setStudentGenderFilter(e.target.value as any)}
+                  >
+                    <option value="all">All Genders</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                  <select
+                    className="border rounded-md p-2"
+                    value={studentStatusFilter}
+                    onChange={(e) => setStudentStatusFilter(e.target.value as any)}
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+
+                {/* Bulk Actions */}
+                {selectedStudents.size > 0 && (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-md">
+                    <span className="text-sm font-medium">
+                      {selectedStudents.size} selected
+                    </span>
+                    <div className="flex gap-2 ml-auto">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsTransferStudentOpen(true)}
+                      >
+                        <ArrowRightLeft className="h-4 w-4 mr-1" />
+                        Transfer
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleBulkRemove}
+                      >
+                        <UserMinus className="h-4 w-4 mr-1" />
+                        Remove from Class
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Students Table */}
                 <div className="border rounded-md overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-muted">
                       <tr>
+                        <th className="p-3 w-12">
+                          <input
+                            type="checkbox"
+                            checked={selectedStudents.size === filteredStudents.length && filteredStudents.length > 0}
+                            onChange={handleSelectAllStudents}
+                            className="cursor-pointer"
+                          />
+                        </th>
                         <th className="p-3 text-left w-12">#</th>
-                        <th className="p-3 text-left">First Name</th>
-                        <th className="p-3 text-left">Last Name</th>
-                        <th className="p-3 text-right">Actions</th>
+                        <th className="p-3 text-left">Student ID</th>
+                        <th className="p-3 text-left">Name</th>
+                        <th className="p-3 text-left">Gender</th>
+                        <th className="p-3 text-left">Email</th>
+                        <th className="p-3 text-left">Status</th>
+                        <th className="p-3 text-right w-12"></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {students.map((student, i) => (
+                      {filteredStudents.map((student, i) => (
                         <tr key={student.id} className="border-t hover:bg-muted/50">
+                          <td className="p-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedStudents.has(student.id)}
+                              onChange={() => handleSelectStudent(student.id)}
+                              className="cursor-pointer"
+                            />
+                          </td>
                           <td className="p-3">{i + 1}</td>
-                          <td className="p-3 font-medium">{student.first_name}</td>
-                          <td className="p-3">{student.last_name}</td>
+                          <td className="p-3 font-mono text-xs">{student.student_id}</td>
+                          <td className="p-3 font-medium">
+                            {student.first_name} {student.last_name}
+                          </td>
+                          <td className="p-3 capitalize">{student.gender}</td>
+                          <td className="p-3 text-xs">{student.email}</td>
+                          <td className="p-3">
+                            <Badge variant={student.status === "active" ? "default" : "secondary"}>
+                              {student.status}
+                            </Badge>
+                          </td>
                           <td className="p-3 text-right">
-                            <Button size="sm" variant="outline">View</Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => handleViewStudent(student)}>
+                                  <User className="mr-2 h-4 w-4" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => handleRemoveStudent(student.id)}
+                                >
+                                  <UserMinus className="mr-2 h-4 w-4" />
+                                  Remove from Class
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
 
-                  {students.length === 0 && (
+                  {filteredStudents.length === 0 && (
                     <div className="p-8 text-center text-muted-foreground">
-                      No students in this class yet.
+                      {studentSearch || studentGenderFilter !== "all" || studentStatusFilter !== "all"
+                        ? "No students match your filters."
+                        : "No students in this class yet."}
                     </div>
                   )}
                 </div>
@@ -522,6 +895,144 @@ export default function ClassPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ================= ADD STUDENTS DIALOG ================= */}
+      <Dialog open={isAddStudentOpen} onOpenChange={setIsAddStudentOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Students to {classData?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Select students from the unassigned list below:
+            </p>
+            
+            {availableStudents.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                No unassigned students available.
+              </div>
+            ) : (
+              <div className="border rounded-md">
+                <div className="max-h-96 overflow-y-auto">
+                  {availableStudents.map((student) => {
+                    const isSelected = selectedStudents.has(student.id);
+                    return (
+                      <div
+                        key={student.id}
+                        className={`p-3 border-b hover:bg-muted/50 cursor-pointer flex items-center gap-3 ${
+                          isSelected ? "bg-blue-50" : ""
+                        }`}
+                        onClick={() => handleSelectStudent(student.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSelectStudent(student.id)}
+                          className="cursor-pointer"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium">
+                            {student.first_name} {student.last_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {student.student_id} • {student.email}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                {selectedStudents.size} student(s) selected
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => {
+                  setIsAddStudentOpen(false);
+                  setSelectedStudents(new Set());
+                }}>Cancel</Button>
+                <Button
+                  onClick={() => handleAddStudentsToClass(Array.from(selectedStudents))}
+                  disabled={selectedStudents.size === 0}
+                >
+                  Add {selectedStudents.size > 0 && `(${selectedStudents.size})`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= TRANSFER STUDENTS DIALOG ================= */}
+      <Dialog open={isTransferStudentOpen} onOpenChange={setIsTransferStudentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer Students</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Transfer {selectedStudents.size} student(s) to another class:
+            </p>
+            
+            <select
+              className="w-full border rounded-md p-2"
+              value={transferTargetClassId}
+              onChange={(e) => setTransferTargetClassId(e.target.value)}
+            >
+              <option value="">Select target class</option>
+              {allClasses
+                .filter(c => c.id !== classId)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} - {c.level}
+                  </option>
+                ))}
+            </select>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setIsTransferStudentOpen(false);
+                setTransferTargetClassId("");
+              }}>Cancel</Button>
+              <Button
+                onClick={handleTransferStudents}
+                disabled={!transferTargetClassId}
+              >
+                Transfer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================= STUDENT DETAILS MODAL ================= */}
+      <StudentDetailsModal
+        student={selectedStudent}
+        sessions={sessions}
+        terms={terms}
+        isOpen={isStudentDetailsOpen}
+        onClose={() => {
+          setIsStudentDetailsOpen(false);
+          setSelectedStudent(null);
+        }}
+        onNext={() => {
+          if (!selectedStudent) return;
+          const currentIndex = filteredStudents.findIndex(s => s.id === selectedStudent.id);
+          if (currentIndex < filteredStudents.length - 1) {
+            setSelectedStudent(filteredStudents[currentIndex + 1]);
+          }
+        }}
+        onPrevious={() => {
+          if (!selectedStudent) return;
+          const currentIndex = filteredStudents.findIndex(s => s.id === selectedStudent.id);
+          if (currentIndex > 0) {
+            setSelectedStudent(filteredStudents[currentIndex - 1]);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

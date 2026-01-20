@@ -75,8 +75,7 @@ export function ClassTimetable({
         )
       `)
       .eq("class_id", classId)
-      .order("day_of_week")
-      .order("period_slot_id");
+      .order("period_number", { ascending: true });
 
     // Extract unique period slots from entries
     const slots: PeriodSlot[] = [];

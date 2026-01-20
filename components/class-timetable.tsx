@@ -75,8 +75,7 @@ export function ClassTimetable({
         )
       `)
       .eq("class_id", classId)
-      .order("period_number", { ascending: true });
-
+      
     // Extract unique period slots from entries
     const slots: PeriodSlot[] = [];
     const slotMap = new Map();

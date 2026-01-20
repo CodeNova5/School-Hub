@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { PieChart, TrendingUp, Users, BookOpen, Star } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import Link from "next/link";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -43,25 +42,10 @@ export default function TeacherClassesPage() {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) return toast.error("Please log in");
 
-      const { data: teacher } = await supabase
-        .from("teachers")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!teacher) return toast.error("Teacher profile not found");
-
-      const { data: tc } = await supabase
-        .from("teacher_classes")
-        .select("class_id")
-        .eq("teacher_id", teacher.id);
-
-      const classIds = tc?.map((c) => c.class_id) ?? [];
-
       const { data: classData } = await supabase
         .from("classes")
-        .select("*")
-        .in("id", classIds)
+        .select("*, teachers(first_name, last_name)")
+        .eq("teachers.user_id", user.id)
         .order("level");
 
       const final: FinalClass[] = [];

@@ -80,7 +80,6 @@ export default function TimetablePage() {
           *,
           classes(name, level),
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
-          religion,
           subject_classes (
             id,
             subject_code,

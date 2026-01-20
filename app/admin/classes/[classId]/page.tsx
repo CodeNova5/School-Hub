@@ -78,6 +78,7 @@ type Teacher = {
   last_name: string;
 };
 
+
 type PeriodSlot = {
   id: string;
   day_of_week: string;
@@ -90,11 +91,16 @@ type PeriodSlot = {
 type TimetableEntry = {
   id: string;
   class_id: string;
-  subject_id: string;
-  day_of_week: string;
   period_slot_id: string;
-  subject?: { name: string; id: string };
-  teacher?: { first_name: string; last_name: string };
+  day_of_week: string;
+  classes?: { name: string; level: string };
+  period_slots?: PeriodSlot;
+  subject_classes?: {
+    id: string;
+    subject_code: string;
+    subjects?: { name: string; department?: string; religion?: string };
+    teachers?: { first_name: string; last_name: string };
+  };
 };
 
 type AttendanceRecord = {
@@ -262,21 +268,35 @@ export default function ClassPage() {
       .from("timetable_entries")
       .select(`
         *,
-        subject:subjects(id, name),
-        teacher:teachers(first_name, last_name)
+        classes(name, level),
+        period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
+        subject_classes (
+          id,
+          subject_code,
+          subjects ( name, department, religion ),
+          teachers ( first_name, last_name )
+        )
       `)
       .eq("class_id", classId)
       .order("day_of_week")
       .order("period_slot_id");
 
-    const { data: slots } = await supabase
-      .from("period_slots")
-      .select("*")
-      .order("day_of_week")
-      .order("period_number");
+    // Extract unique period slots from entries
+    const slots: PeriodSlot[] = [];
+    const slotMap = new Map();
+    (entries || []).forEach((entry: any) => {
+      if (entry.period_slots && !slotMap.has(entry.period_slots.id)) {
+        slotMap.set(entry.period_slots.id, entry.period_slots);
+      }
+    });
+    slotMap.forEach((v) => slots.push(v));
+    slots.sort((a, b) => {
+      if (a.day_of_week === b.day_of_week) return a.period_number - b.period_number;
+      return a.day_of_week.localeCompare(b.day_of_week);
+    });
 
     setTimetableEntries(entries || []);
-    setPeriodSlots(slots || []);
+    setPeriodSlots(slots);
     setTimetableLoading(false);
   }
 
@@ -634,8 +654,8 @@ export default function ClassPage() {
         );
 
         if (entry) {
-          const teacher = entry.teacher ? `${entry.teacher.first_name} ${entry.teacher.last_name}` : "";
-          row[day] = `${entry.subject?.name || ""} - ${teacher}`;
+          const teacher = entry.subject_classes?.teachers ? `${entry.subject_classes.teachers.first_name} ${entry.subject_classes.teachers.last_name}` : "";
+          row[day] = `${entry.subject_classes?.subjects?.name || ""} - ${teacher}`;
         } else {
           row[day] = "Free Period";
         }
@@ -1172,6 +1192,7 @@ export default function ClassPage() {
                       <tbody>
                         {(() => {
                           const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+                          // Group period slots by day
                           const periodsByDay: Record<string, PeriodSlot[]> = {};
                           DAYS.forEach(day => {
                             periodsByDay[day] = periodSlots.filter(p => p.day_of_week === day);
@@ -1206,32 +1227,35 @@ export default function ClassPage() {
                                   );
                                 }
 
+                                // Find entry for this period slot
                                 const entry = timetableEntries.find(
-                                  e => e.day_of_week === day && e.period_slot_id === period.id
+                                  e => e.period_slot_id === period.id
                                 );
+
+                                if (entry && entry.subject_classes) {
+                                  const subj = entry.subject_classes.subjects;
+                                  const teacher = entry.subject_classes.teachers;
+                                  return (
+                                    <td key={day} className="border border-gray-300 p-3">
+                                      <div className="space-y-1">
+                                        <div className="text-xs text-gray-600 text-center">
+                                          {period.start_time} - {period.end_time}
+                                        </div>
+                                        <div className="font-semibold text-gray-800 text-center">
+                                          {subj?.name || "—"}
+                                        </div>
+                                        <div className="text-xs text-gray-600 text-center">
+                                          {teacher ? `${teacher.first_name} ${teacher.last_name}` : "No teacher"}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  );
+                                }
 
                                 return (
                                   <td key={day} className="border border-gray-300 p-3">
-                                    <div className="space-y-1">
-                                      <div className="text-xs text-gray-600 text-center">
-                                        {period.start_time} - {period.end_time}
-                                      </div>
-                                      {entry ? (
-                                        <>
-                                          <div className="font-semibold text-gray-800 text-center">
-                                            {entry.subject?.name || "—"}
-                                          </div>
-                                          <div className="text-xs text-gray-600 text-center">
-                                            {entry.teacher
-                                              ? `${entry.teacher.first_name} ${entry.teacher.last_name}`
-                                              : "No teacher"}
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <div className="text-gray-400 text-center py-2">
-                                          <span className="text-xs">Free Period</span>
-                                        </div>
-                                      )}
+                                    <div className="text-gray-400 text-center py-2">
+                                      <span className="text-xs">Free Period</span>
                                     </div>
                                   </td>
                                 );

@@ -139,8 +139,8 @@ export default function ResultEntryPage() {
         const subject = sc.subjects;
         if (!subject) return false;
 
-        // Show if subject is GENERAL (department is null or undefined)
-        if (subject.department === null || subject.department === undefined) return true;
+        // Show if subject is GENERAL (department is null, undefined, or empty string)
+        if (!subject.department || subject.department === '') return true;
 
         // Otherwise, show only if it matches student's department
         return subject.department === studentData.department;

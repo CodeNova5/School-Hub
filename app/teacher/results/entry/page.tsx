@@ -139,11 +139,9 @@ export default function ResultEntryPage() {
         // -------------------------------
         let departmentOk = true;
 
-        // Only check for SSS classes
-        if (classData.level === "SSS") {
-          // If subject.department is NULL => all departments
-          departmentOk =
-            !subject.department || subject.department === studentData.department;
+        // Only check for SSS classes and if subject.department is not null/undefined
+        if (classData.level === "SSS" && subject.department != null) {
+          departmentOk = subject.department === studentData.department;
         }
 
         // -------------------------------

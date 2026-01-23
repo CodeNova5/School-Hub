@@ -130,12 +130,17 @@ export default function ResultEntryPage() {
         classLevel: classData?.level
       });
 
+      console.log('📚 All subjects before filtering:', subjectClasses.map((sc: any) => ({
+        name: sc.subjects?.name,
+        department: sc.subjects?.department
+      })));
+
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
         if (!subject) return false;
 
-        // Show if subject is GENERAL (department is null)
-        if (subject.department === null) return true;
+        // Show if subject is GENERAL (department is null or undefined)
+        if (subject.department === null || subject.department === undefined) return true;
 
         // Otherwise, show only if it matches student's department
         return subject.department === studentData.department;

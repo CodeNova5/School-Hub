@@ -452,7 +452,7 @@ export default function ResultEntryPage() {
                   <p><strong>Term:</strong> {term?.name}</p>
                   <p><strong>No. of Attendance:</strong> {attendance}</p>
                   <p>
-                    <strong>Next Term Begins:</strong> {nextTermDate ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}
+                    <strong>Next Term Begins:</strong> {nextTermDate && !isNaN(new Date(nextTermDate).getTime()) ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}
                   </p>
                 </div>
               </div>

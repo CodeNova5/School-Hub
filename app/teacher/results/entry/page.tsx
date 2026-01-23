@@ -123,6 +123,13 @@ export default function ResultEntryPage() {
       }
 
 
+      console.log('Student Data:', {
+        name: `${studentData.first_name} ${studentData.last_name}`,
+        religion: studentData.religion,
+        department: studentData.department,
+        classLevel: classData.level
+      });
+
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
         if (!subject) return false;
@@ -144,9 +151,20 @@ export default function ResultEntryPage() {
           departmentOk = subject.department === studentData.department;
         }
 
+        console.log('Subject Filter:', {
+          subjectName: subject.name,
+          subjectReligion: subject.religion,
+          subjectDepartment: subject.department,
+          religionOk,
+          departmentOk,
+          passesFilter: religionOk && departmentOk
+        });
+
         // -------------------------------
         return religionOk && departmentOk;
       });
+
+      console.log('Filtered subject count:', filteredSubjectClasses.length);
 
 
       if (filteredSubjectClasses.length === 0) {
@@ -179,18 +197,13 @@ export default function ResultEntryPage() {
           .select("*")
           .eq("session_id", sessionData.id)
           .order("id", { ascending: true });
-        console.log('allTerms:', allTerms);
-
         // Find the current term in the list
         const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
-        console.log('currentTermIdx:', currentTermIdx, 'termData.id:', termData.id);
         if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
           // If not last term, next term is in this session
           if (currentTermIdx < allTerms.length - 1) {
             const nextTerm = allTerms[currentTermIdx + 1];
-            console.log('nextTerm:', nextTerm);
             nextTermDateValue = nextTerm?.start_date || "";
-            console.log('nextTermDate (same session):', nextTermDateValue);
           } else {
             // Last term, get first term of next session
             // Find the next session
@@ -201,27 +214,22 @@ export default function ResultEntryPage() {
               .order("id", { ascending: true })
               .limit(1)
               .single();
-            console.log('nextSession:', nextSession);
             if (nextSession) {
               const { data: nextSessionTerms } = await supabase
                 .from("terms")
                 .select("*")
                 .eq("session_id", nextSession.id)
                 .order("id", { ascending: true });
-              console.log('nextSessionTerms:', nextSessionTerms);
               if (nextSessionTerms && nextSessionTerms.length > 0) {
                 nextTermDateValue = nextSessionTerms[0].start_date || "";
-                console.log('nextTermDate (next session):', nextTermDateValue);
               }
             }
           }
         }
       } catch (e) {
-        console.log('Error determining nextTermDate:', e);
       }
 
       setNextTermDate(nextTermDateValue || "");
-      console.log('Final nextTermDate:', nextTermDateValue);
 
       // 7. Load existing results
       const { data: existingResults } = await supabase

@@ -146,28 +146,12 @@ export default function ResultEntryPage() {
         // -------------------------------
         let departmentOk = true;
 
-        // Only check for SSS classes
         if (classData.level === "SSS") {
-          // If subject has a department AND student has a department, they must match
-          if (subject.department != null && studentData.department != null) {
+          // If subject has a department, it must match student's department
+          if (subject.department != null) {
             departmentOk = subject.department === studentData.department;
           }
-          // If subject has no department, it's available to all departments (core subjects)
-          // If student has no department but subject does, they can't take it
-          else if (subject.department != null && !studentData.department) {
-            departmentOk = false;
-          }
         }
-
-        console.log('Subject Filter:', {
-          subjectName: subject.name,
-          subjectReligion: subject.religion,
-          subjectDepartment: subject.department,
-          studentDepartment: studentData.department,
-          religionOk,
-          departmentOk,
-          passesFilter: religionOk && departmentOk
-        });
 
         // -------------------------------
         return religionOk && departmentOk;

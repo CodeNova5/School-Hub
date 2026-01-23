@@ -195,15 +195,19 @@ export default function ResultEntryPage() {
             .select("*")
             .eq("session_id", sessionData.id)
             .order("id", { ascending: true });
+          console.log('allTerms:', allTerms);
 
           // Find the current term in the list
           const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
+          console.log('currentTermIdx:', currentTermIdx, 'termData.id:', termData.id);
           if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
             // If not last term, next term is in this session
             if (currentTermIdx < allTerms.length - 1) {
               const nextTerm = allTerms[currentTermIdx + 1];
+              console.log('nextTerm:', nextTerm);
               nextTermDate = nextTerm?.start_date || "";
               setNextTermDate(nextTermDate || "");
+              console.log('nextTermDate (same session):', nextTermDate);
             } else {
               // Last term, get first term of next session
               // Find the next session
@@ -214,24 +218,28 @@ export default function ResultEntryPage() {
                 .order("id", { ascending: true })
                 .limit(1)
                 .single();
+              console.log('nextSession:', nextSession);
               if (nextSession) {
                 const { data: nextSessionTerms } = await supabase
                   .from("terms")
                   .select("*")
                   .eq("session_id", nextSession.id)
                   .order("id", { ascending: true });
+                console.log('nextSessionTerms:', nextSessionTerms);
                 if (nextSessionTerms && nextSessionTerms.length > 0) {
                   nextTermDate = nextSessionTerms[0].start_date || "";
                   setNextTermDate(nextTermDate || "");
+                  console.log('nextTermDate (next session):', nextTermDate);
                 }
               }
             }
           }
         } catch (e) {
-          // fallback: do nothing
+          console.log('Error determining nextTermDate:', e);
         }
 
         setNextTermDate(nextTermDate || "");
+        console.log('Final nextTermDate:', nextTermDate);
 
         for (const res of existingResults) {
           const idx = initialScores.findIndex(

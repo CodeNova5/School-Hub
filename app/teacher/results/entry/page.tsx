@@ -145,22 +145,21 @@ export default function ResultEntryPage() {
           !subject.religion || subject.religion === studentData.religion;
 
         // -------------------------------
-        // 2. Department Filter
+        // 2. Department Filter (SSS Only)
         // -------------------------------
         let departmentOk = true;
 
-        // Only filter by department for SSS classes
         if (classData?.level === "SSS") {
-          // If subject has a department, check if it matches the student's department
-          if (subject.department) {
+          // If subject has NO department (null) => it's a general/core subject, show to all
+          // If subject HAS a department => it must match the student's department
+          if (subject.department !== null && subject.department !== undefined) {
             departmentOk = subject.department === studentData.department;
           }
-          // If subject has no department (null), it's available to all departments (core subject)
         }
 
         const passes = religionOk && departmentOk;
         
-        console.log(`Subject: ${subject.name} | Dept: ${subject.department || 'NULL'} | StudentDept: ${studentData.department} | religionOk: ${religionOk} | deptOk: ${departmentOk} | PASSES: ${passes}`);
+        console.log(`Subject: ${subject.name} | Dept: ${subject.department || 'GENERAL'} | StudentDept: ${studentData.department || 'NONE'} | religionOk: ${religionOk} | deptOk: ${departmentOk} | PASSES: ${passes}`);
 
         return passes;
       });

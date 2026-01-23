@@ -127,12 +127,15 @@ export default function ResultEntryPage() {
         name: `${studentData.first_name} ${studentData.last_name}`,
         religion: studentData.religion,
         department: studentData.department,
-        classLevel: classData.level
+        classLevel: classData?.level
       });
 
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
-        if (!subject) return false;
+        if (!subject) {
+          console.log('⚠️ Subject is null/undefined for subject_class:', sc.id);
+          return false;
+        }
 
         // -------------------------------
         // 1. Religion Filter
@@ -146,18 +149,24 @@ export default function ResultEntryPage() {
         // -------------------------------
         let departmentOk = true;
 
-        if (classData.level === "SSS") {
-          // If subject has a department, it must match student's department
-          if (subject.department != null) {
+        // Only filter by department for SSS classes
+        if (classData?.level === "SSS") {
+          // If subject has a department, check if it matches the student's department
+          if (subject.department) {
             departmentOk = subject.department === studentData.department;
           }
+          // If subject has no department (null), it's available to all departments (core subject)
         }
 
-        // -------------------------------
-        return religionOk && departmentOk;
+        const passes = religionOk && departmentOk;
+        
+        console.log(`Subject: ${subject.name} | Dept: ${subject.department || 'NULL'} | StudentDept: ${studentData.department} | religionOk: ${religionOk} | deptOk: ${departmentOk} | PASSES: ${passes}`);
+
+        return passes;
       });
 
-      console.log('Filtered subject count:', filteredSubjectClasses.length);
+      console.log('✅ Filtered subject count:', filteredSubjectClasses.length);
+      console.log('✅ Filtered subjects:', filteredSubjectClasses.map((sc: any) => sc.subjects?.name));
 
 
       if (filteredSubjectClasses.length === 0) {

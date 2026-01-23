@@ -137,8 +137,8 @@ export default function ResultEntryPage() {
           return false;
         }
 
-        // Only show subjects where subject.department === student.department
-        const departmentOk = subject.department === studentData.department;
+        // Show subjects where subject.department is null OR subject.department === student.department
+        const departmentOk = subject.department === null || subject.department === undefined || subject.department === studentData.department;
 
         console.log(`Subject: ${subject.name} | Dept: ${subject.department || 'GENERAL'} | StudentDept: ${studentData.department || 'NONE'} | deptOk: ${departmentOk}`);
 

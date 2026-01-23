@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Save, Printer, ArrowLeft, Loader2 } from "lucide-react";
+import { set } from "date-fns";
 
 
 
@@ -40,7 +41,7 @@ export default function ResultEntryPage() {
 
   const [scores, setScores] = useState<SubjectScore[]>([]);
   const [attendance, setAttendance] = useState(0);
-  const [nextTermBegins, setNextTermBegins] = useState("");
+  const [nextTermDate, setNextTermDate] = useState("");
   const [classTeacherRemark, setClassTeacherRemark] = useState("");
   const [principalRemark, setPrincipalRemark] = useState("");
 
@@ -202,6 +203,7 @@ export default function ResultEntryPage() {
             if (currentTermIdx < allTerms.length - 1) {
               const nextTerm = allTerms[currentTermIdx + 1];
               nextTermDate = nextTerm?.start_date || "";
+              setNextTermDate(nextTermDate || "");
             } else {
               // Last term, get first term of next session
               // Find the next session
@@ -220,6 +222,7 @@ export default function ResultEntryPage() {
                   .order("id", { ascending: true });
                 if (nextSessionTerms && nextSessionTerms.length > 0) {
                   nextTermDate = nextSessionTerms[0].start_date || "";
+                  setNextTermDate(nextTermDate || "");
                 }
               }
             }
@@ -228,7 +231,7 @@ export default function ResultEntryPage() {
           // fallback: do nothing
         }
 
-        setNextTermBegins(first.next_term_begins || nextTermDate || "");
+        setNextTermDate(nextTermDate || "");
 
         for (const res of existingResults) {
           const idx = initialScores.findIndex(
@@ -359,7 +362,7 @@ export default function ResultEntryPage() {
           ? `${teacher.first_name} ${teacher.last_name}`
           : "",
         principal_remark: principalRemark,
-        next_term_begins: nextTermBegins || null,
+        next_term_begins: nextTermDate || null,
         entered_by: teacher?.id,
       }));
 
@@ -442,20 +445,14 @@ export default function ResultEntryPage() {
               <div className="grid grid-cols-2 gap-6 text-sm">
                 <div>
                   <p><strong>Name:</strong> {student.first_name} {student.last_name}</p>
-                  <p><strong>Class:</strong> {studentClass?.name} - {studentClass?.level}</p>
+                  <p><strong>Class:</strong> {studentClass?.name}</p>
                   <p><strong>Session:</strong> {session?.name}</p>
                 </div>
                 <div>
                   <p><strong>Term:</strong> {term?.name}</p>
                   <p><strong>No. of Attendance:</strong> {attendance}</p>
                   <p>
-                    <strong>Next Term Begins:</strong>{' '}
-                    <input
-                      type="date"
-                      value={nextTermBegins}
-                      onChange={(e) => setNextTermBegins(e.target.value)}
-                      className="border-b border-gray-300 px-1 print:border-0"
-                    />
+                    <strong>Next Term Begins:</strong> {nextTermDate ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}
                   </p>
                 </div>
               </div>

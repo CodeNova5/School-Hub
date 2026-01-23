@@ -172,7 +172,60 @@ export default function ResultEntryPage() {
 
 
 
-      // 6. Load existing results
+      // 6. Determine next term logic
+      let nextTermDateValue = "";
+      try {
+        // 1. Get all terms in the current session, ordered by position or id
+        const { data: allTerms } = await supabase
+          .from("terms")
+          .select("*")
+          .eq("session_id", sessionData.id)
+          .order("id", { ascending: true });
+        console.log('allTerms:', allTerms);
+
+        // Find the current term in the list
+        const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
+        console.log('currentTermIdx:', currentTermIdx, 'termData.id:', termData.id);
+        if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
+          // If not last term, next term is in this session
+          if (currentTermIdx < allTerms.length - 1) {
+            const nextTerm = allTerms[currentTermIdx + 1];
+            console.log('nextTerm:', nextTerm);
+            nextTermDateValue = nextTerm?.start_date || "";
+            console.log('nextTermDate (same session):', nextTermDateValue);
+          } else {
+            // Last term, get first term of next session
+            // Find the next session
+            const { data: nextSession } = await supabase
+              .from("sessions")
+              .select("*")
+              .gt("id", sessionData.id)
+              .order("id", { ascending: true })
+              .limit(1)
+              .single();
+            console.log('nextSession:', nextSession);
+            if (nextSession) {
+              const { data: nextSessionTerms } = await supabase
+                .from("terms")
+                .select("*")
+                .eq("session_id", nextSession.id)
+                .order("id", { ascending: true });
+              console.log('nextSessionTerms:', nextSessionTerms);
+              if (nextSessionTerms && nextSessionTerms.length > 0) {
+                nextTermDateValue = nextSessionTerms[0].start_date || "";
+                console.log('nextTermDate (next session):', nextTermDateValue);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Error determining nextTermDate:', e);
+      }
+
+      setNextTermDate(nextTermDateValue || "");
+      console.log('Final nextTermDate:', nextTermDateValue);
+
+      // 7. Load existing results
       const { data: existingResults } = await supabase
         .from("results")
         .select("*")
@@ -185,61 +238,6 @@ export default function ResultEntryPage() {
         const first = existingResults[0];
         setClassTeacherRemark(first.class_teacher_remark || "");
         setPrincipalRemark(first.principal_remark || "");
-
-        // Determine next term logic
-        let nextTermDate = "";
-        try {
-          // 1. Get all terms in the current session, ordered by position or id
-          const { data: allTerms } = await supabase
-            .from("terms")
-            .select("*")
-            .eq("session_id", sessionData.id)
-            .order("id", { ascending: true });
-          console.log('allTerms:', allTerms);
-
-          // Find the current term in the list
-          const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
-          console.log('currentTermIdx:', currentTermIdx, 'termData.id:', termData.id);
-          if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
-            // If not last term, next term is in this session
-            if (currentTermIdx < allTerms.length - 1) {
-              const nextTerm = allTerms[currentTermIdx + 1];
-              console.log('nextTerm:', nextTerm);
-              nextTermDate = nextTerm?.start_date || "";
-              setNextTermDate(nextTermDate || "");
-              console.log('nextTermDate (same session):', nextTermDate);
-            } else {
-              // Last term, get first term of next session
-              // Find the next session
-              const { data: nextSession } = await supabase
-                .from("sessions")
-                .select("*")
-                .gt("id", sessionData.id)
-                .order("id", { ascending: true })
-                .limit(1)
-                .single();
-              console.log('nextSession:', nextSession);
-              if (nextSession) {
-                const { data: nextSessionTerms } = await supabase
-                  .from("terms")
-                  .select("*")
-                  .eq("session_id", nextSession.id)
-                  .order("id", { ascending: true });
-                console.log('nextSessionTerms:', nextSessionTerms);
-                if (nextSessionTerms && nextSessionTerms.length > 0) {
-                  nextTermDate = nextSessionTerms[0].start_date || "";
-                  setNextTermDate(nextTermDate || "");
-                  console.log('nextTermDate (next session):', nextTermDate);
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.log('Error determining nextTermDate:', e);
-        }
-
-        setNextTermDate(nextTermDate || "");
-        console.log('Final nextTermDate:', nextTermDate);
 
         for (const res of existingResults) {
           const idx = initialScores.findIndex(

@@ -266,6 +266,8 @@ CREATE TABLE IF NOT EXISTS attendance (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid REFERENCES students(id) ON DELETE CASCADE,
   class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
+  session_id uuid REFERENCES sessions(id) ON DELETE SET NULL,
+  term_id uuid REFERENCES terms(id) ON DELETE SET NULL,
   date date NOT NULL,
   status text DEFAULT 'present',
   marked_by uuid REFERENCES teachers(id) ON DELETE SET NULL,

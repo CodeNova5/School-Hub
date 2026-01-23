@@ -179,12 +179,56 @@ export default function ResultEntryPage() {
         .eq("session_id", sessionData.id)
         .eq("term_id", termData.id);
 
+
       if (existingResults && existingResults.length > 0) {
         const first = existingResults[0];
         setClassTeacherRemark(first.class_teacher_remark || "");
         setPrincipalRemark(first.principal_remark || "");
-        setNextTermBegins(first.next_term_begins || "");
 
+        // Determine next term logic
+        let nextTermDate = "";
+        try {
+          // 1. Get all terms in the current session, ordered by position or id
+          const { data: allTerms } = await supabase
+            .from("terms")
+            .select("*")
+            .eq("session_id", sessionData.id)
+            .order("id", { ascending: true });
+
+          // Find the current term in the list
+          const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
+          if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
+            // If not last term, next term is in this session
+            if (currentTermIdx < allTerms.length - 1) {
+              const nextTerm = allTerms[currentTermIdx + 1];
+              nextTermDate = nextTerm?.start_date || "";
+            } else {
+              // Last term, get first term of next session
+              // Find the next session
+              const { data: nextSession } = await supabase
+                .from("sessions")
+                .select("*")
+                .gt("id", sessionData.id)
+                .order("id", { ascending: true })
+                .limit(1)
+                .single();
+              if (nextSession) {
+                const { data: nextSessionTerms } = await supabase
+                  .from("terms")
+                  .select("*")
+                  .eq("session_id", nextSession.id)
+                  .order("id", { ascending: true });
+                if (nextSessionTerms && nextSessionTerms.length > 0) {
+                  nextTermDate = nextSessionTerms[0].start_date || "";
+                }
+              }
+            }
+          }
+        } catch (e) {
+          // fallback: do nothing
+        }
+
+        setNextTermBegins(first.next_term_begins || nextTermDate || "");
 
         for (const res of existingResults) {
           const idx = initialScores.findIndex(

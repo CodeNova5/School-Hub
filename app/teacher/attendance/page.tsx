@@ -125,6 +125,18 @@ export default function AttendancePage() {
     const savingToast = toast.loading('Saving attendance...');
 
     try {
+      // Get active session and term
+      const { data: sessionData } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('is_current', true)
+        .single();
+      const { data: termData } = await supabase
+        .from('terms')
+        .select('*')
+        .eq('is_current', true)
+        .single();
+
       const attendanceRecords = students
         .filter((s) => s.attendanceStatus !== 'not_marked')
         .map((student) => ({
@@ -133,6 +145,8 @@ export default function AttendancePage() {
           date: selectedDate,
           status: student.attendanceStatus,
           marked_by: null,
+          session_id: sessionData?.id || null,
+          term_id: termData?.id || null,
         }));
 
       const existingRecords = students.filter((s) => s.attendanceId);

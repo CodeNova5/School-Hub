@@ -132,22 +132,15 @@ export default function ResultEntryPage() {
 
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
-        if (!subject) {
-          console.log('⚠️ Subject is null/undefined for subject_class:', sc.id);
-          return false;
-        }
+        if (!subject) return false;
 
-        // Show subjects where subject.department is null, undefined, 'GENERAL', or matches student.department
-        const departmentOk =
-          subject.department === null ||
-          subject.department === undefined ||
-          subject.department === 'GENERAL' ||
-          subject.department === studentData.department;
+        // Show if subject is GENERAL (department is null)
+        if (subject.department === null) return true;
 
-        console.log(`Subject: ${subject.name} | Dept: ${subject.department || 'GENERAL'} | StudentDept: ${studentData.department || 'NONE'} | deptOk: ${departmentOk}`);
-
-        return departmentOk;
+        // Otherwise, show only if it matches student's department
+        return subject.department === studentData.department;
       });
+
 
       console.log('✅ Filtered subject count:', filteredSubjectClasses.length);
       console.log('✅ Filtered subjects:', filteredSubjectClasses.map((sc: any) => sc.subjects?.name));

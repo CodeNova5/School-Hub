@@ -14,6 +14,7 @@ import { SubjectsTab } from "./components/SubjectsTab";
 import { StudentsTab } from "./components/StudentsTab";
 import { AttendanceTab } from "./components/AttendanceTab";
 import { TimetableTab } from "./components/TimetableTab";
+import { ResultsTab } from "./components/ResultsTab";
 
 
 type ClassData = {
@@ -395,7 +396,7 @@ export default function ClassPage() {
 
           {/* ================= RESULTS TAB ================= */}
           <TabsContent value="results">
-            <Card><CardContent className="p-6">Results coming soon</CardContent></Card>
+            <ResultsTab classId={classId} className={classData?.name} students={students} />
           </TabsContent>
 
           {/* ================= SETTINGS TAB ================= */}

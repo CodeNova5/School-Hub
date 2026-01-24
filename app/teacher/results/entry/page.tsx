@@ -123,17 +123,6 @@ export default function ResultEntryPage() {
       }
 
 
-      console.log('Student Data:', {
-        name: `${studentData.first_name} ${studentData.last_name}`,
-        religion: studentData.religion,
-        department: studentData.department,
-        classLevel: classData?.level
-      });
-
-      console.log('📚 All subjects before filtering:', subjectClasses.map((sc: any) => ({
-        name: sc.subjects?.name,
-        department: sc.subjects?.department
-      })));
 
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
@@ -146,16 +135,19 @@ export default function ResultEntryPage() {
         return subject.department === studentData.department;
       });
 
-
-      console.log('✅ Filtered subject count:', filteredSubjectClasses.length);
-      console.log('✅ Filtered subjects:', filteredSubjectClasses.map((sc: any) => sc.subjects?.name));
-
-
       if (filteredSubjectClasses.length === 0) {
         toast.error("No subjects match this student's category");
         return;
       }
 
+      // Sort filteredSubjectClasses alphabetically by subject name
+      filteredSubjectClasses.sort((a: any, b: any) => {
+        const nameA = (a.subjects?.name || '').toLowerCase();
+        const nameB = (b.subjects?.name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        return 0;
+      });
 
       // 5. Build initial scores
       let initialScores: SubjectScore[] = filteredSubjectClasses.map((sc: any) => ({

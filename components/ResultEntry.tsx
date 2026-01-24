@@ -198,8 +198,11 @@ export default function ResultEntry({
           .select("*")
           .eq("session_id", sessionData.id)
           .order("id", { ascending: true });
-        const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
-        if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
+        let currentTermIdx = -1;
+        if (allTerms && termData) {
+          currentTermIdx = allTerms.findIndex((t: any) => t.id === termData.id);
+        }
+        if (allTerms && termData && currentTermIdx > -1) {
           if (currentTermIdx < allTerms.length - 1) {
             const nextTerm = allTerms[currentTermIdx + 1];
             nextTermDateValue = nextTerm?.start_date || "";

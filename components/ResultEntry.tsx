@@ -200,7 +200,7 @@ export default function ResultEntry({
           .order("id", { ascending: true });
         let currentTermIdx = -1;
         if (allTerms && termData) {
-          currentTermIdx = allTerms.findIndex((t: any) => t.id === termData.id);
+          currentTermIdx = allTerms.findIndex((t: any) => termData && t.id === termData.id);
         }
         if (allTerms && termData && currentTermIdx > -1) {
           if (currentTermIdx < allTerms.length - 1) {

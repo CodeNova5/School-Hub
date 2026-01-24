@@ -47,12 +47,25 @@ export default function ResultEntryPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [teacherName, setTeacherName] = useState<string>("");
 
   useEffect(() => {
     if (studentId) loadData();
   }, [studentId]);
 
   async function loadData() {
+        // Get teacher name for display
+        try {
+          const user = await getCurrentUser();
+          const teacher = user ? await getTeacherByUserId(user.id) : null;
+          if (teacher) {
+            setTeacherName(`${teacher.first_name} ${teacher.last_name}`);
+          } else {
+            setTeacherName("");
+          }
+        } catch {
+          setTeacherName("");
+        }
     if (!studentId) return;
     setIsLoading(true);
 
@@ -564,7 +577,9 @@ export default function ResultEntryPage() {
                   />
                   <div className="mt-4 flex justify-between items-center">
                     <div>
-                      <p className="text-sm font-medium">Name: _________________________</p>
+                      <p className="text-sm font-medium">
+                        Name: {teacherName ? teacherName : "_________________________"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm font-medium">Signature: _________________________</p>

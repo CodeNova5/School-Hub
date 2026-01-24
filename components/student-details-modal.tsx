@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Student, Session, Term } from '@/lib/types';
@@ -20,7 +19,6 @@ import { filterStudentResultsBySessionAndTerm, filterAttendanceByPeriod } from '
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, Phone, MapPin, Calendar, User, Hash, ArrowLeft, ArrowRight } from 'lucide-react';
-import { Button } from './ui/button';
 
 interface StudentDetailsModalProps {
   student: Student | null;
@@ -28,8 +26,6 @@ interface StudentDetailsModalProps {
   terms: Term[];
   isOpen: boolean;
   onClose: () => void;
-  onNext: () => void;
-  onPrevious: () => void;
 }
 
 export function StudentDetailsModal({
@@ -38,8 +34,6 @@ export function StudentDetailsModal({
   terms,
   isOpen,
   onClose,
-  onNext,
-  onPrevious,
 }: StudentDetailsModalProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [selectedTermId, setSelectedTermId] = useState<string>('');

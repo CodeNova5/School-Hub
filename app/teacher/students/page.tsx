@@ -389,8 +389,6 @@ export default function TeacherStudentsPage() {
           terms={terms}
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          onNext={handleNextStudent}
-          onPrevious={handlePreviousStudent}
         />
 
         <StudentSubjectsModal

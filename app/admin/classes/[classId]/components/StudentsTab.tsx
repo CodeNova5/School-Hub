@@ -481,20 +481,6 @@ export function StudentsTab({
           setIsStudentDetailsOpen(false);
           setSelectedStudent(null);
         }}
-        onNext={() => {
-          if (!selectedStudent) return;
-          const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-          if (currentIndex < filteredStudents.length - 1) {
-            setSelectedStudent(filteredStudents[currentIndex + 1]);
-          }
-        }}
-        onPrevious={() => {
-          if (!selectedStudent) return;
-          const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-          if (currentIndex > 0) {
-            setSelectedStudent(filteredStudents[currentIndex - 1]);
-          }
-        }}
       />
     </>
   );

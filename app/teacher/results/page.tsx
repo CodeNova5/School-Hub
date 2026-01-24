@@ -14,14 +14,28 @@ import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 
+interface StudentWithClass extends Student {
+  class_name?: string;
+  class_level?: string;
+  subjects_taught?: string[];
+}
+
+interface TeacherSubject {
+  id: string;
+  subject_name: string;
+  class_name: string;
+  class_id: string;
+}
+
 export default function TeacherResultsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentWithClass[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<StudentWithClass[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
-  const [teacherClasses, setTeacherClasses] = useState<string[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<TeacherSubject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
+  const [filterSubject, setFilterSubject] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -30,7 +44,7 @@ export default function TeacherResultsPage() {
 
   useEffect(() => {
     applyFilters();
-  }, [students, searchTerm, filterClass]);
+  }, [students, searchTerm, filterClass, filterSubject]);
 
   async function loadData() {
     setIsLoading(true);
@@ -47,32 +61,84 @@ export default function TeacherResultsPage() {
         return;
       }
 
-      const { data: assignedClasses } = await supabase
-        .from('classes')
-        .select('id')
-        .eq('class_teacher_id', teacher.id);
+      // Get subjects assigned to this teacher
+      const { data: subjectAssignments } = await supabase
+        .from('subject_classes')
+        .select(`
+          id,
+          class_id,
+          subjects (
+            id,
+            name
+          ),
+          classes (
+            id,
+            name,
+            level
+          )
+        `)
+        .eq('teacher_id', teacher.id);
 
-      const classIds = assignedClasses?.map(c => c.id) || [];
-      setTeacherClasses(classIds);
-
-      if (classIds.length === 0) {
-        toast.error('No class assigned to you');
+      if (!subjectAssignments || subjectAssignments.length === 0) {
+        toast.error('No subjects assigned to you');
         setIsLoading(false);
         return;
       }
 
-      const [studentsRes, classesRes] = await Promise.all([
-        supabase
-          .from('students')
-          .select('*')
-          .in('class_id', classIds)
-          .eq('status', 'active')
-          .order('first_name'),
-        supabase.from('classes').select('*').order('name'),
-      ]);
+      // Extract teacher subjects and class IDs
+      const teacherSubjectsData: TeacherSubject[] = subjectAssignments.map((sa: any) => ({
+        id: sa.id,
+        subject_name: sa.subjects?.name || 'Unknown Subject',
+        class_name: sa.classes?.name || 'Unknown Class',
+        class_id: sa.class_id
+      }));
 
-      if (studentsRes.data) setStudents(studentsRes.data);
-      if (classesRes.data) setClasses(classesRes.data);
+      setTeacherSubjects(teacherSubjectsData);
+
+      const classIds = Array.from(new Set(subjectAssignments.map((sa: any) => sa.class_id)));
+
+      // Get students from classes where teacher teaches subjects
+      const { data: studentsData } = await supabase
+        .from('students')
+        .select(`
+          *,
+          classes (
+            id,
+            name,
+            level
+          )
+        `)
+        .in('class_id', classIds)
+        .eq('status', 'active')
+        .order('first_name');
+
+      // Get all classes for filtering
+      const { data: classesData } = await supabase
+        .from('classes')
+        .select('*')
+        .in('id', classIds)
+        .order('name');
+
+      if (studentsData) {
+        // Add subjects taught to each student based on their class
+        const enrichedStudents: StudentWithClass[] = studentsData.map((student: any) => {
+          const subjectsForThisClass = teacherSubjectsData
+            .filter(ts => ts.class_id === student.class_id)
+            .map(ts => ts.subject_name);
+
+          return {
+            ...student,
+            class_name: student.classes?.name,
+            class_level: student.classes?.level,
+            subjects_taught: subjectsForThisClass
+          };
+        });
+
+        setStudents(enrichedStudents);
+      }
+
+      if (classesData) setClasses(classesData);
+
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
     } finally {
@@ -95,6 +161,12 @@ export default function TeacherResultsPage() {
 
     if (filterClass) {
       filtered = filtered.filter((s) => s.class_id === filterClass);
+    }
+
+    if (filterSubject) {
+      filtered = filtered.filter((s) => 
+        s.subjects_taught?.includes(filterSubject)
+      );
     }
 
     setFilteredStudents(filtered);
@@ -124,7 +196,7 @@ export default function TeacherResultsPage() {
         <div>
           <h1 className="text-3xl font-bold">Student Results</h1>
           <p className="text-gray-600 mt-1">
-            Add and manage student results for your class
+            Add and manage results for students taking your subjects
           </p>
         </div>
 
@@ -133,7 +205,7 @@ export default function TeacherResultsPage() {
             <CardTitle>Search & Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
@@ -150,13 +222,24 @@ export default function TeacherResultsPage() {
                 className="px-3 py-2 border rounded-md"
               >
                 <option value="">All Classes</option>
-                {classes
-                  .filter((c) => teacherClasses.includes(c.id))
-                  .map((cls) => (
-                    <option key={cls.id} value={cls.id}>
-                      {cls.name} - {cls.level}
-                    </option>
-                  ))}
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name} - {cls.level}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filterSubject}
+                onChange={(e) => setFilterSubject(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="">All Subjects</option>
+                {Array.from(new Set(teacherSubjects.map(ts => ts.subject_name))).map((subject) => (
+                  <option key={subject} value={subject}>
+                    {subject}
+                  </option>
+                ))}
               </select>
             </div>
           </CardContent>
@@ -174,11 +257,15 @@ export default function TeacherResultsPage() {
               <div className="text-center py-12 text-gray-500">
                 <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                 <p>No students found</p>
+                <p className="text-sm mt-2">
+                  {students.length === 0 
+                    ? "No students are taking your subjects"
+                    : "Try adjusting your search or filters"}
+                </p>
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filteredStudents.map((student) => {
-                  const studentClass = classes.find(c => c.id === student.class_id);
                   return (
                     <Card key={student.id} className="hover:shadow-lg transition-shadow">
                       <CardContent className="p-6">
@@ -197,16 +284,29 @@ export default function TeacherResultsPage() {
                               {student.student_id}
                             </p>
                             <div className="flex flex-wrap gap-2 mb-3">
-                              {studentClass && (
-                                <Badge variant="outline" className="text-xs">
-                                  {studentClass.name}
-                                </Badge>
-                              )}
+                              <Badge variant="outline" className="text-xs">
+                                {student.class_name} - {student.class_level}
+                              </Badge>
                               {student.gender && (
                                 <Badge variant="secondary" className="text-xs">
                                   {student.gender}
                                 </Badge>
                               )}
+                            </div>
+                            <div className="mb-3">
+                              <p className="text-xs text-gray-500 mb-1">Your subjects:</p>
+                              <div className="flex flex-wrap gap-1">
+                                {student.subjects_taught?.slice(0, 2).map((subject, idx) => (
+                                  <Badge key={idx} variant="default" className="text-xs">
+                                    {subject}
+                                  </Badge>
+                                ))}
+                                {(student.subjects_taught?.length || 0) > 2 && (
+                                  <Badge variant="default" className="text-xs">
+                                    +{(student.subjects_taught?.length || 0) - 2} more
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                             <Button
                               onClick={() => handleAddResults(student)}

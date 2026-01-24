@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
@@ -48,6 +49,7 @@ export default function ResultEntryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [teacherName, setTeacherName] = useState<string>("");
+  const [scoreCalculationMode, setScoreCalculationMode] = useState<'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'>('all');
 
   useEffect(() => {
     if (studentId) loadData();
@@ -239,24 +241,20 @@ export default function ResultEntryPage() {
             (s) => s.subject_class_id === res.subject_class_id
           );
           if (idx >= 0) {
-            const total =
-              (res.welcome_test || 0) +
-              (res.mid_term_test || 0) +
-              (res.vetting || 0) +
-              (res.exam || 0);
-
-            const { grade, remark } = calculateGrade(total);
-
             initialScores[idx] = {
               ...initialScores[idx],
               welcome_test: res.welcome_test || 0,
               mid_term_test: res.mid_term_test || 0,
               vetting: res.vetting || 0,
               exam: res.exam || 0,
-              total,
-              grade,
-              remark: res.remark || remark,
             };
+
+            const total = calculateTotalScore(initialScores[idx]);
+            const { grade, remark } = calculateGrade(total);
+
+            initialScores[idx].total = total;
+            initialScores[idx].grade = grade;
+            initialScores[idx].remark = res.remark || remark;
           }
         }
       }
@@ -281,15 +279,46 @@ export default function ResultEntryPage() {
     }
   }
 
+  function calculateTotalScore(score: SubjectScore): number {
+    switch (scoreCalculationMode) {
+      case 'welcome_only':
+        return score.welcome_test;
+      case 'welcome_midterm':
+        return score.welcome_test + score.mid_term_test;
+      case 'welcome_midterm_vetting':
+        return score.welcome_test + score.mid_term_test + score.vetting;
+      case 'all':
+      default:
+        return score.welcome_test + score.mid_term_test + score.vetting + score.exam;
+    }
+  }
+
+  function getMaxPossibleScore(): number {
+    switch (scoreCalculationMode) {
+      case 'welcome_only':
+        return 10;
+      case 'welcome_midterm':
+        return 30;
+      case 'welcome_midterm_vetting':
+        return 40;
+      case 'all':
+      default:
+        return 100;
+    }
+  }
+
   function calculateGrade(total: number) {
-    if (total >= 75) return { grade: "A1", remark: "Excellent" };
-    if (total >= 70) return { grade: "B2", remark: "Very Good" };
-    if (total >= 65) return { grade: "B3", remark: "Good" };
-    if (total >= 60) return { grade: "C4", remark: "Credit" };
-    if (total >= 55) return { grade: "C5", remark: "Credit" };
-    if (total >= 50) return { grade: "C6", remark: "Credit" };
-    if (total >= 45) return { grade: "D7", remark: "Pass" };
-    if (total >= 40) return { grade: "E8", remark: "Pass" };
+    const maxScore = getMaxPossibleScore();
+    const percentage = (total / maxScore) * 100;
+    
+    if (percentage >= 75) return { grade: "A1", remark: "Excellent" };
+    if (percentage >= 70) return { grade: "B2", remark: "Very Good" };
+    if (percentage >= 65) return { grade: "B3", remark: "Good" };
+    if (percentage >= 60) return { grade: "C4", remark: "Credit" };
+    if (percentage >= 55) return { grade: "C5", remark: "Credit" };
+    if (percentage >= 50) return { grade: "C6", remark: "Credit" };
+    if (percentage >= 45) return { grade: "D7", remark: "Pass" };
+    if (percentage >= 40) return { grade: "E8", remark: "Pass" };
     return { grade: "F9", remark: "Fail" };
   }
 
@@ -311,12 +340,7 @@ export default function ResultEntryPage() {
 
     (newScores[index] as any)[field] = num;
 
-    const total =
-      newScores[index].welcome_test +
-      newScores[index].mid_term_test +
-      newScores[index].vetting +
-      newScores[index].exam;
-
+    const total = calculateTotalScore(newScores[index]);
     const { grade, remark } = calculateGrade(total);
 
     newScores[index].total = total;
@@ -326,12 +350,25 @@ export default function ResultEntryPage() {
     setScores(newScores);
   }
 
+  // Recalculate scores when calculation mode changes
+  useEffect(() => {
+    if (scores.length > 0) {
+      const updatedScores = scores.map(score => {
+        const total = calculateTotalScore(score);
+        const { grade, remark } = calculateGrade(total);
+        return { ...score, total, grade, remark };
+      });
+      setScores(updatedScores);
+    }
+  }, [scoreCalculationMode]);
+
   const totalScore = scores.reduce((sum, s) => sum + s.total, 0);
   const overallGrade = (() => {
     const avgScore = scores.length > 0 ? totalScore / scores.length : 0;
     return calculateGrade(avgScore).grade;
   })();
-  const averagePercentage = scores.length > 0 ? (totalScore / (scores.length * 100)) * 100 : 0;
+  const maxTotalScore = scores.length * getMaxPossibleScore();
+  const averagePercentage = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
 
   function handlePrint() {
     window.print();
@@ -403,6 +440,17 @@ export default function ResultEntryPage() {
             Back to Results
           </Button>
           <div className="flex gap-2">
+            <Select value={scoreCalculationMode} onValueChange={(value: any) => setScoreCalculationMode(value)}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select calculation method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="welcome_only">Welcome Test Only (10)</SelectItem>
+                <SelectItem value="welcome_midterm">Welcome + Mid-Term (30)</SelectItem>
+                <SelectItem value="welcome_midterm_vetting">Welcome + Mid-Term + Vetting (40)</SelectItem>
+                <SelectItem value="all">All Components (100)</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="outline" onClick={handlePrint}>
               <Printer className="h-4 w-4 mr-2" />
               Print
@@ -476,7 +524,7 @@ export default function ResultEntryPage() {
                         Exam (60)
                       </th>
                       <th className="border border-gray-300 px-3 py-2 text-center w-20">
-                        Total (100)
+                        Total ({getMaxPossibleScore()})
                       </th>
                       <th className="border border-gray-300 px-3 py-2 text-center w-16">Grade</th>
                       <th className="border border-gray-300 px-3 py-2 text-center">Remark</th>

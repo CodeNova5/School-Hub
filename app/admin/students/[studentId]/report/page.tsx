@@ -5,10 +5,18 @@ import { useParams, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import ResultEntry from "@/components/ResultEntry";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { Session, Term } from "@/lib/types";
 
 export default function StudentReportPage() {
   const params = useParams();
@@ -20,6 +28,8 @@ export default function StudentReportPage() {
 
   const [loading, setLoading] = useState(true);
   const [studentName, setStudentName] = useState("");
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState(sessionId || "");
   const [selectedTermId, setSelectedTermId] = useState(termId || "");
 
@@ -42,19 +52,24 @@ export default function StudentReportPage() {
 
         setStudentName(`${studentData.first_name} ${studentData.last_name}`);
 
+        // Fetch all sessions and terms
+        const { data: sessionsData } = await supabase
+          .from("sessions")
+          .select("*")
+          .order("start_date", { ascending: false });
+
+        const { data: termsData } = await supabase
+          .from("terms")
+          .select("*")
+          .order("start_date", { ascending: false });
+
+        setSessions(sessionsData || []);
+        setTerms(termsData || []);
+
         // If no session/term provided, fetch current ones
         if (!sessionId || !termId) {
-          const { data: currentSession } = await supabase
-            .from("sessions")
-            .select("id")
-            .eq("is_current", true)
-            .single();
-
-          const { data: currentTerm } = await supabase
-            .from("terms")
-            .select("id")
-            .eq("is_current", true)
-            .single();
+          const currentSession = sessionsData?.find((s) => s.is_current);
+          const currentTerm = termsData?.find((t) => t.is_current);
 
           if (currentSession) setSelectedSessionId(currentSession.id);
           if (currentTerm) setSelectedTermId(currentTerm.id);
@@ -108,6 +123,41 @@ export default function StudentReportPage() {
           <div>
             <h1 className="text-3xl font-bold">Student Report Card</h1>
             <p className="text-muted-foreground mt-1">{studentName}</p>
+          </div>
+        </div>
+
+        {/* Session and Term Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Session</label>
+            <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select session" />
+              </SelectTrigger>
+              <SelectContent>
+                {sessions.map((session) => (
+                  <SelectItem key={session.id} value={session.id}>
+                    {session.name} {session.is_current && "(Current)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Term</label>
+            <Select value={selectedTermId} onValueChange={setSelectedTermId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select term" />
+              </SelectTrigger>
+              <SelectContent>
+                {terms.map((term) => (
+                  <SelectItem key={term.id} value={term.id}>
+                    {term.name} {term.is_current && "(Current)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

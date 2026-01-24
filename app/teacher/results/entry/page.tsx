@@ -12,6 +12,10 @@ export default function ResultEntryPage() {
   const [isClassTeacher, setIsClassTeacher] = useState(false);
   const [teacherName, setTeacherName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [terms, setTerms] = useState<any[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState("");
+  const [selectedTermId, setSelectedTermId] = useState("");
 
   useEffect(() => {
     async function checkClassTeacher() {
@@ -44,7 +48,27 @@ export default function ResultEntryPage() {
       }
       setLoading(false);
     }
-    if (studentId) checkClassTeacher();
+    async function fetchSessionsAndTerms() {
+      const { data: sessionsData } = await supabase
+        .from("sessions")
+        .select("*")
+        .order("start_date", { ascending: false });
+      const { data: termsData } = await supabase
+        .from("terms")
+        .select("*")
+        .order("start_date", { ascending: false });
+      setSessions(sessionsData || []);
+      setTerms(termsData || []);
+      // Auto-select current session and term if available
+      const currentSession = sessionsData?.find((s) => s.is_current);
+      const currentTerm = termsData?.find((t) => t.is_current);
+      if (currentSession) setSelectedSessionId(currentSession.id);
+      if (currentTerm) setSelectedTermId(currentTerm.id);
+    }
+    if (studentId) {
+      checkClassTeacher();
+      fetchSessionsAndTerms();
+    }
   }, [studentId]);
 
   if (!studentId) {
@@ -79,14 +103,54 @@ export default function ResultEntryPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <ResultEntry
-        studentId={studentId}
-        role="class_teacher"
-        canEditPrincipalComment={false}
-        canEdit={true}
-        isReadOnly={false}
-        teacherName={teacherName}
-      />
+      <div className="max-w-2xl mx-auto p-4">
+        <div className="flex gap-4 mb-6">
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-1">Session</label>
+            <select
+              className="border rounded-md p-2 w-full"
+              value={selectedSessionId}
+              onChange={e => setSelectedSessionId(e.target.value)}
+            >
+              <option value="">Select session</option>
+              {sessions.map(session => (
+                <option key={session.id} value={session.id}>
+                  {session.name} {session.is_current && "(Current)"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-1">Term</label>
+            <select
+              className="border rounded-md p-2 w-full"
+              value={selectedTermId}
+              onChange={e => setSelectedTermId(e.target.value)}
+            >
+              <option value="">Select term</option>
+              {terms.map(term => (
+                <option key={term.id} value={term.id}>
+                  {term.name} {term.is_current && "(Current)"}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {selectedSessionId && selectedTermId ? (
+          <ResultEntry
+            studentId={studentId}
+            role="class_teacher"
+            canEditPrincipalComment={false}
+            canEdit={true}
+            isReadOnly={false}
+            teacherName={teacherName}
+            sessionId={selectedSessionId}
+            termId={selectedTermId}
+          />
+        ) : (
+          <div className="text-center text-muted-foreground py-12">Please select session and term to enter results.</div>
+        )}
+      </div>
     </DashboardLayout>
   );
 }

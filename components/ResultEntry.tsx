@@ -31,6 +31,8 @@ interface ResultEntryProps {
   canEdit: boolean;
   isReadOnly: boolean;
   teacherName?: string;
+  sessionId?: string;
+  termId?: string;
 }
 
 export default function ResultEntry({
@@ -39,7 +41,9 @@ export default function ResultEntry({
   canEditPrincipalComment,
   canEdit,
   isReadOnly,
-  teacherName: initialTeacherName = ""
+  teacherName: initialTeacherName = "",
+  sessionId,
+  termId
 }: ResultEntryProps) {
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -60,7 +64,7 @@ export default function ResultEntry({
   useEffect(() => {
     if (studentId) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId]);
+  }, [studentId, sessionId, termId]);
 
   async function loadData() {
     setIsLoading(true);
@@ -89,18 +93,39 @@ export default function ResultEntry({
 
       if (classData) setStudentClass(classData);
 
-      // 3. Current session & term
-      const { data: sessionData } = await supabase
-        .from("sessions")
-        .select("*")
-        .eq("is_current", true)
-        .single();
-
-      const { data: termData } = await supabase
-        .from("terms")
-        .select("*")
-        .eq("is_current", true)
-        .single();
+      // 3. Session & Term (use props if provided)
+      let sessionData: Session | null = null;
+      let termData: Term | null = null;
+      if (sessionId) {
+        const { data } = await supabase
+          .from("sessions")
+          .select("*")
+          .eq("id", sessionId)
+          .single();
+        sessionData = data;
+      } else {
+        const { data } = await supabase
+          .from("sessions")
+          .select("*")
+          .eq("is_current", true)
+          .single();
+        sessionData = data;
+      }
+      if (termId) {
+        const { data } = await supabase
+          .from("terms")
+          .select("*")
+          .eq("id", termId)
+          .single();
+        termData = data;
+      } else {
+        const { data } = await supabase
+          .from("terms")
+          .select("*")
+          .eq("is_current", true)
+          .single();
+        termData = data;
+      }
 
       if (!sessionData || !termData) {
         toast.error("No active session or term");
@@ -351,8 +376,8 @@ export default function ResultEntry({
       const records = scores.map((s) => ({
         student_id: student.id,
         subject_class_id: s.subject_class_id,
-        session_id: session.id,
-        term_id: term.id,
+        session_id: sessionId || session.id,
+        term_id: termId || term.id,
         welcome_test: s.welcome_test,
         mid_term_test: s.mid_term_test,
         vetting: s.vetting,

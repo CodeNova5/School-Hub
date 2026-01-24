@@ -35,7 +35,6 @@ export default function ResultEntryPage() {
         .from("classes")
         .select("id")
         .eq("class_teacher_id", teacher.id)
-        .maybeSingle();
 
       if (classData) {
         setIsClassTeacher(true);

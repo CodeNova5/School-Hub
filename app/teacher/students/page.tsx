@@ -390,12 +390,6 @@ export default function TeacherStudentsPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
         />
-
-        <StudentSubjectsModal
-          student={selectedStudent}
-          open={isSubjectsModalOpen}
-          onClose={() => setIsSubjectsModalOpen(false)}
-        />
       </div>
     </DashboardLayout>
   );

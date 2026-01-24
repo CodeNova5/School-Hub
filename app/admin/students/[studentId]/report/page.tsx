@@ -1,0 +1,132 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import ResultEntry from "@/components/ResultEntry";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+
+export default function StudentReportPage() {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const studentId = params.studentId as string;
+  const termId = searchParams.get("term");
+  const sessionId = searchParams.get("session");
+
+  const [loading, setLoading] = useState(true);
+  const [studentName, setStudentName] = useState("");
+  const [selectedSessionId, setSelectedSessionId] = useState(sessionId || "");
+  const [selectedTermId, setSelectedTermId] = useState(termId || "");
+
+  useEffect(() => {
+    async function loadStudentData() {
+      setLoading(true);
+      try {
+        // Fetch student details
+        const { data: studentData, error: studentError } = await supabase
+          .from("students")
+          .select("first_name, last_name")
+          .eq("id", studentId)
+          .single();
+
+        if (studentError || !studentData) {
+          toast.error("Student not found");
+          router.push("/admin/students");
+          return;
+        }
+
+        setStudentName(`${studentData.first_name} ${studentData.last_name}`);
+
+        // If no session/term provided, fetch current ones
+        if (!sessionId || !termId) {
+          const { data: currentSession } = await supabase
+            .from("sessions")
+            .select("id")
+            .eq("is_current", true)
+            .single();
+
+          const { data: currentTerm } = await supabase
+            .from("terms")
+            .select("id")
+            .eq("is_current", true)
+            .single();
+
+          if (currentSession) setSelectedSessionId(currentSession.id);
+          if (currentTerm) setSelectedTermId(currentTerm.id);
+        }
+      } catch (error) {
+        console.error("Error loading student data:", error);
+        toast.error("Failed to load student data");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (studentId) {
+      loadStudentData();
+    }
+  }, [studentId, sessionId, termId, router]);
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!studentId) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <p className="text-muted-foreground">No student selected</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout role="admin">
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            className="mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Student Report Card</h1>
+            <p className="text-muted-foreground mt-1">{studentName}</p>
+          </div>
+        </div>
+
+        {selectedSessionId && selectedTermId ? (
+          <ResultEntry
+            studentId={studentId}
+            role="admin"
+            canEditPrincipalComment={true}
+            canEdit={true}
+            isReadOnly={false}
+            sessionId={selectedSessionId}
+            termId={selectedTermId}
+          />
+        ) : (
+          <div className="text-center py-12 text-muted-foreground">
+            Unable to load report. Session or term information is missing.
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}

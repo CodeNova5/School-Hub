@@ -90,7 +90,16 @@ export function StudentDetailsModal({
 
       const { data, error } = await supabase
         .from("results")
-        .select("*")
+        .select(`
+          *,
+          subject_classes (
+            id,
+            subjects (
+              id,
+              name
+            )
+          )
+        `)
         .eq("student_id", student.id)
         .eq("session_id", activeSessionId)
         .eq("term_id", activeTermId);
@@ -101,7 +110,13 @@ export function StudentDetailsModal({
         return;
       }
 
-      setStudentResults(data || []);
+      // Transform the data to include subject_name
+      const transformedData = (data || []).map((result: any) => ({
+        ...result,
+        subject_name: result.subject_classes?.subjects?.name || "Unknown"
+      }));
+
+      setStudentResults(transformedData);
     }
 
     loadResults();

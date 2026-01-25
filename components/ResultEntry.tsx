@@ -374,11 +374,10 @@ export default function ResultEntry({
 
   const getPositionDisplay = (position: number | null | undefined) => {
     if (!position) return null;
-
     if (position === 1) {
       return (
         <div className="flex items-center justify-center gap-2">
-          <Medal className="h-6 w-6 text-yellow-500 fill-yellow-500" />
+          <span className="text-2xl">🥇</span>
           <span className="font-bold text-yellow-600 text-xl">1st</span>
         </div>
       );
@@ -386,7 +385,7 @@ export default function ResultEntry({
     if (position === 2) {
       return (
         <div className="flex items-center justify-center gap-2">
-          <Medal className="h-6 w-6 text-gray-400 fill-gray-400" />
+          <span className="text-2xl">🥈</span>
           <span className="font-bold text-gray-600 text-xl">2nd</span>
         </div>
       );
@@ -394,7 +393,7 @@ export default function ResultEntry({
     if (position === 3) {
       return (
         <div className="flex items-center justify-center gap-2">
-          <Medal className="h-6 w-6 text-amber-600 fill-amber-600" />
+          <span className="text-2xl">🥉</span>
           <span className="font-bold text-amber-700 text-xl">3rd</span>
         </div>
       );

@@ -45,12 +45,15 @@ interface StudentResult {
     highest_score: number;
     lowest_score: number;
     grade: {
-        A: number;
-        B: number;
-        C: number;
-        D: number;
-        E: number;
-        F: number;
+        A1: number;
+        B2: number;
+        B3: number;
+        C4: number;
+        C5: number;
+        C6: number;
+        D7: number;
+        E8: number;
+        F9: number;
     };
     class_position: number | null;
     has_results: boolean;
@@ -156,7 +159,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     average_score: 0,
                     highest_score: 0,
                     lowest_score: 100,
-                    grade: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
+                    grade: { A1: 0, B2: 0, B3: 0, C4: 0, C5: 0, C6: 0, D7: 0, E8: 0, F9: 0 },
                     class_position: null,
                     has_results: false,
                 });
@@ -251,7 +254,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }
 
     function getGradeColor(grade: string) {
-        switch (grade.toUpperCase()) {
+        const gradePrefix = grade.charAt(0).toUpperCase();
+        switch (gradePrefix) {
             case "A":
                 return "bg-green-100 text-green-800";
             case "B":
@@ -259,6 +263,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             case "C":
                 return "bg-yellow-100 text-yellow-800";
             case "D":
+                return "bg-orange-100 text-orange-800";
+            case "E":
                 return "bg-orange-100 text-orange-800";
             default:
                 return "bg-red-100 text-red-800";
@@ -276,12 +282,15 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             "Average Score": result.average_score.toFixed(2),
             "Highest Score": result.highest_score.toFixed(2),
             "Lowest Score": result.lowest_score.toFixed(2),
-            "Grade A": result.grade.A,
-            "Grade B": result.grade.B,
-            "Grade C": result.grade.C,
-            "Grade D": result.grade.D,
-            "Grade E": result.grade.E,
-            "Grade F": result.grade.F,
+            "Grade A1": result.grade.A1,
+            "Grade B2": result.grade.B2,
+            "Grade B3": result.grade.B3,
+            "Grade C4": result.grade.C4,
+            "Grade C5": result.grade.C5,
+            "Grade C6": result.grade.C6,
+            "Grade D7": result.grade.D7,
+            "Grade E8": result.grade.E8,
+            "Grade F9": result.grade.F9,
             Position: result.class_position || "N/A",
         }));
 

@@ -82,6 +82,9 @@ export interface Result {
   grade: string;
   session_id: string;
   term_id: string;
+  class_position?: number | null;
+  total_students?: number | null;
+  class_average?: number | null;
 }
 
 export interface Student {

@@ -10,6 +10,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { getGradeColor } from '@/lib/student-utils';
+import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, Key } from 'react';
+import { Medal } from 'lucide-react';
 
 interface ResultsTableProps {
   results: Result[];
@@ -22,6 +24,39 @@ export function ResultsTable({ results }: ResultsTableProps) {
     const maxScore = results.length * 100;
     return ((totalScore / maxScore) * 100).toFixed(2);
   };
+
+  const getPositionDisplay = (position: number | null | undefined) => {
+    if (!position) return null;
+
+    if (position === 1) {
+      return (
+        <div className="flex items-center justify-center gap-1">
+          <Medal className="h-5 w-5 text-yellow-500 fill-yellow-500" />
+          <span className="font-bold text-yellow-600">1st</span>
+        </div>
+      );
+    }
+    if (position === 2) {
+      return (
+        <div className="flex items-center justify-center gap-1">
+          <Medal className="h-5 w-5 text-gray-400 fill-gray-400" />
+          <span className="font-bold text-gray-600">2nd</span>
+        </div>
+      );
+    }
+    if (position === 3) {
+      return (
+        <div className="flex items-center justify-center gap-1">
+          <Medal className="h-5 w-5 text-amber-600 fill-amber-600" />
+          <span className="font-bold text-amber-700">3rd</span>
+        </div>
+      );
+    }
+    return <span className="font-semibold text-gray-700">{position}th</span>;
+  };
+
+  // Get the class position from the first result (all results for a student have the same position)
+  const classPosition = results.length > 0 ? results[0].class_position : null;
 
   return (
     <div className="space-y-4">
@@ -36,17 +71,18 @@ export function ResultsTable({ results }: ResultsTableProps) {
               <TableHead className="text-center">Exam</TableHead>
               <TableHead className="text-center">Total</TableHead>
               <TableHead className="text-center">Grade</TableHead>
+              <TableHead className="text-center">Position</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {results.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                   No results available for selected term
                 </TableCell>
               </TableRow>
             ) : (
-              results.map((result, index) => (
+              results.map((result: Result, index: Key | null | undefined) => (
                 <TableRow key={index}>
                   <TableCell className="font-medium">{result.subject_name}</TableCell>
                   <TableCell className="text-center">{result.welcome_test}</TableCell>
@@ -55,9 +91,12 @@ export function ResultsTable({ results }: ResultsTableProps) {
                   <TableCell className="text-center">{result.exam}</TableCell>
                   <TableCell className="text-center font-bold">{result.total}</TableCell>
                   <TableCell className="text-center">
-                    <span className={`font-bold ${getGradeColor(result.grade)}`}>
+                    <span className={`font-bold ${getGradeColor(String(result.grade || ''))}`}>
                       {result.grade}
                     </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {getPositionDisplay(result.class_position)}
                   </TableCell>
                 </TableRow>
               ))
@@ -67,15 +106,21 @@ export function ResultsTable({ results }: ResultsTableProps) {
       </div>
 
       {results.length > 0 && (
-        <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-          <div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="p-4 bg-gray-50 rounded-lg">
             <p className="text-sm text-gray-600">Total Subjects</p>
             <p className="text-2xl font-bold">{results.length}</p>
           </div>
-          <div>
+          <div className="p-4 bg-gray-50 rounded-lg">
             <p className="text-sm text-gray-600">Average Score</p>
             <p className="text-2xl font-bold">{calculateTotalGPA()}%</p>
           </div>
+          {classPosition && (
+            <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-600 font-medium">Class Position</p>
+              <div className="text-2xl font-bold mt-1">{getPositionDisplay(classPosition)}</div>
+            </div>
+          )}
         </div>
       )}
     </div>

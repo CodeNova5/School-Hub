@@ -10,7 +10,7 @@ import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
 import { toast } from "sonner";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
-import { Save, Printer, ArrowLeft, Loader2 } from "lucide-react";
+import { Save, Printer, ArrowLeft, Loader2, Medal } from "lucide-react";
 
 interface SubjectScore {
   subject_class_id: string;
@@ -60,6 +60,9 @@ export default function ResultEntry({
   const [isSaving, setIsSaving] = useState(false);
   const [teacherName, setTeacherName] = useState<string>(initialTeacherName);
   const [scoreCalculationMode, setScoreCalculationMode] = useState<'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'>('all');
+  const [classPosition, setClassPosition] = useState<number | null>(null);
+  const [totalStudents, setTotalStudents] = useState<number | null>(null);
+  const [classAverage, setClassAverage] = useState<number | null>(null);
 
   useEffect(() => {
     if (studentId) loadData();
@@ -242,6 +245,9 @@ export default function ResultEntry({
         const first = existingResults[0];
         setClassTeacherRemark(first.class_teacher_remark || "");
         setPrincipalRemark(first.principal_remark || "");
+        setClassPosition(first.class_position || null);
+        setTotalStudents(first.total_students || null);
+        setClassAverage(first.class_average || null);
         for (const res of existingResults) {
           const idx = initialScores.findIndex(
             (s) => s.subject_class_id === res.subject_class_id
@@ -366,6 +372,36 @@ export default function ResultEntry({
   const maxTotalScore = scores.length * getMaxPossibleScore();
   const averagePercentage = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
 
+  const getPositionDisplay = (position: number | null | undefined) => {
+    if (!position) return null;
+
+    if (position === 1) {
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <Medal className="h-6 w-6 text-yellow-500 fill-yellow-500" />
+          <span className="font-bold text-yellow-600 text-xl">1st</span>
+        </div>
+      );
+    }
+    if (position === 2) {
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <Medal className="h-6 w-6 text-gray-400 fill-gray-400" />
+          <span className="font-bold text-gray-600 text-xl">2nd</span>
+        </div>
+      );
+    }
+    if (position === 3) {
+      return (
+        <div className="flex items-center justify-center gap-2">
+          <Medal className="h-6 w-6 text-amber-600 fill-amber-600" />
+          <span className="font-bold text-amber-700 text-xl">3rd</span>
+        </div>
+      );
+    }
+    return <span className="font-semibold text-gray-700 text-xl">{position}th</span>;
+  };
+
   function handlePrint() {
     window.print();
   }
@@ -487,6 +523,29 @@ export default function ResultEntry({
                 </p>
               </div>
             </div>
+            {classPosition && (
+              <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">Class Position</p>
+                    <div className="mt-1">{getPositionDisplay(classPosition)}</div>
+                  </div>
+                  {totalStudents && (
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">Out of</p>
+                      <p className="text-2xl font-bold text-gray-800">{totalStudents}</p>
+                      <p className="text-xs text-gray-500">students</p>
+                    </div>
+                  )}
+                  {classAverage && (
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">Class Average</p>
+                      <p className="text-2xl font-bold text-gray-800">{classAverage.toFixed(1)}%</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="mt-6">
               <table className="w-full border-collapse border border-gray-300 text-sm">
                 <thead>

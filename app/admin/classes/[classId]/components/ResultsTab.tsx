@@ -344,7 +344,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
             for (let i = 0; i < sortedStudents.length; i++) {
                 const student = sortedStudents[i];
-                
+
                 // Check if this student has the same average as the previous one (tie)
                 if (i > 0 && Math.abs(student.average_score - sortedStudents[i - 1].average_score) < 0.01) {
                     // Same position as previous student (tie)
@@ -369,7 +369,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 // Update all results for this student in this term and session
                 const { error } = await supabase
                     .from("results")
-                    .update({ 
+                    .update({
                         class_position: position,
                         total_students: studentsWithResults.length,
                         class_average: studentsWithResults.reduce((sum, r) => sum + r.average_score, 0) / studentsWithResults.length
@@ -384,7 +384,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             await Promise.all(updatePromises);
 
             toast.success(`Positions calculated for ${studentsWithResults.length} students`);
-            
+
             // Refresh the results to show updated positions
             await fetchStudentResults();
         } catch (error) {
@@ -668,14 +668,14 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
-                                                        {result.has_results && (
-                                                            <DropdownMenuItem
-                                                                onClick={() => handleViewStudentReport(result.student_id)}
-                                                            >
-                                                                <Eye className="mr-2 h-4 w-4" />
-                                                                View Report Card
-                                                            </DropdownMenuItem>
-                                                        )}
+
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleViewStudentReport(result.student_id)}
+                                                        >
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            View Report Card
+                                                        </DropdownMenuItem>
+
                                                         <DropdownMenuItem
                                                             onClick={() => {
                                                                 const studentObj = students.find(s => s.id === result.student_id);

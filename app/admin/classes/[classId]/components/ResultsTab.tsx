@@ -44,7 +44,7 @@ interface StudentResult {
     average_score: number;
     highest_score: number;
     lowest_score: number;
-    grades: {
+    grade: {
         A: number;
         B: number;
         C: number;
@@ -156,7 +156,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     average_score: 0,
                     highest_score: 0,
                     lowest_score: 100,
-                    grades: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
+                    grade: { A: 0, B: 0, C: 0, D: 0, E: 0, F: 0 },
                     class_position: null,
                     has_results: false,
                 });
@@ -181,8 +181,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
                     // Count grades
                     const grade = result.grade?.toUpperCase();
-                    if (grade && grade in studentResult.grades) {
-                        studentResult.grades[grade as keyof typeof studentResult.grades] += 1;
+                    if (grade && grade in studentResult.grade) {
+                        studentResult.grade[grade as keyof typeof studentResult.grade] += 1;
                     }
 
                     // Store class position if available
@@ -276,12 +276,12 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             "Average Score": result.average_score.toFixed(2),
             "Highest Score": result.highest_score.toFixed(2),
             "Lowest Score": result.lowest_score.toFixed(2),
-            "Grade A": result.grades.A,
-            "Grade B": result.grades.B,
-            "Grade C": result.grades.C,
-            "Grade D": result.grades.D,
-            "Grade E": result.grades.E,
-            "Grade F": result.grades.F,
+            "Grade A": result.grade.A,
+            "Grade B": result.grade.B,
+            "Grade C": result.grade.C,
+            "Grade D": result.grade.D,
+            "Grade E": result.grade.E,
+            "Grade F": result.grade.F,
             Position: result.class_position || "N/A",
         }));
 
@@ -512,7 +512,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                             <td className="p-3">
                                                 {result.has_results ? (
                                                     <div className="flex flex-wrap gap-1 justify-center">
-                                                        {Object.entries(result.grades).map(
+                                                        {Object.entries(result.grade).map(
                                                             ([grade, count]) =>
                                                                 count > 0 && (
                                                                     <Badge

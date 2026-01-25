@@ -661,34 +661,33 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                                 )}
                                             </td>
                                             <td className="p-3 text-right">
-                                                {result.has_results && (
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon">
-                                                                <MoreVertical className="h-4 w-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        {result.has_results && (
                                                             <DropdownMenuItem
                                                                 onClick={() => handleViewStudentReport(result.student_id)}
                                                             >
                                                                 <Eye className="mr-2 h-4 w-4" />
                                                                 View Report Card
                                                             </DropdownMenuItem>
-
-                                                            <DropdownMenuItem
-                                                                onClick={() => {
-                                                                    const studentObj = students.find(s => s.id === result.student_id);
-                                                                    setSelectedStudent(studentObj || null);
-                                                                    setIsStudentDetailsOpen(true);
-                                                                }}
-                                                            >
-                                                                <FileText className="mr-2 h-4 w-4" />
-                                                                View Details
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                )}
+                                                        )}
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                const studentObj = students.find(s => s.id === result.student_id);
+                                                                setSelectedStudent(studentObj || null);
+                                                                setIsStudentDetailsOpen(true);
+                                                            }}
+                                                        >
+                                                            <FileText className="mr-2 h-4 w-4" />
+                                                            View Details
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </td>
                                         </tr>
                                     );

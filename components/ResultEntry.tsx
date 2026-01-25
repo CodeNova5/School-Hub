@@ -245,9 +245,10 @@ export default function ResultEntry({
         const first = existingResults[0];
         setClassTeacherRemark(first.class_teacher_remark || "");
         setPrincipalRemark(first.principal_remark || "");
-        setClassPosition(first.class_position || null);
-        setTotalStudents(first.total_students || null);
-        setClassAverage(first.class_average || null);
+        // Only set position if it exists for THIS specific term
+        setClassPosition(first.class_position ?? null);
+        setTotalStudents(first.total_students ?? null);
+        setClassAverage(first.class_average ?? null);
         for (const res of existingResults) {
           const idx = initialScores.findIndex(
             (s) => s.subject_class_id === res.subject_class_id
@@ -267,11 +268,16 @@ export default function ResultEntry({
             initialScores[idx].remark = res.remark || remark;
           }
         }
+      } else {
+        // No results for this term, reset position data
+        setClassPosition(null);
+        setTotalStudents(null);
+        setClassAverage(null);
       }
 
       setScores(initialScores);
 
-      // 7. Attendance
+      // 8. Attendance
       const { count } = await supabase
         .from("attendance")
         .select("*", { count: "exact" })

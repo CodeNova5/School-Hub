@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { getGradeColor } from '@/lib/student-utils';
-import { ReactElement, JSXElementConstructor, ReactNode, ReactPortal, Key } from 'react';
+import { Key } from 'react';
 import { Medal } from 'lucide-react';
 
 interface ResultsTableProps {

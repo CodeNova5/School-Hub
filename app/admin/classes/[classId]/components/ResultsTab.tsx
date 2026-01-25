@@ -395,6 +395,35 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         }
     }
 
+    function getPositionDisplay(position: number | null | undefined) {
+        if (!position) return null;
+        if (position === 1) {
+            return (
+                <div className="flex items-center justify-center gap-1">
+                    <span className="text-xl">🥇</span>
+                    <span className="font-bold text-yellow-600">1st</span>
+                </div>
+            );
+        }
+        if (position === 2) {
+            return (
+                <div className="flex items-center justify-center gap-1">
+                    <span className="text-xl">🥈</span>
+                    <span className="font-bold text-gray-600">2nd</span>
+                </div>
+            );
+        }
+        if (position === 3) {
+            return (
+                <div className="flex items-center justify-center gap-1">
+                    <span className="text-xl">🥉</span>
+                    <span className="font-bold text-amber-700">3rd</span>
+                </div>
+            );
+        }
+        return <span className="font-semibold text-gray-700">{position}th</span>;
+    }
+
     return (
         <Card>
             <CardHeader>
@@ -626,7 +655,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                             </td>
                                             <td className="p-3 text-center">
                                                 {result.class_position ? (
-                                                    <Badge>{result.class_position}</Badge>
+                                                    getPositionDisplay(result.class_position)
                                                 ) : (
                                                     <span className="text-muted-foreground">—</span>
                                                 )}

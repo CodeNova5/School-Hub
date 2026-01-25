@@ -96,7 +96,7 @@ export function ResultsTable({ results }: ResultsTableProps) {
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
-                    {getPositionDisplay(result.class_position)}
+                    {result.class_position ? getPositionDisplay(result.class_position) : <span className="text-gray-400">—</span>}
                   </TableCell>
                 </TableRow>
               ))

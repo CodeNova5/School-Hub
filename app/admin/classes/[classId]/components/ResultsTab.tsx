@@ -55,6 +55,7 @@ interface StudentResult {
         E8: number;
         F9: number;
     };
+    average_grade: string;
     class_position: number | null;
     has_results: boolean;
 }
@@ -160,6 +161,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     highest_score: 0,
                     lowest_score: 100,
                     grade: { A1: 0, B2: 0, B3: 0, C4: 0, C5: 0, C6: 0, D7: 0, E8: 0, F9: 0 },
+                    average_grade: '',
                     class_position: null,
                     has_results: false,
                 });
@@ -199,6 +201,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             const results = Array.from(studentResultsMap.values()).map((result) => {
                 if (result.total_subjects > 0) {
                     result.average_score = result.total_score / result.total_subjects;
+                    result.average_grade = calculateAverageGrade(result.average_score);
                 }
                 if (!result.has_results) {
                     result.lowest_score = 0;
@@ -244,6 +247,18 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         });
     }, [studentResults, search, genderFilter, performanceFilter]);
 
+    function calculateAverageGrade(averageScore: number): string {
+        if (averageScore >= 75) return "A1";
+        if (averageScore >= 70) return "B2";
+        if (averageScore >= 65) return "B3";
+        if (averageScore >= 60) return "C4";
+        if (averageScore >= 55) return "C5";
+        if (averageScore >= 50) return "C6";
+        if (averageScore >= 45) return "D7";
+        if (averageScore >= 40) return "E8";
+        return "F9";
+    }
+
     function getPerformanceIndicator(average: number) {
         if (average >= 70)
             return { icon: TrendingUp, color: "text-green-600", label: "Excellent" };
@@ -282,15 +297,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             "Average Score": result.average_score.toFixed(2),
             "Highest Score": result.highest_score.toFixed(2),
             "Lowest Score": result.lowest_score.toFixed(2),
-            "Grade A1": result.grade.A1,
-            "Grade B2": result.grade.B2,
-            "Grade B3": result.grade.B3,
-            "Grade C4": result.grade.C4,
-            "Grade C5": result.grade.C5,
-            "Grade C6": result.grade.C6,
-            "Grade D7": result.grade.D7,
-            "Grade E8": result.grade.E8,
-            "Grade F9": result.grade.F9,
+            "Average Grade": result.average_grade || "N/A",
             Position: result.class_position || "N/A",
         }));
 
@@ -451,7 +458,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                     <th className="p-3 text-center">Highest</th>
                                     <th className="p-3 text-center">Lowest</th>
                                     <th className="p-3 text-center">Performance</th>
-                                    <th className="p-3 text-center">Grades</th>
+                                    <th className="p-3 text-center">Average Grade</th>
                                     <th className="p-3 text-center">Position</th>
                                     <th className="p-3 text-right w-12"></th>
                                 </tr>
@@ -518,24 +525,16 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                                     <span className="text-muted-foreground">—</span>
                                                 )}
                                             </td>
-                                            <td className="p-3">
+                                            <td className="p-3 text-center">
                                                 {result.has_results ? (
-                                                    <div className="flex flex-wrap gap-1 justify-center">
-                                                        {Object.entries(result.grade).map(
-                                                            ([grade, count]) =>
-                                                                count > 0 && (
-                                                                    <Badge
-                                                                        key={grade}
-                                                                        variant="outline"
-                                                                        className={`text-xs ${getGradeColor(grade)}`}
-                                                                    >
-                                                                        {grade}:{count}
-                                                                    </Badge>
-                                                                )
-                                                        )}
-                                                    </div>
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`text-sm font-bold ${getGradeColor(result.average_grade)}`}
+                                                    >
+                                                        {result.average_grade}
+                                                    </Badge>
                                                 ) : (
-                                                    <span className="text-muted-foreground text-center block">—</span>
+                                                    <span className="text-muted-foreground">—</span>
                                                 )}
                                             </td>
                                             <td className="p-3 text-center">

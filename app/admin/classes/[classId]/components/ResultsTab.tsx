@@ -27,6 +27,7 @@ import {
     TrendingUp,
     TrendingDown,
     Minus,
+    Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -317,12 +318,98 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         window.open(`/admin/students/${studentId}/report?term=${selectedTermId}`, "_blank");
     }
 
+    async function handleCalculatePositions() {
+        if (!selectedSessionId || !selectedTermId) {
+            toast.error("Please select a session and term");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            // Get all students with results for this class
+            const studentsWithResults = studentResults.filter(r => r.has_results);
+
+            if (studentsWithResults.length === 0) {
+                toast.error("No students with results to rank");
+                setLoading(false);
+                return;
+            }
+
+            // Sort by average score (descending) to determine positions
+            const sortedStudents = [...studentsWithResults].sort((a, b) => b.average_score - a.average_score);
+
+            // Assign positions (handle ties - students with same average get same position)
+            let currentPosition = 1;
+            const positionUpdates: { studentId: string; position: number; average: number }[] = [];
+
+            for (let i = 0; i < sortedStudents.length; i++) {
+                const student = sortedStudents[i];
+                
+                // Check if this student has the same average as the previous one (tie)
+                if (i > 0 && Math.abs(student.average_score - sortedStudents[i - 1].average_score) < 0.01) {
+                    // Same position as previous student (tie)
+                    positionUpdates.push({
+                        studentId: student.student_id,
+                        position: positionUpdates[i - 1].position,
+                        average: student.average_score
+                    });
+                } else {
+                    // New position
+                    currentPosition = i + 1;
+                    positionUpdates.push({
+                        studentId: student.student_id,
+                        position: currentPosition,
+                        average: student.average_score
+                    });
+                }
+            }
+
+            // Update all results for each student with their position
+            const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
+                // Update all results for this student in this term and session
+                const { error } = await supabase
+                    .from("results")
+                    .update({ 
+                        class_position: position,
+                        total_students: studentsWithResults.length,
+                        class_average: studentsWithResults.reduce((sum, r) => sum + r.average_score, 0) / studentsWithResults.length
+                    })
+                    .eq("student_id", studentId)
+                    .eq("term_id", selectedTermId)
+                    .eq("session_id", selectedSessionId);
+
+                if (error) throw error;
+            });
+
+            await Promise.all(updatePromises);
+
+            toast.success(`Positions calculated for ${studentsWithResults.length} students`);
+            
+            // Refresh the results to show updated positions
+            await fetchStudentResults();
+        } catch (error) {
+            console.error("Error calculating positions:", error);
+            toast.error("Failed to calculate positions");
+        } finally {
+            setLoading(false);
+        }
+    }
+
     return (
         <Card>
             <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <CardTitle>Class Results</CardTitle>
                     <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleCalculatePositions}
+                            disabled={loading || !selectedSessionId || !selectedTermId || studentResults.filter(r => r.has_results).length === 0}
+                        >
+                            <Calculator className="h-4 w-4 mr-1" />
+                            Calculate Positions
+                        </Button>
                         <Button
                             size="sm"
                             variant="outline"

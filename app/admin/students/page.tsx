@@ -1,171 +1,212 @@
 "use client";
 
 import { DashboardLayout } from '@/components/dashboard-layout';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Student, Class } from '@/lib/types';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
+import { Student, Session, Term, Class } from '@/lib/types';
+import { StudentTable } from '@/components/student-table';
+import { StudentDetailsModal } from '@/components/student-details-modal';
+import { StudentSubjectsModal } from '@/components/student-subjects-modal';
+import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
-
-export default function StudentsPage() {
+import { exportToCSV } from '@/lib/student-utils';
+export default function AdminStudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [filterClass, setFilterClass] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterGender, setFilterGender] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  const handleNextStudent = useCallback(() => {
+    if (!selectedStudent) return;
+    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
+    const nextIndex = (currentIndex + 1) % filteredStudents.length;
+    setSelectedStudent(filteredStudents[nextIndex]);
+  }, [filteredStudents, selectedStudent]);
+
+  const handlePreviousStudent = useCallback(() => {
+    if (!selectedStudent) return;
+    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
+    const previousIndex = (currentIndex - 1 + filteredStudents.length) % filteredStudents.length;
+    setSelectedStudent(filteredStudents[previousIndex]);
+  }, [filteredStudents, selectedStudent]);
 
   useEffect(() => {
-    fetchStudents();
-    fetchClasses();
+    loadData();
   }, []);
 
-  async function fetchStudents() {
-    const { data } = await supabase
-      .from('students')
-      .select('*')
-      .order('created_at', { ascending: false });
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!isModalOpen) return;
 
-    if (data) setStudents(data);
-  }
-
-  async function fetchClasses() {
-    const { data } = await supabase.from('classes').select('*').order('name');
-    if (data) setClasses(data);
-  }
-
-  async function generateUniqueStudentId(): Promise<string> {
-    let unique = false;
-    let newId = '';
-
-    while (!unique) {
-      const randomNumber = Math.floor(1000 + Math.random() * 9000); // 4-digit
-      newId = `STU${randomNumber}`;
-
-      const { data } = await supabase
-        .from('students')
-        .select('id')
-        .eq('student_id', newId)
-        .single();
-
-      if (!data) unique = true; // If no student has this ID, it's unique
+      if (event.key === 'ArrowRight') {
+        handleNextStudent();
+      } else if (event.key === 'ArrowLeft') {
+        handlePreviousStudent();
+      }
     }
 
-    return newId;
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const photoFile = formData.get("photo_file") as File | null;
-    let photoUrl = editingStudent?.photo_url || "";
-
-    if (photoFile && photoFile.size > 0) {
-      const uploadForm = new FormData();
-      uploadForm.append("file", photoFile);
-      uploadForm.append("type", "student_photo");
-      uploadForm.append("student_id", editingStudent?.student_id || ""); // optional for upload API
-
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: uploadForm,
-      });
-
-      const result = await res.json();
-      photoUrl = result.url;
-    }
-
-    // Generate student ID if creating new
-    const studentId = editingStudent?.student_id || await generateUniqueStudentId();
-
-    const studentData = {
-      student_id: studentId,
-      first_name: formData.get('first_name') as string,
-      last_name: formData.get('last_name') as string,
-      email: formData.get('email') as string || null,
-      phone: formData.get('phone') as string || null,
-      gender: formData.get('gender') as string,
-      address: formData.get('address') as string || null,
-      date_of_birth: formData.get('date_of_birth') as string,
-      photo_url: photoUrl || null,
-      class_id: formData.get('class_id') as string,
-      department: formData.get('department') as string || null,
-      parent_name: formData.get('parent_name') as string,
-      parent_email: formData.get('parent_email') as string,
-      parent_phone: formData.get('parent_phone') as string,
-      status: formData.get('status') as string || 'active',
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
     };
+  }, [isModalOpen, handleNextStudent, handlePreviousStudent]);
 
-    if (editingStudent) {
-      const { error } = await supabase
-        .from("students")
-        .update(studentData)
-        .eq("id", editingStudent.id);
+  const applyFilters = useCallback(() => {
+    let filtered = [...students];
 
-      if (error) toast.error("Failed to update student");
-      else {
-        toast.success("Student updated successfully");
-        setIsDialogOpen(false);
-        setEditingStudent(null);
-        fetchStudents();
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(
+        (s) =>
+          s.first_name.toLowerCase().includes(term) ||
+          s.last_name.toLowerCase().includes(term) ||
+          s.student_id.toLowerCase().includes(term) ||
+          s.email.toLowerCase().includes(term)
+      );
+    }
+
+    if (filterClass) {
+      filtered = filtered.filter((s) => s.class_id === filterClass);
+    }
+
+    if (filterDepartment) {
+      filtered = filtered.filter((s) => s.department === filterDepartment);
+    }
+
+    if (filterGender) {
+      filtered = filtered.filter((s) => s.gender === filterGender);
+    }
+
+    if (filterStatus) {
+      filtered = filtered.filter((s) => s.status === filterStatus);
+    }
+
+    setFilteredStudents(filtered);
+  }, [students, searchTerm, filterClass, filterDepartment, filterGender, filterStatus]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
+
+  async function loadData() {
+    setIsLoading(true);
+    try {
+      // Load all students in the system (admin view)
+      const [studentsRes, sessionsRes, termsRes, classesRes] = await Promise.all([
+        supabase
+          .from('students')
+          .select('*')
+          .order('first_name'),
+        supabase.from('sessions').select('*').order('start_date', { ascending: false }),
+        supabase.from('terms').select('*').order('start_date', { ascending: false }),
+        supabase.from('classes').select('*').order('name'),
+      ]);
+
+      const studentList = studentsRes.data || [];
+      const studentIds = studentList.map(s => s.id).filter(Boolean);
+
+      let attendance: any[] = [];
+      if (studentIds.length > 0) {
+        const { data, error } = await supabase
+          .from("attendance")
+          .select("*")
+          .in("student_id", studentIds);
+
+        if (error) throw error;
+        attendance = data || [];
       }
 
-    } else {
-      await fetch("/api/create-student", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(studentData),
+      const studentsWithAttendance = studentList.map(student => {
+        const records = attendance.filter(a => a.student_id === student.id) || [];
+        const total = records.length;
+        const present = records.filter(
+          r => r.status === "present" || r.status === "late" || r.status === "excused"
+        ).length;
+
+        return {
+          ...student,
+          average_attendance: total === 0 ? 0 : Math.round((present / total) * 100),
+          total_attendance: total,
+        };
       });
 
-      toast.success("Student created and activation email sent");
-      setIsDialogOpen(false);
-      fetchStudents();
+      setStudents(studentsWithAttendance);
 
-    }
-
-
-  }
-
-
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this student?')) return;
-
-    const { error } = await supabase.from('students').delete().eq('id', id);
-
-    if (error) {
-      toast.error('Failed to delete student');
-    } else {
-      toast.success('Student deleted successfully');
-      fetchStudents();
+      if (sessionsRes.data) setSessions(sessionsRes.data);
+      if (termsRes.data) setTerms(termsRes.data);
+      if (classesRes.data) setClasses(classesRes.data);
+    } catch (error: any) {
+      toast.error('Failed to load data: ' + error.message);
+    } finally {
+      setIsLoading(false);
     }
   }
 
-  function openEditDialog(student: Student) {
-    setEditingStudent(student);
-    setIsDialogOpen(true);
+  function handleViewDetails(student: Student) {
+    setSelectedStudent(student);
+    setIsModalOpen(true);
   }
 
-  function closeDialog() {
-    setIsDialogOpen(false);
-    setEditingStudent(null);
+  function handleManageSubjects(student: Student) {
+    setSelectedStudent(student);
+    setIsSubjectsModalOpen(true);
   }
 
-  const filteredStudents = students.filter(student =>
-    `${student.first_name} ${student.last_name} ${student.student_id}`
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase())
-  );
+  function handleExport() {
+    const exportData = filteredStudents.map((s) => ({
+      'Student ID': s.student_id,
+      'First Name': s.first_name,
+      'Last Name': s.last_name,
+      Email: s.email,
+      Phone: s.phone,
+      Gender: s.gender,
+      Department: s.department || 'N/A',
+      'Parent Name': s.parent_name,
+      'Parent Email': s.parent_email,
+      'Parent Phone': s.parent_phone,
+      'Average Attendance': s.average_attendance + '%',
+      Status: s.status,
+    }));
+
+    exportToCSV(exportData, `students_export_${new Date().toISOString().split('T')[0]}`);
+    toast.success('Students exported successfully');
+  }
+
+  const totalStudents = students.length;
+  const activeStudents = students.filter((s) => s.status === 'active').length;
+  const suspendedStudents = students.filter((s) => s.status === 'suspended').length;
+
+  const thisMonth = new Date();
+  thisMonth.setDate(1);
+  const newThisMonth = students.filter(
+    (s) => new Date(s.admission_date) >= thisMonth
+  ).length;
+
+  const uniqueDepartments = Array.from(new Set(students.map((s) => s.department).filter(Boolean)));
+
+  if (isLoading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <p className="text-gray-500">Loading students...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">
@@ -173,178 +214,148 @@ export default function StudentsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Students</h1>
-            <p className="text-gray-600 mt-1">Manage student records</p>
+            <p className="text-gray-600 mt-1">Manage all students in the system</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingStudent(null)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Student
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingStudent ? 'Edit Student' : 'Add New Student'}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="first_name">First Name</Label>
-                    <Input id="first_name" name="first_name" defaultValue={editingStudent?.first_name} required />
-                  </div>
-                  <div>
-                    <Label htmlFor="last_name">Last Name</Label>
-                    <Input id="last_name" name="last_name" defaultValue={editingStudent?.last_name} required />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="student_id">Student ID</Label>
-                  <Input id="student_id" name="student_id" placeholder="e.g., STU001" defaultValue={editingStudent?.student_id} required />
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" defaultValue={editingStudent?.email} />
-                </div>
-                <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input id="phone" name="phone" defaultValue={editingStudent?.phone} />
-                </div>
-
-                {/* NEW: date_of_birth and photo_url fields */}
-                <div>
-                  <Label htmlFor="date_of_birth">Date of Birth</Label>
-                  <Input id="date_of_birth" name="date_of_birth" type="date" defaultValue={editingStudent?.date_of_birth ? new Date(editingStudent.date_of_birth).toISOString().slice(0, 10) : ''} required />
-                </div>
-                <div>
-                  <Label htmlFor="photo_file">Photo</Label>
-                  <Input id="photo_file" name="photo_file" type="file" accept="image/*" />
-                </div>
-
-
-                <div>
-                  <Label htmlFor="gender">Gender</Label>
-                  <select id="gender" name="gender" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.gender || ''} required >
-                    <option value="">Select gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="class_id">Class</Label>
-                  <select id="class_id" name="class_id" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.class_id || ''} required >
-                    <option value="">Select class</option>
-                    {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="department">Department</Label>
-                  <select
-                    id="department"
-                    name="department"
-                    className="w-full h-10 px-3 border rounded-md"
-                    defaultValue={editingStudent?.department || ''}
-                  >
-                    <option value="">Select department</option>
-                    <option value="Science">Science</option>
-                    <option value="Arts">Arts</option>
-                    <option value="Commercial">Commercial</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Input id="address" name="address" defaultValue={editingStudent?.address} required />
-                </div>
-                <div>
-                  <Label htmlFor="parent_name">Parent Name</Label>
-                  <Input id="parent_name" name="parent_name" defaultValue={editingStudent?.parent_name} required />
-                </div>
-                <div>
-                  <Label htmlFor="parent_email">Parent Email</Label>
-                  <Input id="parent_email" name="parent_email" type="email" defaultValue={editingStudent?.parent_email} required />
-                </div>
-                <div>
-                  <Label htmlFor="parent_phone">Parent Phone</Label>
-                  <Input id="parent_phone" name="parent_phone" defaultValue={editingStudent?.parent_phone} required />
-                </div>
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <select id="status" name="status" className="w-full h-10 px-3 border rounded-md" defaultValue={editingStudent?.status || 'active'}>
-                    <option value="active">Active</option>
-                    <option value="graduated">Graduated</option>
-                    <option value="withdrawn">Withdrawn</option>
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">{editingStudent ? 'Update' : 'Create'}</Button>
-                  <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+          </div>
         </div>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search students..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredStudents.map((student) => (
-            <Card key={student.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4">
-                    <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-lg font-semibold text-blue-700">
-                        {student.first_name[0]}{student.last_name[0]}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">
-                        {student.first_name} {student.last_name}
-                      </h3>
-                      <p className="text-sm text-gray-600">{student.student_id}</p>
-                      <Badge className="mt-2" variant={student.status === 'active' ? 'default' : 'secondary'}>
-                        {student.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(student)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(student.id)}>
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-gray-600">Email:</span>
-                    <p className="font-medium">{student.email || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Parent:</span>
-                    <p className="font-medium">{student.parent_name}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {filteredStudents.length === 0 && (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardContent className="p-12 text-center">
-              <p className="text-gray-500">No students found</p>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+              <Users className="h-4 w-4 text-gray-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalStudents}</div>
             </CardContent>
           </Card>
-        )}
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Active Students</CardTitle>
+              <UserCheck className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{activeStudents}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Suspended</CardTitle>
+              <UserX className="h-4 w-4 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{suspendedStudents}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">New This Month</CardTitle>
+              <CalendarIcon className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{newThisMonth}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Search & Filters</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-5">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search students..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              <select
+                value={filterClass}
+                onChange={(e) => setFilterClass(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="">All Classes</option>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filterDepartment}
+                onChange={(e) => setFilterDepartment(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="">All Departments</option>
+                {uniqueDepartments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={filterGender}
+                onChange={(e) => setFilterGender(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="">All Genders</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
+
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="suspended">Suspended</option>
+                <option value="graduated">Graduated</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Students List</CardTitle>
+            <p className="text-sm text-gray-600">
+              Showing {filteredStudents.length} of {totalStudents} students
+            </p>
+          </CardHeader>
+          <CardContent>
+            <StudentTable
+              students={filteredStudents}
+              onViewDetails={handleViewDetails}
+              onManageSubjects={handleManageSubjects}
+            />
+          </CardContent>
+        </Card>
+
+        <StudentDetailsModal
+          student={selectedStudent}
+          sessions={sessions}
+          terms={terms}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
       </div>
     </DashboardLayout>
   );

@@ -9,7 +9,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { Save, Loader2, ArrowLeft, BookOpen, Users, GraduationCap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -36,8 +35,6 @@ interface StudentScore {
 }
 
 export default function SubjectResultEntryPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [subjectClasses, setSubjectClasses] = useState<SubjectClass[]>([]);
   const [selectedSubjectClassId, setSelectedSubjectClassId] = useState<string>('');
   const [students, setStudents] = useState<StudentScore[]>([]);
@@ -379,19 +376,6 @@ export default function SubjectResultEntryPage() {
                 )}
               </Button>
             </div>
-
-            {selectedSubjectClassId && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <BookOpen className="h-4 w-4" />
-                <span>
-                  {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.subject_name} - {' '}
-                  {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.class_name}
-                </span>
-                {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.is_optional && (
-                  <Badge variant="secondary" className="text-xs">Only enrolled students shown</Badge>
-                )}
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -400,9 +384,23 @@ export default function SubjectResultEntryPage() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>Student Results</span>
-              {students.length > 0 && (
-                <Badge variant="outline">{students.length} students</Badge>
-              )}
+              <div className="flex flex-col items-end gap-1">
+                {students.length > 0 && (
+                  <Badge variant="outline">{students.length} students</Badge>
+                )}
+                {selectedSubjectClassId && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <BookOpen className="h-4 w-4" />
+                    <span>
+                      {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.subject_name} -{' '}
+                      {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.class_name}
+                    </span>
+                    {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.is_optional && (
+                      <Badge variant="secondary" className="text-xs">Only enrolled students shown</Badge>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -90,17 +90,25 @@ export default function TeachersPage() {
             .eq('class_teacher_id', teacher.id)
             .single();
 
-          // Get assigned subjects from subject_classes
+          // Get assigned subjects from subject_classes along with class names
           const { data: subjectClassData } = await supabase
             .from('subject_classes')
-            .select('subjects(name)')
+            .select('subjects(name), classes(name)')
             .eq('teacher_id', teacher.id);
 
           return {
             ...teacher,
             assignedClass: classData?.name,
             assignedClassId: classData?.id,
-            assignedSubjects: subjectClassData?.map((sc: any) => sc.subjects?.name).filter(Boolean) || [],
+            assignedSubjects:
+              subjectClassData
+                ?.map((sc: any) => {
+                  const subj = sc?.subjects?.name;
+                  const cls = sc?.classes?.name;
+                  if (!subj || !cls) return null;
+                  return `${String(subj).toLowerCase()}-${String(cls).toLowerCase()}`;
+                })
+                .filter(Boolean) || [],
             subjectCount: subjectClassData?.length || 0,
           };
         })
@@ -129,7 +137,7 @@ export default function TeachersPage() {
   async function fetchSubjectClasses() {
     const { data } = await supabase
       .from('subject_classes')
-      .select('id, subject_id, class_id, subjects(name), classes(name)');
+      .select('id, subject_id, class_id, subjects(name, code), classes(name)');
     if (data) setSubjectClasses(data as any);
   }
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

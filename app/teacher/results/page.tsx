@@ -1,7 +1,7 @@
 "use client";
 
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,7 +10,8 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Save, Loader2, ArrowLeft } from 'lucide-react';
+import { Save, Loader2, ArrowLeft, BookOpen, Users, GraduationCap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface SubjectClass {
   id: string;
@@ -18,6 +19,8 @@ interface SubjectClass {
   subject_name: string;
   class_id: string;
   class_name: string;
+  is_optional: boolean;
+  department: string | null;
 }
 
 interface StudentScore {
@@ -67,7 +70,13 @@ export default function SubjectResultEntryPage() {
       setTeacherName(`${teacher.first_name} ${teacher.last_name}`);
       const { data: subjectClassesData } = await supabase
         .from('subject_classes')
-        .select(`id, subject_id, class_id, subjects (name), classes (name)`)
+        .select(`
+          id, 
+          subject_id, 
+          class_id, 
+          subjects (name, is_optional, department), 
+          classes (name)
+        `)
         .eq('teacher_id', teacher.id);
       if (!subjectClassesData || subjectClassesData.length === 0) {
         toast.error('No subject assignments found for you.');
@@ -80,6 +89,8 @@ export default function SubjectResultEntryPage() {
         subject_name: sc.subjects?.name || 'Unknown Subject',
         class_id: sc.class_id,
         class_name: sc.classes?.name || 'Unknown Class',
+        is_optional: sc.subjects?.is_optional || false,
+        department: sc.subjects?.department || null,
       })));
     } catch (err: any) {
       toast.error(err.message || 'Failed to load subjects');
@@ -94,6 +105,7 @@ export default function SubjectResultEntryPage() {
       // Get subject_class info
       const subjectClass = subjectClasses.find(sc => sc.id === subjectClassId);
       if (!subjectClass) return;
+
       // Get students in the class
       const { data: studentsData } = await supabase
         .from('students')
@@ -101,6 +113,31 @@ export default function SubjectResultEntryPage() {
         .eq('class_id', subjectClass.class_id)
         .eq('status', 'active')
         .order('first_name');
+
+      // Get optional subjects enrollment if needed
+      let optionalSubjectIds: string[] = [];
+      if (subjectClass.is_optional) {
+        const { data: optionalSubjectRows } = await supabase
+          .from('student_optional_subjects')
+          .select('student_id')
+          .eq('subject_id', subjectClass.subject_id);
+        optionalSubjectIds = (optionalSubjectRows || []).map(row => row.student_id);
+      }
+
+      // Filter students based on department and optional enrollment
+      const filteredStudents = (studentsData || []).filter((student: any) => {
+        // If subject is optional, only include students enrolled in it
+        if (subjectClass.is_optional) {
+          return optionalSubjectIds.includes(student.id);
+        }
+        // If subject has a department, only include students in that department
+        if (subjectClass.department) {
+          return student.department === subjectClass.department;
+        }
+        // Otherwise include all students
+        return true;
+      });
+
       // Get existing results for this subject_class (current session/term)
       const { data: sessionData } = await supabase
         .from('sessions')
@@ -123,7 +160,7 @@ export default function SubjectResultEntryPage() {
         existingResults = resultsData || [];
       }
       // Build student scores
-      const studentScores: StudentScore[] = (studentsData || []).map((student: any) => {
+      const studentScores: StudentScore[] = filteredStudents.map((student: any) => {
         const result = existingResults.find(r => r.student_id === student.id);
         const welcome_test = result?.welcome_test || 0;
         const mid_term_test = result?.mid_term_test || 0;
@@ -235,129 +272,271 @@ export default function SubjectResultEntryPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-6 mb-12">
-        <div className="flex items-center justify-between print:hidden">
-          <Button variant="ghost" onClick={() => router.push('/teacher/results')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Results
-          </Button>
-          <div className="flex gap-2">
-            <Select value={selectedSubjectClassId} onValueChange={setSelectedSubjectClassId}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select Subject & Class" />
-              </SelectTrigger>
-              <SelectContent>
-                {subjectClasses.map((sc) => (
-                  <SelectItem key={sc.id} value={sc.id}>
-                    {sc.subject_name} ({sc.class_name})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleSave} disabled={isSaving || !selectedSubjectClassId}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Results
-                </>
-              )}
-            </Button>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Subject Results Entry</h1>
+            <p className="text-gray-600 mt-1">Enter and manage student results for your subjects</p>
           </div>
         </div>
-        <Card>
-          <CardContent className="p-8">
-            {isLoading ? (
-              <div className="flex justify-center items-center h-40">
-                <Loader2 className="animate-spin" />
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <BookOpen className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Your Subjects</p>
+                  <p className="text-2xl font-bold">{subjectClasses.length}</p>
+                </div>
               </div>
-            ) : (
-              <>
-                {selectedSubjectClassId && (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse border border-gray-300 text-sm">
-                      <thead>
-                        <tr className="bg-gray-100">
-                          <th className="border border-gray-300 px-3 py-2 text-left">Student</th>
-                          <th className="border border-gray-300 px-3 py-2 text-center w-24">Welcome Test (10)</th>
-                          <th className="border border-gray-300 px-3 py-2 text-center w-24">Mid-Term (20)</th>
-                          <th className="border border-gray-300 px-3 py-2 text-center w-24">Vetting (10)</th>
-                          <th className="border border-gray-300 px-3 py-2 text-center w-24">Exam (60)</th>
-                          <th className="border border-gray-300 px-3 py-2 text-center w-20">Total (100)</th>
-                          <th className="border border-gray-300 px-3 py-2 text-center w-16">Grade</th>
-                          <th className="border border-gray-300 px-3 py-2 text-center">Remark</th>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <Users className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Students</p>
+                  <p className="text-2xl font-bold">{students.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <GraduationCap className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Average Score</p>
+                  <p className="text-2xl font-bold">
+                    {students.length > 0
+                      ? (students.reduce((sum, s) => sum + s.total, 0) / students.length).toFixed(1)
+                      : '0'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Subject Selection & Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Select Subject & Class</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <Select value={selectedSubjectClassId} onValueChange={setSelectedSubjectClassId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a subject and class to begin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjectClasses.map((sc) => (
+                      <SelectItem key={sc.id} value={sc.id}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{sc.subject_name}</span>
+                          <span className="text-gray-500">-</span>
+                          <span className="text-gray-600">{sc.class_name}</span>
+                          {sc.is_optional && (
+                            <Badge variant="secondary" className="ml-2 text-xs">Optional</Badge>
+                          )}
+                          {sc.department && (
+                            <Badge variant="outline" className="ml-2 text-xs">{sc.department}</Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving || !selectedSubjectClassId || students.length === 0}
+                size="lg"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Results
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {selectedSubjectClassId && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <BookOpen className="h-4 w-4" />
+                <span>
+                  {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.subject_name} - {' '}
+                  {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.class_name}
+                </span>
+                {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.is_optional && (
+                  <Badge variant="secondary" className="text-xs">Only enrolled students shown</Badge>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Results Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Student Results</span>
+              {students.length > 0 && (
+                <Badge variant="outline">{students.length} students</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center items-center h-64">
+                <Loader2 className="animate-spin h-8 w-8 text-gray-400" />
+              </div>
+            ) : selectedSubjectClassId ? (
+              students.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-200 text-sm">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                        <th className="border border-gray-200 px-4 py-3 text-left font-semibold">#</th>
+                        <th className="border border-gray-200 px-4 py-3 text-left font-semibold">Student Name</th>
+                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                          Welcome<br />
+                          <span className="text-xs font-normal text-gray-600">(10)</span>
+                        </th>
+                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                          Mid-Term<br />
+                          <span className="text-xs font-normal text-gray-600">(20)</span>
+                        </th>
+                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                          Vetting<br />
+                          <span className="text-xs font-normal text-gray-600">(10)</span>
+                        </th>
+                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                          Exam<br />
+                          <span className="text-xs font-normal text-gray-600">(60)</span>
+                        </th>
+                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-20 bg-blue-50">
+                          Total<br />
+                          <span className="text-xs font-normal text-gray-600">(100)</span>
+                        </th>
+                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-16 bg-blue-50">Grade</th>
+                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold min-w-[120px]">Remark</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.map((student, index) => (
+                        <tr key={student.student_id} className="hover:bg-gray-50">
+                          <td className="border border-gray-200 px-4 py-2 text-center text-gray-600">
+                            {index + 1}
+                          </td>
+                          <td className="border border-gray-200 px-4 py-2 font-medium">
+                            {student.student_name}
+                          </td>
+                          <td className="border border-gray-200 px-1 py-1 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="10"
+                              value={student.welcome_test || ''}
+                              onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="border border-gray-200 px-1 py-1 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              value={student.mid_term_test || ''}
+                              onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="border border-gray-200 px-1 py-1 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="10"
+                              value={student.vetting || ''}
+                              onChange={(e) => updateScore(index, 'vetting', e.target.value)}
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="border border-gray-200 px-1 py-1 text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              max="60"
+                              value={student.exam || ''}
+                              onChange={(e) => updateScore(index, 'exam', e.target.value)}
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="border border-gray-200 px-3 py-2 text-center font-bold text-lg bg-blue-50">
+                            {student.total}
+                          </td>
+                          <td className="border border-gray-200 px-3 py-2 text-center font-bold bg-blue-50">
+                            <Badge 
+                              variant={student.total >= 50 ? "default" : "destructive"}
+                              className="font-mono"
+                            >
+                              {student.grade}
+                            </Badge>
+                          </td>
+                          <td className="border border-gray-200 px-2 py-1 text-center">
+                            <Textarea
+                              value={student.remark}
+                              onChange={(e) => updateScore(index, 'remark', e.target.value)}
+                              rows={1}
+                              className="resize-none text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Enter remark..."
+                            />
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {students.map((student, index) => (
-                          <tr key={student.student_id}>
-                            <td className="border border-gray-300 px-3 py-2 font-medium">{student.student_name}</td>
-                            <td className="border border-gray-300 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="10"
-                                value={student.welcome_test || ''}
-                                onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                                className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="20"
-                                value={student.mid_term_test || ''}
-                                onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                                className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="10"
-                                value={student.vetting || ''}
-                                onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                                className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="60"
-                                value={student.exam || ''}
-                                onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                                className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded"
-                              />
-                            </td>
-                            <td className="border border-gray-300 px-3 py-2 text-center font-bold">{student.total}</td>
-                            <td className="border border-gray-300 px-3 py-2 text-center font-bold">{student.grade}</td>
-                            <td className="border border-gray-300 px-3 py-2 text-center">
-                              <Textarea
-                                value={student.remark}
-                                onChange={(e) => updateScore(index, 'remark', e.target.value)}
-                                rows={1}
-                                className="resize-none border-0 bg-transparent focus:ring-1 focus:ring-blue-500"
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                {!selectedSubjectClassId && (
-                  <div className="text-center text-gray-500 py-12">
-                    <p>Select a subject and class to begin entering results.</p>
-                  </div>
-                )}
-              </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="font-medium">No students found</p>
+                  <p className="text-sm mt-1">
+                    {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.is_optional
+                      ? 'No students are enrolled in this optional subject'
+                      : 'No students match the criteria for this subject'}
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className="text-center py-16 text-gray-500">
+                <BookOpen className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg font-medium">Select a subject to begin</p>
+                <p className="text-sm mt-1">Choose a subject and class from the dropdown above to enter results</p>
+              </div>
             )}
           </CardContent>
         </Card>

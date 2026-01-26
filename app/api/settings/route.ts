@@ -38,12 +38,27 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const form = await req.formData();
-    const school_name = form.get("school_name") as string;
-    const school_address = form.get("school_address") as string;
-    const school_email = form.get("school_email") as string;
-    const school_phone = form.get("school_phone") as string;
-    const logoFile = form.get("school_logo") as File | null;
+    let form: FormData | null = null;
+    let body: Record<string, any> = {};
+
+    const contentType = req.headers.get("content-type") || "";
+
+    if (contentType.includes("multipart/form-data")) {
+      form = await req.formData();
+    } else if (contentType.includes("application/json")) {
+      body = await req.json();
+    } else {
+      return NextResponse.json(
+        { error: "Unsupported Content-Type" },
+        { status: 400 }
+      );
+    }
+
+    const school_name = form?.get("school_name") || body.school_name;
+    const school_address = form?.get("school_address") || body.school_address;
+    const school_email = form?.get("school_email") || body.school_email;
+    const school_phone = form?.get("school_phone") || body.school_phone;
+    const logoFile = form?.get("school_logo") as File | null;
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

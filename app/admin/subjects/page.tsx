@@ -136,7 +136,18 @@ export default function SubjectsPage() {
 
 
   async function fetchSubjects() {
-    const { data } = await supabase.from('subjects').select('*').order('education_level', { ascending: true }).order('name');
+    const { data, error } = await supabase
+      .from('subjects')
+      .select('*')
+      .order('education_level', { ascending: true })
+      .order('name');
+    
+    if (error) {
+      console.error('Error fetching subjects:', error);
+      toast.error('Failed to fetch subjects');
+      return;
+    }
+    
     if (data) {
       setSubjects(data);
     }
@@ -189,7 +200,7 @@ export default function SubjectsPage() {
     const subjectData = {
       name: subjectName,
       education_level: selectedLevel,
-      department: selectedLevel === 'SSS' ? selectedDepartment : null,
+      department: selectedLevel === 'SSS' ? (selectedDepartment || null) : null,
       religion: selectedReligion || null,
       is_optional: isOptional,
     };
@@ -204,10 +215,11 @@ export default function SubjectsPage() {
         .eq('id', editingSubject.id);
 
       if (error) {
+        console.error('Update error:', error);
         if (error.code === '23505') {
           toast.error('This subject already exists for this level/department');
         } else {
-          toast.error('Failed to update subject');
+          toast.error(`Failed to update subject: ${error.message}`);
         }
         return;
       }
@@ -229,9 +241,9 @@ export default function SubjectsPage() {
           .in("class_id", classIds);
       }
 
+      await fetchSubjects();
       toast.success('Subject updated successfully');
       closeDialog();
-      fetchSubjects();
       return;
     }
 
@@ -298,9 +310,9 @@ export default function SubjectsPage() {
         .in("class_id", classIds);
     }
 
+    await fetchSubjects();
     toast.success('Subject created and applied to all classes in this level');
     closeDialog();
-    fetchSubjects();
   }
 
 
@@ -313,8 +325,8 @@ export default function SubjectsPage() {
     if (error) {
       toast.error('Failed to delete subject');
     } else {
+      await fetchSubjects();
       toast.success('Subject deleted successfully');
-      fetchSubjects();
     }
   }
   async function openEditDialog(subject: Subject) {
@@ -329,13 +341,13 @@ export default function SubjectsPage() {
     setIsOptional(subject.is_optional);
 
     // 🔥 Load existing assigned teacher (if any)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("subject_classes")
       .select("teacher_id")
       .eq("subject_id", subject.id)
       .not("teacher_id", "is", null)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     setSelectedTeacher(data?.teacher_id || "");
 
@@ -453,15 +465,22 @@ export default function SubjectsPage() {
                         setCustomSubjectName('');
                       }}
                       className="w-full px-3 py-2 border rounded-md"
+                      disabled={!!editingSubject}
                     >
                       <option value="">No Department</option>
                       <option value="Science">Science</option>
                       <option value="Arts">Arts</option>
                       <option value="Commercial">Commercial</option>
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Department is optional; leave empty to apply to all SSS subjects.
-                    </p>
+                    {editingSubject ? (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Department cannot be changed when editing
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Department is optional; leave empty to apply to all SSS subjects.
+                      </p>
+                    )}
                   </div>
                 )}
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Octokit } from "@octokit/rest";
+import { uploadFile, fileToBase64 } from "@/lib/github";
 
 type UploadType = "student_photo" | "assignment_file" | "teacher_assignment_file";
 
@@ -17,15 +17,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
-    });
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const base64 = buffer.toString("base64");
-
-    const owner = "CodeNova5";
-    const repo = "Student-Photos";
+    const base64 = await fileToBase64(file);
 
     let path = "";
     let commitMessage = "";
@@ -75,30 +67,11 @@ export async function POST(req: Request) {
         );
     }
 
-    // Check if file already exists (for updates)
-    let sha: string | undefined;
-    try {
-      const { data } = await octokit.repos.getContent({
-        owner,
-        repo,
-        path,
-      });
-      // @ts-ignore
-      sha = data.sha;
-    } catch (err: any) {
-      if (err.status !== 404) throw err;
-    }
-
-    await octokit.repos.createOrUpdateFileContents({
-      owner,
-      repo,
+    const url = await uploadFile({
       path,
-      message: commitMessage,
       content: base64,
-      sha,
+      commitMessage,
     });
-
-    const url = `https://codenova5.github.io/${repo}/${path}`;
 
     return NextResponse.json({ fileUrl: url });
   } catch (err: any) {

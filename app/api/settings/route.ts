@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { uploadFile, fileToBase64 } from "@/lib/github";
 
 export async function GET(req: Request) {
   try {
@@ -37,13 +38,29 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { school_name, school_address, school_email, school_phone, school_logo } = body;
+    const form = await req.formData();
+    const school_name = form.get("school_name") as string;
+    const school_address = form.get("school_address") as string;
+    const school_email = form.get("school_email") as string;
+    const school_phone = form.get("school_phone") as string;
+    const logoFile = form.get("school_logo") as File | null;
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
+
+    let school_logo = "";
+
+    // Upload logo to GitHub if provided
+    if (logoFile && logoFile.size > 0) {
+      const base64Content = await fileToBase64(logoFile);
+      school_logo = await uploadFile({
+        path: `school/logo.jpg`,
+        content: base64Content,
+        commitMessage: "Upload school logo",
+      });
+    }
 
     // Update or insert settings
     const settingsToUpdate = [
@@ -51,7 +68,7 @@ export async function POST(req: Request) {
       { key: "school_address", value: school_address || "" },
       { key: "school_email", value: school_email || "" },
       { key: "school_phone", value: school_phone || "" },
-      { key: "school_logo", value: school_logo || "" },
+      ...(school_logo ? [{ key: "school_logo", value: school_logo }] : []),
     ];
 
     for (const setting of settingsToUpdate) {

@@ -95,28 +95,39 @@ export default function SettingsPage() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      const response = await fetch('/api/settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+
+      const formDataToSend = new FormData();
+      formDataToSend.append("school_name", formData.school_name);
+      formDataToSend.append("school_address", formData.school_address);
+      formDataToSend.append("school_email", formData.school_email);
+      formDataToSend.append("school_phone", formData.school_phone);
+
+      if (formData.school_logo && typeof formData.school_logo === "string") {
+        const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
+        if (fileInput?.files?.[0]) {
+          formDataToSend.append("school_logo", fileInput.files[0]);
+        }
+      }
+
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        body: formDataToSend,
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save settings');
+        throw new Error("Failed to save settings");
       }
 
       toast({
-        title: 'Success',
-        description: 'Settings saved successfully',
+        title: "Success",
+        description: "Settings saved successfully",
       });
     } catch (error) {
-      console.error('Error saving settings:', error);
+      console.error("Error saving settings:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to save settings',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to save settings",
+        variant: "destructive",
       });
     } finally {
       setSaving(false);

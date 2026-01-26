@@ -67,14 +67,30 @@ export async function POST(req: Request) {
 
     let school_logo = "";
 
+    console.log("Content-Type:", contentType);
+    if (logoFile) {
+      console.log("Logo file details:", {
+        name: logoFile.name,
+        size: logoFile.size,
+        type: logoFile.type,
+      });
+    } else {
+      console.log("No logo file provided.");
+    }
+
     // Upload logo to GitHub if provided
     if (logoFile && logoFile.size > 0) {
-      const base64Content = await fileToBase64(logoFile);
-      school_logo = await uploadFile({
-        path: `school/logo.jpg`,
-        content: base64Content,
-        commitMessage: "Upload school logo",
-      });
+      try {
+        const base64Content = await fileToBase64(logoFile);
+        school_logo = await uploadFile({
+          path: `school/logo.jpeg`,
+          content: base64Content,
+          commitMessage: "Upload school logo",
+        });
+        console.log("Logo uploaded successfully. URL:", school_logo);
+      } catch (uploadError) {
+        console.error("Error uploading logo to GitHub:", uploadError);
+      }
     }
 
     // Update or insert settings

@@ -190,11 +190,10 @@ export default function AdminStudentsPage() {
   const activeStudents = students.filter((s) => s.status === 'active').length;
   const suspendedStudents = students.filter((s) => s.status === 'suspended').length;
 
-  const thisMonth = new Date();
-  thisMonth.setDate(1);
-  const newThisMonth = students.filter(
-    (s) => new Date(s.admission_date) >= thisMonth
-  ).length;
+  const currentTermStartDate = terms.length > 0 ? new Date(terms[0].start_date) : null;
+  const newThisTerm = currentTermStartDate
+    ? students.filter((s) => new Date(s.admission_date) >= currentTermStartDate).length
+    : 0;
 
   const uniqueDepartments = Array.from(new Set(students.map((s) => s.department).filter(Boolean)));
 
@@ -257,11 +256,11 @@ export default function AdminStudentsPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">New This Month</CardTitle>
+              <CardTitle className="text-sm font-medium">New This Term</CardTitle>
               <CalendarIcon className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{newThisMonth}</div>
+              <div className="text-2xl font-bold text-blue-600">{newThisTerm}</div>
             </CardContent>
           </Card>
         </div>

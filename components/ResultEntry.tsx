@@ -154,6 +154,13 @@ export default function ResultEntry({
   `)
         .eq("class_id", studentData.class_id);
 
+      // 4b. Get optional subjects for this student
+      const { data: optionalSubjectRows, error: optError } = await supabase
+        .from("student_optional_subjects")
+        .select("subject_id")
+        .eq("student_id", studentId);
+      const optionalSubjectIds = (optionalSubjectRows || []).map(row => row.subject_id);
+
       if (scError || !subjectClasses || subjectClasses.length === 0) {
         toast.error("No subjects assigned to this class");
         setIsLoading(false);
@@ -163,6 +170,11 @@ export default function ResultEntry({
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
         if (!subject) return false;
+        // If subject is optional, only show if student is enrolled
+        if (subject.is_optional) {
+          return optionalSubjectIds.includes(subject.id);
+        }
+        // For compulsory subjects, filter by department if needed
         if (!subject.department || subject.department === '') return true;
         return subject.department === studentData.department;
       });

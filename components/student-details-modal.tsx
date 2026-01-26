@@ -96,7 +96,8 @@ export function StudentDetailsModal({
             id,
             subjects (
               id,
-              name
+              name,
+              is_optional
             )
           )
         `)
@@ -104,14 +105,28 @@ export function StudentDetailsModal({
         .eq("session_id", activeSessionId)
         .eq("term_id", activeTermId);
 
+      // Get optional subjects for this student
+      const { data: optionalSubjectRows } = await supabase
+        .from("student_optional_subjects")
+        .select("subject_id")
+        .eq("student_id", student.id);
+      const optionalSubjectIds = (optionalSubjectRows || []).map(row => row.subject_id);
+
       if (error) {
         console.error("Error fetching results:", error);
         setStudentResults([]);
         return;
       }
 
-      // Transform the data to include subject_name
-      const transformedData = (data || []).map((result: any) => ({
+      // Transform and filter the data
+      const transformedData = (data || []).filter((result: any) => {
+        const subject = result.subject_classes?.subjects;
+        if (!subject) return false;
+        if (subject.is_optional) {
+          return optionalSubjectIds.includes(subject.id);
+        }
+        return true;
+      }).map((result: any) => ({
         ...result,
         subject_name: result.subject_classes?.subjects?.name || "Unknown"
       }));

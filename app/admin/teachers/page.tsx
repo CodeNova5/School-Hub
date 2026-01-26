@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2, MoreVertical, Eye } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, MoreVertical, Eye, UserCog, BookOpen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Teacher } from '@/lib/types';
@@ -28,7 +28,28 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 type TeacherWithDetails = Teacher & {
   assignedClass?: string;
+  assignedClassId?: string;
   assignedSubjects?: string[];
+  subjectCount?: number;
+};
+
+type Class = {
+  id: string;
+  name: string;
+  level_id: string;
+};
+
+type Subject = {
+  id: string;
+  name: string;
+};
+
+type SubjectClass = {
+  id: string;
+  subject_id: string;
+  class_id: string;
+  subjects?: { name: string };
+  classes?: { name: string };
 };
 
 export default function TeachersPage() {
@@ -36,9 +57,20 @@ export default function TeachersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
+  const [viewingTeacher, setViewingTeacher] = useState<TeacherWithDetails | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isAssignClassDialogOpen, setIsAssignClassDialogOpen] = useState(false);
+  const [isAssignSubjectDialogOpen, setIsAssignSubjectDialogOpen] = useState(false);
+  const [assigningTeacher, setAssigningTeacher] = useState<Teacher | null>(null);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectClasses, setSubjectClasses] = useState<SubjectClass[]>([]);
 
   useEffect(() => {
     fetchTeachers();
+    fetchClasses();
+    fetchSubjects();
+    fetchSubjectClasses();
   }, []);
 
   async function fetchTeachers() {
@@ -54,7 +86,7 @@ export default function TeachersPage() {
           // Get assigned class
           const { data: classData } = await supabase
             .from('classes')
-            .select('name')
+            .select('id, name')
             .eq('class_teacher_id', teacher.id)
             .single();
 
@@ -67,13 +99,38 @@ export default function TeachersPage() {
           return {
             ...teacher,
             assignedClass: classData?.name,
+            assignedClassId: classData?.id,
             assignedSubjects: subjectClassData?.map((sc: any) => sc.subjects?.name).filter(Boolean) || [],
+            subjectCount: subjectClassData?.length || 0,
           };
         })
       );
 
       setTeachers(teachersWithDetails);
     }
+  }
+
+  async function fetchClasses() {
+    const { data } = await supabase
+      .from('classes')
+      .select('id, name, level_id')
+      .order('name');
+    if (data) setClasses(data);
+  }
+
+  async function fetchSubjects() {
+    const { data } = await supabase
+      .from('subjects')
+      .select('id, name')
+      .order('name');
+    if (data) setSubjects(data);
+  }
+
+  async function fetchSubjectClasses() {
+    const { data } = await supabase
+      .from('subject_classes')
+      .select('id, subject_id, class_id, subjects(name), classes(name)');
+    if (data) setSubjectClasses(data as any);
   }
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -137,6 +194,84 @@ export default function TeachersPage() {
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingTeacher(null);
+  }
+
+  async function handleAssignClass(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!assigningTeacher) return;
+
+    const formData = new FormData(e.currentTarget);
+    const classId = formData.get('class_id') as string;
+
+    if (!classId) {
+      toast.error('Please select a class');
+      return;
+    }
+
+    // First, remove this teacher from any existing class they're assigned to
+    await supabase
+      .from('classes')
+      .update({ class_teacher_id: null })
+      .eq('class_teacher_id', assigningTeacher.id);
+
+    // Then assign to the new class (this will also remove any previous teacher from this class)
+    const { error } = await supabase
+      .from('classes')
+      .update({ class_teacher_id: assigningTeacher.id })
+      .eq('id', classId);
+
+    if (error) {
+      toast.error('Failed to assign class teacher');
+    } else {
+      toast.success('Class teacher assigned successfully!');
+      setIsAssignClassDialogOpen(false);
+      setAssigningTeacher(null);
+      fetchTeachers();
+    }
+  }
+
+  async function handleAssignSubject(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!assigningTeacher) return;
+
+    const formData = new FormData(e.currentTarget);
+    const subjectClassId = formData.get('subject_class_id') as string;
+
+    if (!subjectClassId) {
+      toast.error('Please select a subject class');
+      return;
+    }
+
+    // Update the subject_class with the teacher (this overwrites any existing assignment)
+    const { error } = await supabase
+      .from('subject_classes')
+      .update({ teacher_id: assigningTeacher.id })
+      .eq('id', subjectClassId);
+
+    if (error) {
+      toast.error('Failed to assign subject class');
+    } else {
+      toast.success('Subject class assigned successfully!');
+      setIsAssignSubjectDialogOpen(false);
+      setAssigningTeacher(null);
+      fetchTeachers();
+      fetchSubjectClasses();
+    }
+  }
+
+  function openAssignClassDialog(teacher: Teacher) {
+    setAssigningTeacher(teacher);
+    setIsAssignClassDialogOpen(true);
+  }
+
+  function openAssignSubjectDialog(teacher: Teacher) {
+    setAssigningTeacher(teacher);
+    setIsAssignSubjectDialogOpen(true);
+  }
+
+  function openViewDialog(teacher: TeacherWithDetails) {
+    setViewingTeacher(teacher);
+    setIsViewDialogOpen(true);
   }
 
   function getInitials(firstName: string, lastName: string) {
@@ -260,8 +395,6 @@ export default function TeachersPage() {
                     <th className="text-left p-3">Teacher</th>
                     <th className="text-left p-3">Staff ID</th>
                     <th className="text-left p-3">Specialization</th>
-                    <th className="text-left p-3">Email</th>
-                    <th className="text-left p-3">Phone</th>
                     <th className="text-left p-3">Class Teacher</th>
                     <th className="text-left p-3">Subjects</th>
                     <th className="text-left p-3">Status</th>
@@ -291,31 +424,20 @@ export default function TeachersPage() {
                         <code className="text-xs bg-gray-100 px-2 py-1 rounded">{teacher.staff_id}</code>
                       </td>
                       <td className="p-3">{teacher.specialization || 'N/A'}</td>
-                      <td className="p-3 text-sm">{teacher.email}</td>
-                      <td className="p-3 text-sm">{teacher.phone || 'N/A'}</td>
                       <td className="p-3">
                         {teacher.assignedClass ? (
                           <Badge variant="outline">{teacher.assignedClass}</Badge>
                         ) : (
-                          <span className="text-gray-400 text-sm">—</span>
+                          <span className="text-gray-400 text-sm">Not assigned</span>
                         )}
                       </td>
                       <td className="p-3">
-                        {teacher.assignedSubjects && teacher.assignedSubjects.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {teacher.assignedSubjects.slice(0, 2).map((subject, idx) => (
-                              <Badge key={idx} variant="secondary" className="text-xs">
-                                {subject}
-                              </Badge>
-                            ))}
-                            {teacher.assignedSubjects.length > 2 && (
-                              <Badge variant="secondary" className="text-xs">
-                                +{teacher.assignedSubjects.length - 2}
-                              </Badge>
-                            )}
-                          </div>
+                        {teacher.subjectCount && teacher.subjectCount > 0 ? (
+                          <Badge variant="secondary">
+                            {teacher.subjectCount} {teacher.subjectCount === 1 ? 'Subject' : 'Subjects'}
+                          </Badge>
                         ) : (
-                          <span className="text-gray-400 text-sm">—</span>
+                          <span className="text-gray-400 text-sm">Not assigned</span>
                         )}
                       </td>
                       <td className="p-3">
@@ -333,9 +455,21 @@ export default function TeachersPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openViewDialog(teacher)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEditDialog(teacher)}>
                               <Edit className="h-4 w-4 mr-2" />
                               Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openAssignClassDialog(teacher)}>
+                              <UserCog className="h-4 w-4 mr-2" />
+                              Assign as Class Teacher
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openAssignSubjectDialog(teacher)}>
+                              <BookOpen className="h-4 w-4 mr-2" />
+                              Assign Subject Class
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600"
@@ -360,6 +494,180 @@ export default function TeachersPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* View Teacher Details Dialog */}
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Teacher Details</DialogTitle>
+            </DialogHeader>
+            {viewingTeacher && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-20 w-20">
+                    <AvatarFallback className="bg-green-100 text-green-700 text-2xl font-semibold">
+                      {getInitials(viewingTeacher.first_name, viewingTeacher.last_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <h3 className="text-2xl font-bold">
+                      {viewingTeacher.first_name} {viewingTeacher.last_name}
+                    </h3>
+                    <p className="text-gray-600">{viewingTeacher.qualification || 'N/A'}</p>
+                    <Badge variant={viewingTeacher.status === 'active' ? 'default' : 'secondary'}>
+                      {viewingTeacher.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-600">Staff ID</Label>
+                    <p className="font-semibold">{viewingTeacher.staff_id}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Specialization</Label>
+                    <p className="font-semibold">{viewingTeacher.specialization || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Email</Label>
+                    <p className="font-semibold">{viewingTeacher.email}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Phone</Label>
+                    <p className="font-semibold">{viewingTeacher.phone || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-gray-600">Address</Label>
+                    <p className="font-semibold">{viewingTeacher.address || 'N/A'}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-gray-600">Class Teacher Assignment</Label>
+                  {viewingTeacher.assignedClass ? (
+                    <div className="mt-2">
+                      <Badge variant="outline" className="text-base px-3 py-1">
+                        {viewingTeacher.assignedClass}
+                      </Badge>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 mt-2">Not assigned to any class</p>
+                  )}
+                </div>
+
+                <div>
+                  <Label className="text-gray-600">Subject Assignments</Label>
+                  {viewingTeacher.assignedSubjects && viewingTeacher.assignedSubjects.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {viewingTeacher.assignedSubjects.map((subject, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-sm">
+                          {subject}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 mt-2">Not assigned to any subjects</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Class Teacher Dialog */}
+        <Dialog open={isAssignClassDialogOpen} onOpenChange={setIsAssignClassDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Class Teacher</DialogTitle>
+            </DialogHeader>
+            {assigningTeacher && (
+              <form onSubmit={handleAssignClass} className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> as class teacher
+                  </p>
+                  <Label htmlFor="class_id">Select Class</Label>
+                  <select
+                    id="class_id"
+                    name="class_id"
+                    className="w-full h-10 px-3 border rounded-md mt-1"
+                    required
+                  >
+                    <option value="">Choose a class...</option>
+                    {classes.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Note: This will replace any existing class teacher assignment for both the teacher and the class.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" className="flex-1">
+                    Assign Class
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAssignClassDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Subject Class Dialog */}
+        <Dialog open={isAssignSubjectDialogOpen} onOpenChange={setIsAssignSubjectDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Subject Class</DialogTitle>
+            </DialogHeader>
+            {assigningTeacher && (
+              <form onSubmit={handleAssignSubject} className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> to a subject class
+                  </p>
+                  <Label htmlFor="subject_class_id">Select Subject Class</Label>
+                  <select
+                    id="subject_class_id"
+                    name="subject_class_id"
+                    className="w-full h-10 px-3 border rounded-md mt-1"
+                    required
+                  >
+                    <option value="">Choose a subject class...</option>
+                    {subjectClasses.map((sc) => (
+                      <option key={sc.id} value={sc.id}>
+                        {sc.subjects?.name} - {sc.classes?.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Note: This will replace any existing teacher assignment for this subject class.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" className="flex-1">
+                    Assign Subject
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAssignSubjectDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

@@ -59,6 +59,7 @@ export async function POST(req: Request) {
     const school_email = form?.get("school_email") || body.school_email;
     const school_phone = form?.get("school_phone") || body.school_phone;
     const logoFile = form?.get("school_logo") as File | null;
+    const signatureFile = form?.get("principal_signature") as File | null;
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -66,6 +67,7 @@ export async function POST(req: Request) {
     );
 
     let school_logo = "";
+    let principal_signature = "";
 
     console.log("Content-Type:", contentType);
     if (logoFile) {
@@ -93,6 +95,21 @@ export async function POST(req: Request) {
       }
     }
 
+    // Upload principal signature to GitHub if provided
+    if (signatureFile && signatureFile.size > 0) {
+      try {
+        const base64Content = await fileToBase64(signatureFile);
+        principal_signature = await uploadFile({
+          path: `school/principal_signature.jpeg`,
+          content: base64Content,
+          commitMessage: "Upload principal signature",
+        });
+        console.log("Principal signature uploaded successfully. URL:", principal_signature);
+      } catch (uploadError) {
+        console.error("Error uploading principal signature to GitHub:", uploadError);
+      }
+    }
+
     // Update or insert settings
     const settingsToUpdate = [
       { key: "school_name", value: school_name || "" },
@@ -100,6 +117,7 @@ export async function POST(req: Request) {
       { key: "school_email", value: school_email || "" },
       { key: "school_phone", value: school_phone || "" },
       ...(school_logo ? [{ key: "school_logo", value: school_logo }] : []),
+      ...(principal_signature ? [{ key: "principal_signature", value: principal_signature }] : []),
     ];
 
     for (const setting of settingsToUpdate) {

@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>('');
+  const [signaturePreview, setSignaturePreview] = useState<string>('');
   const [formData, setFormData] = useState<SchoolSettings>({
     school_name: '',
     school_address: '',
@@ -92,6 +93,23 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSignatureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setSignaturePreview(result);
+        setFormData(prev => ({
+          ...prev,
+          principal_signature: result,
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
@@ -103,10 +121,15 @@ export default function SettingsPage() {
       formDataToSend.append("school_phone", formData.school_phone);
 
       if (formData.school_logo && typeof formData.school_logo === "string") {
-        const fileInput = document.querySelector("input[type='file']") as HTMLInputElement;
+        const fileInput = document.querySelector("input[name='school_logo']") as HTMLInputElement;
         if (fileInput?.files?.[0]) {
           formDataToSend.append("school_logo", fileInput.files[0]);
         }
+      }
+
+      const signatureInput = document.querySelector("input[name='principal_signature']") as HTMLInputElement;
+      if (signatureInput?.files?.[0]) {
+        formDataToSend.append("principal_signature", signatureInput.files[0]);
       }
 
       const response = await fetch("/api/settings", {
@@ -232,6 +255,34 @@ export default function SettingsPage() {
                   value={formData.school_phone}
                   onChange={handleInputChange}
                 />
+              </div>
+
+              {/* Principal Signature Section */}
+              <div>
+                <Label>Principal Signature</Label>
+                <div className="mt-2 space-y-4">
+                  {signaturePreview && (
+                    <div className="relative w-32 h-32 border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                      <img
+                        src={signaturePreview}
+                        alt="Principal Signature Preview"
+                        className="w-full h-full object-contain p-2"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <Input
+                      type="file"
+                      name="principal_signature"
+                      accept="image/*"
+                      onChange={handleSignatureChange}
+                      className="cursor-pointer"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Supported formats: JPG, PNG, GIF. Max size: 2MB
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <Button

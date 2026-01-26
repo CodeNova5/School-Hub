@@ -122,6 +122,7 @@ export default function SubjectsPage() {
   const [assigningSubject, setAssigningSubject] = useState<Subject | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState("");
   const [forceAssign, setForceAssign] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchSubjects();
@@ -183,17 +184,20 @@ export default function SubjectsPage() {
   }
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setIsSubmitting(true);
 
     const subjectName =
       selectedSubject === 'custom' ? customSubjectName : selectedSubject;
 
     if (!subjectName) {
       toast.error('Please select or enter a subject name');
+      setIsSubmitting(false);
       return;
     }
 
     if (!selectedLevel) {
       toast.error('Please select an education level');
+      setIsSubmitting(false);
       return;
     }
 
@@ -209,10 +213,14 @@ export default function SubjectsPage() {
     // ✏️ EDIT SUBJECT
     // ===========================
     if (editingSubject) {
-      const { error } = await supabase
+      console.log('Updating subject:', editingSubject.id, 'with data:', subjectData);
+      
+      const { data: updatedData, error } = await supabase
         .from('subjects')
         .update(subjectData)
-        .eq('id', editingSubject.id);
+        .eq('id', editingSubject.id)
+        .select()
+        .single();
 
       if (error) {
         console.error('Update error:', error);
@@ -221,8 +229,11 @@ export default function SubjectsPage() {
         } else {
           toast.error(`Failed to update subject: ${error.message}`);
         }
+        setIsSubmitting(false);
         return;
       }
+
+      console.log('Subject updated successfully:', updatedData);
 
       // 🔥 AUTO ASSIGN TO EMPTY CLASSES
       const { data: emptyClasses } = await supabase
@@ -231,7 +242,7 @@ export default function SubjectsPage() {
         .eq("education_level", selectedLevel)
         .is("class_teacher_id", null);
 
-      if (emptyClasses && emptyClasses.length > 0) {
+      if (emptyClasses && emptyClasses.length > 0 && selectedTeacher) {
         const classIds = emptyClasses.map(c => c.id);
 
         await supabase
@@ -241,8 +252,12 @@ export default function SubjectsPage() {
           .in("class_id", classIds);
       }
 
+      console.log('Refetching subjects...');
       await fetchSubjects();
+      console.log('Subjects refetched');
+      
       toast.success('Subject updated successfully');
+      setIsSubmitting(false);
       closeDialog();
       return;
     }
@@ -262,6 +277,7 @@ export default function SubjectsPage() {
       } else {
         toast.error('Failed to create subject');
       }
+      setIsSubmitting(false);
       return;
     }
 
@@ -312,6 +328,7 @@ export default function SubjectsPage() {
 
     await fetchSubjects();
     toast.success('Subject created and applied to all classes in this level');
+    setIsSubmitting(false);
     closeDialog();
   }
 
@@ -588,10 +605,10 @@ export default function SubjectsPage() {
                 )}
 
                 <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
-                    {editingSubject ? 'Update' : 'Create'}
+                  <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : (editingSubject ? 'Update' : 'Create')}
                   </Button>
-                  <Button type="button" variant="outline" onClick={closeDialog}>
+                  <Button type="button" variant="outline" onClick={closeDialog} disabled={isSubmitting}>
                     Cancel
                   </Button>
                 </div>

@@ -362,9 +362,12 @@ export default function ClassPage() {
             <SubjectsTab
               subjects={subjects}
               teachers={teachers}
+              students={students}
+              classId={classId}
               onGenerateCodes={generateMissingSubjectCodes}
               onAssignTeacher={handleAssignTeacher}
               onDeleteSubject={deleteSubjectClass}
+              onRefresh={fetchClassSubjects}
             />
           </TabsContent>
 

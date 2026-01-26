@@ -17,9 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, Copy, MoreVertical, BarChart3, User, Trash2 } from "lucide-react";
+import { Search, Copy, MoreVertical, BarChart3, User, Trash2, Edit, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { supabase } from "@/lib/supabase";
 
 type SubjectClass = {
   id: string;
@@ -44,20 +48,33 @@ type Teacher = {
   last_name: string;
 };
 
+type Student = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  student_id: string;
+};
+
 interface SubjectsTabProps {
   subjects: SubjectClass[];
   teachers: Teacher[];
+  students: Student[];
+  classId: string;
   onGenerateCodes: () => void;
   onAssignTeacher: (subjectClassId: string, teacherId: string) => void;
   onDeleteSubject: (subjectClassId: string) => void;
+  onRefresh: () => void;
 }
 
 export function SubjectsTab({
   subjects,
   teachers,
+  students,
+  classId,
   onGenerateCodes,
   onAssignTeacher,
   onDeleteSubject,
+  onRefresh,
 }: SubjectsTabProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -68,6 +85,17 @@ export function SubjectsTab({
   const [isAssignTeacherOpen, setIsAssignTeacherOpen] = useState(false);
   const [selectedSubjectClass, setSelectedSubjectClass] = useState<SubjectClass | null>(null);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>("");
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingSubjectClass, setEditingSubjectClass] = useState<SubjectClass | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editIsOptional, setEditIsOptional] = useState(false);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+
+  const [isManageStudentsOpen, setIsManageStudentsOpen] = useState(false);
+  const [managingSubjectClass, setManagingSubjectClass] = useState<SubjectClass | null>(null);
+  const [enrolledStudentIds, setEnrolledStudentIds] = useState<string[]>([]);
+  const [isLoadingEnrollment, setIsLoadingEnrollment] = useState(false);
 
   const filteredSubjects = useMemo(() => {
     return subjects.filter((s) => {
@@ -96,6 +124,108 @@ export function SubjectsTab({
   function handleDeleteSubjectClass(sc: SubjectClass) {
     if (!confirm(`Remove ${sc.subject.name} from this class?`)) return;
     onDeleteSubject(sc.id);
+  }
+
+  function openEditDialog(sc: SubjectClass) {
+    setEditingSubjectClass(sc);
+    setEditName(sc.subject.name);
+    setEditIsOptional(sc.subject.is_optional);
+    setIsEditOpen(true);
+  }
+
+  async function handleEditSubmit() {
+    if (!editingSubjectClass || !editName.trim()) {
+      toast.error("Subject name is required");
+      return;
+    }
+
+    setIsEditSubmitting(true);
+
+    // Update the subject itself
+    const { error: subjectError } = await supabase
+      .from("subjects")
+      .update({
+        name: editName,
+        is_optional: editIsOptional,
+      })
+      .eq("id", editingSubjectClass.subject.id);
+
+    if (subjectError) {
+      console.error("Subject update error:", subjectError);
+      if (subjectError.code === '23505') {
+        toast.error("A subject with this name already exists for this level");
+      } else {
+        toast.error(`Failed to update subject: ${subjectError.message}`);
+      }
+      setIsEditSubmitting(false);
+      return;
+    }
+
+    toast.success("Subject updated successfully");
+    setIsEditSubmitting(false);
+    setIsEditOpen(false);
+    onRefresh();
+  }
+
+  async function openManageStudentsDialog(sc: SubjectClass) {
+    setManagingSubjectClass(sc);
+    setIsLoadingEnrollment(true);
+    setIsManageStudentsOpen(true);
+
+    // Fetch students enrolled in this optional subject
+    const { data, error } = await supabase
+      .from("student_optional_subjects")
+      .select("student_id")
+      .eq("subject_id", sc.subject.id);
+
+    if (error) {
+      console.error("Error loading enrollment:", error);
+      toast.error("Failed to load enrollment data");
+      setEnrolledStudentIds([]);
+    } else {
+      setEnrolledStudentIds(data.map(d => d.student_id));
+    }
+
+    setIsLoadingEnrollment(false);
+  }
+
+  async function handleToggleStudentEnrollment(studentId: string, isEnrolled: boolean) {
+    if (!managingSubjectClass) return;
+
+    if (isEnrolled) {
+      // Enroll student
+      const { error } = await supabase
+        .from("student_optional_subjects")
+        .insert({
+          student_id: studentId,
+          subject_id: managingSubjectClass.subject.id,
+        });
+
+      if (error) {
+        console.error("Enrollment error:", error);
+        toast.error("Failed to enroll student");
+        return;
+      }
+
+      setEnrolledStudentIds(prev => [...prev, studentId]);
+      toast.success("Student enrolled");
+    } else {
+      // Unenroll student
+      const { error } = await supabase
+        .from("student_optional_subjects")
+        .delete()
+        .eq("student_id", studentId)
+        .eq("subject_id", managingSubjectClass.subject.id);
+
+      if (error) {
+        console.error("Unenrollment error:", error);
+        toast.error("Failed to unenroll student");
+        return;
+      }
+
+      setEnrolledStudentIds(prev => prev.filter(id => id !== studentId));
+      toast.success("Student unenrolled");
+    }
   }
 
   return (
@@ -204,10 +334,22 @@ export function SubjectsTab({
                             View Analysis
                           </DropdownMenuItem>
 
+                          <DropdownMenuItem onClick={() => openEditDialog(sc)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Subject
+                          </DropdownMenuItem>
+
                           <DropdownMenuItem onClick={() => openAssignTeacherDialog(sc)}>
                             <User className="mr-2 h-4 w-4" />
                             Assign Teacher
                           </DropdownMenuItem>
+
+                          {sc.subject.is_optional && (
+                            <DropdownMenuItem onClick={() => openManageStudentsDialog(sc)}>
+                              <Users className="mr-2 h-4 w-4" />
+                              Manage Students
+                            </DropdownMenuItem>
+                          )}
 
                           <DropdownMenuItem
                             className="text-red-600 focus:text-red-600"
@@ -259,6 +401,113 @@ export function SubjectsTab({
               </Button>
               <Button onClick={handleAssignTeacher}>Save</Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Subject Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Subject</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit_name">Subject Name</Label>
+              <Input
+                id="edit_name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Enter subject name"
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-3 border rounded-md">
+              <div>
+                <Label htmlFor="edit_optional">Optional Subject</Label>
+                <p className="text-xs text-gray-500">
+                  Mark if this subject is optional for students
+                </p>
+              </div>
+              <Switch
+                id="edit_optional"
+                checked={editIsOptional}
+                onCheckedChange={setEditIsOptional}
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isEditSubmitting}>
+                Cancel
+              </Button>
+              <Button onClick={handleEditSubmit} disabled={isEditSubmitting}>
+                {isEditSubmitting ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Students for Optional Subject Dialog */}
+      <Dialog open={isManageStudentsOpen} onOpenChange={setIsManageStudentsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Students for {managingSubjectClass?.subject.name}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Select which students should take this optional subject
+            </p>
+          </DialogHeader>
+
+          {isLoadingEnrollment ? (
+            <div className="p-8 text-center text-muted-foreground">
+              Loading enrollment data...
+            </div>
+          ) : students.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No students in this class
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {students.map((student) => {
+                const isEnrolled = enrolledStudentIds.includes(student.id);
+                return (
+                  <div
+                    key={student.id}
+                    className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={isEnrolled}
+                        onCheckedChange={(checked) =>
+                          handleToggleStudentEnrollment(student.id, checked as boolean)
+                        }
+                      />
+                      <div>
+                        <p className="font-medium">
+                          {student.first_name} {student.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {student.student_id}
+                        </p>
+                      </div>
+                    </div>
+                    {isEnrolled && (
+                      <Badge variant="secondary" className="text-xs">
+                        Enrolled
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setIsManageStudentsOpen(false)}>
+              Close
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

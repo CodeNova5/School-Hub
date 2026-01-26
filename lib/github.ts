@@ -45,8 +45,8 @@ export async function uploadFile(options: UploadFileOptions): Promise<string> {
     sha,
   });
 
-  // Return the public URL
-  const url = `https://github.com/CodeNova5/${GITHUB_REPO}/${path}`;
+  // Return the raw content URL
+  const url = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${path}`;
   return url;
 }
 

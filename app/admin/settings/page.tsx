@@ -13,6 +13,7 @@ interface SchoolSettings {
   school_address: string;
   school_email: string;
   school_phone: string;
+  principal_signature: string;
   school_logo: string;
 }
 
@@ -28,6 +29,7 @@ export default function SettingsPage() {
     school_email: '',
     school_phone: '',
     school_logo: '',
+    principal_signature: '',
   });
 
   // Fetch settings on mount
@@ -51,10 +53,14 @@ export default function SettingsPage() {
         school_email: data.school_email || '',
         school_phone: data.school_phone || '',
         school_logo: data.school_logo || '',
+        principal_signature: data.principal_signature || '',
       });
 
       if (data.school_logo) {
         setLogoPreview(data.school_logo);
+      }
+      if (data.principal_signature) {
+        setSignaturePreview(data.principal_signature);
       }
     } catch (error) {
       console.error('Error fetching settings:', error);

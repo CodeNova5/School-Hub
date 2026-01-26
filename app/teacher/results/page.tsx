@@ -381,16 +381,26 @@ export default function SubjectResultEntryPage() {
 
         {/* Results Table */}
         <Card>
-          <CardHeader>
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 border-b">
             <CardTitle className="flex items-center justify-between">
-              <span>Student Results</span>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Student Results</h3>
+                  <p className="text-sm text-gray-600 mt-0.5">Enter and manage student scores</p>
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-2">
                 {students.length > 0 && (
-                  <Badge variant="outline">{students.length} students</Badge>
+                  <Badge variant="outline" className="font-medium">
+                    {students.length} students
+                  </Badge>
                 )}
                 {selectedSubjectClassId && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <BookOpen className="h-4 w-4" />
+                  <div className="flex items-center gap-2 text-sm text-gray-700 font-semibold bg-white px-3 py-1.5 rounded-lg border">
+                    <BookOpen className="h-4 w-4 text-blue-600" />
                     <span>
                       {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.subject_name} -{' '}
                       {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.class_name}

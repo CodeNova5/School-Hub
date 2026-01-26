@@ -71,7 +71,6 @@ export function ResultsTable({ results }: ResultsTableProps) {
               <TableHead className="text-center">Exam</TableHead>
               <TableHead className="text-center">Total</TableHead>
               <TableHead className="text-center">Grade</TableHead>
-              <TableHead className="text-center">Position</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -94,9 +93,6 @@ export function ResultsTable({ results }: ResultsTableProps) {
                     <span className={`font-bold ${getGradeColor(String(result.grade || ''))}`}>
                       {result.grade}
                     </span>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {result.class_position ? getPositionDisplay(result.class_position) : <span className="text-gray-400">—</span>}
                   </TableCell>
                 </TableRow>
               ))

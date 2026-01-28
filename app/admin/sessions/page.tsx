@@ -23,13 +23,19 @@ export default function SessionsPage() {
   const [terms, setTerms] = useState<Term[]>([]);
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
   const [isTermDialogOpen, setIsTermDialogOpen] = useState(false);
+  const [isEditSessionDialogOpen, setIsEditSessionDialogOpen] = useState(false);
+  const [isEditTermDialogOpen, setIsEditTermDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);
 
   useEffect(() => {
-    fetchSessions();
-    fetchTerms();
+    async function init() {
+      await fetchSessions();
+      await fetchTerms();
+      await autoUpdateCurrentSessionAndTerm();
+    }
+    init();
   }, []);
 
   async function fetchSessions() {
@@ -148,14 +154,20 @@ export default function SessionsPage() {
     });
 
     setIsSessionDialogOpen(false);
-    fetchSessions();
-    fetchTerms();
+    await fetchSessions();
+    await fetchTerms();
+    await autoUpdateCurrentSessionAndTerm();
   }
 
 
   async function handleCreateTerm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+
+    if (!selectedSession) {
+      alert('Please select a session');
+      return;
+    }
 
     const response = await fetch('/api/admin-operation', {
       method: 'POST',
@@ -173,55 +185,99 @@ export default function SessionsPage() {
       }),
     });
 
-    if (response.ok) {
-      setIsTermDialogOpen(false);
-      fetchTerms();
+    if (!response.ok) {
+      alert('Failed to create term');
+      return;
     }
+
+    setIsTermDialogOpen(false);
+    setSelectedSession('');
+    await fetchTerms();
+    await autoUpdateCurrentSessionAndTerm();
   }
 
   async function autoUpdateCurrentSessionAndTerm() {
-    const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
+    try {
+      const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
 
-    // 1️⃣ Reset all sessions and terms (Note: admin-operation doesn't support .neq(), so we fetch and update)
-    // For now, we'll keep using direct supabase for read-only operations
-    await supabase.from("sessions").update({ is_current: false }).neq("id", "");
-    await supabase.from("terms").update({ is_current: false }).neq("id", "");
+      // 1️⃣ Find the session that contains today
+      const currentSession = sessions.find(
+        s => s.start_date <= today && s.end_date >= today
+      );
 
-    // 2️⃣ Find the session that contains today
-    const { data: sessionsData } = await supabase
-      .from("sessions")
-      .select("*")
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .limit(1);
+      // 2️⃣ Reset all sessions to is_current=false
+      await fetch('/api/admin-operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'update',
+          table: 'sessions',
+          data: { is_current: false },
+          filters: { is_current: true },
+        }),
+      });
 
-    if (!sessionsData || sessionsData.length === 0) return; // no current session
+      // 3️⃣ Set the current session if found
+      if (currentSession) {
+        await fetch('/api/admin-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'update',
+            table: 'sessions',
+            data: { is_current: true },
+            filters: { id: currentSession.id },
+          }),
+        });
 
-    const currentSession = sessionsData[0];
+        // 4️⃣ Find and set the current term
+        const currentTerm = terms.find(
+          t => t.session_id === currentSession.id &&
+               t.start_date <= today &&
+               t.end_date >= today
+        );
 
-    // 3️⃣ Activate only this session
-    await supabase
-      .from("sessions")
-      .update({ is_current: true })
-      .eq("id", currentSession.id);
+        // Reset all terms to is_current=false
+        await fetch('/api/admin-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'update',
+            table: 'terms',
+            data: { is_current: false },
+            filters: { is_current: true },
+          }),
+        });
 
-    // 4️⃣ Activate only the term inside this session that contains today
-    const { data: termsData } = await supabase
-      .from("terms")
-      .select("*")
-      .eq("session_id", currentSession.id)
-      .lte("start_date", today)
-      .gte("end_date", today)
-      .limit(1);
-
-    if (!termsData || termsData.length === 0) return;
-
-    const currentTerm = termsData[0];
-
-    await supabase
-      .from("terms")
-      .update({ is_current: true })
-      .eq("id", currentTerm.id);
+        // Set the current term if found
+        if (currentTerm) {
+          await fetch('/api/admin-operation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              operation: 'update',
+              table: 'terms',
+              data: { is_current: true },
+              filters: { id: currentTerm.id },
+            }),
+          });
+        }
+      } else {
+        // No current session, reset all terms
+        await fetch('/api/admin-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'update',
+            table: 'terms',
+            data: { is_current: false },
+            filters: { is_current: true },
+          }),
+        });
+      }
+    } catch (error) {
+      console.error('Error auto-updating session/term:', error);
+    }
   }
 
 
@@ -242,11 +298,10 @@ export default function SessionsPage() {
     const start = formData.get("start_date") as string;
     const end = formData.get("end_date") as string;
 
-    if (await isSessionOverlapping(start, end)) {
+    if (await isSessionOverlapping(start, end, editingSession.id)) {
       alert("This session overlaps with an existing session.");
       return;
     }
-
 
     const response = await fetch('/api/admin-operation', {
       method: 'POST',
@@ -263,10 +318,15 @@ export default function SessionsPage() {
       }),
     });
 
-    if (response.ok) {
-      setEditingSession(null);
-      fetchSessions();
+    if (!response.ok) {
+      alert('Failed to update session');
+      return;
     }
+
+    setIsEditSessionDialogOpen(false);
+    setEditingSession(null);
+    await fetchSessions();
+    await autoUpdateCurrentSessionAndTerm();
   }
 
   async function handleDeleteSession(id: string) {
@@ -309,7 +369,7 @@ export default function SessionsPage() {
 
     const formData = new FormData(e.currentTarget);
 
-    await fetch('/api/admin-operation', {
+    const response = await fetch('/api/admin-operation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -324,8 +384,15 @@ export default function SessionsPage() {
       }),
     });
 
+    if (!response.ok) {
+      alert('Failed to update term');
+      return;
+    }
+
+    setIsEditTermDialogOpen(false);
     setEditingTerm(null);
-    fetchTerms();
+    await fetchTerms();
+    await autoUpdateCurrentSessionAndTerm();
   }
 
 
@@ -388,7 +455,7 @@ export default function SessionsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Sessions & Terms</h1>
-            <p className="text-gray-600 mt-1">Manage academic sessions and terms</p>
+            <p className="text-gray-600 mt-1">Manage academic sessions and terms - active session and term are automatically updated</p>
           </div>
           <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
             <DialogTrigger asChild>
@@ -397,9 +464,10 @@ export default function SessionsPage() {
                 New Session
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Session</DialogTitle>
+                <p className="text-sm text-gray-600 mt-2">Create a session and its three terms at once</p>
               </DialogHeader>
               <form onSubmit={handleCreateSession} className="space-y-4">
                 <div>
@@ -446,7 +514,7 @@ export default function SessionsPage() {
                 {sessions.map((session) => (
                   <div
                     key={session.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
                   >
                     <div>
                       <p className="font-medium">{session.name}</p>
@@ -456,13 +524,42 @@ export default function SessionsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {session.is_current && (
-                        <Badge variant="success">Current</Badge>
+                        <Badge className="bg-green-100 text-green-800">Active</Badge>
                       )}
                       {!isPast(session.end_date) && (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => setEditingSession(session)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <Dialog open={isEditSessionDialogOpen && editingSession?.id === session.id} onOpenChange={(open) => {
+                            if (!open) setEditingSession(null);
+                            setIsEditSessionDialogOpen(open);
+                          }}>
+                            <DialogTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => setEditingSession(session)}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Edit Session</DialogTitle>
+                              </DialogHeader>
+                              {editingSession && (
+                                <form onSubmit={handleUpdateSession} className="space-y-4">
+                                  <div>
+                                    <Label>Session Name</Label>
+                                    <Input name="name" defaultValue={editingSession.name} required />
+                                  </div>
+                                  <div>
+                                    <Label>Start Date</Label>
+                                    <Input name="start_date" type="date" defaultValue={editingSession.start_date} required />
+                                  </div>
+                                  <div>
+                                    <Label>End Date</Label>
+                                    <Input name="end_date" type="date" defaultValue={editingSession.end_date} required />
+                                  </div>
+                                  <Button type="submit" className="w-full">Update Session</Button>
+                                </form>
+                              )}
+                            </DialogContent>
+                          </Dialog>
                           <Button variant="ghost" size="icon" onClick={() => handleDeleteSession(session.id)}>
                             <Trash2 className="h-4 w-4 text-red-600" />
                           </Button>
@@ -470,15 +567,13 @@ export default function SessionsPage() {
                       )}
 
                       {isPast(session.end_date) && (
-                        <Badge variant="secondary">Locked</Badge>
+                        <Badge variant="secondary">Completed</Badge>
                       )}
-
-
                     </div>
                   </div>
                 ))}
                 {sessions.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">No sessions yet</p>
+                  <p className="text-center text-gray-500 py-8">No sessions yet. Create one to get started.</p>
                 )}
               </div>
             </CardContent>
@@ -497,6 +592,7 @@ export default function SessionsPage() {
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Create New Term</DialogTitle>
+                    <p className="text-sm text-gray-600 mt-2">Add an additional term to an existing session</p>
                   </DialogHeader>
                   <form onSubmit={handleCreateTerm} className="space-y-4">
                     <div>
@@ -540,7 +636,7 @@ export default function SessionsPage() {
                   return (
                     <div
                       key={term.id}
-                      className="flex items-center justify-between p-4 border rounded-lg"
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
                     >
                       <div>
                         <p className="font-medium">{term.name}</p>
@@ -551,13 +647,42 @@ export default function SessionsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {term.is_current && (
-                          <Badge variant="success">Current</Badge>
+                          <Badge className="bg-green-100 text-green-800">Active</Badge>
                         )}
                         {!isPast(term.end_date) && (
                           <>
-                            <Button variant="ghost" size="icon" onClick={() => setEditingTerm(term)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            <Dialog open={isEditTermDialogOpen && editingTerm?.id === term.id} onOpenChange={(open) => {
+                              if (!open) setEditingTerm(null);
+                              setIsEditTermDialogOpen(open);
+                            }}>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => setEditingTerm(term)}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Edit Term</DialogTitle>
+                                </DialogHeader>
+                                {editingTerm && (
+                                  <form onSubmit={handleUpdateTerm} className="space-y-4">
+                                    <div>
+                                      <Label>Term Name</Label>
+                                      <Input name="name" defaultValue={editingTerm.name} required />
+                                    </div>
+                                    <div>
+                                      <Label>Start Date</Label>
+                                      <Input name="start_date" type="date" defaultValue={editingTerm.start_date} required />
+                                    </div>
+                                    <div>
+                                      <Label>End Date</Label>
+                                      <Input name="end_date" type="date" defaultValue={editingTerm.end_date} required />
+                                    </div>
+                                    <Button type="submit" className="w-full">Update Term</Button>
+                                  </form>
+                                )}
+                              </DialogContent>
+                            </Dialog>
                             <Button variant="ghost" size="icon" onClick={() => handleDeleteTerm(term.id)}>
                               <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
@@ -565,14 +690,14 @@ export default function SessionsPage() {
                         )}
 
                         {isPast(term.end_date) && (
-                          <Badge variant="secondary">Locked</Badge>
+                          <Badge variant="secondary">Completed</Badge>
                         )}
                       </div>
                     </div>
                   );
                 })}
                 {terms.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">No terms yet</p>
+                  <p className="text-center text-gray-500 py-8">No terms yet. Create a session first.</p>
                 )}
               </div>
             </CardContent>

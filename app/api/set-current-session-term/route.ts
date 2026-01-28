@@ -13,9 +13,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: sessionError.message }, { status: 500 });
   }
 
-  const currentSession = sessions.find(
+  console.log('Today:', today);
+  console.log('Sessions:', sessions);
+
+  const currentSession = sessions?.find(
     (s: any) => s.start_date <= today && s.end_date >= today
   );
+
+  console.log('Found session:', currentSession);
 
   // Set all sessions to inactive
   await supabase.from('sessions').update({ is_current: false }).neq('is_current', false);
@@ -50,8 +55,11 @@ export async function POST(req: NextRequest) {
     await supabase.from('terms').update({ is_current: true }).eq('id', currentTerm.id);
   }
 
+  console.log('Found term:', currentTerm);
+
   return NextResponse.json({
     session: currentSession || null,
     term: currentTerm || null,
+    debug: { today, sessionsCount: sessions?.length || 0 }
   });
 }

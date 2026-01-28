@@ -36,9 +36,6 @@ export default function SessionsPage() {
       // Wait a bit for state to update, then auto-update current flags
       setTimeout(async () => {
         await autoUpdateCurrentSessionAndTerm();
-        // Refetch to show the updated is_current flags
-        await fetchSessions();
-        await fetchTerms();
       }, 100);
     }
     init();

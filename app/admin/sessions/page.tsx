@@ -33,10 +33,6 @@ export default function SessionsPage() {
     async function init() {
       await fetchSessions();
       await fetchTerms();
-      // Wait a bit for state to update, then auto-update current flags
-      setTimeout(async () => {
-        await autoUpdateCurrentSessionAndTerm();
-      }, 100);
     }
     init();
   }, []);
@@ -159,7 +155,6 @@ export default function SessionsPage() {
     setIsSessionDialogOpen(false);
     await fetchSessions();
     await fetchTerms();
-    await autoUpdateCurrentSessionAndTerm();
   }
 
 
@@ -196,95 +191,6 @@ export default function SessionsPage() {
     setIsTermDialogOpen(false);
     setSelectedSession('');
     await fetchTerms();
-    await autoUpdateCurrentSessionAndTerm();
-  }
-
-  async function autoUpdateCurrentSessionAndTerm() {
-    try {
-      const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
-
-      // 1️⃣ Find the session that contains today
-      const currentSession = sessions.find(
-        s => s.start_date <= today && s.end_date >= today
-      );
-
-      // 2️⃣ Reset all sessions to is_current=false
-      await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'update',
-          table: 'sessions',
-          data: { is_current: false },
-          filters: { is_current: true },
-        }),
-      });
-
-      // 3️⃣ Set the current session if found
-      if (currentSession) {
-        await fetch('/api/admin-operation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation: 'update',
-            table: 'sessions',
-            data: { is_current: true },
-            filters: { id: currentSession.id },
-          }),
-        });
-
-        // 4️⃣ Find and set the current term
-        const currentTerm = terms.find(
-          t => t.session_id === currentSession.id &&
-               t.start_date <= today &&
-               t.end_date >= today
-        );
-
-        // Reset all terms to is_current=false
-        await fetch('/api/admin-operation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation: 'update',
-            table: 'terms',
-            data: { is_current: false },
-            filters: { is_current: true },
-          }),
-        });
-
-        // Set the current term if found
-        if (currentTerm) {
-          await fetch('/api/admin-operation', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              operation: 'update',
-              table: 'terms',
-              data: { is_current: true },
-              filters: { id: currentTerm.id },
-            }),
-          });
-        }
-      } else {
-        // No current session, reset all terms
-        await fetch('/api/admin-operation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation: 'update',
-            table: 'terms',
-            data: { is_current: false },
-            filters: { is_current: true },
-          }),
-        });
-      }
-
-      // Refetch data to update UI with new is_current flags
-      await fetchSessions();
-      await fetchTerms();
-    } catch (error) {
-      console.error('Error auto-updating session/term:', error);
-    }
   }
 
   async function handleUpdateSession(e: React.FormEvent<HTMLFormElement>) {
@@ -324,7 +230,6 @@ export default function SessionsPage() {
     setIsEditSessionDialogOpen(false);
     setEditingSession(null);
     await fetchSessions();
-    await autoUpdateCurrentSessionAndTerm();
   }
 
   async function handleDeleteSession(id: string) {
@@ -390,7 +295,6 @@ export default function SessionsPage() {
     setIsEditTermDialogOpen(false);
     setEditingTerm(null);
     await fetchTerms();
-    await autoUpdateCurrentSessionAndTerm();
   }
 
 
@@ -445,6 +349,36 @@ export default function SessionsPage() {
     return (data?.length || 0) > 0;
   }
 
+  async function updateCurrentSessionAndTerm() {
+    try {
+      const response = await fetch('/api/set-current-session-term', {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        alert('Failed to update current session and term');
+        return;
+      }
+
+      const result = await response.json();
+      
+      // Refresh the data to show updated is_current flags
+      await fetchSessions();
+      await fetchTerms();
+
+      if (result.session && result.term) {
+        alert(`Active session set to: ${result.session.name}\nActive term set to: ${result.term.name}`);
+      } else if (result.session) {
+        alert(`Active session set to: ${result.session.name}\nNo active term found for current date`);
+      } else {
+        alert('No active session found for current date');
+      }
+    } catch (error) {
+      console.error('Error updating current session/term:', error);
+      alert('An error occurred while updating');
+    }
+  }
+
 
 
   return (
@@ -453,15 +387,19 @@ export default function SessionsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Sessions & Terms</h1>
-            <p className="text-gray-600 mt-1">Manage academic sessions and terms - active session and term are automatically updated</p>
+            <p className="text-gray-600 mt-1">Manage academic sessions and terms</p>
           </div>
-          <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Session
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={updateCurrentSessionAndTerm}>
+              Update Active Session/Term
+            </Button>
+            <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Session
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create New Session</DialogTitle>
@@ -500,6 +438,7 @@ export default function SessionsPage() {
 
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">

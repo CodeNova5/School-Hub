@@ -109,6 +109,22 @@ export async function POST(req: Request) {
       if (subjectError) throw subjectError;
     }
 
+    // 6️⃣ Create user role entry for RBAC
+    const roleType = selectedClass ? 'class_teacher' : 'subject_teacher';
+    const { error: roleError } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: authData.user.id,
+        role: roleType,
+        teacher_id: teacher.id,
+        managed_class_id: selectedClass || null,
+      });
+
+    if (roleError) {
+      console.warn('Warning: Failed to create user role:', roleError);
+      // Don't fail the entire operation, but log the warning
+    }
+
     // 7️⃣ Generate activation token
     const rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");

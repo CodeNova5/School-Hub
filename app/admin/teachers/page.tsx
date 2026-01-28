@@ -166,13 +166,44 @@ export default function TeachersPage() {
         fetchTeachers();
       }
     } else {
-      const { data, error } = await supabase.from('teachers').insert([teacherData]);
+      // Creating a new teacher - use API endpoint
+      const email = formData.get('email') as string;
+      const phone = formData.get('phone') as string;
+      const selectedClass = formData.get('class_id') as string;
 
-      if (error) toast.error('Failed to create teacher');
-      else {
-        toast.success('Teacher created successfully!');
+      if (!email) {
+        toast.error('Email is required');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/create-teacher', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            teacherData: {
+              ...teacherData,
+              phone,
+            },
+            selectedClass: selectedClass || null,
+            selectedSubjects: [],
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast.error(result.error || 'Failed to create teacher');
+          return;
+        }
+
+        toast.success('Teacher created successfully! Activation email sent.');
         closeDialog();
         fetchTeachers();
+      } catch (error) {
+        console.error('Error creating teacher:', error);
+        toast.error('An error occurred while creating the teacher');
       }
     }
   }
@@ -332,6 +363,31 @@ export default function TeachersPage() {
                     />
                   </div>
                 </div>
+
+                {!editingTeacher && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        placeholder="teacher@school.com"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        placeholder="+1234567890"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <Label htmlFor="qualification">Qualification</Label>
                   <Input
@@ -354,13 +410,32 @@ export default function TeachersPage() {
                   <Label htmlFor="address">Address</Label>
                   <Input id="address" name="address" defaultValue={editingTeacher?.address} />
                 </div>
+
+                {!editingTeacher && (
+                  <div>
+                    <Label htmlFor="class_id">Assign as Class Teacher (Optional)</Label>
+                    <select
+                      id="class_id"
+                      name="class_id"
+                      className="w-full h-10 px-3 border rounded-md mt-1"
+                    >
+                      <option value="">Not assigned</option>
+                      {classes.map((cls) => (
+                        <option key={cls.id} value={cls.id}>
+                          {cls.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div>
                   <Label htmlFor="status">Status</Label>
                   <select
                     id="status"
                     name="status"
                     className="w-full h-10 px-3 border rounded-md"
-                    defaultValue={editingTeacher?.status || 'active'}
+                    defaultValue={editingTeacher?.status || 'inactive'}
                   >
                     <option value="active">Active</option>
                     <option value="on_leave">On Leave</option>

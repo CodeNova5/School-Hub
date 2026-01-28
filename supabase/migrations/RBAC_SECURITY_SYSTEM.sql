@@ -899,3 +899,56 @@ COMMENT ON FUNCTION is_admin() IS 'Check if current user is an admin';
 COMMENT ON FUNCTION is_teacher() IS 'Check if current user is a teacher (class or subject)';
 COMMENT ON FUNCTION manages_class(uuid) IS 'Check if current user manages a specific class';
 COMMENT ON FUNCTION teaches_subject_class(uuid) IS 'Check if current user teaches a specific subject class';
+
+
+DROP POLICY IF EXISTS "Users can view their own roles" ON public.user_roles;
+DROP POLICY IF EXISTS "Admins can manage all roles" ON public.user_roles;
+
+-- Users can view only their own roles
+CREATE POLICY "Users can view their own roles"
+  ON public.user_roles
+  FOR SELECT
+  USING (user_id = auth.uid());
+
+-- Admins can manage all roles (read, insert, update, delete)
+CREATE POLICY "Admins can manage all roles"
+  ON public.user_roles
+  FOR ALL
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE OR REPLACE FUNCTION public.has_role(check_role text)
+RETURNS boolean AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid()
+      AND role = check_role
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+  RETURN public.has_role('admin');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Users can view only their own roles
+CREATE POLICY "Users can view their own roles"
+  ON public.user_roles
+  FOR SELECT
+  USING (user_id = auth.uid());
+
+-- Admins can manage all roles (read, insert, update, delete)
+CREATE POLICY "Admins can manage all roles"
+  ON public.user_roles
+  FOR ALL
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+
+SELECT setup_admin_user('codenova02@gmail.com');

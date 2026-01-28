@@ -33,7 +33,13 @@ export default function SessionsPage() {
     async function init() {
       await fetchSessions();
       await fetchTerms();
-      await autoUpdateCurrentSessionAndTerm();
+      // Wait a bit for state to update, then auto-update current flags
+      setTimeout(async () => {
+        await autoUpdateCurrentSessionAndTerm();
+        // Refetch to show the updated is_current flags
+        await fetchSessions();
+        await fetchTerms();
+      }, 100);
     }
     init();
   }, []);
@@ -275,19 +281,14 @@ export default function SessionsPage() {
           }),
         });
       }
+
+      // Refetch data to update UI with new is_current flags
+      await fetchSessions();
+      await fetchTerms();
     } catch (error) {
       console.error('Error auto-updating session/term:', error);
     }
   }
-
-
-
-  useEffect(() => {
-    autoUpdateCurrentSessionAndTerm().then(() => {
-      fetchSessions();
-      fetchTerms();
-    });
-  }, []);
 
   async function handleUpdateSession(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

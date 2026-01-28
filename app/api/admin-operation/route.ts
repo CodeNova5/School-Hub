@@ -19,15 +19,29 @@ export async function POST(req: Request) {
         break;
 
       case "update":
-        result = await supabase
-          .from(table)
-          .update(data)
-          .match(filters)
-          .select();
+        let updateQuery = supabase.from(table).update(data);
+        
+        // Apply filters
+        if (filters) {
+          Object.entries(filters).forEach(([key, value]) => {
+            updateQuery = updateQuery.eq(key, value as string);
+          });
+        }
+        
+        result = await updateQuery.select();
         break;
 
       case "delete":
-        result = await supabase.from(table).delete().match(filters);
+        let deleteQuery = supabase.from(table).delete();
+        
+        // Apply filters
+        if (filters) {
+          Object.entries(filters).forEach(([key, value]) => {
+            deleteQuery = deleteQuery.eq(key, value as string);
+          });
+        }
+        
+        result = await deleteQuery;
         break;
 
       default:

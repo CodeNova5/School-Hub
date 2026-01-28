@@ -97,12 +97,18 @@ export default function CalendarPage() {
     };
 
     if (editingEvent) {
-      const { error } = await supabase
-        .from('events')
-        .update(eventData)
-        .eq('id', editingEvent.id);
+      const response = await fetch('/api/admin-operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'update',
+          table: 'events',
+          data: eventData,
+          filters: { id: editingEvent.id },
+        }),
+      });
 
-      if (error) {
+      if (!response.ok) {
         toast.error('Failed to update event');
       } else {
         toast.success('Event updated successfully');
@@ -111,9 +117,17 @@ export default function CalendarPage() {
         fetchEvents();
       }
     } else {
-      const { error } = await supabase.from('events').insert(eventData);
+      const response = await fetch('/api/admin-operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'insert',
+          table: 'events',
+          data: eventData,
+        }),
+      });
 
-      if (error) {
+      if (!response.ok) {
         toast.error('Failed to create event');
       } else {
         toast.success('Event created successfully');
@@ -126,9 +140,17 @@ export default function CalendarPage() {
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this event?')) return;
 
-    const { error } = await supabase.from('events').delete().eq('id', id);
+    const response = await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'delete',
+        table: 'events',
+        filters: { id },
+      }),
+    });
 
-    if (error) {
+    if (!response.ok) {
       toast.error('Failed to delete event');
     } else {
       toast.success('Event deleted successfully');

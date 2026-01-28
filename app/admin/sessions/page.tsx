@@ -64,18 +64,25 @@ export default function SessionsPage() {
       return;
     }
 
-    const { data: session, error } = await supabase
-      .from("sessions")
-      .insert({
-        name,
-        start_date: start,
-        end_date: end,
-        is_current: false,
-      })
-      .select()
-      .single();
+    const sessionResponse = await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'insert',
+        table: 'sessions',
+        data: {
+          name,
+          start_date: start,
+          end_date: end,
+          is_current: false,
+        },
+      }),
+    });
 
-    if (error || !session) return;
+    const sessionResult = await sessionResponse.json();
+    if (!sessionResponse.ok || !sessionResult || sessionResult.length === 0) return;
+
+    const session = sessionResult[0];
 
     // Create 3 terms
     const terms = [
@@ -99,7 +106,15 @@ export default function SessionsPage() {
       },
     ];
 
-    await supabase.from("terms").insert(terms);
+    await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'insert',
+        table: 'terms',
+        data: terms,
+      }),
+    });
 
     setIsSessionDialogOpen(false);
     fetchSessions();
@@ -111,15 +126,23 @@ export default function SessionsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
-    const { error } = await supabase.from('terms').insert({
-      session_id: selectedSession,
-      name: formData.get('name') as string,
-      start_date: formData.get('start_date') as string,
-      end_date: formData.get('end_date') as string,
-      is_current: false,
+    const response = await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'insert',
+        table: 'terms',
+        data: {
+          session_id: selectedSession,
+          name: formData.get('name') as string,
+          start_date: formData.get('start_date') as string,
+          end_date: formData.get('end_date') as string,
+          is_current: false,
+        },
+      }),
     });
 
-    if (!error) {
+    if (response.ok) {
       setIsTermDialogOpen(false);
       fetchTerms();
     }
@@ -128,7 +151,8 @@ export default function SessionsPage() {
   async function autoUpdateCurrentSessionAndTerm() {
     const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD local
 
-    // 1️⃣ Reset all sessions and terms
+    // 1️⃣ Reset all sessions and terms (Note: admin-operation doesn't support .neq(), so we fetch and update)
+    // For now, we'll keep using direct supabase for read-only operations
     await supabase.from("sessions").update({ is_current: false }).neq("id", "");
     await supabase.from("terms").update({ is_current: false }).neq("id", "");
 
@@ -193,16 +217,22 @@ export default function SessionsPage() {
     }
 
 
-    const { error } = await supabase
-      .from("sessions")
-      .update({
-        name: formData.get("name"),
-        start_date: formData.get("start_date"),
-        end_date: formData.get("end_date"),
-      })
-      .eq("id", editingSession.id);
+    const response = await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'update',
+        table: 'sessions',
+        data: {
+          name: formData.get("name"),
+          start_date: formData.get("start_date"),
+          end_date: formData.get("end_date"),
+        },
+        filters: { id: editingSession.id },
+      }),
+    });
 
-    if (!error) {
+    if (response.ok) {
       setEditingSession(null);
       fetchSessions();
     }
@@ -218,8 +248,25 @@ export default function SessionsPage() {
 
     if (!confirm("Delete this session and all its terms?")) return;
 
-    await supabase.from("terms").delete().eq("session_id", id);
-    await supabase.from("sessions").delete().eq("id", id);
+    await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'delete',
+        table: 'terms',
+        filters: { session_id: id },
+      }),
+    });
+
+    await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'delete',
+        table: 'sessions',
+        filters: { id },
+      }),
+    });
 
     fetchSessions();
     fetchTerms();
@@ -231,14 +278,20 @@ export default function SessionsPage() {
 
     const formData = new FormData(e.currentTarget);
 
-    await supabase
-      .from("terms")
-      .update({
-        name: formData.get("name"),
-        start_date: formData.get("start_date"),
-        end_date: formData.get("end_date"),
-      })
-      .eq("id", editingTerm.id);
+    await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'update',
+        table: 'terms',
+        data: {
+          name: formData.get("name"),
+          start_date: formData.get("start_date"),
+          end_date: formData.get("end_date"),
+        },
+        filters: { id: editingTerm.id },
+      }),
+    });
 
     setEditingTerm(null);
     fetchTerms();
@@ -255,7 +308,15 @@ export default function SessionsPage() {
 
     if (!confirm("Delete this term?")) return;
 
-    await supabase.from("terms").delete().eq("id", id);
+    await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'delete',
+        table: 'terms',
+        filters: { id },
+      }),
+    });
     fetchTerms();
   }
 

@@ -381,7 +381,15 @@ export default function TimetablePage() {
 
     if (editingEntry) {
       if (departmentalMode) {
-        await supabase.from("timetable_entries").delete().eq("id", editingEntry.id);
+        await fetch('/api/admin-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'delete',
+            table: 'timetable_entries',
+            filters: { id: editingEntry.id },
+          }),
+        });
 
         const inserts: any[] = [];
         if (formScienceSubjectClassId)
@@ -413,9 +421,17 @@ export default function TimetablePage() {
           return;
         }
 
-        const { error } = await supabase.from("timetable_entries").insert(inserts);
+        const response = await fetch('/api/admin-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'insert',
+            table: 'timetable_entries',
+            data: inserts,
+          }),
+        });
 
-        if (error) toast.error(error.message || "Failed to update entry");
+        if (!response.ok) toast.error("Failed to update entry");
         else {
           toast.success("Entry updated");
           closeDialog();
@@ -489,8 +505,17 @@ export default function TimetablePage() {
           return;
         }
 
-        const { error } = await supabase.from("timetable_entries").insert(inserts);
-        if (error) toast.error(error.message || "Failed to update religious entries");
+        const response = await fetch('/api/admin-operation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'insert',
+            table: 'timetable_entries',
+            data: inserts,
+          }),
+        });
+
+        if (!response.ok) toast.error("Failed to update religious entries");
         else {
           toast.success("Religious entries updated");
           closeDialog();
@@ -532,12 +557,18 @@ export default function TimetablePage() {
         religion: null,
       };
 
-      const { error } = await supabase
-        .from("timetable_entries")
-        .update(payload)
-        .eq("id", editingEntry.id);
+      const response = await fetch('/api/admin-operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'update',
+          table: 'timetable_entries',
+          data: payload,
+          filters: { id: editingEntry.id },
+        }),
+      });
 
-      if (error) toast.error("Failed to update entry");
+      if (!response.ok) toast.error("Failed to update entry");
       else {
         toast.success("Entry updated");
         closeDialog();
@@ -577,8 +608,17 @@ export default function TimetablePage() {
         }
       }
 
-      const { error } = await supabase.from("timetable_entries").insert(payload);
-      if (error) toast.error(error.message || "Failed to create entry");
+      const response = await fetch('/api/admin-operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'insert',
+          table: 'timetable_entries',
+          data: payload,
+        }),
+      });
+
+      if (!response.ok) toast.error("Failed to create entry");
       else {
         toast.success("Entry added");
         closeDialog();
@@ -642,8 +682,17 @@ export default function TimetablePage() {
         return;
       }
 
-      const { error } = await supabase.from("timetable_entries").insert(inserts);
-      if (error) toast.error(error.message || "Failed to create religious entries");
+      const response = await fetch('/api/admin-operation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'insert',
+          table: 'timetable_entries',
+          data: inserts,
+        }),
+      });
+
+      if (!response.ok) toast.error("Failed to create religious entries");
       else {
         toast.success("Religious entries added");
         closeDialog();
@@ -717,8 +766,17 @@ export default function TimetablePage() {
       return;
     }
 
-    const { error } = await supabase.from("timetable_entries").insert(inserts);
-    if (error) toast.error(error.message || "Failed to create departmental entries");
+    const response = await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'insert',
+        table: 'timetable_entries',
+        data: inserts,
+      }),
+    });
+
+    if (!response.ok) toast.error("Failed to create departmental entries");
     else {
       toast.success("Departmental entries added");
       closeDialog();
@@ -730,8 +788,18 @@ export default function TimetablePage() {
 
   async function deleteEntry(id: string) {
     if (!confirm("Delete this entry?")) return;
-    const { error } = await supabase.from("timetable_entries").delete().eq("id", id);
-    if (error) toast.error("Failed to delete");
+    
+    const response = await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'delete',
+        table: 'timetable_entries',
+        filters: { id },
+      }),
+    });
+
+    if (!response.ok) toast.error("Failed to delete");
     else {
       toast.success("Entry deleted");
       await fetchAll();
@@ -744,13 +812,20 @@ export default function TimetablePage() {
 
     if (!confirm("Are you sure you want to delete all subjects in this slot?")) return;
 
-    const { error } = await supabase
-      .from("timetable_entries")
-      .delete()
-      .eq("period_slot_id", editingEntry.period_slot_id)
-      .eq("class_id", editingEntry.class_id);
+    const response = await fetch('/api/admin-operation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'delete',
+        table: 'timetable_entries',
+        filters: {
+          period_slot_id: editingEntry.period_slot_id,
+          class_id: editingEntry.class_id,
+        },
+      }),
+    });
 
-    if (error) {
+    if (!response.ok) {
       toast.error("Failed to delete all subjects in the slot");
     } else {
       toast.success("All subjects in the slot deleted successfully");

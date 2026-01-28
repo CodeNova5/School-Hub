@@ -130,9 +130,24 @@ export default function SubjectsPage() {
   }, []);
 
   useEffect(() => {
-    supabase.from("teachers").select("id, first_name, last_name").then(({ data }) => {
-      if (data) setTeachers(data as Teacher[]);
-    });
+    async function fetchTeachers() {
+      try {
+        const response = await fetch('/api/admin-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'select',
+            table: 'teachers',
+            select: 'id, first_name, last_name',
+          }),
+        });
+        const data = await response.json();
+        if (response.ok) setTeachers(data as Teacher[]);
+      } catch (error) {
+        console.error('Error fetching teachers:', error);
+      }
+    }
+    fetchTeachers();
   }, []);
 
 

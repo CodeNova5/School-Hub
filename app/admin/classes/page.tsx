@@ -116,50 +116,82 @@ export default function ClassesPage() {
       class_teacher_id: (formData.get("class_teacher_id") as string) || null,
     };
 
-    if (editingClass) {
-      const { error } = await supabase
-        .from("classes")
-        .update(classData)
-        .eq("id", editingClass.id);
+    try {
+      if (editingClass) {
+        const response = await fetch("/api/admin-operation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operation: "update",
+            table: "classes",
+            data: classData,
+            filters: { id: editingClass.id },
+          }),
+        });
 
-      if (error) toast.error("Failed to update class");
-      else {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+
         toast.success("Class updated");
         closeDialog();
         fetchClasses();
-      }
-    } else {
-      const exists = classes.some(
-        c =>
-          c.education_level === selectedEducationLevel &&
-          c.level === selectedLevel &&
-          c.stream === normalizedStream // Include stream in uniqueness check
-      );
-      if (exists) {
-        toast.error("This class already exists");
-        return;
-      }
+      } else {
+        const exists = classes.some(
+          c =>
+            c.education_level === selectedEducationLevel &&
+            c.level === selectedLevel &&
+            c.stream === normalizedStream // Include stream in uniqueness check
+        );
+        if (exists) {
+          toast.error("This class already exists");
+          return;
+        }
 
-      const { error } = await supabase.from("classes").insert(classData);
+        const response = await fetch("/api/admin-operation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operation: "insert",
+            table: "classes",
+            data: classData,
+          }),
+        });
 
-      if (error) toast.error("Failed to create class");
-      else {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+
         toast.success("Class created");
         closeDialog();
         fetchClasses();
       }
+    } catch (error: any) {
+      console.error("Error:", error);
+      toast.error(error.message || "Failed to save class");
     }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Are you sure you want to delete this class?")) return;
 
-    const { error } = await supabase.from("classes").delete().eq("id", id);
+    try {
+      const response = await fetch("/api/admin-operation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "delete",
+          table: "classes",
+          filters: { id },
+        }),
+      });
 
-    if (error) toast.error("Failed to delete class");
-    else {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+
       toast.success("Class deleted");
       fetchClasses();
+    } catch (error: any) {
+      console.error("Error:", error);
+      toast.error(error.message || "Failed to delete class");
     }
   }
   function openEditDialog(cls: Class) {

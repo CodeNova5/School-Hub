@@ -33,22 +33,53 @@ export default function SessionsPage() {
   }, []);
 
   async function fetchSessions() {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*')
-      .order('start_date', { ascending: false });
+    try {
+      const response = await fetch('/api/admin-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'select',
+          table: 'sessions',
+          select: '*',
+          order: [{ column: 'start_date', ascending: false }],
+        }),
+      });
 
-    if (data) setSessions(data);
-    else console.log(error);
+      const data = await response.json();
+      if (!response.ok) {
+        console.error('Error fetching sessions:', data.error);
+        return;
+      }
+
+      setSessions(data);
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
   }
 
   async function fetchTerms() {
-    const { data, error } = await supabase
-      .from('terms')
-      .select('*')
-      .order('start_date', { ascending: false });
+    try {
+      const response = await fetch('/api/admin-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'select',
+          table: 'terms',
+          select: '*',
+          order: [{ column: 'start_date', ascending: false }],
+        }),
+      });
 
-    if (data) setTerms(data);
+      const data = await response.json();
+      if (!response.ok) {
+        console.error('Error fetching terms:', data.error);
+        return;
+      }
+
+      setTerms(data);
+    } catch (error) {
+      console.error('Error fetching terms:', error);
+    }
   }
 
   async function handleCreateSession(e: React.FormEvent<HTMLFormElement>) {

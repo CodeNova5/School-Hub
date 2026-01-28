@@ -137,20 +137,32 @@ export default function SubjectsPage() {
 
 
   async function fetchSubjects() {
-    const { data, error } = await supabase
-      .from('subjects')
-      .select('*')
-      .order('education_level', { ascending: true })
-      .order('name');
-    
-    if (error) {
+    try {
+      const response = await fetch('/api/admin-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'select',
+          table: 'subjects',
+          select: '*',
+          order: [
+            { column: 'education_level', ascending: true },
+            { column: 'name', ascending: true },
+          ],
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        console.error('Error fetching subjects:', data.error);
+        toast.error('Failed to fetch subjects');
+        return;
+      }
+
+      setSubjects(data);
+    } catch (error) {
       console.error('Error fetching subjects:', error);
       toast.error('Failed to fetch subjects');
-      return;
-    }
-    
-    if (data) {
-      setSubjects(data);
     }
   }
 

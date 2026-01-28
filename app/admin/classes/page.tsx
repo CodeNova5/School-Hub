@@ -45,46 +45,69 @@ export default function ClassesPage() {
   }, []);
 
   async function fetchClasses() {
-    const { data } = await supabase
-      .from("classes")
-      .select(`
-    *,
-    teacher:teachers(first_name, last_name)
-  `)
-      .order("level");
+    try {
+      const response = await fetch("/api/admin-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "select",
+          table: "classes",
+          select: "*",
+          order: [{ column: "level", ascending: true }],
+        }),
+      });
 
-    if (data) {
+      const data = await response.json();
+      if (!response.ok) {
+        console.error("Error fetching classes:", data.error);
+        return;
+      }
+
       const classesWithStats = await Promise.all(
-        data.map(async (cls) => {
+        data.map(async (cls: any) => {
           const [studentsRes, subjectsRes] = await Promise.all([
             supabase.from("students").select("id", { count: "exact" }).eq("class_id", cls.id),
             supabase.from("subject_classes").select("id", { count: "exact" }).eq("class_id", cls.id),
           ]);
 
-
-          const teacher = cls.teacher;
-
-
           return {
             ...cls,
             studentCount: studentsRes.count || 0,
             subjectCount: subjectsRes.count || 0,
-            teacherName: teacher ? `${teacher.first_name} ${teacher.last_name}` : undefined,
+            teacherName: undefined,
           };
         })
       );
       setClasses(classesWithStats);
+    } catch (error) {
+      console.error("Error fetching classes:", error);
     }
   }
 
   async function fetchTeachers() {
-    const { data } = await supabase
-      .from("teachers")
-      .select("*")
-      .eq("status", "active")
-      .order("first_name");
+    try {
+      const response = await fetch("/api/admin-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "select",
+          table: "teachers",
+          select: "*",
+          filters: { status: "active" },
+          order: [{ column: "first_name", ascending: true }],
+        }),
+      });
 
-    if (data) setTeachers(data);
+      const data = await response.json();
+      if (!response.ok) {
+        console.error("Error fetching teachers:", data.error);
+        return;
+      }
+
+      setTeachers(data);
+    } catch (error) {
+      console.error("Error fetching teachers:", error);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

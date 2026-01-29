@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { apiClient } from '@/lib/api-client';
 import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
-import { StudentSubjectsModal } from '@/components/student-subjects-modal';
 import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
@@ -135,34 +135,83 @@ export default function AdminStudentsPage() {
     try {
       // Load all students in the system (admin view)
       const [studentsRes, sessionsRes, termsRes, classesRes] = await Promise.all([
-        supabase
-          .from('students')
-          .select('*')
-          .order('first_name'),
-        supabase.from('sessions').select('*').order('start_date', { ascending: false }),
-        supabase.from('terms').select('*').order('start_date', { ascending: false }),
-        supabase.from('classes').select('*').order('name'),
+        fetch('/api/admin-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: 'students',
+            operation: 'select',
+            ordering: { column: 'first_name', ascending: true },
+          }),
+        }).then(r => r.json()),
+        fetch('/api/admin-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: 'sessions',
+            operation: 'select',
+            ordering: { column: 'start_date', ascending: false },
+          }),
+        }).then(r => r.json()),
+        fetch('/api/admin-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: 'terms',
+            operation: 'select',
+            ordering: { column: 'start_date', ascending: false },
+          }),
+        }).then(r => r.json()),
+        fetch('/api/admin-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: 'classes',
+            operation: 'select',
+            ordering: { column: 'name', ascending: true },
+          }),
+        }).then(r => r.json()),
       ]);
 
-      const studentList = studentsRes.data || [];
-      const studentIds = studentList.map(s => s.id).filter(Boolean);
+      const studentList = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || []);
+      const sessionsList = Array.isArray(sessionsRes) ? sessionsRes : (sessionsRes?.data || []);
+      const termsList = Array.isArray(termsRes) ? termsRes : (termsRes?.data || []);
+      const classList = Array.isArray(classesRes) ? classesRes : (classesRes?.data || []);
+
+      const studentIds = studentList.map((s: Student) => s.id).filter(Boolean);
 
       let attendance: any[] = [];
       if (studentIds.length > 0) {
-        const { data, error } = await supabase
-          .from("attendance")
-          .select("*")
-          .in("student_id", studentIds);
+        const attendanceRes = await fetch('/api/admin-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table: 'attendance',
+            operation: 'select',
+            filters: [{ column: 'student_id', operator: 'in', value: studentIds }],
+          }),
+        }).then(r => r.json());
 
-        if (error) throw error;
-        attendance = data || [];
+        attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
       }
 
-      const studentsWithAttendance = studentList.map(student => {
-        const records = attendance.filter(a => a.student_id === student.id) || [];
-        const total = records.length;
-        const present = records.filter(
-          r => r.status === "present" || r.status === "late" || r.status === "excused"
+      interface AttendanceRecord {
+        id: string;
+        student_id: string;
+        status: string;
+        [key: string]: any;
+      }
+
+      interface StudentWithAttendance extends Student {
+        average_attendance: number;
+        total_attendance: number;
+      }
+
+      const studentsWithAttendance: StudentWithAttendance[] = studentList.map((student: Student) => {
+        const records: AttendanceRecord[] = attendance.filter((a: AttendanceRecord) => a.student_id === student.id) || [];
+        const total: number = records.length;
+        const present: number = records.filter(
+          (r: AttendanceRecord) => r.status === "present" || r.status === "late" || r.status === "excused"
         ).length;
 
         return {
@@ -173,10 +222,9 @@ export default function AdminStudentsPage() {
       });
 
       setStudents(studentsWithAttendance);
-
-      if (sessionsRes.data) setSessions(sessionsRes.data);
-      if (termsRes.data) setTerms(termsRes.data);
-      if (classesRes.data) setClasses(classesRes.data);
+      setSessions(sessionsList);
+      setTerms(termsList);
+      setClasses(classList);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
     } finally {

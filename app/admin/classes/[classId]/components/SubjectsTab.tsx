@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { supabase } from "@/lib/supabase";
+import { apiClient } from "@/lib/api-client";
 
 type SubjectClass = {
   id: string;
@@ -141,30 +141,31 @@ export function SubjectsTab({
 
     setIsEditSubmitting(true);
 
-    // Update the subject itself
-    const { error: subjectError } = await supabase
-      .from("subjects")
-      .update({
-        name: editName,
-        is_optional: editIsOptional,
-      })
-      .eq("id", editingSubjectClass.subject.id);
+    try {
+      // Update the subject itself
+      await apiClient.apiWrite({
+        table: "subjects",
+        operation: "update",
+        data: {
+          name: editName,
+          is_optional: editIsOptional,
+        },
+        filters: { id: editingSubjectClass.subject.id },
+      });
 
-    if (subjectError) {
-      console.error("Subject update error:", subjectError);
-      if (subjectError.code === '23505') {
+      toast.success("Subject updated successfully");
+      setIsEditOpen(false);
+      onRefresh();
+    } catch (error: any) {
+      console.error("Subject update error:", error);
+      if (error.message.includes('23505')) {
         toast.error("A subject with this name already exists for this level");
       } else {
-        toast.error(`Failed to update subject: ${subjectError.message}`);
+        toast.error(`Failed to update subject: ${error.message}`);
       }
+    } finally {
       setIsEditSubmitting(false);
-      return;
     }
-
-    toast.success("Subject updated successfully");
-    setIsEditSubmitting(false);
-    setIsEditOpen(false);
-    onRefresh();
   }
 
   async function openManageStudentsDialog(sc: SubjectClass) {
@@ -172,59 +173,58 @@ export function SubjectsTab({
     setIsLoadingEnrollment(true);
     setIsManageStudentsOpen(true);
 
-    // Fetch students enrolled in this optional subject
-    const { data, error } = await supabase
-      .from("student_optional_subjects")
-      .select("student_id")
-      .eq("subject_id", sc.subject.id);
+    try {
+      // Fetch students enrolled in this optional subject
+      const data = await apiClient.apiRead({
+        table: "student_optional_subjects",
+        select: "student_id",
+        filters: { subject_id: sc.subject.id },
+      });
 
-    if (error) {
+      setEnrolledStudentIds(data.map(d => d.student_id));
+    } catch (error) {
       console.error("Error loading enrollment:", error);
       toast.error("Failed to load enrollment data");
       setEnrolledStudentIds([]);
-    } else {
-      setEnrolledStudentIds(data.map(d => d.student_id));
+    } finally {
+      setIsLoadingEnrollment(false);
     }
-
-    setIsLoadingEnrollment(false);
   }
 
   async function handleToggleStudentEnrollment(studentId: string, isEnrolled: boolean) {
     if (!managingSubjectClass) return;
 
-    if (isEnrolled) {
-      // Enroll student
-      const { error } = await supabase
-        .from("student_optional_subjects")
-        .insert({
-          student_id: studentId,
-          subject_id: managingSubjectClass.subject.id,
+    try {
+      if (isEnrolled) {
+        // Enroll student
+        await apiClient.apiWrite({
+          table: "student_optional_subjects",
+          operation: "insert",
+          data: {
+            student_id: studentId,
+            subject_id: managingSubjectClass.subject.id,
+          },
         });
 
-      if (error) {
-        console.error("Enrollment error:", error);
-        toast.error("Failed to enroll student");
-        return;
+        setEnrolledStudentIds(prev => [...prev, studentId]);
+        toast.success("Student enrolled");
+      } else {
+        // Unenroll student - using delete
+        await apiClient.apiWrite({
+          table: "student_optional_subjects",
+          operation: "delete",
+          filters: {
+            student_id: studentId,
+            subject_id: managingSubjectClass.subject.id,
+          },
+        });
+
+        setEnrolledStudentIds(prev => prev.filter(id => id !== studentId));
+        toast.success("Student unenrolled");
       }
-
-      setEnrolledStudentIds(prev => [...prev, studentId]);
-      toast.success("Student enrolled");
-    } else {
-      // Unenroll student
-      const { error } = await supabase
-        .from("student_optional_subjects")
-        .delete()
-        .eq("student_id", studentId)
-        .eq("subject_id", managingSubjectClass.subject.id);
-
-      if (error) {
-        console.error("Unenrollment error:", error);
-        toast.error("Failed to unenroll student");
-        return;
-      }
-
-      setEnrolledStudentIds(prev => prev.filter(id => id !== studentId));
-      toast.success("Student unenrolled");
+    } catch (error) {
+      console.error("Enrollment error:", error);
+      toast.error(`Failed to ${isEnrolled ? 'enroll' : 'unenroll'} student`);
     }
   }
 

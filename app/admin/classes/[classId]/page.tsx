@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { apiClient } from "@/lib/api-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -108,29 +109,14 @@ export default function ClassPage() {
   async function fetchClassSubjects() {
     setSubjectsLoading(true);
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'subject_classes',
-          select: `id, subject_code, subject:subjects(id, name, is_optional, religion, department), teacher:teachers(id, first_name, last_name)`,
-          filters: { class_id: classId },
-          order: [{ column: 'subject_code', ascending: true }],
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) {
-        const formatted: SubjectClass[] = (data || []).map((item: any) => ({
-          id: item.id,
-          subject_code: item.subject_code,
-          subject: item.subject,
-          teacher: item.teacher ?? null,
-        }));
-        setSubjects(formatted);
-      } else {
-        toast.error("Failed to load subjects");
-      }
+      const data = await apiClient.readSubjectClasses(classId);
+      const formatted: SubjectClass[] = (data || []).map((item: any) => ({
+        id: item.id,
+        subject_code: item.subject_code,
+        subject: item.subject,
+        teacher: item.teacher ?? null,
+      }));
+      setSubjects(formatted);
     } catch (error) {
       console.error('Error fetching subjects:', error);
       toast.error("Failed to load subjects");
@@ -142,19 +128,8 @@ export default function ClassPage() {
   async function fetchStudents() {
     setStudentsLoading(true);
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'students',
-          select: '*',
-          filters: { class_id: classId },
-          order: [{ column: 'first_name', ascending: true }],
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) setStudents(data || []);
+      const data = await apiClient.readStudents(classId);
+      setStudents(data || []);
     } catch (error) {
       console.error('Error fetching students:', error);
     } finally {
@@ -164,18 +139,8 @@ export default function ClassPage() {
 
   async function fetchSessions() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'sessions',
-          select: '*',
-          order: [{ column: 'start_date', ascending: false }],
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) setSessions(data || []);
+      const data = await apiClient.readSessions();
+      setSessions(data || []);
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
@@ -183,18 +148,8 @@ export default function ClassPage() {
 
   async function fetchTerms() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'terms',
-          select: '*',
-          order: [{ column: 'start_date', ascending: true }],
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) setTerms(data || []);
+      const data = await apiClient.readTerms();
+      setTerms(data || []);
     } catch (error) {
       console.error('Error fetching terms:', error);
     }
@@ -241,18 +196,8 @@ export default function ClassPage() {
 
   async function fetchTeachers() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'teachers',
-          select: 'id, first_name, last_name',
-          filters: { status: 'active' },
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) setTeachers(data || []);
+      const data = await apiClient.readTeachers();
+      setTeachers(data || []);
     } catch (error) {
       console.error('Error fetching teachers:', error);
     }
@@ -278,125 +223,102 @@ export default function ClassPage() {
 
     const updates = subjectsWithoutCode.map(sc => {
       const newCode = generateSubjectCode(sc.subject.name, classData.name);
-      return supabase
-        .from("subject_classes")
-        .update({ subject_code: newCode })
-        .eq("id", sc.id);
+      return apiClient.updateSubjectCode(sc.id, newCode);
     });
 
-    const results = await Promise.all(updates);
-    const errors = results.filter(r => r.error);
-
-    if (errors.length > 0) {
-      toast.error("Failed to update some subject codes");
-      console.error(errors);
-    } else {
+    try {
+      await Promise.all(updates);
       toast.success(`Generated codes for ${subjectsWithoutCode.length} subject(s)`);
       fetchClassSubjects();
+    } catch (error) {
+      toast.error("Failed to update some subject codes");
+      console.error(error);
     }
   }
 
   async function handleAssignTeacher(subjectClassId: string, teacherId: string) {
-    await supabase
-      .from("subject_classes")
-      .update({ teacher_id: teacherId })
-      .eq("id", subjectClassId);
-
-    toast.success("Teacher assigned");
-    fetchClassSubjects();
+    try {
+      await apiClient.assignTeacher(subjectClassId, teacherId);
+      toast.success("Teacher assigned");
+      fetchClassSubjects();
+    } catch (error) {
+      toast.error("Failed to assign teacher");
+      console.error(error);
+    }
   }
 
   async function deleteSubjectClass(subjectClassId: string) {
-    const { error } = await supabase
-      .from("subject_classes")
-      .delete()
-      .eq("id", subjectClassId);
-    if (error) {
+    try {
+      await apiClient.deleteSubjectClass(subjectClassId);
+      toast.success("Subject removed from class");
+      fetchClassSubjects();
+    } catch (error) {
       toast.error("Failed to delete subject from class");
       console.error(error);
-      return;
     }
-    toast.success("Subject removed from class");
-    fetchClassSubjects();
   }
 
   async function handleRemoveStudent(studentId: string) {
     if (!confirm("Remove this student from the class? They will become unassigned.")) return;
     
-    const { error } = await supabase
-      .from("students")
-      .update({ class_id: null })
-      .eq("id", studentId);
-    
-    if (error) {
+    try {
+      await apiClient.updateStudentClass(studentId, null);
+      toast.success("Student removed from class");
+      fetchStudents();
+      fetchAvailableStudents();
+    } catch (error) {
       toast.error("Failed to remove student");
-      return;
+      console.error(error);
     }
-    
-    toast.success("Student removed from class");
-    fetchStudents();
-    fetchAvailableStudents();
   }
 
   async function handleBulkRemove(studentIds: string[]) {
     if (studentIds.length === 0) return;
     if (!confirm(`Remove ${studentIds.length} student(s) from this class?`)) return;
 
-    const updates = studentIds.map(id =>
-      supabase.from("students").update({ class_id: null }).eq("id", id)
-    );
+    const updates = studentIds.map(id => apiClient.updateStudentClass(id, null));
 
-    const results = await Promise.all(updates);
-    const errors = results.filter(r => r.error);
-
-    if (errors.length > 0) {
-      toast.error(`Failed to remove ${errors.length} student(s)`);
-    } else {
+    try {
+      await Promise.all(updates);
       toast.success(`Removed ${studentIds.length} student(s)`);
+      fetchStudents();
+      fetchAvailableStudents();
+    } catch (error) {
+      toast.error(`Failed to remove some student(s)`);
+      console.error(error);
     }
-
-    fetchStudents();
-    fetchAvailableStudents();
   }
 
   async function handleAddStudentsToClass(studentIds: string[]) {
     if (studentIds.length === 0) return;
 
-    const updates = studentIds.map(id =>
-      supabase.from("students").update({ class_id: classId }).eq("id", id)
-    );
+    const updates = studentIds.map(id => apiClient.updateStudentClass(id, classId));
 
-    const results = await Promise.all(updates);
-    const errors = results.filter(r => r.error);
-
-    if (errors.length > 0) {
-      toast.error(`Failed to add ${errors.length} student(s)`);
-    } else {
+    try {
+      await Promise.all(updates);
       toast.success(`Added ${studentIds.length} student(s) to class`);
+      fetchStudents();
+      fetchAvailableStudents();
+    } catch (error) {
+      toast.error(`Failed to add some student(s)`);
+      console.error(error);
     }
-
-    fetchStudents();
-    fetchAvailableStudents();
   }
 
   async function handleTransferStudents(studentIds: string[], targetClassId: string) {
     if (studentIds.length === 0 || !targetClassId) return;
     if (!confirm(`Transfer ${studentIds.length} student(s) to the selected class?`)) return;
 
-    const updates = studentIds.map(id =>
-      supabase.from("students").update({ class_id: targetClassId }).eq("id", id)
-    );
+    const updates = studentIds.map(id => apiClient.updateStudentClass(id, targetClassId));
 
-    const results = await Promise.all(updates);
-    const errors = results.filter(r => r.error);
-
-    if (errors.length > 0) {
-      toast.error(`Failed to transfer ${errors.length} student(s)`);
-    } else {
+    try {
+      await Promise.all(updates);
       toast.success(`Transferred ${studentIds.length} student(s)`);
+      fetchStudents();
+    } catch (error) {
+      toast.error(`Failed to transfer some student(s)`);
+      console.error(error);
     }
-
-    fetchStudents();
   }
 
   if (loading || !classData) {

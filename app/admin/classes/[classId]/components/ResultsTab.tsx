@@ -30,7 +30,7 @@ import {
     Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { apiClient } from "@/lib/api-client";
 import { Student, Session, Term } from "@/lib/types";
 import * as XLSX from "xlsx-js-style";
 import { StudentDetailsModal } from "@/components/student-details-modal";
@@ -98,25 +98,25 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }, [selectedSessionId, selectedTermId]);
 
     async function fetchSessionsAndTerms() {
-        const { data: sessionsData } = await supabase
-            .from("sessions")
-            .select("*")
-            .order("start_date", { ascending: false });
+        try {
+            const [sessionsData, termsData] = await Promise.all([
+                apiClient.readSessions(),
+                apiClient.readTerms(),
+            ]);
 
-        const { data: termsData } = await supabase
-            .from("terms")
-            .select("*")
-            .order("start_date", { ascending: false });
+            setSessions(sessionsData || []);
+            setTerms(termsData || []);
 
-        setSessions(sessionsData || []);
-        setTerms(termsData || []);
+            // Auto-select current session and term if available
+            const currentSession = sessionsData?.find((s: any) => s.is_current);
+            const currentTerm = termsData?.find((t: any) => t.is_current);
 
-        // Auto-select current session and term if available
-        const currentSession = sessionsData?.find((s) => s.is_current);
-        const currentTerm = termsData?.find((t) => t.is_current);
-
-        if (currentSession) setSelectedSessionId(currentSession.id);
-        if (currentTerm) setSelectedTermId(currentTerm.id);
+            if (currentSession) setSelectedSessionId(currentSession.id);
+            if (currentTerm) setSelectedTermId(currentTerm.id);
+        } catch (error) {
+            console.error("Error fetching sessions and terms:", error);
+            toast.error("Failed to load sessions and terms");
+        }
     }
 
     async function fetchStudentResults() {
@@ -124,28 +124,22 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
         try {
             // Fetch all results for this class in the selected term
-            const { data: resultsData, error } = await supabase
-                .from("results")
-                .select(
-                    `
+            const resultsData = await apiClient.apiRead({
+                table: "results",
+                select: `
           *,
           student:students!inner(id, student_id, first_name, last_name, gender, class_id),
           subject_class:subject_classes(
             id,
             subject:subjects(name)
           )
-        `
-                )
-                .eq("term_id", selectedTermId)
-                .eq("session_id", selectedSessionId)
-                .eq("student.class_id", classId);
-
-            if (error) {
-                console.error("Error fetching results:", error);
-                toast.error("Failed to load results");
-                setLoading(false);
-                return;
-            }
+        `,
+                filters: {
+                    term_id: selectedTermId,
+                    session_id: selectedSessionId,
+                    class_id: classId,
+                },
+            });
 
             // Group results by student
             const studentResultsMap = new Map<string, StudentResult>();
@@ -367,18 +361,20 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             // Update all results for each student with their position
             const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
                 // Update all results for this student in this term and session
-                const { error } = await supabase
-                    .from("results")
-                    .update({
+                await apiClient.apiWrite({
+                    table: "results",
+                    operation: "update",
+                    data: {
                         class_position: position,
                         total_students: studentsWithResults.length,
                         class_average: studentsWithResults.reduce((sum, r) => sum + r.average_score, 0) / studentsWithResults.length
-                    })
-                    .eq("student_id", studentId)
-                    .eq("term_id", selectedTermId)
-                    .eq("session_id", selectedSessionId);
-
-                if (error) throw error;
+                    },
+                    filters: {
+                        student_id: studentId,
+                        term_id: selectedTermId,
+                        session_id: selectedSessionId
+                    }
+                });
             });
 
             await Promise.all(updatePromises);

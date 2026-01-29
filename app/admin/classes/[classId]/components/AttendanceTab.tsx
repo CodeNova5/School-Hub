@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { apiClient } from "@/lib/api-client";
 import * as XLSX from "xlsx-js-style";
 
 interface StudentAttendance {
@@ -38,30 +38,32 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
 
   async function fetchAttendance(date: string) {
     setAttendanceLoading(true);
-    const { data: studentsData } = await supabase
-      .from("students")
-      .select("*")
-      .eq("class_id", classId)
-      .eq("status", "active")
-      .order("first_name");
+    try {
+      const [studentsData, attendanceData] = await Promise.all([
+        apiClient.readStudents(classId),
+        apiClient.apiRead({
+          table: "attendance",
+          select: "*",
+          filters: { class_id: classId, date },
+        }),
+      ]);
 
-    const { data: attendanceData } = await supabase
-      .from("attendance")
-      .select("*")
-      .eq("class_id", classId)
-      .eq("date", date);
+      const studentsWithAttendance: StudentAttendance[] = (studentsData || []).map((student: any) => {
+        const attendance = attendanceData?.find((a: any) => a.student_id === student.id);
+        return {
+          ...student,
+          attendanceStatus: attendance ? (attendance.status as any) : "not_marked",
+          attendanceId: attendance?.id,
+        };
+      });
 
-    const studentsWithAttendance: StudentAttendance[] = (studentsData || []).map((student) => {
-      const attendance = attendanceData?.find((a) => a.student_id === student.id);
-      return {
-        ...student,
-        attendanceStatus: attendance ? (attendance.status as any) : "not_marked",
-        attendanceId: attendance?.id,
-      };
-    });
-
-    setAttendanceStudents(studentsWithAttendance);
-    setAttendanceLoading(false);
+      setAttendanceStudents(studentsWithAttendance);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      toast.error("Failed to load attendance");
+    } finally {
+      setAttendanceLoading(false);
+    }
   }
 
   function handleDateChange(date: string) {
@@ -113,16 +115,25 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
 
       const existingRecords = attendanceStudents.filter((s) => s.attendanceId);
 
+      // Delete existing records
       if (existingRecords.length > 0) {
         const deleteIds = existingRecords.map((s) => s.attendanceId).filter(Boolean);
-        if (deleteIds.length > 0) {
-          await supabase.from("attendance").delete().in("id", deleteIds);
+        for (const id of deleteIds) {
+          await apiClient.apiWrite({
+            table: "attendance",
+            operation: "delete",
+            filters: { id },
+          });
         }
       }
 
+      // Insert new records
       if (attendanceRecords.length > 0) {
-        const { error } = await supabase.from("attendance").insert(attendanceRecords);
-        if (error) throw error;
+        await apiClient.apiWrite({
+          table: "attendance",
+          operation: "insert",
+          data: attendanceRecords,
+        });
       }
 
       toast.success("Attendance saved successfully!", { id: savingToast });

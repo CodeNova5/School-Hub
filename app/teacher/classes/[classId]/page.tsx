@@ -266,7 +266,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-4 p-4 bg-muted rounded-none border-b">
+            <TabsList className="grid w-full grid-cols-4 p-10 bg-muted rounded-none border-b">
               <TabsTrigger value="subjects" className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
                 <span className="hidden sm:inline">Subjects</span>

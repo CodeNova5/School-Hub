@@ -188,11 +188,12 @@ export default function AdminStudentsPage() {
           body: JSON.stringify({
             table: 'attendance',
             operation: 'select',
-            filters: [{ column: 'student_id', operator: 'in', value: studentIds }],
           }),
         }).then(r => r.json());
 
         attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
+        // Filter by student IDs on client side
+        attendance = attendance.filter((a: any) => studentIds.includes(a.student_id));
       }
 
       interface AttendanceRecord {

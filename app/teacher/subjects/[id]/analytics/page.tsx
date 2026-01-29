@@ -10,7 +10,7 @@ import { Users, TrendingUp, TrendingDown, Award, } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 export default function SubjectAnalyticsPage({ params }: any) {
-    const subjectId = params.id;
+    const subjectClassId = params.id;
 
     const [sessions, setSessions] = useState<any[]>([]);
     const [terms, setTerms] = useState<any[]>([]);
@@ -55,11 +55,17 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
         const { data: sessionData } = await supabase.from("sessions").select("*").order("name");
         const { data: termData } = await supabase.from("terms").select("*").order("name");
-        const { data: subjectData } = await supabase.from("subjects").select("*").eq("id", subjectId).single();
+        const { data: subjectClass } = await supabase
+            .from("subject_classes")
+            .select(`id, subject_code,  subject:subjects ( id, name ), class:classes ( id, name, level)`)
+            .eq("id", subjectClassId)
+            .single();
+
+        setSubject(subjectClass);
 
         setSessions(sessionData || []);
         setTerms(termData || []);
-        setSubject(subjectData || null);
+        setSubject(subjectClass || null);
 
         const currentSession = sessionData?.find((s) => s.is_current);
         const currentTerm = termData?.find((t) => t.is_current);
@@ -67,20 +73,20 @@ export default function SubjectAnalyticsPage({ params }: any) {
         setSelectedSession(currentSession?.id || "");
         setSelectedTerm(currentTerm?.id || "");
 
-        loadResults(subjectId, currentSession?.id, currentTerm?.id);
-        await loadGenderComparison(subjectId);
+        loadResults(subjectClassId, currentSession?.id, currentTerm?.id);
+        await loadGenderComparison(subjectClassId);
 
 
     }
 
-    async function loadStudentBreakdown(subId: string, sessionId: string, termId: string) {
+    async function loadStudentBreakdown(subjectClassId: string, sessionId: string, termId: string) {
         const { data } = await supabase
             .from("results")
             .select(`
             *,
             students (first_name, last_name, student_id, gender, photo_url)
         `)
-            .eq("subject_id", subId)
+            .eq("subject_class_id", subjectClassId)
             .eq("session_id", sessionId)
             .eq("term_id", termId);
 
@@ -107,11 +113,11 @@ export default function SubjectAnalyticsPage({ params }: any) {
     }
 
 
-    async function loadResults(subId: string, sessionId?: string, termId?: string) {
+    async function loadResults(subjectClassId: string, sessionId?: string, termId?: string) {
         let query: any = supabase
             .from("results")
             .select(`*, students(first_name, last_name, student_id, gender, photo_url)`)
-            .eq("subject_id", subId);
+            .eq("subject_class_id", subjectClassId);
 
         if (sessionId) query = query.eq("session_id", sessionId);
         if (termId) query = query.eq("term_id", termId);
@@ -123,7 +129,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
         const { data: allSessions } = await supabase
             .from("results")
             .select(`session_id, total, sessions(name)`)
-            .eq("subject_id", subId);
+            .eq("subject_class_id", subjectClassId);
 
         const grouped = allSessions?.reduce((acc: any, r: any) => {
             if (!acc[r.session_id]) acc[r.session_id] = { name: r.sessions.name, scores: [] };
@@ -143,7 +149,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             const { data: termResults } = await supabase
                 .from("results")
                 .select(`*, terms(name), students(first_name, last_name, student_id)`)
-                .eq("subject_id", subId)
+                .eq("subject_class_id", subjectClassId)
                 .eq("session_id", sessionId);
 
             const byTerm: any = {};
@@ -161,7 +167,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             const { data: termData } = await supabase
                 .from("results")
                 .select(`term_id, total, terms(name)`)
-                .eq("subject_id", subId)
+                .eq("subject_class_id", subjectClassId)
                 .eq("session_id", sessionId);
 
             const groupedTerms = termData?.reduce((acc: any, r: any) => {
@@ -187,20 +193,20 @@ export default function SubjectAnalyticsPage({ params }: any) {
             female: females.length ? (females.reduce((a: any, b: any) => a + b.total, 0) / females.length).toFixed(1) : 0,
         });
         if (sessionId && termId) {
-            await loadStudentBreakdown(subId, sessionId, termId);
+            await loadStudentBreakdown(subjectClassId, sessionId, termId);
         }
 
         setIsLoading(false);
     }
 
-    async function loadGenderComparison(subId: string) {
+    async function loadGenderComparison(subjectClassId: string) {
         const { data } = await supabase
             .from("results")
             .select(`
             total,
             students (gender)
         `)
-            .eq("subject_id", subId);
+            .eq("subject_class_id", subjectClassId);
 
         if (!data) return;
 
@@ -248,12 +254,14 @@ export default function SubjectAnalyticsPage({ params }: any) {
     }));
 
     return (
-        <DashboardLayout role="teacher">
+        <DashboardLayout role="admin">
             <div className="space-y-8">
 
                 {/* HEADER */}
                 <h1 className="text-3xl font-bold">Subject Analytics</h1>
-                <p className="text-gray-600">Detailed performance report for: {subject?.name}</p>
+                <p className="text-gray-600">
+                    {subject?.subject?.name} — {subject?.class?.name} ({subject?.class?.level})
+                </p>
 
                 {/* 1. FILTERS */}
                 <Card>
@@ -267,7 +275,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             value={selectedSession}
                             onValueChange={(val) => {
                                 setSelectedSession(val);
-                                loadResults(subjectId, val, selectedTerm);
+                                loadResults(subjectClassId, val, selectedTerm);
                             }}
                         >
                             <SelectTrigger>
@@ -287,7 +295,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             value={selectedTerm}
                             onValueChange={(val) => {
                                 setSelectedTerm(val);
-                                loadResults(subjectId, selectedSession, val);
+                                loadResults(subjectClassId, selectedSession, val);
                             }}
                         >
                             <SelectTrigger>

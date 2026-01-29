@@ -10,9 +10,17 @@ import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
 import { StudentSubjectsModal } from '@/components/student-subjects-modal';
-import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon } from 'lucide-react';
+import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -23,12 +31,32 @@ export default function AdminStudentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
   const [filterGender, setFilterGender] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  // Form fields for creating student
+  const [formData, setFormData] = useState({
+    student_id: '',
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    date_of_birth: '',
+    gender: '',
+    address: '',
+    class_id: '',
+    department: '',
+    parent_name: '',
+    parent_email: '',
+    parent_phone: '',
+    admission_date: new Date().toISOString().split('T')[0],
+  });
 
   const handleNextStudent = useCallback(() => {
     if (!selectedStudent) return;
@@ -166,6 +194,81 @@ export default function AdminStudentsPage() {
     setIsSubjectsModalOpen(true);
   }
 
+  async function handleCreateStudent(e: React.FormEvent) {
+    e.preventDefault();
+    setIsCreating(true);
+
+    // Validation
+    if (!formData.student_id.trim()) {
+      toast.error('Student ID is required');
+      setIsCreating(false);
+      return;
+    }
+
+    if (!formData.first_name.trim() || !formData.last_name.trim()) {
+      toast.error('First name and last name are required');
+      setIsCreating(false);
+      return;
+    }
+
+    if (!formData.email.trim()) {
+      toast.error('Email is required');
+      setIsCreating(false);
+      return;
+    }
+
+    if (!formData.parent_name.trim() || !formData.parent_email.trim()) {
+      toast.error('Parent name and email are required');
+      setIsCreating(false);
+      return;
+    }
+
+    try {
+      const creatingToast = toast.loading('Creating student...');
+
+      const response = await fetch('/api/create-student', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || 'Failed to create student', { id: creatingToast });
+        setIsCreating(false);
+        return;
+      }
+
+      toast.success('Student created successfully. Activation email sent.', { id: creatingToast });
+
+      // Reset form
+      setFormData({
+        student_id: '',
+        first_name: '',
+        last_name: '',
+        email: '',
+        phone: '',
+        date_of_birth: '',
+        gender: '',
+        address: '',
+        class_id: '',
+        department: '',
+        parent_name: '',
+        parent_email: '',
+        parent_phone: '',
+        admission_date: new Date().toISOString().split('T')[0],
+      });
+
+      setIsCreateDialogOpen(false);
+      await loadData();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create student');
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
   function handleExport() {
     const exportData = filteredStudents.map((s) => ({
       'Student ID': s.student_id,
@@ -216,6 +319,206 @@ export default function AdminStudentsPage() {
             <p className="text-gray-600 mt-1">Manage all students in the system</p>
           </div>
           <div className="flex gap-2">
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Student
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-h-[90vh] overflow-y-auto max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Create New Student</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleCreateStudent} className="space-y-4">
+                  {/* Basic Information */}
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold mb-3">Basic Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="student_id">Student ID *</Label>
+                        <Input
+                          id="student_id"
+                          value={formData.student_id}
+                          onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
+                          placeholder="e.g., STU001"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="email">Email *</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          placeholder="student@example.com"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="first_name">First Name *</Label>
+                        <Input
+                          id="first_name"
+                          value={formData.first_name}
+                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                          placeholder="John"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="last_name">Last Name *</Label>
+                        <Input
+                          id="last_name"
+                          value={formData.last_name}
+                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                          placeholder="Doe"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="phone">Phone</Label>
+                        <Input
+                          id="phone"
+                          value={formData.phone}
+                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                          placeholder="+234..."
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="date_of_birth">Date of Birth</Label>
+                        <Input
+                          id="date_of_birth"
+                          type="date"
+                          value={formData.date_of_birth}
+                          onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="gender">Gender</Label>
+                        <select
+                          id="gender"
+                          value={formData.gender}
+                          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-md"
+                        >
+                          <option value="">Select gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="address">Address</Label>
+                        <Input
+                          id="address"
+                          value={formData.address}
+                          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                          placeholder="Street address"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Class & Academic */}
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold mb-3">Academic Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="class_id">Class</Label>
+                        <select
+                          id="class_id"
+                          value={formData.class_id}
+                          onChange={(e) => setFormData({ ...formData, class_id: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-md"
+                        >
+                          <option value="">Select class (optional)</option>
+                          {classes.map((cls) => (
+                            <option key={cls.id} value={cls.id}>
+                              {cls.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="department">Department</Label>
+                        <select
+                          id="department"
+                          value={formData.department}
+                          onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-md"
+                        >
+                          <option value="">Select department</option>
+                          <option value="Science">Science</option>
+                          <option value="Arts">Arts</option>
+                          <option value="Commercial">Commercial</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="admission_date">Admission Date *</Label>
+                        <Input
+                          id="admission_date"
+                          type="date"
+                          value={formData.admission_date}
+                          onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Parent/Guardian Information */}
+                  <div className="pb-4">
+                    <h3 className="font-semibold mb-3">Parent/Guardian Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="parent_name">Parent/Guardian Name *</Label>
+                        <Input
+                          id="parent_name"
+                          value={formData.parent_name}
+                          onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })}
+                          placeholder="Parent name"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="parent_email">Parent Email *</Label>
+                        <Input
+                          id="parent_email"
+                          type="email"
+                          value={formData.parent_email}
+                          onChange={(e) => setFormData({ ...formData, parent_email: e.target.value })}
+                          placeholder="parent@example.com"
+                          required
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label htmlFor="parent_phone">Parent Phone</Label>
+                        <Input
+                          id="parent_phone"
+                          value={formData.parent_phone}
+                          onChange={(e) => setFormData({ ...formData, parent_phone: e.target.value })}
+                          placeholder="+234..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 justify-end pt-4 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      disabled={isCreating}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isCreating}>
+                      {isCreating ? 'Creating...' : 'Create Student'}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
             <Button variant="outline" onClick={handleExport}>
               <Download className="mr-2 h-4 w-4" />
               Export

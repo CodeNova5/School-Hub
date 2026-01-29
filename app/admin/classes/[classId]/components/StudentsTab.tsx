@@ -112,6 +112,43 @@ export function StudentsTab({
     setIsStudentDetailsOpen(true);
   }
 
+  async function handleViewStudentWithAttendance(student: Student) {
+    try {
+      // Fetch attendance for this student
+      const attendanceRes = await fetch('/api/admin-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'attendance',
+          operation: 'select',
+        }),
+      }).then(r => r.json());
+
+      const attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
+      const studentAttendance = attendance.filter((a: any) => a.student_id === student.id);
+      
+      const total = studentAttendance.length;
+      const present = studentAttendance.filter(
+        (r: any) => r.status === "present" || r.status === "late" || r.status === "excused"
+      ).length;
+
+      const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
+
+      // Add attendance data to student object
+      const enrichedStudent = {
+        ...student,
+        average_attendance: averageAttendance,
+        total_attendance: total,
+      };
+
+      setSelectedStudent(enrichedStudent);
+    } catch (error) {
+      console.error("Error fetching attendance:", error);
+      setSelectedStudent(student);
+    }
+    setIsStudentDetailsOpen(true);
+  }
+
   function handleExportStudents() {
     const exportData = filteredStudents.map((s, i) => ({
       "#": i + 1,
@@ -311,7 +348,7 @@ export function StudentsTab({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewStudent(student)}>
+                          <DropdownMenuItem onClick={() => handleViewStudentWithAttendance(student)}>
                             <User className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>

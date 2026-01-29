@@ -58,16 +58,15 @@ function SkeletonLoader() {
   );
 }
 
-interface TeacherClassManagementProps {
-  classId: string;
-  teacherId: string;
+interface PageProps {
+  params: {
+    classId: string;
+  };
 }
 
-export default function TeacherClassManagement({
-  classId,
-  teacherId,
-}: TeacherClassManagementProps) {
+export default function TeacherClassManagement({ params }: PageProps) {
   const router = useRouter();
+  const { classId } = params;
 
   const [classData, setClassData] = useState<ClassData | null>(null);
   const [subjects, setSubjects] = useState<SubjectClass[]>([]);

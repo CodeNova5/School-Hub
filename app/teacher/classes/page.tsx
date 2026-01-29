@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
-import TeacherClassManagement from "./[classId]/page";
 
 type ClassData = {
   id: string;
@@ -64,7 +63,6 @@ export default function TeacherClassesPage() {
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [assignedClasses, setAssignedClasses] = useState<ClassData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTeacherAndClasses();
@@ -126,9 +124,9 @@ export default function TeacherClassesPage() {
         setAssignedClasses([]);
       } else {
         setAssignedClasses(classes);
-        // If only one class, auto-select it
+        // If only one class, auto-redirect
         if (classes.length === 1) {
-          setSelectedClassId(classes[0].id);
+          router.push(`/teacher/classes/${classes[0].id}`);
         }
       }
     } catch (error) {
@@ -137,13 +135,6 @@ export default function TeacherClassesPage() {
     } finally {
       setLoading(false);
     }
-  }
-
-  // If a class is selected, show the management page
-  if (selectedClassId && teacherId) {
-    return (
-      <TeacherClassManagement classId={selectedClassId} teacherId={teacherId} />
-    );
   }
 
   // Loading state
@@ -192,16 +183,6 @@ export default function TeacherClassesPage() {
     );
   }
 
-  // Single class - show management page
-  if (assignedClasses.length === 1) {
-    return (
-      <TeacherClassManagement 
-        classId={assignedClasses[0].id} 
-        teacherId={teacherId!}
-      />
-    );
-  }
-
   // Multiple classes - show selection page
   return (
     <DashboardLayout role="teacher">
@@ -216,7 +197,7 @@ export default function TeacherClassesPage() {
             <Card
               key={classData.id}
               className="hover:shadow-lg transition-shadow cursor-pointer hover:border-blue-400"
-              onClick={() => setSelectedClassId(classData.id)}
+              onClick={() => router.push(`/teacher/classes/${classData.id}`)}
             >
               <CardHeader>
                 <CardTitle className="flex items-start justify-between">
@@ -244,7 +225,7 @@ export default function TeacherClassesPage() {
                   )}
                 </div>
 
-                <Button className="w-full" onClick={() => setSelectedClassId(classData.id)}>
+                <Button className="w-full" onClick={() => router.push(`/teacher/classes/${classData.id}`)}>
                   Manage Class
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>

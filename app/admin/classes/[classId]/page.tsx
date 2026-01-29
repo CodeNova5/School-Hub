@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { apiClient } from "@/lib/api-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -54,7 +54,11 @@ type Teacher = {
 
 export default function ClassPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const classId = params.classId as string;
+  
+  const activeTab = searchParams.get("tab") || "subjects";
 
   const [subjects, setSubjects] = useState<SubjectClass[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -68,6 +72,12 @@ export default function ClassPage() {
   const [loading, setLoading] = useState(true);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [studentsLoading, setStudentsLoading] = useState(false);
+
+  const handleTabChange = (newTab: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", newTab);
+    router.push(`?${params.toString()}`);
+  };
   useEffect(() => {
     fetchClass();
     fetchTeachers();
@@ -357,14 +367,32 @@ export default function ClassPage() {
         </div>
 
         {/* ================= TABS ================= */}
-        <Tabs defaultValue="subjects">
-          <TabsList>
-            <TabsTrigger value="subjects"><BookOpen className="h-4 w-4 mr-1" /> Subjects</TabsTrigger>
-            <TabsTrigger value="students"><Users className="h-4 w-4 mr-1" /> Students</TabsTrigger>
-            <TabsTrigger value="timetable"><Clock className="h-4 w-4 mr-1" /> Timetable</TabsTrigger>
-            <TabsTrigger value="attendance"><Calendar className="h-4 w-4 mr-1" /> Attendance</TabsTrigger>
-            <TabsTrigger value="results">Results</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto">
+            <TabsTrigger value="subjects" className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Subjects</span>
+            </TabsTrigger>
+            <TabsTrigger value="students" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline">Students</span>
+            </TabsTrigger>
+            <TabsTrigger value="timetable" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span className="hidden sm:inline">Timetable</span>
+            </TabsTrigger>
+            <TabsTrigger value="attendance" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              <span className="hidden sm:inline">Attendance</span>
+            </TabsTrigger>
+            <TabsTrigger value="results" className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Results</span>
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* ================= SUBJECTS TAB ================= */}

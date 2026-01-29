@@ -315,6 +315,10 @@ export function StudentsTab({
                             <User className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setIsTransferStudentOpen(true)}>
+                            <ArrowRightLeft className="mr-2 h-4 w-4" />
+                            Transfer Student
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-red-600 focus:text-red-600"
                             onClick={() => onRemoveStudent(student.id)}

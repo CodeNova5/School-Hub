@@ -676,10 +676,44 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                                         </DropdownMenuItem>
 
                                                         <DropdownMenuItem
-                                                            onClick={() => {
+                                                            onClick={async () => {
                                                                 const studentObj = students.find(s => s.id === result.student_id);
-                                                                setSelectedStudent(studentObj || null);
-                                                                setIsStudentDetailsOpen(true);
+                                                                if (studentObj) {
+                                                                    // Fetch attendance for this student
+                                                                    try {
+                                                                        const attendanceRes = await fetch('/api/admin-read', {
+                                                                            method: 'POST',
+                                                                            headers: { 'Content-Type': 'application/json' },
+                                                                            body: JSON.stringify({
+                                                                                table: 'attendance',
+                                                                                operation: 'select',
+                                                                            }),
+                                                                        }).then(r => r.json());
+
+                                                                        const attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
+                                                                        const studentAttendance = attendance.filter((a: any) => a.student_id === result.student_id);
+                                                                        
+                                                                        const total = studentAttendance.length;
+                                                                        const present = studentAttendance.filter(
+                                                                            (r: any) => r.status === "present" || r.status === "late" || r.status === "excused"
+                                                                        ).length;
+
+                                                                        const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
+
+                                                                        // Add attendance data to student object
+                                                                        const enrichedStudent = {
+                                                                            ...studentObj,
+                                                                            average_attendance: averageAttendance,
+                                                                            total_attendance: total,
+                                                                        };
+
+                                                                        setSelectedStudent(enrichedStudent);
+                                                                    } catch (error) {
+                                                                        console.error("Error fetching attendance:", error);
+                                                                        setSelectedStudent(studentObj);
+                                                                    }
+                                                                    setIsStudentDetailsOpen(true);
+                                                                }
                                                             }}
                                                         >
                                                             <FileText className="mr-2 h-4 w-4" />

@@ -333,15 +333,28 @@ export default function SubjectsPage() {
       }
 
       const newSubject = Array.isArray(result) ? result[0] : result;
+      console.log('✅ Subject created:', newSubject);
 
-      // 1️⃣ Get all classes in level (with names)
-      const { data: classes, error: classesError } = await supabase
-        .from('classes')
-        .select('id, name')
-        .eq('education_level', selectedLevel);
+      // 1️⃣ Get all classes in level (with names) - using API, not direct Supabase
+      console.log('🔍 Fetching classes for level:', selectedLevel);
+      const classesResponse = await fetch('/api/admin-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'select',
+          table: 'classes',
+          select: 'id, name',
+          filters: { education_level: selectedLevel },
+          order: [{ column: 'name', ascending: true }],
+        }),
+      });
 
-      if (classesError || !classes) {
-        toast.error('Could not find classes to apply subjects to.');
+      const classes = await classesResponse.json();
+      console.log('📚 Classes found:', classes);
+
+      if (!classesResponse.ok || !Array.isArray(classes) || classes.length === 0) {
+        console.error('❌ Error fetching classes:', classes);
+        toast.error('Could not find classes to apply subjects to. Response: ' + JSON.stringify(classes));
         setIsSubmitting(false);
         return;
       }
@@ -354,11 +367,13 @@ export default function SubjectsPage() {
       };
 
       // 3️⃣ Create subject_classes rows with subject_code
-      const subjectClasses = classes.map((c) => ({
+      const subjectClasses = classes.map((c: any) => ({
         class_id: c.id,
         subject_id: newSubject.id,
         subject_code: generateSubjectCode(newSubject.name, c.name),
       }));
+
+      console.log('📝 Creating subject_classes entries:', subjectClasses);
 
       const subjectClassesResponse = await fetch('/api/admin-operation', {
         method: 'POST',
@@ -371,22 +386,34 @@ export default function SubjectsPage() {
       });
 
       const subjectClassesResult = await subjectClassesResponse.json();
+      console.log('🔧 Subject classes response:', { 
+        status: subjectClassesResponse.status, 
+        data: subjectClassesResult 
+      });
+
       if (!subjectClassesResponse.ok) {
+        console.error('❌ Failed to create subject_classes:', subjectClassesResult);
         toast.error(subjectClassesResult.error || 'Failed to create subject_classes');
         setIsSubmitting(false);
         return;
       }
 
+      console.log('✅ Subject classes created successfully');
+
       // 4️⃣ Auto assign to empty classes only
       if (selectedTeacher) {
+        console.log('👨‍🏫 Attempting to assign teacher:', selectedTeacher);
         const { data: emptyClasses } = await supabase
           .from("classes")
           .select("id")
           .eq("education_level", selectedLevel)
           .is("class_teacher_id", null);
 
+        console.log('📋 Empty classes found:', emptyClasses);
+
         if (emptyClasses && emptyClasses.length > 0) {
           const classIds = emptyClasses.map(c => c.id);
+          console.log('🎯 Assigning to class IDs:', classIds);
 
           for (const classId of classIds) {
             const assignResponse = await fetch('/api/admin-operation', {
@@ -402,13 +429,22 @@ export default function SubjectsPage() {
 
             const assignResult = await assignResponse.json();
             if (!assignResponse.ok) {
-              console.warn('Failed to assign teacher to class:', classId, assignResult.error);
+              console.warn('⚠️ Failed to assign teacher to class:', classId, assignResult.error);
+            } else {
+              console.log('✅ Teacher assigned to class:', classId);
             }
           }
+        } else {
+          console.log('ℹ️ No empty classes found for teacher assignment');
         }
+      } else {
+        console.log('ℹ️ No teacher selected, skipping assignment');
       }
 
+      console.log('🔄 Refetching subjects...');
       await fetchSubjects();
+      console.log('✅ Subjects refetched');
+      
       toast.success('Subject created and applied to all classes in this level');
       setIsSubmitting(false);
       closeDialog();

@@ -61,7 +61,7 @@ export default function TeacherSubjectsTab({
 
   function handleViewAnalysis(subject: SubjectClass) {
     // Navigate to subject analytics page
-    router.push(`/teacher/subjects/${subject.subject.id}/analytics`);
+    router.push(`/teacher/subjects/${subject.id}/analytics`);
   }
 
   return (

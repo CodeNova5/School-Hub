@@ -10,15 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Search, MoreVertical, Eye, BarChart3 } from "lucide-react";
-import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 type Subject = {
   id: string;
@@ -45,28 +39,14 @@ interface TeacherSubjectsTabProps {
   onRefresh: () => void;
 }
 
-// Skeleton loader
-function SubjectSkeleton() {
-  return (
-    <tr className="border-t">
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-28 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div></td>
-      <td className="p-3 text-right"><div className="h-8 bg-gray-200 rounded w-10 float-right animate-pulse"></div></td>
-    </tr>
-  );
-}
-
 export default function TeacherSubjectsTab({
   classId,
   subjects,
   onRefresh,
 }: TeacherSubjectsTabProps) {
   const [search, setSearch] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState<SubjectClass | null>(null);
-  const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
+
+  const router = useRouter();
 
   const filteredSubjects = useMemo(() => {
     return subjects.filter((s) => {
@@ -78,9 +58,10 @@ export default function TeacherSubjectsTab({
     });
   }, [subjects, search]);
 
+
   function handleViewAnalysis(subject: SubjectClass) {
-    setSelectedSubject(subject);
-    setIsAnalysisOpen(true);
+    // Navigate to subject analytics page
+    router.push(`/teacher/subjects/${subject.subject.id}/analytics`);
   }
 
   return (
@@ -185,75 +166,7 @@ export default function TeacherSubjectsTab({
         </CardContent>
       </Card>
 
-      {/* Subject Analysis Dialog */}
-      <Dialog open={isAnalysisOpen} onOpenChange={setIsAnalysisOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedSubject?.subject.name} - Analysis
-            </DialogTitle>
-          </DialogHeader>
 
-          {selectedSubject && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-600 font-medium">Subject Code</p>
-                  <p className="text-2xl font-bold text-blue-900">{selectedSubject.subject_code}</p>
-                </div>
-                <div className="p-4 bg-purple-50 rounded-lg">
-                  <p className="text-sm text-purple-600 font-medium">Type</p>
-                  <p className="text-2xl font-bold text-purple-900">
-                    {selectedSubject.subject.is_optional ? "Optional" : "Compulsory"}
-                  </p>
-                </div>
-              </div>
-
-              {selectedSubject.teacher && (
-                <div className="p-4 bg-green-50 rounded-lg">
-                  <p className="text-sm text-green-600 font-medium">Assigned Teacher</p>
-                  <p className="text-lg font-semibold text-green-900">
-                    {selectedSubject.teacher.first_name} {selectedSubject.teacher.last_name}
-                  </p>
-                </div>
-              )}
-
-              {selectedSubject.subject.department && (
-                <div className="p-4 bg-amber-50 rounded-lg">
-                  <p className="text-sm text-amber-600 font-medium">Department</p>
-                  <p className="text-lg font-semibold text-amber-900">
-                    {selectedSubject.subject.department}
-                  </p>
-                </div>
-              )}
-
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <p className="text-sm font-semibold text-gray-700 mb-3">Additional Information</p>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                    <span>Subject is available for students in this class</span>
-                  </li>
-                  {selectedSubject.subject.religion && (
-                    <li className="flex items-center gap-2">
-                      <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                      <span>Religion-based subject: {selectedSubject.subject.religion}</span>
-                    </li>
-                  )}
-                  <li className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    <span>
-                      {selectedSubject.teacher 
-                        ? `Taught by ${selectedSubject.teacher.first_name} ${selectedSubject.teacher.last_name}` 
-                        : "Currently unassigned to any teacher"}
-                    </span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

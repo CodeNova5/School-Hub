@@ -23,20 +23,6 @@ interface TeacherStudentsTabProps {
   terms: Term[];
 }
 
-// Skeleton loader
-function StudentSkeleton() {
-  return (
-    <tr className="border-t">
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-28 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div></td>
-      <td className="p-3"><div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div></td>
-      <td className="p-3 text-right"><div className="h-8 bg-gray-200 rounded w-10 float-right animate-pulse"></div></td>
-    </tr>
-  );
-}
-
 export default function TeacherStudentsTab({
   classId,
   students,

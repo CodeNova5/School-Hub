@@ -129,17 +129,20 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 select: `
           *,
           student:students!inner(id, student_id, first_name, last_name, gender, class_id),
-          subject_class:subject_classes(
+          subject_class:subject_classes!inner(
             id,
+            class_id,
             subject:subjects(name)
           )
         `,
                 filters: {
                     term_id: selectedTermId,
                     session_id: selectedSessionId,
-                    class_id: classId,
                 },
             });
+
+            // Filter by class on client side since results doesn't have class_id
+            const classResults = resultsData?.filter((r: any) => r.subject_class?.class_id === classId) || [];
 
             // Group results by student
             const studentResultsMap = new Map<string, StudentResult>();
@@ -163,7 +166,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             });
 
             // Process results
-            resultsData?.forEach((result: any) => {
+            classResults.forEach((result: any) => {
                 const studentId = result.student.id;
                 const studentResult = studentResultsMap.get(studentId);
 

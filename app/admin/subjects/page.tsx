@@ -334,24 +334,24 @@ export default function SubjectsPage() {
 
       const newSubject = Array.isArray(result) ? result[0] : result;
 
+      // 1️⃣ Get all classes in level (with names)
+      const { data: classes, error: classesError } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('education_level', selectedLevel);
 
-    // 1️⃣ Get all classes in level (with names)
-    const { data: classes, error: classesError } = await supabase
-      .from('classes')
-      .select('id, name')
-      .eq('education_level', selectedLevel);
+      if (classesError || !classes) {
+        toast.error('Could not find classes to apply subjects to.');
+        setIsSubmitting(false);
+        return;
+      }
 
-    if (classesError || !classes) {
-      toast.error('Could not find classes to apply subjects to.');
-      return;
-    }
-
-    // 2️⃣ Generate subject code
-    const generateSubjectCode = (subjectName: string, className: string) => {
-      const clean = subjectName.replace(/\s+/g, "");
-      const prefix = clean.slice(0, 3).toUpperCase();
-      return `${prefix}-${className}`;
-    };
+      // 2️⃣ Generate subject code
+      const generateSubjectCode = (subjectName: string, className: string) => {
+        const clean = subjectName.replace(/\s+/g, "");
+        const prefix = clean.slice(0, 3).toUpperCase();
+        return `${prefix}-${className}`;
+      };
 
       // 3️⃣ Create subject_classes rows with subject_code
       const subjectClasses = classes.map((c) => ({
@@ -360,7 +360,7 @@ export default function SubjectsPage() {
         subject_code: generateSubjectCode(newSubject.name, c.name),
       }));
 
-      await fetch('/api/admin-operation', {
+      const subjectClassesResponse = await fetch('/api/admin-operation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -370,27 +370,41 @@ export default function SubjectsPage() {
         }),
       });
 
-      // 3️⃣ Auto assign to empty classes only
-      const { data: emptyClasses } = await supabase
-        .from("classes")
-        .select("id")
-        .eq("education_level", selectedLevel)
-        .is("class_teacher_id", null);
+      const subjectClassesResult = await subjectClassesResponse.json();
+      if (!subjectClassesResponse.ok) {
+        toast.error(subjectClassesResult.error || 'Failed to create subject_classes');
+        setIsSubmitting(false);
+        return;
+      }
 
-      if (emptyClasses && emptyClasses.length > 0 && selectedTeacher) {
-        const classIds = emptyClasses.map(c => c.id);
+      // 4️⃣ Auto assign to empty classes only
+      if (selectedTeacher) {
+        const { data: emptyClasses } = await supabase
+          .from("classes")
+          .select("id")
+          .eq("education_level", selectedLevel)
+          .is("class_teacher_id", null);
 
-        for (const classId of classIds) {
-          await fetch('/api/admin-operation', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              operation: 'update',
-              table: 'subject_classes',
-              data: { teacher_id: selectedTeacher },
-              filters: { subject_id: newSubject.id, class_id: classId },
-            }),
-          });
+        if (emptyClasses && emptyClasses.length > 0) {
+          const classIds = emptyClasses.map(c => c.id);
+
+          for (const classId of classIds) {
+            const assignResponse = await fetch('/api/admin-operation', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                operation: 'update',
+                table: 'subject_classes',
+                data: { teacher_id: selectedTeacher },
+                filters: { subject_id: newSubject.id, class_id: classId },
+              }),
+            });
+
+            const assignResult = await assignResponse.json();
+            if (!assignResponse.ok) {
+              console.warn('Failed to assign teacher to class:', classId, assignResult.error);
+            }
+          }
         }
       }
 

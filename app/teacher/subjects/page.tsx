@@ -49,7 +49,8 @@ export default function TeacherSubjectsPage() {
           id,
           subject_id,
           class_id,
-          subjects(id, name, education_level, department, religion, is_optional, teacher_id),
+          teacher_id,
+          subjects(id, name, education_level, department, religion, is_optional),
           classes(id, name, level, education_level, department)
         `)
         .eq('teacher_id', teacher.id);
@@ -81,6 +82,7 @@ export default function TeacherSubjectsPage() {
           if (!subjectMap.has(subjectId)) {
             subjectMap.set(subjectId, {
               ...item.subjects,
+              teacher_id: item.teacher_id, // Get teacher_id from subject_classes, not subjects
               applicableClasses: []
             });
           }

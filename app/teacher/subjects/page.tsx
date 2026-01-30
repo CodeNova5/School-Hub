@@ -13,6 +13,8 @@ import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 
 interface SubjectWithClasses extends Subject {
   applicableClasses: Class[];
+  classId?: string; // Add classId for grouping by class
+  className?: string;
 }
 
 export default function TeacherSubjectsPage() {
@@ -72,32 +74,22 @@ export default function TeacherSubjectsPage() {
       const classesData = Array.from(uniqueClasses.values());
       setMyClasses(classesData);
 
-      // Extract unique subjects with their applicable classes
-      const subjectMap = new Map<string, SubjectWithClasses>();
+      // Create subject entries for each class assignment
+      const subjectsList: SubjectWithClasses[] = [];
       
       subjectClassesData.forEach((item: any) => {
-        if (item.subjects) {
-          const subjectId = item.subjects.id;
-          
-          if (!subjectMap.has(subjectId)) {
-            subjectMap.set(subjectId, {
-              ...item.subjects,
-              teacher_id: item.teacher_id, // Get teacher_id from subject_classes, not subjects
-              applicableClasses: []
-            });
-          }
-          
-          // Add the class to this subject's applicable classes
-          if (item.classes) {
-            const subject = subjectMap.get(subjectId)!;
-            if (!subject.applicableClasses.some((c: Class) => c.id === item.classes.id)) {
-              subject.applicableClasses.push(item.classes);
-            }
-          }
+        if (item.subjects && item.classes) {
+          subjectsList.push({
+            ...item.subjects,
+            teacher_id: item.teacher_id,
+            classId: item.classes.id,
+            className: item.classes.name,
+            applicableClasses: [item.classes]
+          });
         }
       });
 
-      setSubjects(Array.from(subjectMap.values()));
+      setSubjects(subjectsList);
 
       const { data: teachersData } = await supabase
         .from('teachers')
@@ -143,10 +135,7 @@ export default function TeacherSubjectsPage() {
   };
 
   const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
-    let groupKey: string = subject.education_level;
-    if (subject.education_level === 'SSS' && subject.department) {
-      groupKey = `SSS - ${subject.department}`;
-    }
+    const groupKey = subject.className || 'Unknown Class';
     if (!acc[groupKey]) acc[groupKey] = [];
     acc[groupKey].push(subject);
     return acc;
@@ -244,24 +233,27 @@ export default function TeacherSubjectsPage() {
             </CardContent>
           </Card>
         ) : (
-          Object.entries(groupedSubjects).map(([level, levelSubjects]) => (
-            <Card key={level}>
+          Object.entries(groupedSubjects).map(([className, classSubjects]) => (
+            <Card key={className}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Badge className={getLevelColor(levelSubjects[0].education_level)}>
-                    {level}
+                  <Badge className={getLevelColor(classSubjects[0].education_level)}>
+                    {className}
                   </Badge>
+                  <span className="text-xs text-gray-500">
+                    {classSubjects[0].education_level}
+                  </span>
                   <span className="text-sm font-normal text-gray-600">
-                    ({levelSubjects.length} subjects)
+                    ({classSubjects.length} subject{classSubjects.length !== 1 ? 's' : ''})
                   </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {levelSubjects.map((subject) => {
+                  {classSubjects.map((subject) => {
                     const teacher = teachers.find((t) => t.id === subject.teacher_id);
                     return (
-                      <Card key={subject.id} className="hover:shadow-lg transition-shadow">
+                      <Card key={`${subject.id}-${subject.classId}`} className="hover:shadow-lg transition-shadow">
                         <CardContent className="p-4">
                           <div className="flex items-start gap-3 mb-3">
                             <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
@@ -310,7 +302,6 @@ export default function TeacherSubjectsPage() {
                             >
                               View Analytics →
                             </a>
-
                           </div>
                         </CardContent>
                       </Card>

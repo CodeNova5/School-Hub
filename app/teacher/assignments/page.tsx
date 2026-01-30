@@ -46,7 +46,7 @@ interface Assignment {
 /* CONSTANTS                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const PAGE_SIZE = 2;
+const PAGE_SIZE = 10;
 
 /* -------------------------------------------------------------------------- */
 /* SKELETONS                                                                  */
@@ -99,8 +99,6 @@ export default function AssignmentsPage() {
     "all" | "no-submissions" | "submitted" | "pending-grading" | "fully-graded" | "overdue"
   >("all");
   const [filters, setFilters] = useState<{
-    sessionId?: string;
-    termId?: string;
     classId?: string;
   }>({});
 
@@ -121,13 +119,10 @@ export default function AssignmentsPage() {
     teacherId: string,
     page: number,
     filters: {
-      sessionId?: string;
-      termId?: string;
       classId?: string;
     }
   ) {
-    return `${teacherId}-${page}-${filters.sessionId ?? "all"}-${filters.termId ?? "all"
-      }-${filters.classId ?? "all"}`;
+    return `${teacherId}-${page}-${filters.classId ?? "all"}`;
   }
 
 
@@ -156,6 +151,19 @@ export default function AssignmentsPage() {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
+      // Get current session and term
+      const { data: currentSession } = await supabase
+        .from("sessions")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+
+      const { data: currentTerm } = await supabase
+        .from("terms")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+
       let query = supabase
         .from("assignments")
         .select(
@@ -170,11 +178,13 @@ export default function AssignmentsPage() {
         .eq("teacher_id", teacherId);
 
       /* -------------------- SERVER-SIDE FILTERS -------------------- */
-      if (filters.sessionId)
-        query = query.eq("session_id", filters.sessionId);
+      if (currentSession) {
+        query = query.eq("session_id", currentSession.id);
+      }
 
-      if (filters.termId)
-        query = query.eq("term_id", filters.termId);
+      if (currentTerm) {
+        query = query.eq("term_id", currentTerm.id);
+      }
 
       if (filters.classId)
         query = query.eq("class_id", filters.classId);
@@ -337,8 +347,20 @@ export default function AssignmentsPage() {
 
         {/* Filters */}
         <Card>
-          <CardContent className="flex flex-col gap-4 pt-6">
-            <div className="flex flex-wrap gap-4">
+          <CardHeader>
+            <CardTitle className="text-lg">Filter Assignments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="relative">
+                <Input
+                  placeholder="Search by title or description..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
               {teacherId && (
                 <AssignmentFilters
                   teacherId={teacherId}
@@ -346,37 +368,35 @@ export default function AssignmentsPage() {
                 />
               )}
 
-
-              <Input
-                placeholder="Search..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="max-w-xs"
-              />
-
               <select
-                className="border rounded-md px-3 py-2"
+                className="border rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
               >
-                <option value="all">All</option>
+                <option value="all">All Status</option>
                 <option value="no-submissions">No submissions</option>
-                <option value="submitted">Submitted</option>
+                <option value="submitted">Has submissions</option>
                 <option value="pending-grading">Pending grading</option>
                 <option value="fully-graded">Fully graded</option>
                 <option value="overdue">Overdue</option>
               </select>
-
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("all");
-                }}
-              >
-                Clear
-              </Button>
             </div>
+            
+            {(search || statusFilter !== "all" || filters.classId) && (
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("all");
+                    setFilters({});
+                  }}
+                >
+                  Clear all filters
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -400,49 +420,71 @@ export default function AssignmentsPage() {
                 {filtered.map((a) => (
                   <div
                     key={a.id}
-                    className="border rounded-lg p-4 hover:shadow-md transition"
+                    className="border rounded-lg p-5 hover:shadow-lg transition-all bg-white"
                   >
-                    <div className="flex justify-between gap-4">
-                      <div>
-                        <h3 className="font-semibold text-lg">{a.title}</h3>
-                        <p className="text-sm text-gray-600">
-                          {a.description}
+                    <div className="flex justify-between gap-6">
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-semibold text-lg text-gray-900">{a.title}</h3>
+                          <div className="flex gap-2">
+                            {a.isOverdue && (
+                              <Badge className="bg-red-500 text-white">
+                                Overdue
+                              </Badge>
+                            )}
+                            {!a.isOverdue && a.isFullyGraded && (
+                              <Badge className="bg-green-500 text-white">
+                                ✓ Fully graded
+                              </Badge>
+                            )}
+                            {!a.isOverdue && a.hasPendingGrading && a.submissionCount > 0 && (
+                              <Badge className="bg-yellow-500 text-white">
+                                Pending grading
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                          {a.description || "No description provided"}
                         </p>
 
-                        <div className="flex flex-wrap gap-2 mt-3">
+                        <div className="flex flex-wrap gap-2 items-center">
                           {a.classes && (
-                            <Badge variant="outline">{a.classes.name}</Badge>
+                            <Badge variant="outline" className="font-medium">
+                              <span className="text-xs">📚</span> {a.classes.name}
+                            </Badge>
                           )}
                           {a.subjects && (
-                            <Badge variant="secondary">{a.subjects.name}</Badge>
-                          )}
-                          {a.isOverdue && (
-                            <Badge className="bg-red-100 text-red-700">
-                              Overdue
+                            <Badge variant="secondary">
+                              {a.subjects.name}
                             </Badge>
                           )}
-                          {a.hasPendingGrading && (
-                            <Badge className="bg-yellow-100 text-yellow-700">
-                              Pending grading
-                            </Badge>
-                          )}
-                          {a.isFullyGraded && (
-                            <Badge className="bg-green-100 text-green-700">
-                              Fully graded
+                          <Badge variant="outline" className="text-xs">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            Due: {new Date(a.due_date).toLocaleDateString()}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {a.submissionCount} submission{a.submissionCount !== 1 ? 's' : ''}
+                          </Badge>
+                          {a.submissionCount > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {a.gradedCount}/{a.submissionCount} graded
                             </Badge>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col gap-2 flex-shrink-0">
                         <Link href={`/teacher/assignments/${a.id}`}>
-                          <Button size="sm" variant="outline">
-                            View
+                          <Button size="sm" className="w-full">
+                            View Details
                           </Button>
                         </Link>
                         <Button
                           size="sm"
-                          variant="destructive"
+                          variant="outline"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
                           onClick={() => handleDelete(a.id)}
                         >
                           <Trash2 className="h-4 w-4" />

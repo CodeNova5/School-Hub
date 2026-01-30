@@ -31,73 +31,18 @@ interface Class {
 interface AssignmentFiltersProps {
   teacherId: string;
   onChange: (filters: {
-    sessionId?: string;
-    termId?: string;
     classId?: string;
   }) => void;
 }
 
 export function AssignmentFilters({ teacherId, onChange }: AssignmentFiltersProps) {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [terms, setTerms] = useState<Term[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
-
-  const [sessionId, setSessionId] = useState<string>();
-  const [termId, setTermId] = useState<string>();
   const [classId, setClassId] = useState<string>();
-
-  /* -------------------- Load sessions -------------------- */
-  useEffect(() => {
-    loadSessions();
-  }, []);
-
-  async function loadSessions() {
-    const { data } = await supabase
-      .from("sessions")
-      .select("*")
-      .order("start_date", { ascending: false });
-
-    if (!data) return;
-
-    setSessions(data);
-
-    const current = data.find((s) => s.is_current);
-    if (current) {
-      setSessionId(current.id);
-      onChange({ sessionId: current.id });
-    }
-  }
-
-  /* -------------------- Load terms when session changes -------------------- */
-  useEffect(() => {
-    if (!sessionId) return;
-
-    loadTerms(sessionId);
-    setTermId(undefined);
-  }, [sessionId]);
-
-  async function loadTerms(sessionId: string) {
-    const { data } = await supabase
-      .from("terms")
-      .select("*")
-      .eq("session_id", sessionId)
-      .order("start_date");
-
-    if (!data) return;
-
-    setTerms(data);
-
-    const current = data.find((t) => t.is_current);
-    if (current) {
-      setTermId(current.id);
-      onChange({ sessionId, termId: current.id });
-    }
-  }
 
   /* -------------------- Load classes -------------------- */
   useEffect(() => {
     loadClasses();
-  }, []);
+  }, [teacherId]);
 
   async function loadClasses() {
     if (!teacherId) return;
@@ -122,34 +67,25 @@ export function AssignmentFilters({ teacherId, onChange }: AssignmentFiltersProp
 
   /* -------------------- Notify parent -------------------- */
   useEffect(() => {
-    onChange({ sessionId, termId, classId });
-  }, [sessionId, termId, classId]);
+    onChange({ classId });
+  }, [classId]);
 
   return (
-    <div className="flex flex-wrap gap-3">
-      {/* Session */}
-      <Select value={sessionId} onValueChange={setSessionId}>
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Session" />
-        </SelectTrigger>
-        <SelectContent>
-          {sessions.map((s) => (
-            <SelectItem key={s.id} value={s.id}>
-              {s.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Term */}
-      <Select
-        value={termId}
-        onValueChange={setTermId}
-        disabled={!sessionId}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Term" />
-        </SelectTrigger>
+    <Select value={classId} onValueChange={setClassId}>
+      <SelectTrigger className="w-full">
+        <SelectValue placeholder="All Classes" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">All Classes</SelectItem>
+        {classes.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
         <SelectContent>
           {terms.map((t) => (
             <SelectItem key={t.id} value={t.id}>

@@ -29,6 +29,7 @@ export default function CalendarPage() {
   const [filterType, setFilterType] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [isAllDayChecked, setIsAllDayChecked] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -86,14 +87,26 @@ export default function CalendarPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
+    const isAllDay = formData.get('is_all_day') === 'on';
+    let startDate = formData.get('start_date') as string;
+    let endDate = formData.get('end_date') as string;
+
+    // If all-day event, set time to full 24 hours (00:00:00 to 23:59:59)
+    if (isAllDay) {
+      const startDateOnly = startDate.split('T')[0];
+      const endDateOnly = endDate.split('T')[0];
+      startDate = `${startDateOnly}T00:00:00`;
+      endDate = `${endDateOnly}T23:59:59`;
+    }
+
     const eventData = {
       title: formData.get('title') as string,
       description: formData.get('description') as string,
       event_type: formData.get('event_type') as string,
-      start_date: formData.get('start_date') as string,
-      end_date: formData.get('end_date') as string,
+      start_date: startDate,
+      end_date: endDate,
       location: formData.get('location') as string,
-      is_all_day: formData.get('is_all_day') === 'on',
+      is_all_day: isAllDay,
     };
 
     if (editingEvent) {
@@ -157,15 +170,16 @@ export default function CalendarPage() {
       fetchEvents();
     }
   }
-
   function openEditDialog(event: Event) {
     setEditingEvent(event);
+    setIsAllDayChecked(event.is_all_day || false);
     setIsDialogOpen(true);
   }
 
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingEvent(null);
+    setIsAllDayChecked(false);
   }
 
   const eventTypeColors: Record<string, string> = {
@@ -200,13 +214,12 @@ export default function CalendarPage() {
       <div className="space-y-6">
         {/* ================= HEADER ================= */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Calendar</h1>
-            <p className="text-gray-600 mt-1">Manage school events and schedule</p>
-          </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingEvent(null)}>
+              <Button onClick={() => {
+                setEditingEvent(null);
+                setIsAllDayChecked(false);
+              }}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Event
               </Button>
@@ -217,11 +230,11 @@ export default function CalendarPage() {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="title">Event Title</Label>
+                  <Label htmlFor="title">Title</Label>
                   <Input
                     id="title"
                     name="title"
-                    placeholder="e.g., Mid-term Exams"
+                    placeholder="Event title..."
                     defaultValue={editingEvent?.title}
                     required
                   />
@@ -253,22 +266,30 @@ export default function CalendarPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="start_date">Start Date & Time</Label>
+                    <Label htmlFor="start_date">Start Date{!isAllDayChecked && ' & Time'}</Label>
                     <Input
                       id="start_date"
                       name="start_date"
-                      type="datetime-local"
-                      defaultValue={editingEvent?.start_date?.slice(0, 16)}
+                      type={isAllDayChecked ? "date" : "datetime-local"}
+                      defaultValue={editingEvent?.is_all_day 
+                        ? editingEvent?.start_date?.slice(0, 10)
+                        : editingEvent?.start_date?.slice(0, 16)
+                      }
+                      key={`start-${isAllDayChecked}`}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="end_date">End Date & Time</Label>
+                    <Label htmlFor="end_date">End Date{!isAllDayChecked && ' & Time'}</Label>
                     <Input
                       id="end_date"
                       name="end_date"
-                      type="datetime-local"
-                      defaultValue={editingEvent?.end_date?.slice(0, 16)}
+                      type={isAllDayChecked ? "date" : "datetime-local"}
+                      defaultValue={editingEvent?.is_all_day
+                        ? editingEvent?.end_date?.slice(0, 10)
+                        : editingEvent?.end_date?.slice(0, 16)
+                      }
+                      key={`end-${isAllDayChecked}`}
                       required
                     />
                   </div>
@@ -278,7 +299,7 @@ export default function CalendarPage() {
                   <Input
                     id="location"
                     name="location"
-                    placeholder="e.g., Main Hall"
+                    placeholder="Event location..."
                     defaultValue={editingEvent?.location}
                   />
                 </div>
@@ -287,7 +308,8 @@ export default function CalendarPage() {
                     type="checkbox"
                     id="is_all_day"
                     name="is_all_day"
-                    defaultChecked={editingEvent?.is_all_day}
+                    checked={isAllDayChecked}
+                    onChange={(e) => setIsAllDayChecked(e.target.checked)}
                     className="h-4 w-4"
                   />
                   <Label htmlFor="is_all_day" className="cursor-pointer">All Day Event</Label>

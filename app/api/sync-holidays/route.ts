@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +11,12 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Use service role to bypass RLS
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const currentYear = new Date().getFullYear();
     
@@ -67,7 +73,7 @@ export async function POST(request: NextRequest) {
       is_all_day: true,
     }));
 
-    // Insert holidays into the database
+    // Insert holidays into the database using service role
     const { data: insertedEvents, error } = await supabase
       .from('events')
       .insert(eventsToInsert)

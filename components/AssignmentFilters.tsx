@@ -10,19 +10,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-interface Session {
-  id: string;
-  name: string;
-  is_current: boolean;
-}
-
-interface Term {
-  id: string;
-  name: string;
-  session_id: string;
-  is_current: boolean;
-}
-
 interface Class {
   id: string;
   name: string;
@@ -84,30 +71,5 @@ export function AssignmentFilters({ teacherId, onChange }: AssignmentFiltersProp
         ))}
       </SelectContent>
     </Select>
-  );
-}
-        <SelectContent>
-          {terms.map((t) => (
-            <SelectItem key={t.id} value={t.id}>
-              {t.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Class */}
-      <Select value={classId} onValueChange={setClassId}>
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Class" />
-        </SelectTrigger>
-        <SelectContent>
-          {classes.map((c) => (
-            <SelectItem key={c.id} value={c.id}>
-              {c.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
   );
 }

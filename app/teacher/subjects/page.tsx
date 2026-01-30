@@ -42,13 +42,20 @@ export default function TeacherSubjectsPage() {
         return;
       }
 
+      // Fetch all subject_classes for this teacher with subject and class details
       const { data: subjectClassesData } = await supabase
         .from('subject_classes')
-        .select('class_id, classes(id, name, level, education_level)')
+        .select(`
+          id,
+          subject_id,
+          class_id,
+          subjects(id, name, education_level, department, religion, is_optional, teacher_id),
+          classes(id, name, level, education_level, department)
+        `)
         .eq('teacher_id', teacher.id);
 
       if (!subjectClassesData || subjectClassesData.length === 0) {
-        toast.error('No classes assigned to you');
+        toast.error('No subjects assigned to you');
         setIsLoading(false);
         return;
       }
@@ -62,50 +69,33 @@ export default function TeacherSubjectsPage() {
       });
 
       const classesData = Array.from(uniqueClasses.values());
+      setMyClasses(classesData);
 
-      if (classesData) {
-        setMyClasses(classesData);
-
-        const uniqueLevelCategories = Array.from(new Set(classesData.map((c: any) => c.education_level)));
-
-        let subjectsQuery = supabase
-          .from('subjects')
-          .select('*')
-          .in('education_level', uniqueLevelCategories);
-
-        const sssClasses = classesData.filter((c) => c.education_level === 'SSS');
-        if (sssClasses.length > 0) {
-          const departments = Array.from(new Set(sssClasses.map((c) => c.department).filter(Boolean)));
-          if (departments.length > 0) {
-            subjectsQuery = subjectsQuery.or(
-              `education_level.neq.SSS,and(education_level.eq.SSS,department.in.(${departments.join(',')}))`
-            );
+      // Extract unique subjects with their applicable classes
+      const subjectMap = new Map<string, SubjectWithClasses>();
+      
+      subjectClassesData.forEach((item: any) => {
+        if (item.subjects) {
+          const subjectId = item.subjects.id;
+          
+          if (!subjectMap.has(subjectId)) {
+            subjectMap.set(subjectId, {
+              ...item.subjects,
+              applicableClasses: []
+            });
+          }
+          
+          // Add the class to this subject's applicable classes
+          if (item.classes) {
+            const subject = subjectMap.get(subjectId)!;
+            if (!subject.applicableClasses.some((c: Class) => c.id === item.classes.id)) {
+              subject.applicableClasses.push(item.classes);
+            }
           }
         }
+      });
 
-        const { data: subjectsData } = await subjectsQuery.order('education_level').order('name');
-
-        if (subjectsData) {
-          const subjectsWithClasses = subjectsData.map((subject) => {
-            let applicableClasses: Class[] = [];
-
-            if (subject.education_level === 'SSS') {
-              applicableClasses = classesData.filter(
-                (c) => c.education_level === 'SSS' && c.department === subject.department
-              );
-            } else {
-              applicableClasses = classesData.filter((c) => c.education_level === subject.education_level);
-            }
-
-            return {
-              ...subject,
-              applicableClasses,
-            };
-          });
-
-          setSubjects(subjectsWithClasses);
-        }
-      }
+      setSubjects(Array.from(subjectMap.values()));
 
       const { data: teachersData } = await supabase
         .from('teachers')

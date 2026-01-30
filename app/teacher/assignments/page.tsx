@@ -313,11 +313,6 @@ export default function AssignmentsPage() {
     }
   }
 
-  function invalidateAssignmentsCache() {
-    assignmentsCache.clear();
-  }
-
-
 
   /* ---------------------------------------------------------------------- */
   /* RENDER                                                                 */

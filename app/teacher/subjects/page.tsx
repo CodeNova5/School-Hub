@@ -42,29 +42,31 @@ export default function TeacherSubjectsPage() {
         return;
       }
 
-      const { data: teacherClassesData } = await supabase
-        .from('teacher_classes')
-        .select('class_id')
+      const { data: subjectClassesData } = await supabase
+        .from('subject_classes')
+        .select('class_id, classes(id, name, level, education_level)')
         .eq('teacher_id', teacher.id);
 
-      const classIds = teacherClassesData?.map((tc) => tc.class_id) || [];
-
-      if (classIds.length === 0) {
+      if (!subjectClassesData || subjectClassesData.length === 0) {
         toast.error('No classes assigned to you');
         setIsLoading(false);
         return;
       }
 
-      const { data: classesData } = await supabase
-        .from('classes')
-        .select('*')
-        .in('id', classIds)
-        .order('level');
+      // Extract unique classes
+      const uniqueClasses = new Map();
+      subjectClassesData.forEach((item: any) => {
+        if (item.classes) {
+          uniqueClasses.set(item.classes.id, item.classes);
+        }
+      });
+
+      const classesData = Array.from(uniqueClasses.values());
 
       if (classesData) {
         setMyClasses(classesData);
 
-        const uniqueLevelCategories = Array.from(new Set(classesData.map((c) => c.education_level)));
+        const uniqueLevelCategories = Array.from(new Set(classesData.map((c: any) => c.education_level)));
 
         let subjectsQuery = supabase
           .from('subjects')

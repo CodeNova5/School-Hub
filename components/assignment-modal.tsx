@@ -91,28 +91,43 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
 
   async function loadClasses() {
     const { data } = await supabase
-      .from('teacher_classes')
-      .select('class_id')
+      .from('subject_classes')
+      .select('class_id, classes(id, name, level, education_level)')
       .eq('teacher_id', teacherId);
 
     if (!data) return;
 
-    const classIds = data.map((c) => c.class_id);
-    const { data: classesData } = await supabase
-      .from('classes')
-      .select('*')
-      .in('id', classIds);
+    // Extract unique classes
+    const uniqueClasses = new Map<string, ClassType>();
+    data.forEach((item: any) => {
+      if (item.classes) {
+        uniqueClasses.set(item.classes.id, item.classes);
+      }
+    });
 
-    setClasses(classesData || []);
+    setClasses(Array.from(uniqueClasses.values()));
   }
 
   async function loadSubjects() {
-    const { data } = await supabase
-      .from('subjects')
-      .select('*')
-      .order('name');
+    if (!selectedClass) {
+      setSubjects([]);
+      return;
+    }
 
-    setSubjects(data || []);
+    // Load only subjects that this teacher teaches for the selected class
+    const { data } = await supabase
+      .from('subject_classes')
+      .select('subject_id, subjects(id, name, education_level, department, religion)')
+      .eq('teacher_id', teacherId)
+      .eq('class_id', selectedClass);
+
+    if (!data) return;
+
+    const subjectsData = data
+      .map((item: any) => item.subjects)
+      .filter((s): s is Subject => s !== null);
+
+    setSubjects(subjectsData);
   }
 
   async function handleSave() {

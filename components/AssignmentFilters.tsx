@@ -101,21 +101,23 @@ export function AssignmentFilters({ teacherId, onChange }: AssignmentFiltersProp
 
   async function loadClasses() {
     if (!teacherId) return;
-    const { data: tc } = await supabase
-      .from("teacher_classes")
-      .select("class_id")
-      .eq("teacher_id", teacherId);
-
-    if (!tc) return;
-
-    const classIds = tc.map((c) => c.class_id);
 
     const { data } = await supabase
-      .from("classes")
-      .select("*")
-      .in("id", classIds);
+      .from("subject_classes")
+      .select("class_id, classes(id, name)")
+      .eq("teacher_id", teacherId);
 
-    setClasses(data || []);
+    if (!data) return;
+
+    // Extract unique classes
+    const uniqueClasses = new Map<string, Class>();
+    data.forEach((item: any) => {
+      if (item.classes) {
+        uniqueClasses.set(item.classes.id, item.classes);
+      }
+    });
+
+    setClasses(Array.from(uniqueClasses.values()));
   }
 
   /* -------------------- Notify parent -------------------- */

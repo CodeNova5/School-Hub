@@ -15,6 +15,7 @@ interface SubjectWithClasses extends Subject {
   applicableClasses: Class[];
   classId?: string; // Add classId for grouping by class
   className?: string;
+  subjectClassId?: string; // Add subject_classes.id for unique analytics link
 }
 
 export default function TeacherSubjectsPage() {
@@ -84,6 +85,7 @@ export default function TeacherSubjectsPage() {
             teacher_id: item.teacher_id,
             classId: item.classes.id,
             className: item.classes.name,
+            subjectClassId: item.id, // Store subject_classes.id for analytics
             applicableClasses: [item.classes]
           });
         }
@@ -297,7 +299,7 @@ export default function TeacherSubjectsPage() {
 
                           <div className="border-t pt-3">
                             <a
-                              href={`/teacher/subjects/${subject.id}/analytics`}
+                              href={`/teacher/subjects/${subject.subjectClassId}/analytics`}
                               className="text-blue-600 text-sm font-medium hover:underline mt-3 inline-block text-decoration-none"
                             >
                               View Analytics →

@@ -6,7 +6,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, Save, BookOpen } from "lucide-react";
+import { ArrowLeft, Loader2, Save, BookOpen, CheckCircle2, Circle, GraduationCap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -139,13 +139,13 @@ export default function StudentSubjectsPage() {
         return true;
       });
       
-      setAvailableSubjects(
-        filteredSubjects.map((sc: any) => ({
-          ...sc,
-          subjects: Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects,
-          teachers: Array.isArray(sc.teachers) ? sc.teachers[0] : sc.teachers,
-        }))
-      );
+      const mappedSubjects = filteredSubjects.map((sc: any) => ({
+        ...sc,
+        subjects: Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects,
+        teachers: Array.isArray(sc.teachers) ? sc.teachers[0] : sc.teachers,
+      }));
+      
+      setAvailableSubjects(mappedSubjects);
 
       // Fetch student's current subjects from student_subjects table
       const { data: studentSubjectsData, error: studentSubjectsError } = await supabase
@@ -159,6 +159,14 @@ export default function StudentSubjectsPage() {
         const subjectClassIds = new Set(
           studentSubjectsData?.map((ss) => ss.subject_class_id) || []
         );
+        
+        // Automatically select all compulsory subjects
+        mappedSubjects.forEach((sc: any) => {
+          if (!sc.subjects.is_optional) {
+            subjectClassIds.add(sc.id);
+          }
+        });
+        
         setSelectedSubjects(subjectClassIds);
       }
     } catch (error) {
@@ -209,7 +217,13 @@ export default function StudentSubjectsPage() {
     }
   }
 
-  function toggleSubject(subjectClassId: string) {
+  function toggleSubject(subjectClassId: string, isOptional: boolean) {
+    // Don't allow deselecting compulsory subjects
+    if (!isOptional && selectedSubjects.has(subjectClassId)) {
+      toast.info("Compulsory subjects cannot be deselected");
+      return;
+    }
+    
     const newSelected = new Set(selectedSubjects);
     if (newSelected.has(subjectClassId)) {
       newSelected.delete(subjectClassId);
@@ -238,29 +252,45 @@ export default function StudentSubjectsPage() {
 
   return (
     <DashboardLayout role="admin">
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-6">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        <div>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.back()}
-            className="mb-4"
+            className="mb-4 hover:bg-muted"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">Manage Student Subjects</h1>
-              <p className="text-muted-foreground mt-1">{studentName}</p>
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <GraduationCap className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-3xl font-bold">Manage Student Subjects</h1>
+                  <p className="text-muted-foreground mt-1">{studentName}</p>
+                </div>
+              </div>
               {studentClass && (
-                <p className="text-sm text-muted-foreground">
-                  Class: {studentClass.name} ({studentClass.education_level})
-                  {studentClass.department && ` - ${studentClass.department}`}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 ml-14">
+                  <Badge variant="outline" className="text-sm">
+                    {studentClass.name}
+                  </Badge>
+                  <Badge variant="outline" className="text-sm">
+                    {studentClass.education_level}
+                  </Badge>
+                  {studentClass.department && (
+                    <Badge variant="outline" className="text-sm">
+                      {studentClass.department}
+                    </Badge>
+                  )}
+                </div>
               )}
             </div>
-            <Button onClick={handleSaveSubjects} disabled={saving}>
+            <Button onClick={handleSaveSubjects} disabled={saving} size="lg" className="shadow-md">
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -278,103 +308,41 @@ export default function StudentSubjectsPage() {
 
         <div className="grid gap-6">
           {/* Compulsory Subjects */}
-          <Card>
-            <CardHeader>
+          <Card className="shadow-sm">
+            <CardHeader className="bg-muted/30">
               <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Compulsory Subjects
-                <Badge variant="secondary">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                </div>
+                <span>Compulsory Subjects</span>
+                <Badge variant="default" className="ml-auto">
                   {compulsorySubjects.filter((sc) => selectedSubjects.has(sc.id)).length}/
                   {compulsorySubjects.length}
                 </Badge>
               </CardTitle>
+              <p className="text-sm text-muted-foreground mt-2">
+                These subjects are mandatory and automatically selected for all students
+              </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {compulsorySubjects.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">
-                  No compulsory subjects available for this class
-                </p>
+                <div className="text-center py-12">
+                  <BookOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
+                  <p className="text-muted-foreground">
+                    No compulsory subjects available for this class
+                  </p>
+                </div>
               ) : (
                 <div className="grid gap-3">
                   {compulsorySubjects.map((subjectClass) => (
                     <div
                       key={subjectClass.id}
-                      className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                      className="flex items-start space-x-3 p-4 border-2 border-primary/20 bg-primary/5 rounded-lg transition-all"
                     >
-                      <Checkbox
-                        id={subjectClass.id}
-                        checked={selectedSubjects.has(subjectClass.id)}
-                        onCheckedChange={() => toggleSubject(subjectClass.id)}
-                      />
-                      <label
-                        htmlFor={subjectClass.id}
-                        className="flex-1 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {subjectClass.subjects.name}
-                          </span>
-                          {subjectClass.subjects.subject_code && (
-                            <Badge variant="outline" className="text-xs">
-                              {subjectClass.subjects.subject_code}
-                            </Badge>
-                          )}
-                          {subjectClass.subjects.department && (
-                            <Badge variant="secondary" className="text-xs">
-                              {subjectClass.subjects.department}
-                            </Badge>
-                          )}
-                          {subjectClass.subjects.religion && (
-                            <Badge variant="secondary" className="text-xs">
-                              {subjectClass.subjects.religion}
-                            </Badge>
-                          )}
-                        </div>
-                        {subjectClass.teachers && (
-                          <p className="text-sm text-muted-foreground">
-                            Teacher: {subjectClass.teachers.first_name}{" "}
-                            {subjectClass.teachers.last_name}
-                          </p>
-                        )}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Optional Subjects */}
-          {optionalSubjects.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  Optional Subjects
-                  <Badge variant="secondary">
-                    {optionalSubjects.filter((sc) => selectedSubjects.has(sc.id)).length}/
-                    {optionalSubjects.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3">
-                  {optionalSubjects.map((subjectClass) => (
-                    <div
-                      key={subjectClass.id}
-                      className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <Checkbox
-                        id={subjectClass.id}
-                        checked={selectedSubjects.has(subjectClass.id)}
-                        onCheckedChange={() => toggleSubject(subjectClass.id)}
-                      />
-                      <label
-                        htmlFor={subjectClass.id}
-                        className="flex-1 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
+                      <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="font-semibold text-base">
                             {subjectClass.subjects.name}
                           </span>
                           {subjectClass.subjects.subject_code && (
@@ -383,7 +351,7 @@ export default function StudentSubjectsPage() {
                             </Badge>
                           )}
                           <Badge variant="default" className="text-xs">
-                            Optional
+                            Required
                           </Badge>
                           {subjectClass.subjects.department && (
                             <Badge variant="secondary" className="text-xs">
@@ -396,15 +364,101 @@ export default function StudentSubjectsPage() {
                             </Badge>
                           )}
                         </div>
-                        {subjectClass.teachers && (
+                        {subjectClass.teachers ? (
                           <p className="text-sm text-muted-foreground">
-                            Teacher: {subjectClass.teachers.first_name}{" "}
+                            👨‍🏫 {subjectClass.teachers.first_name}{" "}
                             {subjectClass.teachers.last_name}
                           </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">
+                            No teacher assigned
+                          </p>
                         )}
-                      </label>
+                      </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Optional Subjects */}
+          {optionalSubjects.length > 0 && (
+            <Card className="shadow-sm">
+              <CardHeader className="bg-muted/30">
+                <CardTitle className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-500/10 rounded-lg">
+                    <Circle className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <span>Optional Subjects</span>
+                  <Badge variant="secondary" className="ml-auto">
+                    {optionalSubjects.filter((sc) => selectedSubjects.has(sc.id)).length}/
+                    {optionalSubjects.length} selected
+                  </Badge>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Select additional subjects the student wants to take
+                </p>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="grid gap-3">
+                  {optionalSubjects.map((subjectClass) => {
+                    const isSelected = selectedSubjects.has(subjectClass.id);
+                    return (
+                      <div
+                        key={subjectClass.id}
+                        className={`flex items-start space-x-3 p-4 border-2 rounded-lg hover:border-primary/50 transition-all cursor-pointer ${
+                          isSelected ? "border-blue-500/50 bg-blue-500/5" : "border-border hover:bg-muted/30"
+                        }`}
+                        onClick={() => toggleSubject(subjectClass.id, true)}
+                      >
+                        <Checkbox
+                          id={subjectClass.id}
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSubject(subjectClass.id, true)}
+                          className="mt-0.5"
+                        />
+                        <label
+                          htmlFor={subjectClass.id}
+                          className="flex-1 cursor-pointer min-w-0"
+                        >
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-semibold text-base">
+                              {subjectClass.subjects.name}
+                            </span>
+                            {subjectClass.subjects.subject_code && (
+                              <Badge variant="outline" className="text-xs">
+                                {subjectClass.subjects.subject_code}
+                              </Badge>
+                            )}
+                            <Badge variant="secondary" className="text-xs">
+                              Optional
+                            </Badge>
+                            {subjectClass.subjects.department && (
+                              <Badge variant="secondary" className="text-xs">
+                                {subjectClass.subjects.department}
+                              </Badge>
+                            )}
+                            {subjectClass.subjects.religion && (
+                              <Badge variant="secondary" className="text-xs">
+                                {subjectClass.subjects.religion}
+                              </Badge>
+                            )}
+                          </div>
+                          {subjectClass.teachers ? (
+                            <p className="text-sm text-muted-foreground">
+                              👨‍🏫 {subjectClass.teachers.first_name}{" "}
+                              {subjectClass.teachers.last_name}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">
+                              No teacher assigned
+                            </p>
+                          )}
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -412,27 +466,38 @@ export default function StudentSubjectsPage() {
         </div>
 
         {/* Summary */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Summary</CardTitle>
+        <Card className="shadow-sm border-2">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-blue-500/5">
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Subject Selection Summary
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Selected:</span>
-                <span className="font-medium">{selectedSubjects.size} subjects</span>
+          <CardContent className="pt-6">
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="flex flex-col items-center p-4 bg-primary/5 rounded-lg">
+                <div className="text-3xl font-bold text-primary mb-1">
+                  {selectedSubjects.size}
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  Total Subjects
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Compulsory:</span>
-                <span className="font-medium">
+              <div className="flex flex-col items-center p-4 bg-green-500/10 rounded-lg">
+                <div className="text-3xl font-bold text-green-600 mb-1">
                   {compulsorySubjects.filter((sc) => selectedSubjects.has(sc.id)).length}
-                </span>
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  Compulsory
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Optional:</span>
-                <span className="font-medium">
+              <div className="flex flex-col items-center p-4 bg-blue-500/10 rounded-lg">
+                <div className="text-3xl font-bold text-blue-600 mb-1">
                   {optionalSubjects.filter((sc) => selectedSubjects.has(sc.id)).length}
-                </span>
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  Optional
+                </div>
               </div>
             </div>
           </CardContent>

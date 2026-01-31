@@ -306,6 +306,44 @@ export default function StudentSubjectsPage() {
           </div>
         </div>
 
+         {/* Summary */}
+        <Card className="shadow-sm border-2">
+          <CardHeader className="bg-gradient-to-r from-primary/5 to-blue-500/5">
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Subject Selection Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="flex flex-col items-center p-4 bg-primary/5 rounded-lg">
+                <div className="text-3xl font-bold text-primary mb-1">
+                  {selectedSubjects.size}
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  Total Subjects
+                </div>
+              </div>
+              <div className="flex flex-col items-center p-4 bg-green-500/10 rounded-lg">
+                <div className="text-3xl font-bold text-green-600 mb-1">
+                  {compulsorySubjects.filter((sc) => selectedSubjects.has(sc.id)).length}
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  Compulsory
+                </div>
+              </div>
+              <div className="flex flex-col items-center p-4 bg-blue-500/10 rounded-lg">
+                <div className="text-3xl font-bold text-blue-600 mb-1">
+                  {optionalSubjects.filter((sc) => selectedSubjects.has(sc.id)).length}
+                </div>
+                <div className="text-sm text-muted-foreground font-medium">
+                  Optional
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid gap-6">
           {/* Compulsory Subjects */}
           <Card className="shadow-sm">
@@ -465,43 +503,7 @@ export default function StudentSubjectsPage() {
           )}
         </div>
 
-        {/* Summary */}
-        <Card className="shadow-sm border-2">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-blue-500/5">
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
-              Subject Selection Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="flex flex-col items-center p-4 bg-primary/5 rounded-lg">
-                <div className="text-3xl font-bold text-primary mb-1">
-                  {selectedSubjects.size}
-                </div>
-                <div className="text-sm text-muted-foreground font-medium">
-                  Total Subjects
-                </div>
-              </div>
-              <div className="flex flex-col items-center p-4 bg-green-500/10 rounded-lg">
-                <div className="text-3xl font-bold text-green-600 mb-1">
-                  {compulsorySubjects.filter((sc) => selectedSubjects.has(sc.id)).length}
-                </div>
-                <div className="text-sm text-muted-foreground font-medium">
-                  Compulsory
-                </div>
-              </div>
-              <div className="flex flex-col items-center p-4 bg-blue-500/10 rounded-lg">
-                <div className="text-3xl font-bold text-blue-600 mb-1">
-                  {optionalSubjects.filter((sc) => selectedSubjects.has(sc.id)).length}
-                </div>
-                <div className="text-sm text-muted-foreground font-medium">
-                  Optional
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+       
       </div>
     </DashboardLayout>
   );

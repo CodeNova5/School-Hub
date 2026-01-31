@@ -768,6 +768,46 @@ INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_b
 ('Friday', 7, '11:00', '11:45', false),
 ('Friday', 8, '11:45', '12:30', false);
 
+-- =====================================================================
+-- TIMETABLE ENTRIES TABLE (with RBAC/RLS integration)
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS timetable_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
+  period_slot_id uuid NOT NULL REFERENCES period_slots(id) ON DELETE CASCADE,
+  subject_class_id uuid REFERENCES subject_classes(id) ON DELETE SET NULL,
+  department text, -- Science, Arts, Commercial, etc (nullable)
+  religion text,   -- Christian, Muslim, etc (nullable)
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_timetable_entries_class_id ON timetable_entries(class_id);
+CREATE INDEX IF NOT EXISTS idx_timetable_entries_period_slot_id ON timetable_entries(period_slot_id);
+CREATE INDEX IF NOT EXISTS idx_timetable_entries_subject_class_id ON timetable_entries(subject_class_id);
+
+-- Enable Row Level Security
+ALTER TABLE timetable_entries ENABLE ROW LEVEL SECURITY;
+
+-- =========================
+-- RLS POLICIES
+-- =========================
+
+-- Allow all authenticated users to read timetable entries
+CREATE POLICY "Authenticated users can read timetable entries"
+  ON timetable_entries FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Only admins can insert/update/delete timetable entries
+CREATE POLICY "Only admins can manage timetable entries"
+  ON timetable_entries FOR ALL
+  TO authenticated
+  USING (is_admin())
+  WITH CHECK (is_admin());
+  
 -- ============================================================================
 -- COMPLETION NOTICE
 -- ============================================================================

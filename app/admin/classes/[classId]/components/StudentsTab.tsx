@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { Student, Session, Term } from "@/lib/types";
 import { StudentDetailsModal } from "@/components/student-details-modal";
 import * as XLSX from "xlsx-js-style";
+import { useRouter } from "next/navigation";
 
 type ClassData = {
   id: string;
@@ -73,7 +74,7 @@ export function StudentsTab({
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
   const [transferTargetClassId, setTransferTargetClassId] = useState("");
-
+  const router = useRouter();
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
       const fullName = `${s.first_name} ${s.last_name}`.toLowerCase();
@@ -107,9 +108,9 @@ export function StudentsTab({
     setSelectedStudents(newSelected);
   }
 
-  function handleViewStudent(student: Student) {
-    setSelectedStudent(student);
-    setIsStudentDetailsOpen(true);
+  function handleStudentSubjects(student: Student) {
+    // This would navigate to a page to manage subjects
+    router.push(`/admin/students/${student.id}/subjects`);
   }
 
   async function handleViewStudentWithAttendance(student: Student) {
@@ -351,6 +352,10 @@ export function StudentsTab({
                           <DropdownMenuItem onClick={() => handleViewStudentWithAttendance(student)}>
                             <User className="mr-2 h-4 w-4" />
                             View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStudentSubjects(student)}>
+                            <User className="mr-2 h-4 w-4" />
+                            Manage Subjects
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setIsTransferStudentOpen(true)}>
                             <ArrowRightLeft className="mr-2 h-4 w-4" />

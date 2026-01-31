@@ -1255,16 +1255,36 @@ export function AutoTimetableWizard({
         }
       });
 
-      // Batch insert in chunks to avoid stack depth limit
-      const BATCH_SIZE = 100;
+      // Batch insert in small chunks to avoid stack depth limit
+      // Using very small batches to prevent recursion issues in database triggers
+      const BATCH_SIZE = 20;
+      const totalInserts = inserts.length;
+      
+      console.log(`Inserting ${totalInserts} timetable entries in batches of ${BATCH_SIZE}...`);
+      
       for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
         const batch = inserts.slice(i, i + BATCH_SIZE);
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(inserts.length / BATCH_SIZE);
+        
+        console.log(`Processing batch ${batchNum}/${totalBatches} (${batch.length} entries)...`);
+        
         const { error } = await supabase
           .from("timetable_entries")
           .insert(batch);
 
-        if (error) throw error;
+        if (error) {
+          console.error(`Error in batch ${batchNum}:`, error);
+          throw error;
+        }
+        
+        // Small delay between batches to allow database to process and clear stack
+        if (i + BATCH_SIZE < inserts.length) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
       }
+      
+      console.log(`Successfully inserted all ${totalInserts} entries!`);
 
       const totalPeriods = generatedEntries.length;
       const pairedCount = generatedEntries.filter(e => e.isPaired).length;

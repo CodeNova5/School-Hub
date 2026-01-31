@@ -451,26 +451,26 @@ export default function AdminCalendarPage() {
                     <button
                       key={day}
                       onClick={() => setSelectedDate(date)}
-                      className={`aspect-square p-1 rounded-lg border transition-all hover:shadow-md ${today
-                          ? 'bg-blue-500 text-white border-blue-600'
-                          : selected
-                            ? 'bg-blue-100 border-blue-300'
-                            : 'bg-white border-gray-200 hover:border-blue-300'
-                        }`}
+                      className={`aspect-square p-1 transition-all hover:shadow-md flex flex-col items-center justify-center ${
+                        selected
+                          ? 'bg-blue-50'
+                          : ''
+                      }`}
                     >
-                      <div className="text-sm font-semibold">{day}</div>
-                      {dayEvents.length > 0 && (
-                        <div className="flex flex-wrap gap-0.5 mt-1">
-                          {dayEvents.slice(0, 2).map((event, idx) => (
-                            <div
-                              key={idx}
-                              className={`h-1.5 w-1.5 rounded-full ${eventTypeColors[event.event_type]?.replace('text-white', '') || 'bg-gray-400'
-                                }`}
-                            />
-                          ))}
-                          {dayEvents.length > 2 && (
-                            <div className="text-[8px] text-gray-600">+{dayEvents.length - 2}</div>
-                          )}
+                      <div 
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                          today
+                            ? 'bg-blue-500 text-white'
+                            : dayEvents.length > 0
+                            ? `${eventTypeColors[dayEvents[0].event_type] || 'bg-gray-400 text-white'}`
+                            : 'text-gray-900'
+                        }`}
+                      >
+                        {day}
+                      </div>
+                      {dayEvents.length > 1 && (
+                        <div className="text-[8px] text-gray-600 mt-0.5">
+                          +{dayEvents.length - 1}
                         </div>
                       )}
                     </button>

@@ -1217,7 +1217,7 @@ export function AutoTimetableWizard({
         .delete()
         .eq("class_id", selectedClassId);
 
-      // Insert new entries - create two entries for paired CRS/IRS periods
+      // Insert new entries - create entries for paired CRS/IRS and grouped subjects
       const inserts: any[] = [];
       
       generatedEntries.forEach(entry => {
@@ -1255,11 +1255,16 @@ export function AutoTimetableWizard({
         }
       });
 
-      const { error } = await supabase
-        .from("timetable_entries")
-        .insert(inserts);
+      // Batch insert in chunks to avoid stack depth limit
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
+        const batch = inserts.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase
+          .from("timetable_entries")
+          .insert(batch);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       const totalPeriods = generatedEntries.length;
       const pairedCount = generatedEntries.filter(e => e.isPaired).length;

@@ -257,22 +257,15 @@ export default function TeacherCalendarPage() {
                             : 'bg-white border-gray-200 hover:border-blue-300'
                         }`}
                       >
-                        <div className="text-sm font-semibold">{day}</div>
-                        {dayEvents.length > 0 && (
-                          <div className="flex flex-wrap gap-0.5 mt-1">
-                            {dayEvents.slice(0, 2).map((event, idx) => (
-                              <div
-                                key={idx}
-                                className={`h-1.5 w-1.5 rounded-full ${
-                                  eventTypeColors[event.event_type]?.replace('text-white', '') || 'bg-gray-400'
-                                }`}
-                              />
-                            ))}
-                            {dayEvents.length > 2 && (
-                              <div className="text-[8px] text-gray-600">+{dayEvents.length - 2}</div>
-                            )}
+                          <div
+                            className={`text-sm font-semibold ${
+                              dayEvents.length > 0
+                                ? eventTypeColors[dayEvents[0].event_type]?.replace('bg-', 'text-').replace(' text-white', '')
+                                : ''
+                            }`}
+                          >
+                            {day}
                           </div>
-                        )}
                       </button>
                     );
                   })}

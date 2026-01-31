@@ -181,15 +181,12 @@ CREATE INDEX idx_subject_classes_class ON subject_classes(class_id);
 CREATE TABLE student_subjects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid REFERENCES students(id) ON DELETE CASCADE,
-  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
-  session_id uuid REFERENCES sessions(id) ON DELETE CASCADE,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(student_id, subject_id, session_id)
+  subject_class_id uuid REFERENCES subject_classes(id) ON DELETE CASCADE,
+
+  UNIQUE(student_id, subject_class_id)
 );
 
-CREATE INDEX idx_student_subjects_student ON student_subjects(student_id);
-CREATE INDEX idx_student_subjects_subject ON student_subjects(subject_id);
-CREATE INDEX idx_student_subjects_session ON student_subjects(session_id);
+CREATE INDEX idx_student_subjects_subject_class ON student_subjects(subject_class_id);
 
 -- 9. STUDENT_OPTIONAL_SUBJECTS TABLE
 -- ============================================================================

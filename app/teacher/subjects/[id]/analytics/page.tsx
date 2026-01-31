@@ -254,7 +254,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
     }));
 
     return (
-        <DashboardLayout role="admin">
+        <DashboardLayout role="teacher">
             <div className="space-y-8">
 
                 {/* HEADER */}

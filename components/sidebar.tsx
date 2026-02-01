@@ -5,10 +5,11 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
-  Calendar,
+  CalendarDays,
   Users,
   BookOpen,
   GraduationCap,
+  Calendar,
   FileText,
   Settings,
   ClipboardList,
@@ -53,7 +54,7 @@ export function Sidebar({ role }: SidebarProps) {
     { href: '/teacher/subjects', label: 'Subjects', icon: <BookOpen className="h-5 w-5" /> },
     { href: '/teacher/results', label: 'Results', icon: <GraduationCap className="h-5 w-5" /> },
     { href: '/teacher/assignments', label: 'Assignments', icon: <FileText className="h-5 w-5" /> },
-    { href: '/teacher/attendance', label: 'Attendance', icon: <ClipboardList className="h-5 w-5" /> },
+    { href: '/teacher/timetable', label: 'Timetable', icon: <CalendarDays className="h-5 w-5" /> },
     { href: '/teacher/calendar', label: 'Calendar', icon: <Calendar className="h-5 w-5" /> },
     { href: '/teacher/settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },
   ];

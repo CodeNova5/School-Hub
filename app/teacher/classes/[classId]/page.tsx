@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Users, BookOpen, Calendar, GraduationCap, BarChart3, Loader2, CalendarDays } from "lucide-react";
+import { ArrowLeft, Users, BookOpen, UserCheck, BarChart3, Loader2, CalendarDays } from "lucide-react";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import TeacherSubjectsTab from "./components/TeacherSubjectsTab";
 import TeacherStudentsTab from "./components/TeacherStudentsTab";
@@ -281,7 +281,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
                 <span className="hidden sm:inline">Timetable</span>
               </TabsTrigger>
               <TabsTrigger value="attendance" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
+                <UserCheck className="h-4 w-4" />
                 <span className="hidden sm:inline">Attendance</span>
               </TabsTrigger>
               <TabsTrigger value="results" className="flex items-center gap-2">

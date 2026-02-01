@@ -407,13 +407,13 @@ export default function TeacherTimetablePage() {
               <table className="w-full border-collapse bg-white">
                 <thead>
                   <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
-                    <th className="border border-gray-300 p-4 font-semibold text-gray-700 min-w-[120px] sticky left-0 bg-gray-100 z-10">
+                    <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px] sticky left-0 bg-gray-100 z-10">
                       Period
                     </th>
                     {DAYS.map((day) => (
                       <th
                         key={day}
-                        className="border border-gray-300 p-4 font-semibold text-gray-700 min-w-[200px]"
+                        className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]"
                       >
                         <div className="flex items-center justify-center gap-2">
                           <Calendar className="h-4 w-4" />
@@ -426,13 +426,13 @@ export default function TeacherTimetablePage() {
                 <tbody>
                   {displayPeriodRows.map((row) => (
                     <tr key={row.index} className={row.isBreakRow ? "bg-yellow-50" : ""}>
-                      <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium sticky left-0 z-10">
+                      <td className="border border-gray-300 p-2 bg-gray-50 text-center font-medium sticky left-0 z-10">
                         <div>
-                          <div className="text-base font-semibold text-gray-800">
+                          <div className="text-sm font-semibold text-gray-800">
                             {row.isBreakRow ? "BREAK" : `Period ${row.label}`}
                           </div>
                           {!row.isBreakRow && (
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-xs text-gray-500 mt-0.5">
                               {periodsByDay[DAYS[0]]?.[row.index]?.start_time || "—"} - 
                               {periodsByDay[DAYS[0]]?.[row.index]?.end_time || "—"}
                             </div>
@@ -457,11 +457,11 @@ export default function TeacherTimetablePage() {
                           return (
                             <td
                               key={day}
-                              className="border border-gray-300 p-4 bg-yellow-50"
+                              className="border border-gray-300 p-3 bg-yellow-50"
                             >
                               <div className="text-center">
-                                <div className="font-semibold text-yellow-800">BREAK TIME</div>
-                                <div className="text-xs text-gray-600 mt-1">
+                                <div className="font-semibold text-yellow-800 text-sm">BREAK TIME</div>
+                                <div className="text-xs text-gray-600 mt-0.5">
                                   {period.start_time} - {period.end_time}
                                 </div>
                               </div>
@@ -474,33 +474,27 @@ export default function TeacherTimetablePage() {
                         return (
                           <td
                             key={day}
-                            className={`border border-gray-300 p-3 ${
+                            className={`border border-gray-300 p-2 ${
                               cell 
                                 ? "bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors cursor-pointer" 
                                 : "hover:bg-gray-50 transition-colors"
                             }`}
                           >
                             {cell ? (
-                              <div className="space-y-2">
-                                <div className="flex items-start justify-between gap-2">
-                                  <Badge className="bg-blue-600 text-white text-xs">
-                                    {cell.class}
-                                  </Badge>
-                                  <div className="text-xs text-gray-500">
-                                    {period.start_time} - {period.end_time}
-                                  </div>
+                              <div className="space-y-1">
+                                <div className="text-xs font-medium text-blue-700 truncate">
+                                  {cell.class}
                                 </div>
-                                <div className="font-semibold text-gray-900 text-center text-sm">
+                                <div className="font-semibold text-gray-900 text-sm leading-tight">
                                   {cell.fullSubject}
                                 </div>
-                                <div className="flex items-center justify-center gap-1 text-xs text-gray-600">
-                                  <BookOpen className="h-3 w-3" />
-                                  <span>{cell.subject}</span>
+                                <div className="text-xs text-gray-500">
+                                  {period.start_time} - {period.end_time}
                                 </div>
                               </div>
                             ) : (
-                              <div className="text-center">
-                                <div className="text-gray-400 text-sm">Free Period</div>
+                              <div className="text-center py-2">
+                                <div className="text-gray-400 text-xs">Free Period</div>
                                 <div className="text-xs text-gray-400 mt-1">
                                   {period.start_time} - {period.end_time}
                                 </div>

@@ -29,9 +29,8 @@ export default function TeacherStudentReportPage() {
 
   const [loading, setLoading] = useState(true);
   const [studentName, setStudentName] = useState("");
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [terms, setTerms] = useState<Term[]>([]);
-  const [selectedSessionId, setSelectedSessionId] = useState(sessionId || "");
   const [selectedTermId, setSelectedTermId] = useState(termId || "");
   const [canEdit, setCanEdit] = useState(false);
   const [isStudentInTeacherClass, setIsStudentInTeacherClass] = useState(false);
@@ -94,27 +93,35 @@ export default function TeacherStudentReportPage() {
           toast.warning("This student is not in your class. Viewing in read-only mode.");
         }
 
-        // Fetch all sessions and terms
+        // Fetch current session and its terms
         const { data: sessionsData } = await supabase
           .from("sessions")
           .select("*")
-          .order("start_date", { ascending: false });
+          .eq("is_current", true)
+          .single();
 
+        if (!sessionsData) {
+          toast.error("No current session found");
+          return;
+        }
+
+        setCurrentSession(sessionsData);
+
+        // Fetch only terms for the current session
         const { data: termsData } = await supabase
           .from("terms")
           .select("*")
+          .eq("session_id", sessionsData.id)
           .order("start_date", { ascending: false });
 
-        setSessions(sessionsData || []);
         setTerms(termsData || []);
 
-        // If no session/term provided, fetch current ones
-        if (!sessionId || !termId) {
-          const currentSession = sessionsData?.find((s) => s.is_current);
-          const currentTerm = termsData?.find((t) => t.is_current);
-
-          if (currentSession) setSelectedSessionId(currentSession.id);
-          if (currentTerm) setSelectedTermId(currentTerm.id);
+        // Auto-select current term or first term
+        const currentTerm = termsData?.find((t) => t.is_current);
+        if (currentTerm) {
+          setSelectedTermId(currentTerm.id);
+        } else if (termsData && termsData.length > 0) {
+          setSelectedTermId(termsData[0].id);
         }
       } catch (error) {
         console.error("Error loading student data:", error);
@@ -179,18 +186,9 @@ export default function TeacherStudentReportPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
           <div className="space-y-2">
             <label className="text-sm font-medium">Session</label>
-            <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select session" />
-              </SelectTrigger>
-              <SelectContent>
-                {sessions.map((session) => (
-                  <SelectItem key={session.id} value={session.id}>
-                    {session.name} {session.is_current && "(Current)"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="p-3 bg-white border rounded-md text-sm font-medium">
+              {currentSession?.name} (Current)
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -210,14 +208,14 @@ export default function TeacherStudentReportPage() {
           </div>
         </div>
 
-        {selectedSessionId && selectedTermId ? (
+        {currentSession && selectedTermId ? (
           <ResultEntry
             studentId={studentId}
             role="teacher"
             canEditPrincipalComment={false}
             canEdit={canEdit}
             isReadOnly={!canEdit}
-            sessionId={selectedSessionId}
+            sessionId={currentSession.id}
             termId={selectedTermId}
           />
         ) : (

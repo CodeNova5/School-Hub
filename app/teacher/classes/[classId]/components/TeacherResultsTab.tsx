@@ -300,7 +300,7 @@ export default function TeacherResultsTab({
 
     function handleViewStudentReport(studentId: string) {
         // Navigate to student report page
-        window.open(`/teacher/students/${studentId}/report?term=${selectedTermId}&session=${selectedSessionId}`);
+        window.location.href = `/teacher/students/${studentId}/report?term=${selectedTermId}&session=${selectedSessionId}`;
     }
 
     async function handleCalculatePositions() {
@@ -444,18 +444,9 @@ export default function TeacherResultsTab({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Session</label>
-                        <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select session" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {sessions.map((session) => (
-                                    <SelectItem key={session.id} value={session.id}>
-                                        {session.name} {session.is_current && "(Current)"}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="p-3 bg-white border rounded-md text-sm font-medium">
+                            {sessions.find(s => s.id === selectedSessionId)?.name || "Current Session"}
+                        </div>
                     </div>
 
                     <div className="space-y-2">
@@ -465,7 +456,7 @@ export default function TeacherResultsTab({
                                 <SelectValue placeholder="Select term" />
                             </SelectTrigger>
                             <SelectContent>
-                                {terms.map((term) => (
+                                {terms.filter(term => term.session_id === selectedSessionId).map((term) => (
                                     <SelectItem key={term.id} value={term.id}>
                                         {term.name} {term.is_current && "(Current)"}
                                     </SelectItem>

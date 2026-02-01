@@ -35,12 +35,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
   const [totalMarks, setTotalMarks] = useState(20);
   const [allowLate, setAllowLate] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [terms, setTerms] = useState<any[]>([]);
-
-  const [selectedSession, setSelectedSession] = useState('');
-  const [selectedTerm, setSelectedTerm] = useState('');
-
+  const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null);
 
   const [isSaving, setIsSaving] = useState(false);
   const isEditing = !!assignment;
@@ -48,7 +43,6 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
   useEffect(() => {
     if (!open) return;
     loadClasses();
-    loadSessions();
 
     // Pre-fill form if editing
     if (assignment) {
@@ -61,8 +55,11 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
       setSubmissionType(assignment.submission_type || 'text');
       setTotalMarks(assignment.total_marks || 20);
       setAllowLate(assignment.allow_late_submission || false);
-      setSelectedSession(assignment.session_id || '');
-      setSelectedTerm(assignment.term_id || '');
+      setExistingFileUrl(assignment.file_url || null);
+      // Load subjects after class is set
+      if (assignment.class_id) {
+        loadSubjects(assignment.class_id);
+      }
     } else {
       // Reset form for new assignment
       setSelectedClass('');
@@ -75,50 +72,15 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
       setTotalMarks(20);
       setAllowLate(false);
       setFile(null);
-      setSelectedSession('');
-      setSelectedTerm('');
+      setExistingFileUrl(null);
     }
   }, [open, assignment]);
 
   useEffect(() => {
-    if (!selectedSession) return;
-    loadTerms();
-  }, [selectedSession]);
-
-
-  useEffect(() => {
-    if (selectedClass) loadSubjects();
+    if (selectedClass && !isEditing) {
+      loadSubjects(selectedClass);
+    }
   }, [selectedClass]);
-
-  async function loadSessions() {
-    const { data, error } = await supabase
-      .from('sessions')
-      .select('*')
-      .order('start_date', { ascending: false });
-
-    if (error) {
-      toast.error("Failed to load sessions");
-      return;
-    }
-
-    setSessions(data || []);
-  }
-
-  async function loadTerms() {
-    const { data, error } = await supabase
-      .from('terms')
-      .select('*')
-      .eq('session_id', selectedSession)
-      .order('start_date');
-
-    if (error) {
-      toast.error("Failed to load terms");
-      return;
-    }
-
-    setTerms(data || []);
-  }
-
 
   async function loadClasses() {
     const { data } = await supabase
@@ -139,8 +101,8 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
     setClasses(Array.from(uniqueClasses.values()));
   }
 
-  async function loadSubjects() {
-    if (!selectedClass) {
+  async function loadSubjects(classId: string) {
+    if (!classId) {
       setSubjects([]);
       return;
     }
@@ -150,7 +112,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
       .from('subject_classes')
       .select('subject_id, subjects(id, name, education_level, department, religion)')
       .eq('teacher_id', teacherId)
-      .eq('class_id', selectedClass);
+      .eq('class_id', classId);
 
     if (!data) return;
 
@@ -163,8 +125,6 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
 
   async function handleSave() {
     if (
-      !selectedSession ||
-      !selectedTerm ||
       !selectedClass ||
       !selectedSubject ||
       !title ||
@@ -174,14 +134,32 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
       return;
     }
 
-
     setIsSaving(true);
 
     try {
+      // Get current session and term
+      const { data: currentSession } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      const { data: currentTerm } = await supabase
+        .from('terms')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (!currentSession || !currentTerm) {
+        toast.error('No active session or term found');
+        setIsSaving(false);
+        return;
+      }
+
       const assignmentPayload = {
         teacher_id: teacherId,
-        session_id: selectedSession,
-        term_id: selectedTerm,
+        session_id: isEditing ? assignment.session_id : currentSession.id,
+        term_id: isEditing ? assignment.term_id : currentTerm.id,
         class_id: selectedClass,
         subject_id: selectedSubject,
         title,
@@ -292,40 +270,11 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
         </DialogHeader>
 
         <div className="grid grid-cols-2 gap-4">
-          <Select value={selectedSession} onValueChange={setSelectedSession}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select Session" />
-            </SelectTrigger>
-            <SelectContent>
-              {sessions.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={selectedTerm}
-            onValueChange={setSelectedTerm}
-            disabled={!selectedSession}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select Term" />
-            </SelectTrigger>
-            <SelectContent>
-              {terms.map((t) => (
-                <SelectItem key={t.id} value={t.id}>
-                  {t.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-
-        <div className="grid grid-cols-2 gap-4">
-          <Select onValueChange={setSelectedClass}>
+          <Select value={selectedClass} onValueChange={(value) => {
+            setSelectedClass(value);
+            setSelectedSubject('');
+            loadSubjects(value);
+          }}>
             <SelectTrigger><SelectValue placeholder="Select Class" /></SelectTrigger>
             <SelectContent>
               {classes.map((c) => (
@@ -334,7 +283,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
             </SelectContent>
           </Select>
 
-          <Select onValueChange={setSelectedSubject}>
+          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
             <SelectTrigger><SelectValue placeholder="Select Subject" /></SelectTrigger>
             <SelectContent>
               {subjects.map((s) => (
@@ -349,15 +298,80 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
         <Textarea placeholder="Detailed instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} />
         <div className="space-y-2">
           <label className="text-sm font-medium">Attach file (Optional)</label>
+          
+          {existingFileUrl && !file && (
+            <div className="border rounded-lg p-3 bg-muted/50">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">Current File:</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setExistingFileUrl(null)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  Remove
+                </Button>
+              </div>
+              {existingFileUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                <img src={existingFileUrl} alt="Preview" className="max-h-48 rounded border" />
+              ) : existingFileUrl.match(/\.pdf$/i) ? (
+                <iframe src={existingFileUrl} className="w-full h-48 rounded border" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <a href={existingFileUrl} target="_blank" className="text-sm text-primary hover:underline">
+                    View File
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+          
           <label className="flex items-center gap-3 cursor-pointer border rounded-md p-3 hover:bg-muted transition">
             <Upload className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">{file ? file.name : "Upload PDF, DOC, Image, etc."}</span>
+            <span className="text-sm text-muted-foreground">
+              {file ? file.name : existingFileUrl ? "Replace file" : "Upload PDF, DOC, Image, etc."}
+            </span>
             <input
               type="file"
               hidden
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const selectedFile = e.target.files?.[0];
+                if (selectedFile) {
+                  setFile(selectedFile);
+                  setExistingFileUrl(null);
+                }
+              }}
             />
           </label>
+          
+          {file && (
+            <div className="border rounded-lg p-3 bg-muted/50">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">New File Selected:</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFile(null)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  Remove
+                </Button>
+              </div>
+              {file.type.startsWith('image/') ? (
+                <img src={URL.createObjectURL(file)} alt="Preview" className="max-h-48 rounded border" />
+              ) : file.type === 'application/pdf' ? (
+                <iframe src={URL.createObjectURL(file)} className="w-full h-48 rounded border" />
+              ) : (
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-sm">{file.name}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
 

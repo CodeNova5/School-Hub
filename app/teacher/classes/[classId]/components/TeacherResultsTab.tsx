@@ -19,6 +19,14 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
     Search,
     Download,
     Eye,
@@ -91,6 +99,8 @@ export default function TeacherResultsTab({
     // Modal state
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
+    const [isCalculatePositionDialogOpen, setIsCalculatePositionDialogOpen] = useState(false);
+    const [scoreCalculationMode, setScoreCalculationMode] = useState<'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'>('all');
 
     useEffect(() => {
         // Auto-select current session and term if available
@@ -311,32 +321,102 @@ export default function TeacherResultsTab({
 
         setLoading(true);
         try {
-            // Get all students with results for this class
-            const studentsWithResults = studentResults.filter(r => r.has_results);
+            // Calculate total score for each student based on selected mode
+            const studentsWithScores = studentResults.map(result => {
+                if (!result.has_results) return null;
+                
+                // We need to recalculate based on the selected mode
+                // For now, we'll use average_score, but this should be recalculated
+                // based on the actual component scores from the results table
+                return {
+                    ...result,
+                    calculatedScore: result.average_score // This will be updated below
+                };
+            }).filter(Boolean) as (StudentResult & { calculatedScore: number })[];
 
-            if (studentsWithResults.length === 0) {
+            if (studentsWithScores.length === 0) {
                 toast.error("No students with results to rank");
                 setLoading(false);
                 return;
             }
 
-            // Sort by average score (descending) to determine positions
-            const sortedStudents = [...studentsWithResults].sort((a, b) => b.average_score - a.average_score);
+            // Fetch actual results data to recalculate scores based on mode
+            const resultsData = await apiClient.apiRead({
+                table: "results",
+                select: "student_id, welcome_test, mid_term_test, vetting, exam",
+                filters: {
+                    term_id: selectedTermId,
+                    session_id: selectedSessionId,
+                },
+            });
 
-            // Assign positions (handle ties - students with same average get same position)
+            // Calculate scores per student based on mode
+            const studentScoresMap = new Map<string, number>();
+            
+            studentsWithScores.forEach(student => {
+                const studentResults = resultsData?.filter((r: any) => r.student_id === student.student_id) || [];
+                
+                if (studentResults.length === 0) {
+                    studentScoresMap.set(student.student_id, 0);
+                    return;
+                }
+
+                let totalScore = 0;
+                let maxPossibleScore = 0;
+
+                studentResults.forEach((result: any) => {
+                    let subjectScore = 0;
+                    
+                    switch (scoreCalculationMode) {
+                        case 'welcome_only':
+                            subjectScore = result.welcome_test || 0;
+                            maxPossibleScore += 10;
+                            break;
+                        case 'welcome_midterm':
+                            subjectScore = (result.welcome_test || 0) + (result.mid_term_test || 0);
+                            maxPossibleScore += 30;
+                            break;
+                        case 'welcome_midterm_vetting':
+                            subjectScore = (result.welcome_test || 0) + (result.mid_term_test || 0) + (result.vetting || 0);
+                            maxPossibleScore += 40;
+                            break;
+                        case 'all':
+                        default:
+                            subjectScore = (result.welcome_test || 0) + (result.mid_term_test || 0) + (result.vetting || 0) + (result.exam || 0);
+                            maxPossibleScore += 100;
+                            break;
+                    }
+                    
+                    totalScore += subjectScore;
+                });
+
+                // Calculate average percentage
+                const averagePercentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+                studentScoresMap.set(student.student_id, averagePercentage);
+            });
+
+            // Update students with calculated scores
+            studentsWithScores.forEach(student => {
+                student.calculatedScore = studentScoresMap.get(student.student_id) || 0;
+            });
+
+            // Sort by calculated score (descending) to determine positions
+            const sortedStudents = [...studentsWithScores].sort((a, b) => b.calculatedScore - a.calculatedScore);
+
+            // Assign positions (handle ties - students with same score get same position)
             let currentPosition = 1;
-            const positionUpdates: { studentId: string; position: number; average: number }[] = [];
+            const positionUpdates: { studentId: string; position: number; score: number }[] = [];
 
             for (let i = 0; i < sortedStudents.length; i++) {
                 const student = sortedStudents[i];
 
-                // Check if this student has the same average as the previous one (tie)
-                if (i > 0 && Math.abs(student.average_score - sortedStudents[i - 1].average_score) < 0.01) {
+                // Check if this student has the same score as the previous one (tie)
+                if (i > 0 && Math.abs(student.calculatedScore - sortedStudents[i - 1].calculatedScore) < 0.01) {
                     // Same position as previous student (tie)
                     positionUpdates.push({
                         studentId: student.student_id,
                         position: positionUpdates[i - 1].position,
-                        average: student.average_score
+                        score: student.calculatedScore
                     });
                 } else {
                     // New position
@@ -344,10 +424,13 @@ export default function TeacherResultsTab({
                     positionUpdates.push({
                         studentId: student.student_id,
                         position: currentPosition,
-                        average: student.average_score
+                        score: student.calculatedScore
                     });
                 }
             }
+
+            // Calculate class average
+            const classAvg = sortedStudents.reduce((sum, s) => sum + s.calculatedScore, 0) / sortedStudents.length;
 
             // Update all results for each student with their position
             const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
@@ -357,8 +440,8 @@ export default function TeacherResultsTab({
                     operation: "update",
                     data: {
                         class_position: position,
-                        total_students: studentsWithResults.length,
-                        class_average: studentsWithResults.reduce((sum, r) => sum + r.average_score, 0) / studentsWithResults.length
+                        total_students: sortedStudents.length,
+                        class_average: classAvg
                     },
                     filters: {
                         student_id: studentId,
@@ -370,9 +453,17 @@ export default function TeacherResultsTab({
 
             await Promise.all(updatePromises);
 
-            toast.success(`Positions calculated for ${studentsWithResults.length} students`);
+            const modeLabels = {
+                'welcome_only': 'Welcome Test Only',
+                'welcome_midterm': 'Welcome + Mid-Term',
+                'welcome_midterm_vetting': 'Welcome + Mid-Term + Vetting',
+                'all': 'All Components'
+            };
 
-            // Refresh the results to show updated positions
+            toast.success(`Positions calculated for ${sortedStudents.length} students using ${modeLabels[scoreCalculationMode]}`);
+            
+            // Close dialog and refresh results
+            setIsCalculatePositionDialogOpen(false);
             await fetchStudentResults();
         } catch (error) {
             console.error("Error calculating positions:", error);
@@ -420,7 +511,7 @@ export default function TeacherResultsTab({
                         <Button
                             size="sm"
                             variant="outline"
-                            onClick={handleCalculatePositions}
+                            onClick={() => setIsCalculatePositionDialogOpen(true)}
                             disabled={loading || !selectedSessionId || !selectedTermId || studentResults.filter(r => r.has_results).length === 0}
                         >
                             <Calculator className="h-4 w-4 mr-1" />
@@ -717,6 +808,66 @@ export default function TeacherResultsTab({
                     </div>
                 )}
             </CardContent>
+
+            {/* Calculate Positions Dialog */}
+            <Dialog open={isCalculatePositionDialogOpen} onOpenChange={setIsCalculatePositionDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Calculate Class Positions</DialogTitle>
+                        <DialogDescription>
+                            Select which components of the results to use for calculating student positions.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Calculation Method</label>
+                            <Select value={scoreCalculationMode} onValueChange={(value: any) => setScoreCalculationMode(value)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select calculation method" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="welcome_only">
+                                        Welcome Test Only (10 marks)
+                                    </SelectItem>
+                                    <SelectItem value="welcome_midterm">
+                                        Welcome + Mid-Term (30 marks)
+                                    </SelectItem>
+                                    <SelectItem value="welcome_midterm_vetting">
+                                        Welcome + Mid-Term + Vetting (40 marks)
+                                    </SelectItem>
+                                    <SelectItem value="all">
+                                        All Components (100 marks)
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-2">
+                                This will calculate positions based on the selected components and update all student results.
+                            </p>
+                        </div>
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-sm text-blue-800">
+                                <strong>Note:</strong> This will recalculate and update positions for all {studentResults.filter(r => r.has_results).length} students with results in this term.
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsCalculatePositionDialogOpen(false)}
+                            disabled={loading}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleCalculatePositions}
+                            disabled={loading}
+                        >
+                            {loading ? "Calculating..." : "Calculate Positions"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Student Details Modal */}
             <StudentDetailsModal
                 student={selectedStudent}

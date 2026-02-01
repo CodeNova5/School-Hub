@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ArrowLeft, Users, BookOpen, Calendar, GraduationCap, BarChart3, Loader2 } from "lucide-react";
+import { ArrowLeft, Users, BookOpen, Calendar, GraduationCap, BarChart3, Loader2, CalendarDays } from "lucide-react";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import TeacherSubjectsTab from "./components/TeacherSubjectsTab";
 import TeacherStudentsTab from "./components/TeacherStudentsTab";
 import TeacherAttendanceTab from "./components/TeacherAttendanceTab";
 import TeacherResultsTab from "./components/TeacherResultsTab";
+import TeacherTimetableTab from "./components/TeacherTimetableTab";
 
 type ClassData = {
   id: string;
@@ -266,7 +267,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-4 p-10 bg-muted rounded-none border-b">
+            <TabsList className="grid w-full grid-cols-5 p-10 bg-muted rounded-none border-b">
               <TabsTrigger value="subjects" className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4" />
                 <span className="hidden sm:inline">Subjects</span>
@@ -274,6 +275,10 @@ export default function TeacherClassManagement({ params }: PageProps) {
               <TabsTrigger value="students" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">Students</span>
+              </TabsTrigger>
+              <TabsTrigger value="timetable" className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4" />
+                <span className="hidden sm:inline">Timetable</span>
               </TabsTrigger>
               <TabsTrigger value="attendance" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
@@ -317,6 +322,13 @@ export default function TeacherClassManagement({ params }: PageProps) {
                 terms={terms}
               />
             )}
+          </TabsContent>
+
+          <TabsContent value="timetable" className="mt-0">
+            <TeacherTimetableTab 
+              classId={classId}
+              className={classData.name}
+            />
           </TabsContent>
 
           <TabsContent value="attendance" className="mt-0">

@@ -192,12 +192,6 @@ export default function TeacherStudentsPage() {
     setSelectedStudent(student);
     setIsModalOpen(true);
   }
-
-  function handleManageSubjects(student: Student) {
-    setSelectedStudent(student);
-    setIsSubjectsModalOpen(true);
-  }
-
   function handleExport() {
     const exportData = filteredStudents.map((s) => ({
       'Student ID': s.student_id,
@@ -378,7 +372,6 @@ export default function TeacherStudentsPage() {
             <StudentTable
               students={filteredStudents}
               onViewDetails={handleViewDetails}
-              onManageSubjects={handleManageSubjects}
             />
           </CardContent>
         </Card>

@@ -17,9 +17,10 @@ interface AssignmentModalProps {
   onSave: (assignment: any) => void;
 
   teacherId: string;
+  assignment?: any; // If provided, we're editing
 }
 
-export function AssignmentModal({ open, onClose, onSave, teacherId }: AssignmentModalProps) {
+export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }: AssignmentModalProps) {
   const [classes, setClasses] = useState<ClassType[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
@@ -42,12 +43,42 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
 
 
   const [isSaving, setIsSaving] = useState(false);
+  const isEditing = !!assignment;
 
   useEffect(() => {
     if (!open) return;
     loadClasses();
     loadSessions();
-  }, [open]);
+
+    // Pre-fill form if editing
+    if (assignment) {
+      setSelectedClass(assignment.class_id || '');
+      setSelectedSubject(assignment.subject_id || '');
+      setTitle(assignment.title || '');
+      setDescription(assignment.description || '');
+      setInstructions(assignment.instructions || '');
+      setDueDate(assignment.due_date?.split('T')[0] || '');
+      setSubmissionType(assignment.submission_type || 'text');
+      setTotalMarks(assignment.total_marks || 20);
+      setAllowLate(assignment.allow_late_submission || false);
+      setSelectedSession(assignment.session_id || '');
+      setSelectedTerm(assignment.term_id || '');
+    } else {
+      // Reset form for new assignment
+      setSelectedClass('');
+      setSelectedSubject('');
+      setTitle('');
+      setDescription('');
+      setInstructions('');
+      setDueDate('');
+      setSubmissionType('text');
+      setTotalMarks(20);
+      setAllowLate(false);
+      setFile(null);
+      setSelectedSession('');
+      setSelectedTerm('');
+    }
+  }, [open, assignment]);
 
   useEffect(() => {
     if (!selectedSession) return;
@@ -147,33 +178,57 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
     setIsSaving(true);
 
     try {
-      // 1. Create assignment record without file_url
-      const { data: assignmentData, error: insertError } = await supabase
-        .from('assignments')
-        .insert({
-          teacher_id: teacherId,
-          session_id: selectedSession,
-          term_id: selectedTerm,
-          class_id: selectedClass,
-          subject_id: selectedSubject,
-          title,
-          description,
-          instructions,
-          due_date: dueDate,
-          total_marks: totalMarks,
-          submission_type: submissionType,
-          allow_late_submission: allowLate,
-        })
-        .select(`
-    *,
-    classes(name),
-    subjects(name)
-  `)
-        .single();
+      const assignmentPayload = {
+        teacher_id: teacherId,
+        session_id: selectedSession,
+        term_id: selectedTerm,
+        class_id: selectedClass,
+        subject_id: selectedSubject,
+        title,
+        description,
+        instructions,
+        due_date: dueDate,
+        total_marks: totalMarks,
+        submission_type: submissionType,
+        allow_late_submission: allowLate,
+      };
 
+      let assignmentData;
+      let assignmentId;
 
-      if (insertError) throw insertError;
-      const assignmentId = assignmentData.id;
+      if (isEditing) {
+        // Update existing assignment
+        const { data, error: updateError } = await supabase
+          .from('assignments')
+          .update(assignmentPayload)
+          .eq('id', assignment.id)
+          .select(`
+            *,
+            classes(name),
+            subjects(name),
+            assignment_submissions(id, grade)
+          `)
+          .single();
+
+        if (updateError) throw updateError;
+        assignmentData = data;
+        assignmentId = assignment.id;
+      } else {
+        // Create new assignment
+        const { data, error: insertError } = await supabase
+          .from('assignments')
+          .insert(assignmentPayload)
+          .select(`
+            *,
+            classes(name),
+            subjects(name)
+          `)
+          .single();
+
+        if (insertError) throw insertError;
+        assignmentData = data;
+        assignmentId = data.id;
+      }
 
       // 2. If a file is selected, upload it
       if (file) {
@@ -197,24 +252,30 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
           .eq('id', assignmentId);
 
         if (updateError) throw updateError;
+
+        // Update local data
+        assignmentData.file_url = fileUrl;
       }
 
-      toast.success("Assignment created");
-      onSave({
-        ...assignmentData,
-        assignment_submissions: [],
-        submissionCount: 0,
-        gradedCount: 0,
-        isFullyGraded: false,
-        hasPendingGrading: false,
-        isOverdue: new Date(assignmentData.due_date) < new Date(),
-      });
-      onClose();
+      toast.success(isEditing ? "Assignment updated" : "Assignment created");
 
+      // Prepare data for parent component
+      const normalizedData = {
+        ...assignmentData,
+        assignment_submissions: assignmentData.assignment_submissions || [],
+        submissionCount: assignmentData.assignment_submissions?.length || 0,
+        gradedCount: assignmentData.assignment_submissions?.filter((s: any) => s.grade !== null).length || 0,
+        isFullyGraded: assignmentData.assignment_submissions?.length > 0 && 
+                       assignmentData.assignment_submissions?.filter((s: any) => s.grade !== null).length === assignmentData.assignment_submissions?.length,
+        hasPendingGrading: (assignmentData.assignment_submissions?.filter((s: any) => s.grade !== null).length || 0) < (assignmentData.assignment_submissions?.length || 0),
+        isOverdue: new Date(assignmentData.due_date) < new Date(),
+      };
+
+      onSave(normalizedData);
       onClose();
 
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create assignment');
+      toast.error(error.message || `Failed to ${isEditing ? 'update' : 'create'} assignment`);
     } finally {
       setIsSaving(false);
     }
@@ -226,7 +287,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
-            Create Assignment
+            {isEditing ? 'Edit Assignment' : 'Create Assignment'}
           </DialogTitle>
         </DialogHeader>
 
@@ -325,7 +386,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId }: Assignment
         <div className="flex justify-end gap-3 pt-4 border-t">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Assignment'}
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : (isEditing ? 'Update Assignment' : 'Create Assignment')}
           </Button>
         </div>
       </DialogContent>

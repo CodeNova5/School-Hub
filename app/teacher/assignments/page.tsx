@@ -18,6 +18,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Edit,
 } from "lucide-react";
 import { AssignmentFilters } from "@/components/AssignmentFilters";
 /* -------------------------------------------------------------------------- */
@@ -104,6 +105,7 @@ export default function AssignmentsPage() {
 
   const [teacherId, setTeacherId] = useState("");
   const [openModal, setOpenModal] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   type CacheKey = string;
 
   const assignmentsCache = new Map<
@@ -280,6 +282,15 @@ export default function AssignmentsPage() {
 
     setFiltered(result);
   }, [assignments, search, classFilter, subjectFilter, statusFilter]);
+
+  /* ---------------------------------------------------------------------- */
+  /* EDIT                                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  function handleEdit(assignment: Assignment) {
+    setEditingAssignment(assignment);
+    setOpenModal(true);
+  }
 
   /* ---------------------------------------------------------------------- */
   /* DELETE                                                                 */
@@ -484,6 +495,15 @@ export default function AssignmentsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          className="w-full"
+                          onClick={() => handleEdit(a)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           className="text-red-600 hover:bg-red-50 hover:text-red-700"
                           onClick={() => handleDelete(a.id)}
                         >
@@ -527,23 +547,47 @@ export default function AssignmentsPage() {
       <AssignmentModal
         open={openModal}
         teacherId={teacherId}
-        onClose={() => setOpenModal(false)}
-        onSave={(newAssignment) => {
+        assignment={editingAssignment}
+        onClose={() => {
+          setOpenModal(false);
+          setEditingAssignment(null);
+        }}
+        onSave={(updatedAssignment) => {
           const cacheKey = getCacheKey(teacherId, page, filters);
 
-          // 1️⃣ Optimistic UI update
-          setAssignments((prev) => [newAssignment, ...prev]);
-          setTotal((t) => t + 1);
+          if (editingAssignment) {
+            // 1️⃣ Optimistic UI update for edit
+            setAssignments((prev) =>
+              prev.map((a) => (a.id === updatedAssignment.id ? updatedAssignment : a))
+            );
 
-          // 2️⃣ Update cache
-          assignmentsCache.set(cacheKey, {
-            data: [newAssignment, ...assignments],
-            total: total + 1,
-            timestamp: Date.now(),
-          });
+            // 2️⃣ Update cache
+            if (assignmentsCache.has(cacheKey)) {
+              const cached = assignmentsCache.get(cacheKey)!;
+              assignmentsCache.set(cacheKey, {
+                data: cached.data.map((a) =>
+                  a.id === updatedAssignment.id ? updatedAssignment : a
+                ),
+                total: cached.total,
+                timestamp: Date.now(),
+              });
+            }
+          } else {
+            // 1️⃣ Optimistic UI update for new
+            setAssignments((prev) => [updatedAssignment, ...prev]);
+            setTotal((t) => t + 1);
+
+            // 2️⃣ Update cache
+            assignmentsCache.set(cacheKey, {
+              data: [updatedAssignment, ...assignments],
+              total: total + 1,
+              timestamp: Date.now(),
+            });
+          }
 
           // 3️⃣ Close modal instantly
           setOpenModal(false);
+          setEditingAssignment(null);
 
           // 4️⃣ Background revalidation (no spinner)
           loadAssignments({ revalidate: true });

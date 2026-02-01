@@ -9,9 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Calendar, FileText, Upload } from "lucide-react";
+import { Calendar, FileText, Upload, Edit } from "lucide-react";
 import { toast } from "sonner";
 import { SubmissionModal } from "@/components/SubmissionModal";
+import { AssignmentModal } from "@/components/assignment-modal";
+import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 
 /* ============================= PAGE ============================= */
 
@@ -32,6 +34,8 @@ export default function AssignmentDetailsPage() {
   const [dateOrder, setDateOrder] = useState<"newest" | "oldest">("newest");
   const [search, setSearch] = useState("");
   const [activeSubmission, setActiveSubmission] = useState<any | null>(null);
+  const [teacherId, setTeacherId] = useState("");
+  const [openEditModal, setOpenEditModal] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -61,6 +65,19 @@ export default function AssignmentDetailsPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    async function initTeacher() {
+      const user = await getCurrentUser();
+      if (user) {
+        const teacher = await getTeacherByUserId(user.id);
+        if (teacher) {
+          setTeacherId(teacher.id);
+        }
+      }
+    }
+    initTeacher();
+  }, []);
 
   /* ===== Derived Data ===== */
   const gradedCount = submissions.filter(s => s.graded_at).length;
@@ -163,15 +180,24 @@ export default function AssignmentDetailsPage() {
       <div className="space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">{assignment.title}</h1>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold">{assignment.title}</h1>
 
-          <div className="flex gap-2 mt-4 flex-wrap">
-            <Badge variant="outline">{assignment.classes?.name}</Badge>
-            <Badge variant="secondary">{assignment.subjects?.name}</Badge>
-            <Badge className="bg-blue-100 text-blue-800">
-              <Calendar className="w-4 h-4 mr-1" />
-              Due {new Date(assignment.due_date).toLocaleDateString()}
-            </Badge>
+              <div className="flex gap-2 mt-4 flex-wrap">
+                <Badge variant="outline">{assignment.classes?.name}</Badge>
+                <Badge variant="secondary">{assignment.subjects?.name}</Badge>
+                <Badge className="bg-blue-100 text-blue-800">
+                  <Calendar className="w-4 h-4 mr-1" />
+                  Due {new Date(assignment.due_date).toLocaleDateString()}
+                </Badge>
+              </div>
+            </div>
+
+            <Button onClick={() => setOpenEditModal(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Assignment
+            </Button>
           </div>
         </div>
 
@@ -385,6 +411,20 @@ export default function AssignmentDetailsPage() {
         saveGrade={saveGrade}
         onClose={() => setActiveSubmission(null)}
       />
+
+      {teacherId && (
+        <AssignmentModal
+          open={openEditModal}
+          teacherId={teacherId}
+          assignment={assignment}
+          onClose={() => setOpenEditModal(false)}
+          onSave={(updatedAssignment) => {
+            setAssignment(updatedAssignment);
+            setOpenEditModal(false);
+            toast.success("Assignment updated successfully");
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }

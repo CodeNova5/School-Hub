@@ -207,6 +207,39 @@ export function ResultsPublicationDialog({
       [component]: !settings[component],
     };
     
+    // Cascading logic: checking a component should check all previous components
+    if (newSettings[component]) {
+      // If checking exam, check all previous components
+      if (component === 'exam_published') {
+        newSettings.welcome_test_published = true;
+        newSettings.mid_term_test_published = true;
+        newSettings.vetting_published = true;
+      }
+      // If checking vetting, check welcome and mid-term
+      else if (component === 'vetting_published') {
+        newSettings.welcome_test_published = true;
+        newSettings.mid_term_test_published = true;
+      }
+      // If checking mid-term, check welcome
+      else if (component === 'mid_term_test_published') {
+        newSettings.welcome_test_published = true;
+      }
+    } else {
+      // Unchecking logic: unchecking a component should uncheck all subsequent components
+      if (component === 'welcome_test_published') {
+        newSettings.mid_term_test_published = false;
+        newSettings.vetting_published = false;
+        newSettings.exam_published = false;
+      }
+      else if (component === 'mid_term_test_published') {
+        newSettings.vetting_published = false;
+        newSettings.exam_published = false;
+      }
+      else if (component === 'vetting_published') {
+        newSettings.exam_published = false;
+      }
+    }
+    
     // Auto-sync calculation mode based on selected components
     const calculationMode = determineCalculationMode(newSettings);
     newSettings.calculation_mode = calculationMode;
@@ -299,6 +332,18 @@ export function ResultsPublicationDialog({
         return;
       }
 
+      // If publishing, recalculate positions based on the selected calculation mode
+      if (settings.is_published && hasSelectedComponent) {
+        try {
+          await recalculatePositions();
+        } catch (error) {
+          console.error("Error recalculating positions:", error);
+          toast.error("Failed to recalculate positions. Please calculate manually.");
+          setLoading(false);
+          return;
+        }
+      }
+
       // Upsert publication settings
       const publicationData = {
         class_id: classId,
@@ -326,7 +371,7 @@ export function ResultsPublicationDialog({
 
       toast.success(
         settings.is_published 
-          ? "Results published to students successfully!" 
+          ? "Results published and positions recalculated successfully!" 
           : "Publication settings saved (results not visible to students)"
       );
 
@@ -338,6 +383,126 @@ export function ResultsPublicationDialog({
     } finally {
       setLoading(false);
     }
+  }
+
+  async function recalculatePositions() {
+    // Get all students in this class
+    const students = await apiClient.apiRead({
+      table: "students",
+      select: "id",
+      filters: { class_id: classId },
+    });
+
+    if (!students || students.length === 0) {
+      return;
+    }
+
+    // Fetch actual results data to calculate scores based on mode
+    const resultsData = await apiClient.apiRead({
+      table: "results",
+      select: "student_id, welcome_test, mid_term_test, vetting, exam, subject_class:subject_classes!inner(class_id)",
+      filters: {
+        term_id: termId,
+        session_id: sessionId,
+      },
+    });
+
+    // Filter results for this class
+    const classResults = resultsData?.filter((r: any) => r.subject_class?.class_id === classId) || [];
+
+    // Calculate scores per student based on calculation mode
+    const studentScoresMap = new Map<string, number>();
+    
+    students.forEach((student: any) => {
+      const studentResults = classResults.filter((r: any) => r.student_id === student.id);
+      
+      if (studentResults.length === 0) {
+        studentScoresMap.set(student.id, 0);
+        return;
+      }
+
+      let totalScore = 0;
+      let maxPossibleScore = 0;
+
+      studentResults.forEach((result: any) => {
+        switch (settings.calculation_mode) {
+          case 'welcome_only':
+            totalScore += result.welcome_test || 0;
+            maxPossibleScore += 10;
+            break;
+          case 'welcome_midterm':
+            totalScore += (result.welcome_test || 0) + (result.mid_term_test || 0);
+            maxPossibleScore += 30;
+            break;
+          case 'welcome_midterm_vetting':
+            totalScore += (result.welcome_test || 0) + (result.mid_term_test || 0) + (result.vetting || 0);
+            maxPossibleScore += 40;
+            break;
+          case 'all':
+            totalScore += (result.welcome_test || 0) + (result.mid_term_test || 0) + (result.vetting || 0) + (result.exam || 0);
+            maxPossibleScore += 100;
+            break;
+        }
+      });
+
+      // Calculate average percentage
+      const averagePercentage = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+      studentScoresMap.set(student.id, averagePercentage);
+    });
+
+    // Create array of students with scores and sort by score (descending)
+    const studentsWithScores = students.map((student: any) => ({
+      student_id: student.id,
+      calculatedScore: studentScoresMap.get(student.id) || 0,
+    })).sort((a, b) => b.calculatedScore - a.calculatedScore);
+
+    // Assign positions (handle ties)
+    let currentPosition = 1;
+    const positionUpdates: { studentId: string; position: number }[] = [];
+
+    for (let i = 0; i < studentsWithScores.length; i++) {
+      const student = studentsWithScores[i];
+
+      // Check if this student has the same score as the previous one (tie)
+      if (i > 0 && Math.abs(student.calculatedScore - studentsWithScores[i - 1].calculatedScore) < 0.01) {
+        // Same position as previous student (tie)
+        const previousPosition = positionUpdates[i - 1].position;
+        positionUpdates.push({
+          studentId: student.student_id,
+          position: previousPosition,
+        });
+      } else {
+        // New position
+        currentPosition = i + 1;
+        positionUpdates.push({
+          studentId: student.student_id,
+          position: currentPosition,
+        });
+      }
+    }
+
+    // Calculate class average
+    const classAvg = studentsWithScores.reduce((sum, s) => sum + s.calculatedScore, 0) / studentsWithScores.length;
+
+    // Update all results for each student with their position
+    const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
+      await apiClient.apiWrite({
+        table: "results",
+        operation: "update",
+        data: {
+          class_position: position,
+          total_students: studentsWithScores.length,
+          class_average: classAvg
+        },
+        filters: {
+          student_id: studentId,
+          term_id: termId,
+          session_id: sessionId
+        }
+      });
+    });
+
+    await Promise.all(updatePromises);
   }
 
   const incompleteStudents = studentCompletions.filter(s => !s.has_all_components);

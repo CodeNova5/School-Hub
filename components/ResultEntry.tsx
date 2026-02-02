@@ -63,7 +63,7 @@ export default function ResultEntry({
   const [classPosition, setClassPosition] = useState<number | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [classAverage, setClassAverage] = useState<number | null>(null);
-  
+
   // Publication settings
   const [publicationSettings, setPublicationSettings] = useState<any>(null);
   const [isPublished, setIsPublished] = useState(false);
@@ -153,7 +153,7 @@ export default function ResultEntry({
           .eq("session_id", sessionData.id)
           .eq("term_id", termData.id)
           .single();
-        
+
         if (pubSettings) {
           setPublicationSettings(pubSettings);
           setIsPublished(pubSettings.is_published);
@@ -238,45 +238,58 @@ export default function ResultEntry({
       }));
 
       // 6. Determine next term logic
+      // 6. Determine next term logic
       let nextTermDateValue = "";
       try {
+        // 1. Get all terms in the current session, ordered by position or id
         const { data: allTerms } = await supabase
           .from("terms")
           .select("*")
           .eq("session_id", sessionData.id)
           .order("id", { ascending: true });
-        let currentTermIdx = -1;
-        if (allTerms && termData) {
-          currentTermIdx = allTerms.findIndex((t: any) => termData && t.id === termData.id);
-        }
-        if (allTerms && termData && currentTermIdx > -1) {
+        console.log('allTerms:', allTerms);
+
+        // Find the current term in the list
+        const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
+        console.log('currentTermIdx:', currentTermIdx, 'termData.id:', termData.id);
+        if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
+          // If not last term, next term is in this session
           if (currentTermIdx < allTerms.length - 1) {
             const nextTerm = allTerms[currentTermIdx + 1];
+            console.log('nextTerm:', nextTerm);
             nextTermDateValue = nextTerm?.start_date || "";
+            console.log('nextTermDate (same session):', nextTermDateValue);
           } else {
-            // Find next session using date comparison instead of ID
+            // Last term, get first term of next session
+            // Find the next session
             const { data: nextSession } = await supabase
               .from("sessions")
               .select("*")
-              .gt("start_date", sessionData.end_date || sessionData.start_date)
-              .order("start_date", { ascending: true })
+              .gt("id", sessionData.id)
+              .order("id", { ascending: true })
               .limit(1)
-              .maybeSingle();
+              .single();
+            console.log('nextSession:', nextSession);
             if (nextSession) {
               const { data: nextSessionTerms } = await supabase
                 .from("terms")
                 .select("*")
                 .eq("session_id", nextSession.id)
-                .order("start_date", { ascending: true });
+                .order("id", { ascending: true });
+              console.log('nextSessionTerms:', nextSessionTerms);
               if (nextSessionTerms && nextSessionTerms.length > 0) {
                 nextTermDateValue = nextSessionTerms[0].start_date || "";
+                console.log('nextTermDate (next session):', nextTermDateValue);
               }
             }
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.log('Error determining nextTermDate:', e);
+      }
 
       setNextTermDate(nextTermDateValue || "");
+      console.log('Final nextTermDate:', nextTermDateValue);
 
       // 7. Load existing results
       const { data: existingResults } = await supabase
@@ -335,7 +348,7 @@ export default function ResultEntry({
           .eq("student_id", studentId)
           .eq("session_id", sessionData.id)
           .eq("term_id", termData.id);
-        
+
         if (countWithFilters !== null && countWithFilters > 0) {
           attendanceCount = countWithFilters;
         } else {
@@ -367,17 +380,17 @@ export default function ResultEntry({
   function isComponentVisible(component: 'welcome_test' | 'mid_term_test' | 'vetting' | 'exam'): boolean {
     // Admin and teachers can always see all components
     if (role !== 'student') return true;
-    
+
     // Students can only see published components
     if (!publicationSettings || !isPublished) return false;
-    
+
     const visibilityMap = {
       'welcome_test': publicationSettings.welcome_test_published,
       'mid_term_test': publicationSettings.mid_term_test_published,
       'vetting': publicationSettings.vetting_published,
       'exam': publicationSettings.exam_published,
     };
-    
+
     return visibilityMap[component] || false;
   }
 
@@ -552,11 +565,11 @@ export default function ResultEntry({
 
   async function handleExportPDF() {
     if (!printRef.current) return;
-    
+
     try {
       // Dynamically import html2pdf only on client side
       const html2pdf = (await import('html2pdf.js')).default;
-      
+
       const element = printRef.current;
       const opt = {
         margin: 0.5,
@@ -565,7 +578,7 @@ export default function ResultEntry({
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
       };
-      
+
       toast.info('Generating PDF...');
       await html2pdf().set(opt).from(element).save();
       toast.success('PDF downloaded successfully!');
@@ -692,8 +705,7 @@ export default function ResultEntry({
                 <p><strong>Term:</strong> {term?.name}</p>
                 <p><strong>No. of Attendance:</strong> {attendance}</p>
                 <p>
-                  <strong>Next Term Begins:</strong> {nextTermDate && !isNaN(new Date(nextTermDate).getTime()) ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}
-                </p>
+                  <strong>Next Term Begins:</strong> {nextTermDate && !isNaN(new Date(nextTermDate).getTime()) ? new Date(nextTermDate).toLocaleDateString('en-GB') : 'N/A'}                </p>
               </div>
             </div>
             {classPosition && (

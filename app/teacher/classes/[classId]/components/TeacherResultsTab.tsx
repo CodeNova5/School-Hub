@@ -42,6 +42,7 @@ import { apiClient } from "@/lib/api-client";
 import { Student, Session, Term } from "@/lib/types";
 import * as XLSX from "xlsx-js-style";
 import { StudentDetailsModal } from "@/components/student-details-modal";
+import { ResultsPublicationDialog } from "@/components/ResultsPublicationDialog";
 
 interface StudentResult {
     student_id: string;
@@ -100,6 +101,7 @@ export default function TeacherResultsTab({
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
     const [isCalculatePositionDialogOpen, setIsCalculatePositionDialogOpen] = useState(false);
+    const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
     const [scoreCalculationMode, setScoreCalculationMode] = useState<'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'>('all');
 
     useEffect(() => {
@@ -506,8 +508,21 @@ export default function TeacherResultsTab({
         <Card>
             <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <CardTitle>Class Results</CardTitle>
+                    <div>
+                        <CardTitle>Class Results</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            View and manage student results for {className}
+                        </p>
+                    </div>
                     <div className="flex gap-2">
+                        <Button
+                            size="sm"
+                            onClick={() => setIsPublicationDialogOpen(true)}
+                            disabled={!selectedSessionId || !selectedTermId}
+                        >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Publish Results
+                        </Button>
                         <Button
                             size="sm"
                             variant="outline"
@@ -878,6 +893,17 @@ export default function TeacherResultsTab({
                     setIsStudentDetailsOpen(false);
                     setSelectedStudent(null);
                 }}
+            />
+
+            {/* Results Publication Dialog */}
+            <ResultsPublicationDialog
+                isOpen={isPublicationDialogOpen}
+                onClose={() => setIsPublicationDialogOpen(false)}
+                classId={classId}
+                className={className}
+                sessionId={selectedSessionId}
+                termId={selectedTermId}
+                onPublish={fetchStudentResults}
             />
         </Card>
     );

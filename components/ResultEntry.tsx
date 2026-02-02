@@ -700,22 +700,22 @@ export default function ResultEntry({
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 px-3 py-2 text-left">Subject</th>
                     {isComponentVisible('welcome_test') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
                         Welcome Test (10)
                       </th>
                     )}
                     {isComponentVisible('mid_term_test') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
                         Mid-Term (20)
                       </th>
                     )}
                     {isComponentVisible('vetting') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
                         Vetting (10)
                       </th>
                     )}
                     {isComponentVisible('exam') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
                         Exam (60)
                       </th>
                     )}

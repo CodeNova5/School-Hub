@@ -37,7 +37,6 @@ export default function StudentAttendancePage() {
   const [studentName, setStudentName] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [searchMonth, setSearchMonth] = useState<string>("");
-  const [nextTermDate, setNextTermDate] = useState<string>("");
 
   useEffect(() => {
     loadAttendanceData();
@@ -88,18 +87,6 @@ export default function StudentAttendancePage() {
       if (attendanceData) {
         setAttendance(attendanceData);
         calculateStats(attendanceData);
-      }
-
-      // Fetch next term information
-      const { data: termsData } = await supabase
-        .from("terms")
-        .select("start_date")
-        .gt("start_date", new Date().toISOString())
-        .order("start_date", { ascending: true })
-        .limit(1);
-
-      if (termsData && termsData.length > 0) {
-        setNextTermDate(termsData[0].start_date);
       }
     } catch (error) {
       console.error("Error loading attendance:", error);
@@ -316,30 +303,6 @@ export default function StudentAttendancePage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Next Term Information */}
-        {nextTermDate && (
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Next Term Begins</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {new Date(nextTermDate).toLocaleDateString("en-US", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
-                <div className="h-16 w-16 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Calendar className="h-8 w-8 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Filters */}
         <Card>

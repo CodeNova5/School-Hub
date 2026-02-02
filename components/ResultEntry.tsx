@@ -293,6 +293,10 @@ export default function ResultEntry({
         setClassPosition(first.class_position ?? null);
         setTotalStudents(first.total_students ?? null);
         setClassAverage(first.class_average ?? null);
+        // Load saved next term date if it exists
+        if (first.next_term_begins) {
+          setNextTermDate(first.next_term_begins);
+        }
         for (const res of existingResults) {
           const idx = initialScores.findIndex(
             (s) => s.subject_class_id === res.subject_class_id
@@ -321,16 +325,36 @@ export default function ResultEntry({
 
       setScores(initialScores);
 
-      // 8. Attendance
-      const { count } = await supabase
-        .from("attendance")
-        .select("*", { count: "exact" })
-        .eq("student_id", studentId)
-        .eq("status", "present")
-        .eq("session_id", sessionData.id)
-        .eq("term_id", termData.id);
+      // 8. Attendance - try with session/term filters first, fallback to just student_id
+      let attendanceCount = 0;
+      try {
+        const { count: countWithFilters } = await supabase
+          .from("attendance")
+          .select("*", { count: "exact", head: true })
+          .eq("student_id", studentId)
+          .eq("session_id", sessionData.id)
+          .eq("term_id", termData.id);
+        
+        if (countWithFilters !== null && countWithFilters > 0) {
+          attendanceCount = countWithFilters;
+        } else {
+          // Fallback: count all attendance for this student (some schemas might not have session/term)
+          const { count: countAll } = await supabase
+            .from("attendance")
+            .select("*", { count: "exact", head: true })
+            .eq("student_id", studentId);
+          attendanceCount = countAll || 0;
+        }
+      } catch (e) {
+        // If query fails, try basic count
+        const { count } = await supabase
+          .from("attendance")
+          .select("*", { count: "exact", head: true })
+          .eq("student_id", studentId);
+        attendanceCount = count || 0;
+      }
 
-      setAttendance(count || 0);
+      setAttendance(attendanceCount);
     } catch (err: any) {
       toast.error(err.message || "Failed to load data");
     } finally {

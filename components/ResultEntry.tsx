@@ -151,7 +151,7 @@ export default function ResultEntry({
           .select("*")
           .eq("class_id", studentData.class_id)
           .eq("session_id", sessionData.id)
-          .eq("term_id", termData.id)
+          .eq("term_id", termData!.id)
           .single();
 
         if (pubSettings) {
@@ -247,7 +247,7 @@ export default function ResultEntry({
             .eq("session_id", sessionData.id)
             .order("start_date", { ascending: true });
 
-          const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData.id);
+          const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData!.id);
 
           if (allTerms && currentTermIdx !== undefined && currentTermIdx > -1) {
             // If not last term, next term is in this session
@@ -290,7 +290,7 @@ export default function ResultEntry({
         .select("*")
         .eq("student_id", studentId)
         .eq("session_id", sessionData.id)
-        .eq("term_id", termData.id);
+        .eq("term_id", termData!.id);
 
       if (existingResults && existingResults.length > 0) {
         const first = existingResults[0];
@@ -340,7 +340,7 @@ export default function ResultEntry({
           .select("*", { count: "exact", head: true })
           .eq("student_id", studentId)
           .eq("session_id", sessionData.id)
-          .eq("term_id", termData.id);
+          .eq("term_id", termData!.id);
 
         if (countWithFilters !== null && countWithFilters > 0) {
           attendanceCount = countWithFilters;

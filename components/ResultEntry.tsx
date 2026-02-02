@@ -144,6 +144,7 @@ export default function ResultEntry({
       setTerm(termData);
 
       // 3.5 Load publication settings (for students)
+      let currentCalculationMode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all' = 'all';
       if (role === 'student') {
         const { data: pubSettings } = await supabase
           .from("results_publication")
@@ -158,6 +159,7 @@ export default function ResultEntry({
           setIsPublished(pubSettings.is_published);
           // Set calculation mode to match published mode
           if (pubSettings.calculation_mode) {
+            currentCalculationMode = pubSettings.calculation_mode;
             setScoreCalculationMode(pubSettings.calculation_mode);
           }
         } else {
@@ -303,8 +305,8 @@ export default function ResultEntry({
               vetting: res.vetting || 0,
               exam: res.exam || 0,
             };
-            const total = calculateTotalScore(initialScores[idx]);
-            const { grade, remark } = calculateGrade(total);
+            const total = calculateTotalScoreWithMode(initialScores[idx], currentCalculationMode);
+            const { grade, remark } = calculateGradeWithMode(total, currentCalculationMode);
             initialScores[idx].total = total;
             initialScores[idx].grade = grade;
             initialScores[idx].remark = res.remark || remark;
@@ -368,6 +370,20 @@ export default function ResultEntry({
     }
   }
 
+  function calculateTotalScoreWithMode(score: SubjectScore, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
+    switch (mode) {
+      case 'welcome_only':
+        return score.welcome_test;
+      case 'welcome_midterm':
+        return score.welcome_test + score.mid_term_test;
+      case 'welcome_midterm_vetting':
+        return score.welcome_test + score.mid_term_test + score.vetting;
+      case 'all':
+      default:
+        return score.welcome_test + score.mid_term_test + score.vetting + score.exam;
+    }
+  }
+
   function getMaxPossibleScore(): number {
     switch (scoreCalculationMode) {
       case 'welcome_only':
@@ -382,8 +398,36 @@ export default function ResultEntry({
     }
   }
 
+  function getMaxPossibleScoreWithMode(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
+    switch (mode) {
+      case 'welcome_only':
+        return 10;
+      case 'welcome_midterm':
+        return 30;
+      case 'welcome_midterm_vetting':
+        return 40;
+      case 'all':
+      default:
+        return 100;
+    }
+  }
+
   function calculateGrade(total: number) {
     const maxScore = getMaxPossibleScore();
+    const percentage = (total / maxScore) * 100;
+    if (percentage >= 75) return { grade: "A1", remark: "Excellent" };
+    if (percentage >= 70) return { grade: "B2", remark: "Very Good" };
+    if (percentage >= 65) return { grade: "B3", remark: "Good" };
+    if (percentage >= 60) return { grade: "C4", remark: "Credit" };
+    if (percentage >= 55) return { grade: "C5", remark: "Credit" };
+    if (percentage >= 50) return { grade: "C6", remark: "Credit" };
+    if (percentage >= 45) return { grade: "D7", remark: "Pass" };
+    if (percentage >= 40) return { grade: "E8", remark: "Pass" };
+    return { grade: "F9", remark: "Fail" };
+  }
+
+  function calculateGradeWithMode(total: number, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
+    const maxScore = getMaxPossibleScoreWithMode(mode);
     const percentage = (total / maxScore) * 100;
     if (percentage >= 75) return { grade: "A1", remark: "Excellent" };
     if (percentage >= 70) return { grade: "B2", remark: "Very Good" };
@@ -430,7 +474,7 @@ export default function ResultEntry({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scoreCalculationMode]);
 
-  // Calculate visible columns count for table alignment (only score input columns)
+  // Calculate visible columns count for table alignment (columns before Total column)
   const visibleColumnsCount = (() => {
     let count = 1; // Subject name column
     if (isComponentVisible('welcome_test')) count++;

@@ -10,7 +10,8 @@ import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
 import { toast } from "sonner";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
-import { Save, Printer, ArrowLeft, Loader2, Medal } from "lucide-react";
+import { Save, Printer, ArrowLeft, Loader2, Medal, FileDown } from "lucide-react";
+import html2pdf from "html2pdf.js";
 
 interface SubjectScore {
   subject_class_id: string;
@@ -430,7 +431,7 @@ export default function ResultEntry({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scoreCalculationMode]);
 
-  // Calculate visible columns count for table alignment
+  // Calculate visible columns count for table alignment (only score input columns)
   const visibleColumnsCount = (() => {
     let count = 1; // Subject name column
     if (isComponentVisible('welcome_test')) count++;
@@ -479,6 +480,28 @@ export default function ResultEntry({
 
   function handlePrint() {
     window.print();
+  }
+
+  async function handleExportPDF() {
+    if (!printRef.current) return;
+    
+    try {
+      const element = printRef.current;
+      const opt = {
+        margin: 0.5,
+        filename: `${student?.first_name}_${student?.last_name}_Report_${session?.name}_${term?.name}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+      };
+      
+      toast.info('Generating PDF...');
+      await html2pdf().set(opt).from(element).save();
+      toast.success('PDF downloaded successfully!');
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast.error('Failed to export PDF');
+    }
   }
 
   async function handleSave() {
@@ -548,6 +571,10 @@ export default function ResultEntry({
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
             Print
+          </Button>
+          <Button variant="outline" onClick={handleExportPDF}>
+            <FileDown className="h-4 w-4 mr-2" />
+            Export as PDF
           </Button>
           {canEdit && !isReadOnly && (
             <Button onClick={handleSave} disabled={isSaving}>
@@ -798,21 +825,31 @@ export default function ResultEntry({
       </Card>
       <style jsx global>{`
         @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-content,
+          #printable-content * {
+            visibility: visible;
+          }
+          #printable-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white;
+          }
           .print\\:hidden {
             display: none !important;
           }
-          ${printRef.current ? `
-            #printable-content,
-            #printable-content * {
-              visibility: visible;
-            }
-            #printable-content {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
-            }
-          ` : ''}
+          input {
+            border: none !important;
+            background: transparent !important;
+          }
+          textarea {
+            border: none !important;
+            background: transparent !important;
+          }
         }
       `}</style>
     </div>

@@ -307,7 +307,23 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setExistingFileUrl(null)}
+                  onClick={async () => {
+                    if (isEditing && assignment?.id) {
+                      try {
+                        const { error } = await supabase
+                          .from('assignments')
+                          .update({ file_url: null })
+                          .eq('id', assignment.id);
+                        
+                        if (error) throw error;
+                        toast.success('File removed');
+                      } catch (error: any) {
+                        toast.error('Failed to remove file');
+                        return;
+                      }
+                    }
+                    setExistingFileUrl(null);
+                  }}
                   className="text-red-600 hover:text-red-700"
                 >
                   Remove

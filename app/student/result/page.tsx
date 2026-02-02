@@ -29,6 +29,8 @@ export default function StudentResultPage() {
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [selectedTermId, setSelectedTermId] = useState("");
   const [hasResults, setHasResults] = useState(false);
+  const [isPublished, setIsPublished] = useState(false);
+  const [classId, setClassId] = useState<string>("");
 
   useEffect(() => {
     loadStudentData();
@@ -79,6 +81,7 @@ export default function StudentResultPage() {
       
       const classData = studentData.classes as any;
       setStudentClass(classData?.name || "No class assigned");
+      setClassId(classData?.id || "");
 
       // Fetch all sessions and terms
       const { data: sessionsData } = await supabase
@@ -111,6 +114,7 @@ export default function StudentResultPage() {
 
   async function checkForResults() {
     try {
+      // Check if results exist
       const { data: results } = await supabase
         .from("results")
         .select("id")
@@ -120,9 +124,25 @@ export default function StudentResultPage() {
         .limit(1);
 
       setHasResults((results && results.length > 0) || false);
+
+      // Check if results are published
+      if (classId) {
+        const { data: publication } = await supabase
+          .from("results_publication")
+          .select("is_published")
+          .eq("class_id", classId)
+          .eq("session_id", selectedSessionId)
+          .eq("term_id", selectedTermId)
+          .single();
+
+        setIsPublished(publication?.is_published || false);
+      } else {
+        setIsPublished(false);
+      }
     } catch (error) {
       console.error("Error checking for results:", error);
       setHasResults(false);
+      setIsPublished(false);
     }
   }
 
@@ -226,7 +246,7 @@ export default function StudentResultPage() {
         {/* Results Display */}
         {selectedSessionId && selectedTermId ? (
           <div className="space-y-4">
-            {hasResults ? (
+            {hasResults && isPublished ? (
               <ResultEntry
                 studentId={studentId}
                 role="student"
@@ -236,6 +256,21 @@ export default function StudentResultPage() {
                 sessionId={selectedSessionId}
                 termId={selectedTermId}
               />
+            ) : hasResults && !isPublished ? (
+              <Card>
+                <CardContent className="py-12">
+                  <div className="text-center">
+                    <FileText className="h-16 w-16 text-yellow-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                      Results Not Yet Published
+                    </h3>
+                    <p className="text-gray-500 max-w-md mx-auto">
+                      Your results for this term are being prepared and have not been published yet. 
+                      Please check back later or contact your class teacher.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
             ) : (
               <Card>
                 <CardContent className="py-12">
@@ -245,7 +280,7 @@ export default function StudentResultPage() {
                       No Results Available
                     </h3>
                     <p className="text-gray-500 max-w-md mx-auto">
-                      Results for the selected session and term have not been published yet. 
+                      Results for the selected session and term have not been uploaded yet. 
                       Please check back later or contact your class teacher.
                     </p>
                   </div>

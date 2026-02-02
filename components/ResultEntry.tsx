@@ -63,6 +63,10 @@ export default function ResultEntry({
   const [classPosition, setClassPosition] = useState<number | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [classAverage, setClassAverage] = useState<number | null>(null);
+  
+  // Publication settings
+  const [publicationSettings, setPublicationSettings] = useState<any>(null);
+  const [isPublished, setIsPublished] = useState(false);
 
   useEffect(() => {
     if (studentId) loadData();
@@ -138,6 +142,32 @@ export default function ResultEntry({
 
       setSession(sessionData);
       setTerm(termData);
+
+      // 3.5 Load publication settings (for students)
+      if (role === 'student') {
+        const { data: pubSettings } = await supabase
+          .from("results_publication")
+          .select("*")
+          .eq("class_id", studentData.class_id)
+          .eq("session_id", sessionData.id)
+          .eq("term_id", termData.id)
+          .single();
+        
+        if (pubSettings) {
+          setPublicationSettings(pubSettings);
+          setIsPublished(pubSettings.is_published);
+          // Set calculation mode to match published mode
+          if (pubSettings.calculation_mode) {
+            setScoreCalculationMode(pubSettings.calculation_mode);
+          }
+        } else {
+          // No publication settings = results not visible to students
+          setIsPublished(false);
+        }
+      } else {
+        // Admin/teachers always have access
+        setIsPublished(true);
+      }
 
       // 4. Load subject_classes for this student's class
       const { data: subjectClasses, error: scError } = await supabase
@@ -304,6 +334,24 @@ export default function ResultEntry({
     } finally {
       setIsLoading(false);
     }
+  }
+
+  // Helper to check if a component should be visible
+  function isComponentVisible(component: 'welcome_test' | 'mid_term_test' | 'vetting' | 'exam'): boolean {
+    // Admin and teachers can always see all components
+    if (role !== 'student') return true;
+    
+    // Students can only see published components
+    if (!publicationSettings || !isPublished) return false;
+    
+    const visibilityMap = {
+      'welcome_test': publicationSettings.welcome_test_published,
+      'mid_term_test': publicationSettings.mid_term_test_published,
+      'vetting': publicationSettings.vetting_published,
+      'exam': publicationSettings.exam_published,
+    };
+    
+    return visibilityMap[component] || false;
   }
 
   function calculateTotalScore(score: SubjectScore): number {
@@ -568,18 +616,26 @@ export default function ResultEntry({
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 px-3 py-2 text-left">Subject</th>
-                    <th className="border border-gray-300 px-3 py-2 text-center w-24">
-                      Welcome Test (10)
-                    </th>
-                    <th className="border border-gray-300 px-3 py-2 text-center w-24">
-                      Mid-Term (20)
-                    </th>
-                    <th className="border border-gray-300 px-3 py-2 text-center w-24">
-                      Vetting (10)
-                    </th>
-                    <th className="border border-gray-300 px-3 py-2 text-center w-24">
-                      Exam (60)
-                    </th>
+                    {isComponentVisible('welcome_test') && (
+                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                        Welcome Test (10)
+                      </th>
+                    )}
+                    {isComponentVisible('mid_term_test') && (
+                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                        Mid-Term (20)
+                      </th>
+                    )}
+                    {isComponentVisible('vetting') && (
+                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                        Vetting (10)
+                      </th>
+                    )}
+                    {isComponentVisible('exam') && (
+                      <th className="border border-gray-300 px-3 py-2 text-center w-24">
+                        Exam (60)
+                      </th>
+                    )}
                     <th className="border border-gray-300 px-3 py-2 text-center w-20">
                       Total ({getMaxPossibleScore()})
                     </th>
@@ -593,50 +649,58 @@ export default function ResultEntry({
                       <td className="border border-gray-300 px-3 py-2 font-medium">
                         {score.subject_name}
                       </td>
-                      <td className="border border-gray-300 px-1 py-1 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="10"
-                          value={score.welcome_test || ''}
-                          onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                          className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
-                          disabled={isReadOnly || !canEdit}
-                        />
-                      </td>
-                      <td className="border border-gray-300 px-1 py-1 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="20"
-                          value={score.mid_term_test || ''}
-                          onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                          className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
-                          disabled={isReadOnly || !canEdit}
-                        />
-                      </td>
-                      <td className="border border-gray-300 px-1 py-1 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="10"
-                          value={score.vetting || ''}
-                          onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                          className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
-                          disabled={isReadOnly || !canEdit}
-                        />
-                      </td>
-                      <td className="border border-gray-300 px-1 py-1 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="60"
-                          value={score.exam || ''}
-                          onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                          className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
-                          disabled={isReadOnly || !canEdit}
-                        />
-                      </td>
+                      {isComponentVisible('welcome_test') && (
+                        <td className="border border-gray-300 px-1 py-1 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={score.welcome_test || ''}
+                            onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            disabled={isReadOnly || !canEdit}
+                          />
+                        </td>
+                      )}
+                      {isComponentVisible('mid_term_test') && (
+                        <td className="border border-gray-300 px-1 py-1 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="20"
+                            value={score.mid_term_test || ''}
+                            onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            disabled={isReadOnly || !canEdit}
+                          />
+                        </td>
+                      )}
+                      {isComponentVisible('vetting') && (
+                        <td className="border border-gray-300 px-1 py-1 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={score.vetting || ''}
+                            onChange={(e) => updateScore(index, 'vetting', e.target.value)}
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            disabled={isReadOnly || !canEdit}
+                          />
+                        </td>
+                      )}
+                      {isComponentVisible('exam') && (
+                        <td className="border border-gray-300 px-1 py-1 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="60"
+                            value={score.exam || ''}
+                            onChange={(e) => updateScore(index, 'exam', e.target.value)}
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            disabled={isReadOnly || !canEdit}
+                          />
+                        </td>
+                      )}
                       <td className="border border-gray-300 px-3 py-2 text-center font-bold">
                         {score.total}
                       </td>

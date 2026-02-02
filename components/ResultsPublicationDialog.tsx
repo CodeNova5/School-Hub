@@ -202,20 +202,86 @@ export function ResultsPublicationDialog({
   }
 
   function handleComponentToggle(component: keyof PublicationSettings) {
-    setSettings(prev => ({
-      ...prev,
-      [component]: !prev[component],
-    }));
+    const newSettings = {
+      ...settings,
+      [component]: !settings[component],
+    };
+    
+    // Auto-sync calculation mode based on selected components
+    const calculationMode = determineCalculationMode(newSettings);
+    newSettings.calculation_mode = calculationMode;
+    
+    setSettings(newSettings);
     // Reset incomplete warnings when changing components
     setShowIncompleteWarning(false);
     setStudentCompletions([]);
   }
 
+  function determineCalculationMode(currentSettings: PublicationSettings): 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all' {
+    const { welcome_test_published, mid_term_test_published, vetting_published, exam_published } = currentSettings;
+    
+    // All components
+    if (welcome_test_published && mid_term_test_published && vetting_published && exam_published) {
+      return 'all';
+    }
+    // Welcome + Mid-Term + Vetting
+    if (welcome_test_published && mid_term_test_published && vetting_published && !exam_published) {
+      return 'welcome_midterm_vetting';
+    }
+    // Welcome + Mid-Term
+    if (welcome_test_published && mid_term_test_published && !vetting_published && !exam_published) {
+      return 'welcome_midterm';
+    }
+    // Welcome only (or any other combination defaults to this)
+    if (welcome_test_published && !mid_term_test_published && !vetting_published && !exam_published) {
+      return 'welcome_only';
+    }
+    
+    // For any other combination, determine the most appropriate mode
+    if (exam_published) return 'all';
+    if (vetting_published) return 'welcome_midterm_vetting';
+    if (mid_term_test_published) return 'welcome_midterm';
+    return 'welcome_only';
+  }
+
   function handleCalculationModeChange(mode: string) {
-    setSettings(prev => ({
-      ...prev,
-      calculation_mode: mode as any,
-    }));
+    const newMode = mode as 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all';
+    
+    // Auto-update checkboxes to match the selected calculation mode
+    const newSettings: PublicationSettings = {
+      ...settings,
+      calculation_mode: newMode,
+      welcome_test_published: false,
+      mid_term_test_published: false,
+      vetting_published: false,
+      exam_published: false,
+    };
+    
+    switch (newMode) {
+      case 'welcome_only':
+        newSettings.welcome_test_published = true;
+        break;
+      case 'welcome_midterm':
+        newSettings.welcome_test_published = true;
+        newSettings.mid_term_test_published = true;
+        break;
+      case 'welcome_midterm_vetting':
+        newSettings.welcome_test_published = true;
+        newSettings.mid_term_test_published = true;
+        newSettings.vetting_published = true;
+        break;
+      case 'all':
+        newSettings.welcome_test_published = true;
+        newSettings.mid_term_test_published = true;
+        newSettings.vetting_published = true;
+        newSettings.exam_published = true;
+        break;
+    }
+    
+    setSettings(newSettings);
+    // Reset incomplete warnings when changing mode
+    setShowIncompleteWarning(false);
+    setStudentCompletions([]);
   }
 
   async function handlePublish() {
@@ -290,7 +356,12 @@ export function ResultsPublicationDialog({
         <div className="space-y-6 py-4">
           {/* Component Selection */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-sm">Select Components to Publish</h3>
+            <div>
+              <h3 className="font-semibold text-sm">Select Components to Publish</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Component selection and calculation mode are automatically synced
+              </p>
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center space-x-2">

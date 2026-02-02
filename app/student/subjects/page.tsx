@@ -203,7 +203,7 @@ export default function StudentSubjectsPage() {
       const subjectsWithResults: SubjectWithResults[] = [];
 
       for (const ss of studentSubjects) {
-        const subjectClass: SubjectClass = ss.subject_classes?.[0] || ss.subject_classes;
+        const subjectClass = ss.subject_classes as any;
         if (!subjectClass) continue;
 
         // Fetch all results for this subject across all terms in selected session
@@ -242,19 +242,13 @@ export default function StudentSubjectsPage() {
         subjectsWithResults.push({
           id: subjectClass.id,
           subject_class_id: ss.subject_class_id,
-          subject_name: subjectClass.subjects && subjectClass.subjects.length > 0
-            ? subjectClass.subjects[0].name
-            : "Unknown",
+          subject_name: subjectClass.subjects?.name || "Unknown",
           subject_code: subjectClass.subject_code || "",
-          teacher_name: subjectClass.teachers && subjectClass.teachers.length > 0
-            ? `${subjectClass.teachers[0].first_name} ${subjectClass.teachers[0].last_name}`
+          teacher_name: subjectClass.teachers
+            ? `${subjectClass.teachers.first_name} ${subjectClass.teachers.last_name}`
             : "No teacher assigned",
-          teacher_photo_url: subjectClass.teachers && subjectClass.teachers.length > 0
-            ? subjectClass.teachers[0].photo_url
-            : "",
-          class_name: subjectClass.classes && subjectClass.classes.length > 0
-            ? subjectClass.classes[0].name
-            : "",
+          teacher_photo_url: subjectClass.teachers?.photo_url || "",
+          class_name: subjectClass.classes?.name || "",
           results: results || [],
           currentTermResult,
           averageScore: avgScore,

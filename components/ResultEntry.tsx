@@ -254,19 +254,20 @@ export default function ResultEntry({
             const nextTerm = allTerms[currentTermIdx + 1];
             nextTermDateValue = nextTerm?.start_date || "";
           } else {
+            // Find next session using date comparison instead of ID
             const { data: nextSession } = await supabase
               .from("sessions")
               .select("*")
-              .gt("id", sessionData.id)
-              .order("id", { ascending: true })
+              .gt("start_date", sessionData.end_date || sessionData.start_date)
+              .order("start_date", { ascending: true })
               .limit(1)
-              .single();
+              .maybeSingle();
             if (nextSession) {
               const { data: nextSessionTerms } = await supabase
                 .from("terms")
                 .select("*")
                 .eq("session_id", nextSession.id)
-                .order("id", { ascending: true });
+                .order("start_date", { ascending: true });
               if (nextSessionTerms && nextSessionTerms.length > 0) {
                 nextTermDateValue = nextSessionTerms[0].start_date || "";
               }

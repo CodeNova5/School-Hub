@@ -11,7 +11,6 @@ import { Student, Class as ClassType, Session, Term } from "@/lib/types";
 import { toast } from "sonner";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { Save, Printer, ArrowLeft, Loader2, Medal, FileDown } from "lucide-react";
-import html2pdf from "html2pdf.js";
 
 interface SubjectScore {
   subject_class_id: string;
@@ -486,6 +485,9 @@ export default function ResultEntry({
     if (!printRef.current) return;
     
     try {
+      // Dynamically import html2pdf only on client side
+      const html2pdf = (await import('html2pdf.js')).default;
+      
       const element = printRef.current;
       const opt = {
         margin: 0.5,

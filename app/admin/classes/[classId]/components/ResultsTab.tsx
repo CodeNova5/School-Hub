@@ -447,15 +447,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                         <Button
                             size="sm"
                             variant="outline"
-                            onClick={handleCalculatePositions}
-                            disabled={loading || !selectedSessionId || !selectedTermId || studentResults.filter(r => r.has_results).length === 0}
-                        >
-                            <Calculator className="h-4 w-4 mr-1" />
-                            Calculate Positions
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
                             onClick={handleExportResults}
                             disabled={loading || filteredResults.length === 0}
                         >

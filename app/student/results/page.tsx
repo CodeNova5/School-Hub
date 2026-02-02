@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, FileText, AlertCircle } from "lucide-react";
+import { Loader2, FileText, AlertCircle, Printer } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
@@ -159,10 +159,13 @@ export default function StudentResultPage() {
     );
   }
 
+  function handleExportPDF() {
+    window.print();
+  }
+
   return (
     <DashboardLayout role="student">
       <div className="max-w-7xl mx-auto p-6 space-y-6">
-        
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
@@ -173,6 +176,12 @@ export default function StudentResultPage() {
             <p className="text-gray-600 mt-1">
               {studentName} — {studentClass}
             </p>
+          </div>
+          <div>
+            <Button variant="outline" onClick={handleExportPDF}>
+              <Printer className="h-4 w-4 mr-2" />
+              Export as PDF
+            </Button>
           </div>
         </div>
 

@@ -430,6 +430,16 @@ export default function ResultEntry({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scoreCalculationMode]);
 
+  // Calculate visible columns count for table alignment
+  const visibleColumnsCount = (() => {
+    let count = 1; // Subject name column
+    if (isComponentVisible('welcome_test')) count++;
+    if (isComponentVisible('mid_term_test')) count++;
+    if (isComponentVisible('vetting')) count++;
+    if (isComponentVisible('exam')) count++;
+    return count;
+  })();
+
   const totalScore = scores.reduce((sum, s) => sum + s.total, 0);
   const overallGrade = (() => {
     const avgScore = scores.length > 0 ? totalScore / scores.length : 0;
@@ -713,7 +723,7 @@ export default function ResultEntry({
                     </tr>
                   ))}
                   <tr className="bg-blue-50 font-bold">
-                    <td colSpan={5} className="border border-gray-300 px-3 py-2 text-right">
+                    <td colSpan={visibleColumnsCount} className="border border-gray-300 px-3 py-2 text-right">
                       TOTAL SCORE:
                     </td>
                     <td className="border border-gray-300 px-3 py-2 text-center text-lg">
@@ -725,7 +735,7 @@ export default function ResultEntry({
                     <td className="border border-gray-300 px-3 py-2"></td>
                   </tr>
                   <tr className="bg-green-50">
-                    <td colSpan={5} className="border border-gray-300 px-3 py-2 text-right font-semibold">
+                    <td colSpan={visibleColumnsCount} className="border border-gray-300 px-3 py-2 text-right font-semibold">
                       AVERAGE PERCENTAGE:
                     </td>
                     <td colSpan={3} className="border border-gray-300 px-3 py-2 text-center font-bold text-lg">

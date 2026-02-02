@@ -19,6 +19,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Edit,
+  ClipboardList,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { AssignmentFilters } from "@/components/AssignmentFilters";
 /* -------------------------------------------------------------------------- */
@@ -339,6 +343,15 @@ export default function AssignmentsPage() {
   /* RENDER                                                                 */
   /* ---------------------------------------------------------------------- */
 
+  // Calculate statistics
+  const stats = {
+    total: assignments.length,
+    ungraded: assignments.filter(a => a.submissionCount > 0 && a.hasPendingGrading).length,
+    fullyGraded: assignments.filter(a => a.isFullyGraded).length,
+    overdue: assignments.filter(a => a.isOverdue).length,
+    noSubmissions: assignments.filter(a => a.submissionCount === 0).length,
+  };
+
   return (
     <DashboardLayout role="teacher">
       <div className="space-y-8">
@@ -354,6 +367,84 @@ export default function AssignmentsPage() {
             <Plus className="h-4 w-4 mr-2" />
             Create Assignment
           </Button>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total Assignments
+              </CardTitle>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+              <p className="text-xs text-muted-foreground">
+                All assignments
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Pending Grading
+              </CardTitle>
+              <Clock className="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{stats.ungraded}</div>
+              <p className="text-xs text-muted-foreground">
+                Need grading
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Fully Graded
+              </CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.fullyGraded}</div>
+              <p className="text-xs text-muted-foreground">
+                Complete
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Overdue
+              </CardTitle>
+              <AlertCircle className="h-4 w-4 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
+              <p className="text-xs text-muted-foreground">
+                Past due date
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                No Submissions
+              </CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.noSubmissions}</div>
+              <p className="text-xs text-muted-foreground">
+                Awaiting students
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Filters */}

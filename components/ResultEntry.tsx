@@ -770,7 +770,7 @@ export default function ResultEntry({
                             max="10"
                             value={score.welcome_test || ''}
                             onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center"
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
@@ -783,7 +783,7 @@ export default function ResultEntry({
                             max="20"
                             value={score.mid_term_test || ''}
                             onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center"
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
@@ -796,7 +796,7 @@ export default function ResultEntry({
                             max="10"
                             value={score.vetting || ''}
                             onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center"
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
@@ -809,7 +809,7 @@ export default function ResultEntry({
                             max="60"
                             value={score.exam || ''}
                             onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0"
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center"
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
@@ -924,6 +924,12 @@ export default function ResultEntry({
             text-align: center !important;
             -webkit-appearance: none;
             -moz-appearance: textfield;
+            padding: 0 !important;
+            margin: 0 auto !important;
+            display: block !important;
+          }
+          input[type="number"] {
+            text-align: center !important;
           }
           textarea {
             border: none !important;

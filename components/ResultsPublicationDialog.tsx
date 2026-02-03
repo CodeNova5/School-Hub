@@ -42,6 +42,7 @@ interface PublicationSettings {
   vetting_published: boolean;
   exam_published: boolean;
   is_published: boolean;
+  is_published_to_parents: boolean;
   calculation_mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all';
 }
 
@@ -70,6 +71,7 @@ export function ResultsPublicationDialog({
     vetting_published: false,
     exam_published: false,
     is_published: false,
+    is_published_to_parents: false,
     calculation_mode: 'all',
   });
   const [studentCompletions, setStudentCompletions] = useState<StudentCompletion[]>([]);
@@ -185,7 +187,7 @@ export function ResultsPublicationDialog({
       });
 
       setStudentCompletions(completions);
-      
+
       const incompleteCount = completions.filter(c => !c.has_all_components).length;
       if (incompleteCount > 0) {
         setShowIncompleteWarning(true);
@@ -206,7 +208,7 @@ export function ResultsPublicationDialog({
       ...settings,
       [component]: !settings[component],
     };
-    
+
     // Cascading logic: checking a component should check all previous components
     if (newSettings[component]) {
       // If checking exam, check all previous components
@@ -239,11 +241,11 @@ export function ResultsPublicationDialog({
         newSettings.exam_published = false;
       }
     }
-    
+
     // Auto-sync calculation mode based on selected components
     const calculationMode = determineCalculationMode(newSettings);
     newSettings.calculation_mode = calculationMode;
-    
+
     setSettings(newSettings);
     // Reset incomplete warnings when changing components
     setShowIncompleteWarning(false);
@@ -252,7 +254,7 @@ export function ResultsPublicationDialog({
 
   function determineCalculationMode(currentSettings: PublicationSettings): 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all' {
     const { welcome_test_published, mid_term_test_published, vetting_published, exam_published } = currentSettings;
-    
+
     // All components
     if (welcome_test_published && mid_term_test_published && vetting_published && exam_published) {
       return 'all';
@@ -269,7 +271,7 @@ export function ResultsPublicationDialog({
     if (welcome_test_published && !mid_term_test_published && !vetting_published && !exam_published) {
       return 'welcome_only';
     }
-    
+
     // For any other combination, determine the most appropriate mode
     if (exam_published) return 'all';
     if (vetting_published) return 'welcome_midterm_vetting';
@@ -279,7 +281,7 @@ export function ResultsPublicationDialog({
 
   function handleCalculationModeChange(mode: string) {
     const newMode = mode as 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all';
-    
+
     // Auto-update checkboxes to match the selected calculation mode
     const newSettings: PublicationSettings = {
       ...settings,
@@ -289,7 +291,7 @@ export function ResultsPublicationDialog({
       vetting_published: false,
       exam_published: false,
     };
-    
+
     switch (newMode) {
       case 'welcome_only':
         newSettings.welcome_test_published = true;
@@ -310,7 +312,7 @@ export function ResultsPublicationDialog({
         newSettings.exam_published = true;
         break;
     }
-    
+
     setSettings(newSettings);
     // Reset incomplete warnings when changing mode
     setShowIncompleteWarning(false);
@@ -321,10 +323,10 @@ export function ResultsPublicationDialog({
     setLoading(true);
     try {
       // Check if at least one component is selected
-      const hasSelectedComponent = settings.welcome_test_published || 
-                                   settings.mid_term_test_published || 
-                                   settings.vetting_published || 
-                                   settings.exam_published;
+      const hasSelectedComponent = settings.welcome_test_published ||
+        settings.mid_term_test_published ||
+        settings.vetting_published ||
+        settings.exam_published;
 
       if (!hasSelectedComponent && settings.is_published) {
         toast.error("Please select at least one component to publish");
@@ -343,7 +345,6 @@ export function ResultsPublicationDialog({
           return;
         }
       }
-
       // Upsert publication settings
       const publicationData = {
         class_id: classId,
@@ -354,6 +355,7 @@ export function ResultsPublicationDialog({
         vetting_published: settings.vetting_published,
         exam_published: settings.exam_published,
         is_published: settings.is_published,
+        is_published_to_parents: settings.is_published_to_parents,
         calculation_mode: settings.calculation_mode,
         published_at: settings.is_published ? new Date().toISOString() : null,
       };
@@ -370,8 +372,8 @@ export function ResultsPublicationDialog({
       });
 
       toast.success(
-        settings.is_published 
-          ? "Results published and positions recalculated successfully!" 
+        settings.is_published
+          ? "Results published and positions recalculated successfully!"
           : "Publication settings saved (results not visible to students)"
       );
 
@@ -412,10 +414,10 @@ export function ResultsPublicationDialog({
 
     // Calculate scores per student based on calculation mode
     const studentScoresMap = new Map<string, number>();
-    
+
     students.forEach((student: any) => {
       const studentResults = classResults.filter((r: any) => r.student_id === student.id);
-      
+
       if (studentResults.length === 0) {
         studentScoresMap.set(student.id, 0);
         return;
@@ -527,7 +529,7 @@ export function ResultsPublicationDialog({
                 Component selection and calculation mode are automatically synced
               </p>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -649,9 +651,8 @@ export function ResultsPublicationDialog({
               )}
             </div>
           )}
-
           {/* Master Publish Toggle */}
-          <div className="border-t pt-4">
+          <div className="border-t pt-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <Label className="text-base font-semibold">Make Results Visible to Students</Label>
@@ -680,25 +681,55 @@ export function ResultsPublicationDialog({
                 </Label>
               </div>
             </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label className="text-base font-semibold">Make Results Visible to Parents</Label>
+                <p className="text-sm text-gray-500">
+                  Enable this to allow parents to view their children's results
+                </p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_published_to_parents"
+                  checked={settings.is_published_to_parents}
+                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev, is_published_to_parents: !!checked }))}
+                />
+                <Label htmlFor="is_published_to_parents" className="cursor-pointer">
+                  {settings.is_published_to_parents ? (
+                    <Badge className="bg-green-600">
+                      <Eye className="h-3 w-3 mr-1" />
+                      Published
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      <EyeOff className="h-3 w-3 mr-1" />
+                      Not Published
+                    </Badge>
+                  )}
+                </Label>
+              </div>
+            </div>
           </div>
         </div>
+        
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handlePublish} disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Publication Settings"
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          Cancel
+        </Button>
+        <Button onClick={handlePublish} disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            "Save Publication Settings"
+          )}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+    </Dialog >
   );
 }

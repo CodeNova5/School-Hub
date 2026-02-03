@@ -111,6 +111,63 @@ export async function POST(req: Request) {
       status: "active",
     });
 
+    // 3.5️⃣ Automatically assign subjects based on religion and department
+    const { data: subjectClassesData, error: subjectClassesError } = await supabase
+      .from("subject_classes")
+      .select(`
+        id,
+        subject_id,
+        subjects (
+          id,
+          name,
+          department,
+          religion,
+          is_optional
+        )
+      `)
+      .eq("class_id", studentData.class_id);
+
+    if (!subjectClassesError && subjectClassesData) {
+      // Filter subjects based on student's department and religion
+      const eligibleSubjectClasses = subjectClassesData.filter((sc: any) => {
+        const subject = Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects;
+        
+        // Filter by department if applicable
+        if (subject.department && studentData.department) {
+          if (subject.department !== studentData.department) {
+            return false;
+          }
+        }
+
+        // Filter by religion if applicable
+        if (subject.religion && studentData.religion) {
+          if (subject.religion !== studentData.religion) {
+            return false;
+          }
+        }
+
+        // Only auto-assign compulsory subjects
+        return !subject.is_optional;
+      });
+
+      // Insert student_subjects for all eligible compulsory subjects
+      if (eligibleSubjectClasses.length > 0) {
+        const studentSubjectsToInsert = eligibleSubjectClasses.map((sc: any) => ({
+          student_id: studentData.student_id,
+          subject_class_id: sc.id,
+        }));
+
+        const { error: studentSubjectsError } = await supabase
+          .from("student_subjects")
+          .insert(studentSubjectsToInsert);
+
+        if (studentSubjectsError) {
+          console.error("Error inserting student subjects:", studentSubjectsError);
+          // Don't throw error, just log it - student creation should succeed
+        }
+      }
+    }
+
     // 4️⃣ If parent already exists and is active, send notification email
     if (!isNewParent && existingParent?.is_active) {
       const transporter = nodemailer.createTransport({

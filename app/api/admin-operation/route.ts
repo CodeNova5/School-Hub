@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {
   try {
-    const { operation, table, data, filters } = await req.json();
+    const { operation, table, data, filters, conflictColumns } = await req.json();
 
     // Use service role to bypass RLS
     const supabase = createClient(
@@ -16,6 +16,12 @@ export async function POST(req: Request) {
     switch (operation) {
       case "insert":
         result = await supabase.from(table).insert(data).select();
+        break;
+
+      case "upsert":
+        // Upsert will insert or update based on conflict columns
+        const upsertOptions: any = { onConflict: conflictColumns?.join(',') || undefined };
+        result = await supabase.from(table).upsert(data, upsertOptions).select();
         break;
 
       case "update":

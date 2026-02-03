@@ -615,37 +615,45 @@ export default function ResultEntry({
     if (!canEdit || isReadOnly || !student || !session || !term) return;
     setIsSaving(true);
     try {
-      const user = await getCurrentUser();
-      const teacher = user ? await getTeacherByUserId(user.id) : null;
-      const records = scores.map((s) => ({
-        student_id: student.id,
-        subject_class_id: s.subject_class_id,
-        session_id: sessionId || session.id,
-        term_id: termId || term.id,
-        welcome_test: s.welcome_test,
-        mid_term_test: s.mid_term_test,
-        vetting: s.vetting,
-        exam: s.exam,
-        total: s.total,
-        grade: s.grade,
-        remark: s.remark,
-        class_teacher_remark: classTeacherRemark,
-        class_teacher_name: teacher
-          ? `${teacher.first_name} ${teacher.last_name}`
-          : "",
-        principal_remark: principalRemark,
-        next_term_begins: nextTermDate || null,
-        entered_by: teacher?.id,
-      }));
-      const { error } = await supabase.from("results").upsert(records, {
-        onConflict: "student_id,subject_class_id,session_id,term_id",
-      });
-      if (error) throw error;
-      toast.success("Results saved successfully");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save results");
+        const saveData = {
+            student_id: student.id,
+            session_id: session.id,
+            term_id: term.id,
+            scores,
+            attendance,
+            next_term_date: nextTermDate,
+            class_teacher_remark: classTeacherRemark,
+            principal_remark: principalRemark,
+            class_position: classPosition,
+            total_students: totalStudents,
+            class_average: classAverage,
+        };
+
+        const response = await fetch("/api/admin-operation", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                operation: "insert",
+                table: "results",
+                data: saveData,
+            }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            toast.success("Results saved successfully");
+        } else {
+            console.error("Error saving results:", result.error);
+            toast.error(result.error || "Failed to save results");
+        }
+    } catch (err) {
+        console.error("Error saving results:", err);
+        toast.error("An unexpected error occurred");
     } finally {
-      setIsSaving(false);
+        setIsSaving(false);
     }
   }
 

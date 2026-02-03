@@ -479,7 +479,7 @@ export default function ResultEntry({
       welcome_test: 10,
       mid_term_test: 20,
       vetting: 10,
-      exam: 60,
+      exam: 60, // Ensure exam does not exceed 60
     };
     if (limits[field]) {
       num = Math.min(num, limits[field]);

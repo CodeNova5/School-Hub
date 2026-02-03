@@ -560,20 +560,50 @@ export default function ResultEntry({
     if (!printRef.current) return;
 
     try {
-      // Dynamically import html2pdf only on client side
-      const html2pdf = (await import('html2pdf.js')).default;
+      toast.info('Generating PDF...');
+      
+      // Dynamically import jsPDF and html2canvas
+      const { default: jsPDF } = await import('jspdf');
+      const html2canvas = (await import('html2canvas')).default;
 
       const element = printRef.current;
-      const opt = {
-        margin: 0.5,
-        filename: `${student?.first_name}_${student?.last_name}_Report_${session?.name}_${term?.name}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in' as const, format: 'a4' as const, orientation: 'portrait' as const }
-      };
+      
+      // Capture the element as canvas with high quality
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
 
-      toast.info('Generating PDF...');
-      await html2pdf().set(opt).from(element).save();
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth - 20; // 10mm margin on each side
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 10; // 10mm top margin
+
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - 20); // Subtract margins
+
+      // Add additional pages if content is longer than one page
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+        heightLeft -= (pdfHeight - 20);
+      }
+
+      pdf.save(`${student?.first_name}_${student?.last_name}_Report_${session?.name}_${term?.name}.pdf`);
       toast.success('PDF downloaded successfully!');
     } catch (error) {
       console.error('PDF export error:', error);

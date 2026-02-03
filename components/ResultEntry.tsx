@@ -776,41 +776,44 @@ export default function ResultEntry({
                           />
                         </td>
                       )}
-                      {isComponentVisible('mid_term_test') && (
-                        <td className="border border-gray-300 px-1 py-1 text-center">
+                      {isComponentVisible('welcome_test') && (
+                        <td className="border border-gray-300 px-3 py-2 text-center">
+                          <span className="print:inline hidden">{score.welcome_test}</span>
                           <input
                             type="number"
                             min="0"
-                            max="20"
-                            value={score.mid_term_test || ''}
-                            onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center print:bg-transparent bg-transparent"
+                            max="10"
+                            value={score.welcome_test || ''}
+                            onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
+                            className="print:hidden w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent"
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
                       )}
                       {isComponentVisible('vetting') && (
-                        <td className="border border-gray-300 px-1 py-1 text-center">
+                        <td className="border border-gray-300 px-3 py-2 text-center">
+                          <span className="print:inline hidden">{score.vetting}</span>
                           <input
                             type="number"
                             min="0"
                             max="10"
                             value={score.vetting || ''}
                             onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center print:bg-transparent bg-transparent"
+                            className="print:hidden w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent"
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
                       )}
                       {isComponentVisible('exam') && (
-                        <td className="border border-gray-300 px-1 py-1 text-center">
+                        <td className="border border-gray-300 px-3 py-2 text-center">
+                          <span className="print:inline hidden">{score.exam}</span>
                           <input
                             type="number"
                             min="0"
                             max="60"
                             value={score.exam || ''}
                             onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center print:bg-transparent bg-transparent"
+                            className="print:hidden w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent"
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
@@ -900,47 +903,6 @@ export default function ResultEntry({
           </div>
         </CardContent>
       </Card>
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #printable-content,
-          #printable-content * {
-            visibility: visible;
-          }
-          #printable-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            background: white;
-          }
-          .print\\:hidden {
-            display: none !important;
-          }
-          input {
-            border: none !important;
-            background: transparent !important;
-            text-align: center !important;
-            -webkit-appearance: none;
-            -moz-appearance: textfield;
-            padding: 2 !important;
-            margin: 0 auto !important;
-            display: block !important;
-          }
-          input[type="number"] {
-            text-align: center !important; 
-            font-weight: bold !important;
-            position: relative;
-            top: -2px;
-          }
-          textarea {
-            border: none !important;
-            background: transparent !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

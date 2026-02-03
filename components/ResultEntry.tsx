@@ -479,7 +479,7 @@ export default function ResultEntry({
       welcome_test: 10,
       mid_term_test: 20,
       vetting: 10,
-      exam: 60,
+      exam: 60, // Ensure exam does not exceed 60
     };
     if (limits[field]) {
       num = Math.min(num, limits[field]);
@@ -615,37 +615,59 @@ export default function ResultEntry({
     if (!canEdit || isReadOnly || !student || !session || !term) return;
     setIsSaving(true);
     try {
-      const user = await getCurrentUser();
-      const teacher = user ? await getTeacherByUserId(user.id) : null;
-      const records = scores.map((s) => ({
-        student_id: student.id,
-        subject_class_id: s.subject_class_id,
-        session_id: sessionId || session.id,
-        term_id: termId || term.id,
-        welcome_test: s.welcome_test,
-        mid_term_test: s.mid_term_test,
-        vetting: s.vetting,
-        exam: s.exam,
-        total: s.total,
-        grade: s.grade,
-        remark: s.remark,
-        class_teacher_remark: classTeacherRemark,
-        class_teacher_name: teacher
-          ? `${teacher.first_name} ${teacher.last_name}`
-          : "",
-        principal_remark: principalRemark,
-        next_term_begins: nextTermDate || null,
-        entered_by: teacher?.id,
-      }));
-      const { error } = await supabase.from("results").upsert(records, {
-        onConflict: "student_id,subject_class_id,session_id,term_id",
-      });
-      if (error) throw error;
-      toast.success("Results saved successfully");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save results");
+        // Save each subject's result separately
+        const savePromises = scores.map(score => {
+            const saveData = {
+                student_id: student.id,
+                session_id: session.id,
+                term_id: term.id,
+                subject_class_id: score.subject_class_id,
+                welcome_test: score.welcome_test,
+                mid_term_test: score.mid_term_test,
+                vetting: score.vetting,
+                exam: score.exam,
+                total: score.total,
+                grade: score.grade,
+                remark: score.remark,
+                attendance,
+                next_term_begins: nextTermDate,
+                class_teacher_remark: classTeacherRemark,
+                principal_remark: principalRemark,
+                class_position: classPosition,
+                total_students: totalStudents,
+                class_average: classAverage,
+            };
+
+            return fetch("/api/admin-operation", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    operation: "upsert",
+                    table: "results",
+                    data: saveData,
+                    conflictColumns: ["student_id", "session_id", "term_id", "subject_class_id"],
+                }),
+            });
+        });
+
+        const responses = await Promise.all(savePromises);
+        const results = await Promise.all(responses.map(r => r.json()));
+
+        const hasError = responses.some((r, i) => !r.ok);
+        if (hasError) {
+            const errorResults = results.filter((_, i) => !responses[i].ok);
+            console.error("Error saving results:", errorResults);
+            toast.error(errorResults[0]?.error || "Failed to save some results");
+        } else {
+            toast.success("Results saved successfully");
+        }
+    } catch (err) {
+        console.error("Error saving results:", err);
+        toast.error("An unexpected error occurred");
     } finally {
-      setIsSaving(false);
+        setIsSaving(false);
     }
   }
 

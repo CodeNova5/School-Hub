@@ -23,7 +23,7 @@ export async function POST(req: Request) {
       .from("parents")
       .select("*, students!students_parent_email_fkey(first_name, last_name, student_id)")
       .eq("activation_token_hash", tokenHash)
-      .eq("activation_used", false)
+      .or("activation_used.is.null,activation_used.eq.false")
       .single();
 
     if (parentError || !parent) {

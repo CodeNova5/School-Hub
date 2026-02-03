@@ -94,8 +94,10 @@ CREATE POLICY "Parents can view children assignments"
   FOR SELECT
   USING (
     subject_id IN (
-      SELECT subject_id FROM student_subjects
-      WHERE student_id IN (
+      SELECT sc.subject_id
+      FROM student_subjects ss
+      JOIN subject_classes sc ON sc.id = ss.subject_class_id
+      WHERE ss.student_id IN (
         SELECT id FROM students
         WHERE parent_email IN (
           SELECT email FROM parents WHERE user_id = auth.uid()
@@ -116,16 +118,33 @@ CREATE POLICY "Parents can view children submissions"
       )
     )
   );
-
--- Allow parents to view timetable for their children's classes
+-- Create/Replace policy: Parents can view children timetable (using timetable_entries)
 CREATE POLICY "Parents can view children timetable"
-  ON timetable
+  ON public.timetable_entries
   FOR SELECT
   USING (
     class_id IN (
-      SELECT class_id FROM students
+      SELECT class_id FROM public.students
       WHERE parent_email IN (
-        SELECT email FROM parents WHERE user_id = auth.uid()
+        SELECT email FROM public.parents WHERE user_id = auth.uid()
+      )
+    )
+  );
+
+-- Create/Replace policy: Parents can view children teachers (via subject_classes)
+CREATE POLICY "Parents can view children teachers"
+  ON public.teachers
+  FOR SELECT
+  USING (
+    id IN (
+      SELECT sc.teacher_id
+      FROM public.timetable_entries te
+      JOIN public.subject_classes sc ON sc.id = te.subject_class_id
+      WHERE te.class_id IN (
+        SELECT class_id FROM public.students
+        WHERE parent_email IN (
+          SELECT email FROM public.parents WHERE user_id = auth.uid()
+        )
       )
     )
   );
@@ -162,8 +181,10 @@ CREATE POLICY "Parents can view subjects"
   FOR SELECT
   USING (
     id IN (
-      SELECT subject_id FROM student_subjects
-      WHERE student_id IN (
+      SELECT sc.subject_id
+      FROM student_subjects ss
+      JOIN subject_classes sc ON sc.id = ss.subject_class_id
+      WHERE ss.student_id IN (
         SELECT id FROM students
         WHERE parent_email IN (
           SELECT email FROM parents WHERE user_id = auth.uid()
@@ -178,8 +199,10 @@ CREATE POLICY "Parents can view children teachers"
   FOR SELECT
   USING (
     id IN (
-      SELECT teacher_id FROM timetable
-      WHERE class_id IN (
+      SELECT sc.teacher_id
+      FROM timetable_entries te
+      JOIN subject_classes sc ON sc.id = te.subject_class_id
+      WHERE te.class_id IN (
         SELECT class_id FROM students
         WHERE parent_email IN (
           SELECT email FROM parents WHERE user_id = auth.uid()

@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       .from("parents")
       .select("*")
       .eq("activation_token_hash", tokenHash)
-      .eq("activation_used", false)
+      .or("activation_used.is.null,activation_used.eq.false")
       .single();
 
     if (parentError || !parent) {

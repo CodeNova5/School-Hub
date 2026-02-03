@@ -621,7 +621,7 @@ export default function ResultEntry({
             term_id: term.id,
             scores,
             attendance,
-            next_term_date: nextTermDate,
+            next_term_begins: nextTermDate,
             class_teacher_remark: classTeacherRemark,
             principal_remark: principalRemark,
             class_position: classPosition,

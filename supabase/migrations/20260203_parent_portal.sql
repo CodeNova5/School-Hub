@@ -233,3 +233,11 @@ ADD COLUMN is_visible_to_parents BOOLEAN DEFAULT FALSE;
 -- Update existing results to make them invisible to parents by default
 UPDATE results
 SET is_visible_to_parents = FALSE;
+
+-- Add the 'attendance' column to the 'results' table
+ALTER TABLE results
+ADD COLUMN attendance INTEGER DEFAULT 0;
+
+-- Update existing rows to set a default value for 'attendance'
+UPDATE results
+SET attendance = 0;

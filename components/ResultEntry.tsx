@@ -925,12 +925,15 @@ export default function ResultEntry({
             text-align: center !important;
             -webkit-appearance: none;
             -moz-appearance: textfield;
-            padding: 0 !important;
+            padding: 2 !important;
             margin: 0 auto !important;
             display: block !important;
           }
           input[type="number"] {
-            text-align: center !important;
+            text-align: center !important; 
+            font-weight: bold !important;
+            position: relative;
+            top: -2px;
           }
           textarea {
             border: none !important;

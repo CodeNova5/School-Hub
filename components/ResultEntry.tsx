@@ -921,6 +921,9 @@ export default function ResultEntry({
           input {
             border: none !important;
             background: transparent !important;
+            text-align: center !important;
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
           }
           textarea {
             border: none !important;

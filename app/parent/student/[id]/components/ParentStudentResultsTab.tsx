@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import ResultEntry from "@/components/ResultEntry";
 
 interface PublicationLookup {
     [key: string]: boolean;
@@ -155,20 +156,6 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
     return (
 
         <div className="space-y-6">
-            <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-900">
-                <div><b>Debug Info:</b></div>
-                <div>Raw results: {results.length}</div>
-                <div>Filtered results: {filteredResults.length}</div>
-                <div>Parent visibility keys: {Object.keys(parentVisibility).length}</div>
-                <details>
-                    <summary>Show raw results</summary>
-                    <pre style={{ maxHeight: 200, overflow: 'auto' }}>{JSON.stringify(results, null, 2)}</pre>
-                </details>
-                <details>
-                    <summary>Show publication lookup</summary>
-                    <pre>{JSON.stringify(parentVisibility, null, 2)}</pre>
-                </details>
-            </div>
             <Card>
                 <CardHeader>
                     <CardTitle>Filter Results</CardTitle>
@@ -251,57 +238,30 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                 </Card>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Results Overview</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead>
-                                <tr className="border-b">
-                                    <th className="text-left py-3 px-4">Subject</th>
-                                    <th className="text-left py-3 px-4">Session</th>
-                                    <th className="text-left py-3 px-4">Term</th>
-                                    <th className="text-left py-3 px-4">Exam</th>
-                                    <th className="text-left py-3 px-4">Total</th>
-                                    <th className="text-left py-3 px-4">Grade</th>
-                                    <th className="text-left py-3 px-4">Position</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredResults.map((result) => (
-                                    <tr key={result.id} className="border-b hover:bg-gray-50">
-                                        <td className="py-3 px-4 font-medium">{result.subject_classes?.subjects?.name}</td>
-                                        <td className="py-3 px-4">{result.sessions?.name}</td>
-                                        <td className="py-3 px-4">{result.terms?.name}</td>
-                                        <td className="py-3 px-4">{result.exam}</td>
-                                        <td className="py-3 px-4 font-bold">{result.total}</td>
-                                        <td className="py-3 px-4">
-                                            <span className={`px-2 py-1 rounded text-xs font-medium ${result.grade === "A" ? "bg-green-100 text-green-700" :
-                                                result.grade === "B" ? "bg-blue-100 text-blue-700" :
-                                                    result.grade === "C" ? "bg-yellow-100 text-yellow-700" :
-                                                        result.grade === "D" ? "bg-orange-100 text-orange-700" :
-                                                            "bg-red-100 text-red-700"
-                                                }`}>
-                                                {result.grade}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4">{result.position || "-"}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {filteredResults.length === 0 && (
-                        <div className="text-center py-12">
+            {filteredResults.length > 0 && selectedSession && selectedTerm ? (
+                <ResultEntry
+                    studentId={studentId}
+                    role="student"
+                    canEditPrincipalComment={false}
+                    canEdit={false}
+                    isReadOnly={true}
+                    sessionId={selectedSession}
+                    termId={selectedTerm}
+                />
+            ) : (
+                <Card>
+                    <CardContent className="py-12">
+                        <div className="text-center">
                             <Award className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-600">No published results found</p>
+                            <p className="text-gray-600">
+                                {!selectedSession || !selectedTerm 
+                                    ? "Please select a session and term to view results" 
+                                    : "No published results found"}
+                            </p>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }

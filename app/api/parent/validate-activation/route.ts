@@ -18,25 +18,22 @@ export async function POST(req: Request) {
     // Hash the token to match stored hash
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-    // Find parent by token
+    // Find parent by token hash only
     const { data: parent, error: parentError } = await supabase
       .from("parents")
       .select("*, students!students_parent_email_fkey(first_name, last_name, student_id)")
       .eq("activation_token_hash", tokenHash)
-      .or("activation_used.is.null,activation_used.eq.false")
       .single();
 
-    if (parentError || !parent) {
+    // Check if parent exists and token is still valid (like teacher activation)
+    if (
+      parentError ||
+      !parent ||
+      parent.activation_used ||
+      new Date(parent.activation_expires_at) < new Date()
+    ) {
       return NextResponse.json(
         { error: "Invalid or expired activation link" },
-        { status: 400 }
-      );
-    }
-
-    // Check if token expired
-    if (new Date(parent.activation_expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "Activation link has expired" },
         { status: 400 }
       );
     }

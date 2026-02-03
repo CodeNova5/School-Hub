@@ -225,3 +225,11 @@ COMMENT ON TABLE parents IS 'Stores parent/guardian information with activation 
 COMMENT ON COLUMN parents.activation_token_hash IS 'SHA-256 hash of activation token';
 COMMENT ON COLUMN parents.activation_expires_at IS 'Expiration time for activation token';
 COMMENT ON COLUMN parents.activation_used IS 'Whether activation token has been used';
+
+-- Add a column to the `results` table to indicate visibility to parents
+ALTER TABLE results
+ADD COLUMN is_visible_to_parents BOOLEAN DEFAULT FALSE;
+
+-- Update existing results to make them invisible to parents by default
+UPDATE results
+SET is_visible_to_parents = FALSE;

@@ -89,6 +89,9 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
     const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
 
+    // Add a new state for managing visibility toggle
+    const [isVisibleToParents, setIsVisibleToParents] = useState(false);
+
     useEffect(() => {
         fetchSessionsAndTerms();
     }, []);

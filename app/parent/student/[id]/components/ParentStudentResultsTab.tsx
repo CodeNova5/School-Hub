@@ -153,7 +153,22 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
     const failedSubjects = filteredResults.filter(r => r.total < 40).length;
 
     return (
+
         <div className="space-y-6">
+            <div className="mb-4 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-900">
+                <div><b>Debug Info:</b></div>
+                <div>Raw results: {results.length}</div>
+                <div>Filtered results: {filteredResults.length}</div>
+                <div>Parent visibility keys: {Object.keys(parentVisibility).length}</div>
+                <details>
+                    <summary>Show raw results</summary>
+                    <pre style={{ maxHeight: 200, overflow: 'auto' }}>{JSON.stringify(results, null, 2)}</pre>
+                </details>
+                <details>
+                    <summary>Show publication lookup</summary>
+                    <pre>{JSON.stringify(parentVisibility, null, 2)}</pre>
+                </details>
+            </div>
             <Card>
                 <CardHeader>
                     <CardTitle>Filter Results</CardTitle>

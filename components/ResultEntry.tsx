@@ -771,7 +771,7 @@ export default function ResultEntry({
                             value={score.welcome_test || ''}
                             onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
                             className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center print:bg-transparent bg-transparent font-bold"
-                            style={{ fontWeight: 'bold', position: 'relative', top: '-2px' }}
+                            style={{ fontWeight: 'bold', padding: '3px', overflow: 'auto' }}
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>
@@ -903,6 +903,47 @@ export default function ResultEntry({
           </div>
         </CardContent>
       </Card>
+      <style jsx global>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-content,
+          #printable-content * {
+            visibility: visible;
+          }
+          #printable-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
+          input {
+            border: none !important;
+            background: transparent !important;
+            text-align: center !important;
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+            padding: 2 !important;
+            margin: 0 auto !important;
+            display: block !important;
+          }
+          input[type="number"] {
+            text-align: center !important; 
+            font-weight: bold !important;
+            position: relative;
+            top: -2px;
+          }
+          textarea {
+            border: none !important;
+            background: transparent !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

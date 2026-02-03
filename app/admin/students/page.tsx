@@ -518,6 +518,12 @@ export default function AdminStudentsPage() {
                   {/* Parent/Guardian Information */}
                   <div className="pb-4">
                     <h3 className="font-semibold mb-3">Parent/Guardian Information</h3>
+                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                      <p className="text-sm text-blue-900">
+                        <strong>📌 Important:</strong> If this student has siblings already registered, 
+                        use the <strong>same parent email</strong> to link them to the existing parent account.
+                      </p>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="parent_name">Parent/Guardian Name *</Label>

@@ -27,7 +27,7 @@ interface NavItem {
 }
 
 interface SidebarProps {
-  role: 'admin' | 'teacher' | 'student';
+  role: 'admin' | 'teacher' | 'student' | 'parent';
 }
 
 export function Sidebar({ role }: SidebarProps) {
@@ -70,7 +70,18 @@ export function Sidebar({ role }: SidebarProps) {
     { href: '/student/settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },
   ];
 
-  const navItems = role === 'admin' ? adminNav : role === 'teacher' ? teacherNav : studentNav;
+  const parentNav: NavItem[] = [
+    { href: '/parent/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: '/parent/children', label: 'My Children', icon: <Users className="h-5 w-5" /> },
+    { href: '/parent/calendar', label: 'Calendar', icon: <Calendar className="h-5 w-5" /> },
+    { href: '/parent/settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },
+  ];
+
+  const navItems = 
+    role === 'admin' ? adminNav : 
+    role === 'teacher' ? teacherNav : 
+    role === 'parent' ? parentNav :
+    studentNav;
   return (
     <aside
       className={cn(

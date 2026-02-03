@@ -5,7 +5,7 @@ import { ReactNode } from 'react';
 
 interface DashboardLayoutProps {
   children: ReactNode;
-  role: 'admin' | 'teacher' | 'student';
+  role: 'admin' | 'teacher' | 'student' | 'parent';
 }
 
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {

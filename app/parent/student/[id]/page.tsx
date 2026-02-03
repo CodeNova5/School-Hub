@@ -122,41 +122,50 @@ export default function ParentStudentDetailPage() {
       // Get subjects
       const { data: subjects } = await supabase
         .from("student_subjects")
-        .select("subject_id")
+        .select("subject_class_id")
         .eq("student_id", studentId);
 
-      const subjectIds = subjects?.map(s => s.subject_id) || [];
-      const totalSubjects = subjectIds.length;
+      const subjectClassIds = subjects?.map(s => s.subject_class_id) || [];
+      const totalSubjects = subjectClassIds.length;
 
       // Get pending assignments
       let pendingAssignments = 0;
-      if (subjectIds.length > 0) {
-        const { data: assignments } = await supabase
-          .from("assignments")
-          .select("id")
-          .in("subject_id", subjectIds)
-          .gte("due_date", new Date().toISOString());
+      if (subjectClassIds.length > 0) {
+        // Get subject IDs from subject_classes
+        const { data: subjectClasses } = await supabase
+          .from("subject_classes")
+          .select("subject_id")
+          .in("id", subjectClassIds);
 
-        const assignmentIds = assignments?.map(a => a.id) || [];
+        const subjectIds = subjectClasses?.map(sc => sc.subject_id) || [];
 
-        if (assignmentIds.length > 0) {
-          const { data: submissions } = await supabase
-            .from("assignment_submissions")
-            .select("assignment_id")
-            .eq("student_id", studentId)
-            .in("assignment_id", assignmentIds);
+        if (subjectIds.length > 0) {
+          const { data: assignments } = await supabase
+            .from("assignments")
+            .select("id")
+            .in("subject_id", subjectIds)
+            .gte("due_date", new Date().toISOString());
 
-          const submittedIds = submissions?.map(s => s.assignment_id) || [];
-          pendingAssignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+          const assignmentIds = assignments?.map(a => a.id) || [];
+
+          if (assignmentIds.length > 0) {
+            const { data: submissions } = await supabase
+              .from("assignment_submissions")
+              .select("assignment_id")
+              .eq("student_id", studentId)
+              .in("assignment_id", assignmentIds);
+
+            const submittedIds = submissions?.map(s => s.assignment_id) || [];
+            pendingAssignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+          }
         }
       }
 
-      // Get average score
+      // Get average score from published results
       const { data: results } = await supabase
         .from("results")
         .select("total")
-        .eq("student_id", studentId)
-        .eq("is_published", true);
+        .eq("student_id", studentId);
 
       const averageScore = results && results.length > 0
         ? Math.round(results.reduce((sum, r) => sum + r.total, 0) / results.length)

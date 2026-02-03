@@ -46,13 +46,24 @@ export default function ParentStudentAssignmentsTab({ studentId }: ParentStudent
   async function loadAssignments() {
     setIsLoading(true);
     try {
-      // Get student's subjects
+      // Get student's subject_class_ids
       const { data: studentSubjects } = await supabase
         .from("student_subjects")
-        .select("subject_id")
+        .select("subject_class_id")
         .eq("student_id", studentId);
 
-      const subjectIds = studentSubjects?.map(ss => ss.subject_id) || [];
+      const subjectClassIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
+
+      // Get subject IDs from subject_classes
+      let subjectIds: string[] = [];
+      if (subjectClassIds.length > 0) {
+        const { data: subjectClasses } = await supabase
+          .from("subject_classes")
+          .select("subject_id")
+          .in("id", subjectClassIds);
+        
+        subjectIds = subjectClasses?.map(sc => sc.subject_id) || [];
+      }
 
       if (subjectIds.length === 0) {
         setAssignments([]);

@@ -13,7 +13,7 @@ import {
 
 interface Result {
   id: string;
-  subject_id: string;
+  subject_class_id: string;
   term_id: string;
   session_id: string;
   ca1: number;
@@ -23,8 +23,10 @@ interface Result {
   grade: string;
   remark: string;
   position: number | null;
-  subjects?: {
-    name: string;
+  subject_classes?: {
+    subjects: {
+      name: string;
+    };
   };
   terms?: {
     name: string;
@@ -67,12 +69,13 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
         .from("results")
         .select(`
           *,
-          subjects(name),
+          subject_classes!inner(
+            subjects(name)
+          ),
           terms(name),
           sessions(name)
         `)
         .eq("student_id", studentId)
-        .eq("is_published", true)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -215,7 +218,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
               <tbody>
                 {filteredResults.map((result) => (
                   <tr key={result.id} className="border-b hover:bg-gray-50">
-                    <td className="py-3 px-4 font-medium">{result.subjects?.name}</td>
+                    <td className="py-3 px-4 font-medium">{result.subject_classes?.subjects?.name}</td>
                     <td className="py-3 px-4">{result.sessions?.name}</td>
                     <td className="py-3 px-4">{result.terms?.name}</td>
                     <td className="py-3 px-4">{result.ca1}</td>

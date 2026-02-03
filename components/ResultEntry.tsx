@@ -621,7 +621,7 @@ export default function ResultEntry({
             term_id: term.id,
             scores,
             attendance,
-            next_term_begins: nextTermDate,
+            next_term_begins: nextTermDate, // Updated key to match schema
             class_teacher_remark: classTeacherRemark,
             principal_remark: principalRemark,
             class_position: classPosition,

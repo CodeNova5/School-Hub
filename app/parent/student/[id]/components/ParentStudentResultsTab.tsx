@@ -20,8 +20,6 @@ interface Result {
     subject_class_id: string;
     term_id: string;
     session_id: string;
-    ca1: number;
-    ca2: number;
     exam: number;
     total: number;
     grade: string;
@@ -31,6 +29,7 @@ interface Result {
         subjects: {
             name: string;
         };
+        class_id: string;
     };
     terms?: {
         name: string;
@@ -75,6 +74,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                 .select(`
           *,
           subject_classes!inner(
+            class_id,
             subjects(name)
           ),
           terms(name),
@@ -139,7 +139,8 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
         if (selectedSession && r.session_id !== selectedSession) return false;
         if (selectedTerm && r.term_id !== selectedTerm) return false;
         // Check parent visibility from publication table
-        const classId = r.subject_class_id;
+        const classId = r.subject_classes?.class_id;
+        if (!classId) return false;
         const pubKey = `${classId}|${r.session_id}|${r.term_id}`;
         if (!parentVisibility[pubKey]) return false;
         return true;

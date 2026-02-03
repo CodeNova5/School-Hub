@@ -207,8 +207,6 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                   <th className="text-left py-3 px-4">Subject</th>
                   <th className="text-left py-3 px-4">Session</th>
                   <th className="text-left py-3 px-4">Term</th>
-                  <th className="text-left py-3 px-4">CA1</th>
-                  <th className="text-left py-3 px-4">CA2</th>
                   <th className="text-left py-3 px-4">Exam</th>
                   <th className="text-left py-3 px-4">Total</th>
                   <th className="text-left py-3 px-4">Grade</th>
@@ -221,8 +219,6 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                     <td className="py-3 px-4 font-medium">{result.subject_classes?.subjects?.name}</td>
                     <td className="py-3 px-4">{result.sessions?.name}</td>
                     <td className="py-3 px-4">{result.terms?.name}</td>
-                    <td className="py-3 px-4">{result.ca1}</td>
-                    <td className="py-3 px-4">{result.ca2}</td>
                     <td className="py-3 px-4">{result.exam}</td>
                     <td className="py-3 px-4 font-bold">{result.total}</td>
                     <td className="py-3 px-4">

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     // Find parent by token hash only
     const { data: parent, error: parentError } = await supabase
       .from("parents")
-      .select("*, students!students_parent_email_fkey(first_name, last_name, student_id)")
+      .select("*")
       .eq("activation_token_hash", tokenHash)
       .single();
     console.log("Supabase parent fetch result:", { parent, parentError });
@@ -49,12 +49,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // Fetch students separately using parent email
+    const { data: students } = await supabase
+      .from("students")
+      .select("first_name, last_name, student_id")
+      .eq("parent_email", parent.email);
+
     console.log("Parent validated successfully", parent);
     return NextResponse.json({
       parent: {
         name: parent.name,
         email: parent.email,
-        students: parent.students || [],
+        students: students || [],
       },
     });
   } catch (error: any) {

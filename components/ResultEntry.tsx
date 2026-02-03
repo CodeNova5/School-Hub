@@ -632,7 +632,6 @@ export default function ResultEntry({
             total_students: totalStudents,
             class_average: classAverage,
         };
-
         const response = await fetch("/api/admin-operation", {
             method: "POST",
             headers: {

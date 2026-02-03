@@ -793,59 +793,71 @@ export default function ResultEntry({
                         {score.subject_name}
                       </td>
                       {isComponentVisible('welcome_test') && (
-                        <td className="border border-gray-300 px-1 py-1 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={score.welcome_test || ''}
-                            onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center print:bg-transparent bg-transparent font-bold"
-                            style={{ fontWeight: 'bold', padding: '3px', overflow: 'auto' }}
-                            disabled={isReadOnly || !canEdit}
-                          />
+                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
+                          {canEdit && !isReadOnly ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="10"
+                              value={score.welcome_test || ''}
+                              onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
+                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
+                              disabled={isReadOnly || !canEdit}
+                            />
+                          ) : (
+                            score.welcome_test
+                          )}
                         </td>
                       )}
-                      {isComponentVisible('welcome_test') && (
-                        <td className="border border-gray-300 px-3 py-2 text-center">
-                          <span className="print:inline hidden">{score.welcome_test}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={score.welcome_test || ''}
-                            onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                            className="print:hidden w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent"
-                            disabled={isReadOnly || !canEdit}
-                          />
+                      {isComponentVisible('mid_term_test') && (
+                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
+                          {canEdit && !isReadOnly ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="20"
+                              value={score.mid_term_test || ''}
+                              onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
+                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
+                              disabled={isReadOnly || !canEdit}
+                            />
+                          ) : (
+                            score.mid_term_test
+                          )}
                         </td>
                       )}
                       {isComponentVisible('vetting') && (
-                        <td className="border border-gray-300 px-3 py-2 text-center">
-                          <span className="print:inline hidden">{score.vetting}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={score.vetting || ''}
-                            onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                            className="print:hidden w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent"
-                            disabled={isReadOnly || !canEdit}
-                          />
+                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
+                          {canEdit && !isReadOnly ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="10"
+                              value={score.vetting || ''}
+                              onChange={(e) => updateScore(index, 'vetting', e.target.value)}
+                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
+                              disabled={isReadOnly || !canEdit}
+                            />
+                          ) : (
+                            score.vetting
+                          )}
                         </td>
                       )}
                       {isComponentVisible('exam') && (
-                        <td className="border border-gray-300 px-3 py-2 text-center">
-                          <span className="print:inline hidden">{score.exam}</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="60"
-                            value={score.exam || ''}
-                            onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                            className="print:hidden w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent"
-                            disabled={isReadOnly || !canEdit}
-                          />
+                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
+                          {canEdit && !isReadOnly ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="60"
+                              value={score.exam || ''}
+                              onChange={(e) => updateScore(index, 'exam', e.target.value)}
+                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
+                              disabled={isReadOnly || !canEdit}
+                            />
+                          ) : (
+                            score.exam
+                          )}
                         </td>
                       )}
                       <td className="border border-gray-300 px-3 py-2 text-center font-bold">

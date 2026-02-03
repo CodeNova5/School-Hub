@@ -770,7 +770,8 @@ export default function ResultEntry({
                             max="10"
                             value={score.welcome_test || ''}
                             onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center print:bg-transparent bg-transparent"
+                            className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded print:border-0 print:focus:ring-0 print:text-center print:bg-transparent bg-transparent font-bold"
+                            style={{ fontWeight: 'bold', position: 'relative', top: '-2px' }}
                             disabled={isReadOnly || !canEdit}
                           />
                         </td>

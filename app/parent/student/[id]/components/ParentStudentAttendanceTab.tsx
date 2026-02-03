@@ -18,12 +18,10 @@ interface AttendanceRecord {
   id: string;
   date: string;
   status: "present" | "late" | "excused" | "absent";
-  time_in: string | null;
-  time_out: string | null;
-  subject_id: string;
-  subjects?: {
-    name: string;
-  };
+  class_id: string | null;
+  session_id: string | null;
+  term_id: string | null;
+  notes: string | null;
 }
 
 interface ParentStudentAttendanceTabProps {
@@ -43,7 +41,7 @@ export default function ParentStudentAttendanceTab({ studentId }: ParentStudentA
     try {
       const { data: attendanceData, error } = await supabase
         .from("attendance")
-        .select("*, subjects(name)")
+        .select("*")
         .eq("student_id", studentId)
         .order("date", { ascending: false });
 
@@ -156,10 +154,8 @@ export default function ParentStudentAttendanceTab({ studentId }: ParentStudentA
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-3 px-4">Date</th>
-                  <th className="text-left py-3 px-4">Subject</th>
                   <th className="text-left py-3 px-4">Status</th>
-                  <th className="text-left py-3 px-4">Time In</th>
-                  <th className="text-left py-3 px-4">Time Out</th>
+                  <th className="text-left py-3 px-4">Notes</th>
                 </tr>
               </thead>
               <tbody>
@@ -168,7 +164,6 @@ export default function ParentStudentAttendanceTab({ studentId }: ParentStudentA
                     <td className="py-3 px-4">
                       {new Date(record.date).toLocaleDateString()}
                     </td>
-                    <td className="py-3 px-4">{record.subjects?.name || "N/A"}</td>
                     <td className="py-3 px-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         record.status === "present" ? "bg-green-100 text-green-700" :
@@ -179,8 +174,7 @@ export default function ParentStudentAttendanceTab({ studentId }: ParentStudentA
                         {record.status}
                       </span>
                     </td>
-                    <td className="py-3 px-4">{record.time_in || "-"}</td>
-                    <td className="py-3 px-4">{record.time_out || "-"}</td>
+                    <td className="py-3 px-4 text-sm text-gray-600">{record.notes || "-"}</td>
                   </tr>
                 ))}
               </tbody>

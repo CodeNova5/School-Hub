@@ -4,6 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+
+interface PublicationLookup {
+    [key: string]: boolean;
+}
 import {
     TrendingUp,
     Award,
@@ -34,7 +38,6 @@ interface Result {
     sessions?: {
         name: string;
     };
-    is_visible_to_parents: boolean;
 }
 
 interface ParentStudentResultsTabProps {
@@ -48,6 +51,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
     const [selectedTerm, setSelectedTerm] = useState("");
     const [sessions, setSessions] = useState<any[]>([]);
     const [terms, setTerms] = useState<any[]>([]);
+    const [parentVisibility, setParentVisibility] = useState<PublicationLookup>({});
 
     useEffect(() => {
         loadData();
@@ -81,6 +85,37 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
 
             if (error) throw error;
             setResults(resultsData || []);
+
+            // Get all unique class_id, session_id, term_id combinations from results
+            const uniqueKeys = new Set<string>();
+            (resultsData || []).forEach((r: any) => {
+                if (r.subject_classes && r.session_id && r.term_id) {
+                    uniqueKeys.add(`${r.subject_classes.class_id}|${r.session_id}|${r.term_id}`);
+                }
+            });
+            const keysArr = Array.from(uniqueKeys);
+            // Prepare filters for publication query
+            let pubFilters = [];
+            keysArr.forEach(key => {
+                const [class_id, session_id, term_id] = key.split("|");
+                pubFilters.push({ class_id, session_id, term_id });
+            });
+            let publicationRows: any[] = [];
+            if (pubFilters.length > 0) {
+                // Supabase doesn't support or() with objects, so fetch all and filter in JS
+                const { data: pubs } = await supabase
+                    .from("results_publication")
+                    .select("class_id, session_id, term_id, is_published_to_parents");
+                if (pubs) {
+                    publicationRows = pubs;
+                }
+            }
+            // Build lookup
+            const pubLookup: PublicationLookup = {};
+            publicationRows.forEach(row => {
+                pubLookup[`${row.class_id}|${row.session_id}|${row.term_id}`] = !!row.is_published_to_parents;
+            });
+            setParentVisibility(pubLookup);
         } catch (error: any) {
             toast.error("Failed to load results: " + error.message);
         } finally {
@@ -103,7 +138,10 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
     const filteredResults = results.filter((r) => {
         if (selectedSession && r.session_id !== selectedSession) return false;
         if (selectedTerm && r.term_id !== selectedTerm) return false;
-        if (!r.is_visible_to_parents) return false; // Only show results visible to parents
+        // Check parent visibility from publication table
+        const classId = r.subject_class_id;
+        const pubKey = `${classId}|${r.session_id}|${r.term_id}`;
+        if (!parentVisibility[pubKey]) return false;
         return true;
     });
 
@@ -225,10 +263,10 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                                         <td className="py-3 px-4 font-bold">{result.total}</td>
                                         <td className="py-3 px-4">
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${result.grade === "A" ? "bg-green-100 text-green-700" :
-                                                    result.grade === "B" ? "bg-blue-100 text-blue-700" :
-                                                        result.grade === "C" ? "bg-yellow-100 text-yellow-700" :
-                                                            result.grade === "D" ? "bg-orange-100 text-orange-700" :
-                                                                "bg-red-100 text-red-700"
+                                                result.grade === "B" ? "bg-blue-100 text-blue-700" :
+                                                    result.grade === "C" ? "bg-yellow-100 text-yellow-700" :
+                                                        result.grade === "D" ? "bg-orange-100 text-orange-700" :
+                                                            "bg-red-100 text-red-700"
                                                 }`}>
                                                 {result.grade}
                                             </span>

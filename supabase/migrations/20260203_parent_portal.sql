@@ -230,6 +230,9 @@ COMMENT ON COLUMN parents.activation_used IS 'Whether activation token has been 
 ALTER TABLE results
 ADD COLUMN is_visible_to_parents BOOLEAN DEFAULT FALSE;
 
+ALTER TABLE results_publication
+ADD COLUMN is_published_to_parents boolean NOT NULL DEFAULT false;
+
 -- Update existing results to make them invisible to parents by default
 UPDATE results
 SET is_visible_to_parents = FALSE;

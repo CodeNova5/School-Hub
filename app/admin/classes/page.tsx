@@ -45,6 +45,9 @@ export default function ClassesPage() {
   }, []);
 
   async function fetchClasses() {
+    const { data: { user } } = await supabase.auth.getUser();
+    console.log(user?.id);
+
     try {
       // ✅ Direct Supabase query - RLS handles permissions via is_admin()
       const { data, error } = await supabase

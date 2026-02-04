@@ -34,21 +34,14 @@ export default function LoginPage() {
       return;
     }
 
-    // Check RBAC role for admin
-    const userId = signInData.session.user.id;
-    const { data: roles, error: rolesError } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
+    const { data: canAccess } = await supabase.rpc("can_access_admin");
 
-    const isAdmin = roles?.some((r) => r.role === "admin");
-
-    if (rolesError || !isAdmin) {
+    if (!canAccess) {
       setErrorMsg("Your account is not authorized for admin access.");
       await supabase.auth.signOut();
-      setLoading(false);
       return;
     }
+
 
     router.push(redirectedFrom);
   }

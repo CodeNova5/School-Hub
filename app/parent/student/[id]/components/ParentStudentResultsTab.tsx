@@ -57,6 +57,18 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
         loadData();
     }, [studentId]);
 
+    // Auto-assign session and term based on the active one
+    useEffect(() => {
+        if (sessions.length > 0) {
+            const activeSession = sessions.find((s) => s.is_active);
+            if (activeSession) setSelectedSession(activeSession.id);
+        }
+        if (terms.length > 0) {
+            const activeTerm = terms.find((t) => t.is_active);
+            if (activeTerm) setSelectedTerm(activeTerm.id);
+        }
+    }, [sessions, terms]);
+
     async function loadData() {
         setIsLoading(true);
         try {

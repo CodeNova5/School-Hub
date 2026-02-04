@@ -33,7 +33,6 @@ export default function SessionsPage() {
 
   useEffect(() => {
     async function init() {
-      await updateCurrentSessionAndTerm();
       await fetchSessions();
       await fetchTerms();
     }
@@ -251,6 +250,7 @@ export default function SessionsPage() {
     await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
     await supabase.from('sessions').update({ is_current: true }).eq('id', sessionId);
     setCurrentSessionId(sessionId);
+    await updateCurrentSessionAndTerm(sessionId);
     await fetchSessions();
     await fetchTerms();
   }
@@ -282,16 +282,17 @@ export default function SessionsPage() {
 
 
   // Only set current term for current session
-  async function updateCurrentSessionAndTerm() {
+  async function updateCurrentSessionAndTerm(sessionId?: string) {
     try {
+      const targetSessionId = sessionId || currentSessionId;
       // Set all terms is_current = false
       await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
       // Set current term for current session (first term by start_date)
-      if (currentSessionId) {
+      if (targetSessionId) {
         const { data: termsData } = await supabase
           .from('terms')
           .select('*')
-          .eq('session_id', currentSessionId)
+          .eq('session_id', targetSessionId)
           .order('start_date', { ascending: true });
         if (termsData && termsData.length > 0) {
           await supabase.from('terms').update({ is_current: true }).eq('id', termsData[0].id);
@@ -406,7 +407,206 @@ export default function SessionsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>All Sessions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
+                  >
+                    <div>
+                      <p className="font-medium">{session.name}</p>
+                      {session.is_current && (
+                        <Badge className="bg-blue-100 text-blue-800 mt-1">Current Session</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingSession(session);
+                          setIsEditSessionDialogOpen(true);
+                        }}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteSession(session.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {sessions.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No sessions yet. Create your first session.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>All Terms</CardTitle>
+              <Dialog open={isTermDialogOpen} onOpenChange={setIsTermDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Term
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Term</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateTerm} className="space-y-4">
+                    <div>
+                      <Label>Session</Label>
+                      <select
+                        className="w-full h-10 px-3 border rounded-md"
+                        value={selectedSession}
+                        onChange={(e) => setSelectedSession(e.target.value)}
+                        required
+                      >
+                        <option value="">Select session</option>
+                        {sessions.map((session) => (
+                          <option key={session.id} value={session.id}>
+                            {session.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Term Name</Label>
+                      <Input name="name" placeholder="e.g., First Term" required />
+                    </div>
+                    <div>
+                      <Label>Start Date</Label>
+                      <Input name="start_date" type="date" required />
+                    </div>
+                    <div>
+                      <Label>End Date</Label>
+                      <Input name="end_date" type="date" required />
+                    </div>
+                    <Button type="submit" className="w-full">Create Term</Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {terms.map((term) => {
+                  const session = sessions.find(s => s.id === term.session_id);
+                  return (
+                    <div
+                      key={term.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
+                    >
+                      <div>
+                        <p className="font-medium">{term.name}</p>
+                        <p className="text-sm text-gray-500">{session?.name}</p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(term.start_date).toLocaleDateString()} - {new Date(term.end_date).toLocaleDateString()}
+                        </p>
+                        {term.is_current && (
+                          <Badge className="bg-green-100 text-green-800 mt-1">Current</Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingTerm(term);
+                            setIsEditTermDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteTerm(term.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {terms.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No terms yet. Create a session or add a term.</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Edit Session Dialog */}
+        <Dialog open={isEditSessionDialogOpen} onOpenChange={setIsEditSessionDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Session</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleUpdateSession} className="space-y-4">
+              <div>
+                <Label>Session Name</Label>
+                <Input
+                  name="name"
+                  defaultValue={editingSession?.name}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full">Update Session</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Term Dialog */}
+        <Dialog open={isEditTermDialogOpen} onOpenChange={setIsEditTermDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Term</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleUpdateTerm} className="space-y-4">
+              <div>
+                <Label>Term Name</Label>
+                <Input
+                  name="name"
+                  defaultValue={editingTerm?.name}
+                  required
+                />
+              </div>
+              <div>
+                <Label>Start Date</Label>
+                <Input
+                  name="start_date"
+                  type="date"
+                  defaultValue={editingTerm?.start_date}
+                  required
+                />
+              </div>
+              <div>
+                <Label>End Date</Label>
+                <Input
+                  name="end_date"
+                  type="date"
+                  defaultValue={editingTerm?.end_date}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full">Update Term</Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

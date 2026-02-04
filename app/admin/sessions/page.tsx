@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
   const [isTermDialogOpen, setIsTermDialogOpen] = useState(false);
   const [isEditSessionDialogOpen, setIsEditSessionDialogOpen] = useState(false);
@@ -44,12 +45,15 @@ export default function SessionsPage() {
       const { data, error } = await supabase
         .from('sessions')
         .select('*')
-        .order('start_date', { ascending: false });
+        .order('name', { ascending: true });
       if (error) {
         console.error('Error fetching sessions:', error.message);
         return;
       }
       setSessions(data || []);
+      // Set current session id
+      const current = (data || []).find((s) => s.is_current);
+      setCurrentSessionId(current?.id || '');
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
@@ -76,21 +80,12 @@ export default function SessionsPage() {
     const formData = new FormData(e.currentTarget);
 
     const name = formData.get("name") as string;
-    const start = formData.get("start_date") as string;
-    const end = formData.get("end_date") as string;
-
-    if (await isSessionOverlapping(start, end)) {
-      alert("Session dates overlap with an existing session.");
-      return;
-    }
 
     // Insert session
     const { data: sessionResult, error: sessionError } = await supabase
       .from('sessions')
       .insert({
         name,
-        start_date: start,
-        end_date: end,
         is_current: false,
       })
       .select();
@@ -160,20 +155,11 @@ export default function SessionsPage() {
     if (!editingSession) return;
 
     const formData = new FormData(e.currentTarget);
-    const start = formData.get("start_date") as string;
-    const end = formData.get("end_date") as string;
-
-    if (await isSessionOverlapping(start, end, editingSession.id)) {
-      alert("This session overlaps with an existing session.");
-      return;
-    }
 
     const { error } = await supabase
       .from('sessions')
       .update({
         name: formData.get("name"),
-        start_date: formData.get("start_date"),
-        end_date: formData.get("end_date"),
       })
       .eq('id', editingSession.id);
 
@@ -248,6 +234,15 @@ export default function SessionsPage() {
     return new Date(date) < new Date(new Date().toDateString());
   }
 
+  // Set current session
+  async function handleSetCurrentSession(sessionId: string) {
+    await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
+    await supabase.from('sessions').update({ is_current: true }).eq('id', sessionId);
+    setCurrentSessionId(sessionId);
+    await fetchSessions();
+    await fetchTerms();
+  }
+
   async function isSessionOverlapping(start: string, end: string, excludeId?: string) {
     let query = supabase
       .from("sessions")
@@ -273,48 +268,25 @@ export default function SessionsPage() {
     return (data?.length || 0) > 0;
   }
 
+
+  // Only set current term for current session
   async function updateCurrentSessionAndTerm() {
     try {
-      // Find the session and term for today
-      const today = new Date().toISOString().slice(0, 10);
-      // Find session
-      const { data: sessionsData } = await supabase
-        .from('sessions')
-        .select('*');
-      const session = (sessionsData || []).find(
-        (s) => s.start_date <= today && s.end_date >= today
-      );
-      // Set all sessions is_current = false, then set the current one true
-      if (sessionsData && sessionsData.length > 0) {
-        await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
-      }
-      if (session) {
-        await supabase.from('sessions').update({ is_current: true }).eq('id', session.id);
-      }
-
-      // Find term
-      let term = null;
-      if (session) {
+      // Set all terms is_current = false
+      await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
+      // Set current term for current session (first term by start_date)
+      if (currentSessionId) {
         const { data: termsData } = await supabase
           .from('terms')
           .select('*')
-          .eq('session_id', session.id);
-        term = (termsData || []).find(
-          (t) => t.start_date <= today && t.end_date >= today
-        );
-        // Set all terms is_current = false, then set the current one true
+          .eq('session_id', currentSessionId)
+          .order('start_date', { ascending: true });
         if (termsData && termsData.length > 0) {
-          await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
+          await supabase.from('terms').update({ is_current: true }).eq('id', termsData[0].id);
         }
-        if (term) {
-          await supabase.from('terms').update({ is_current: true }).eq('id', term.id);
-        }
-      } else {
-        // If no session, set all terms is_current = false
-        await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
       }
     } catch (error) {
-      console.error('Error updating current session/term:', error);
+      console.error('Error updating current term:', error);
     }
   }
 
@@ -328,10 +300,24 @@ export default function SessionsPage() {
             <h1 className="text-3xl font-bold">Sessions & Terms</h1>
             <p className="text-gray-600 mt-1">Manage academic sessions and terms</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={updateCurrentSessionAndTerm}>
-              Update Active Session/Term
-            </Button>
+          <div className="flex gap-2 items-center">
+            <label className="font-medium">Current Session:</label>
+            <select
+              className="border rounded px-2 py-1"
+              value={currentSessionId}
+              onChange={e => handleSetCurrentSession(e.target.value)}
+            >
+              <option value="">Select session</option>
+              {Array.from({ length: 2050 - 2026 + 1 }, (_, i) => {
+                const year1 = 2026 + i;
+                const year2 = year1 + 1;
+                const label = `${year1}/${year2}`;
+                const session = sessions.find(s => s.name === label);
+                return (
+                  <option key={label} value={session?.id || ''}>{label}</option>
+                );
+              })}
+            </select>
             <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
@@ -339,175 +325,40 @@ export default function SessionsPage() {
                   New Session
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create New Session</DialogTitle>
-                <p className="text-sm text-gray-600 mt-2">Create a session and its three terms at once</p>
-              </DialogHeader>
-              <form onSubmit={handleCreateSession} className="space-y-4">
-                <div>
-                  <Label>Session Name</Label>
-                  <Input name="name" placeholder="e.g. 2025/2026" required />
-                </div>
-
-                <div>
-                  <Label>Session Start Date</Label>
-                  <Input name="start_date" type="date" required />
-                </div>
-
-                <div>
-                  <Label>Session End Date</Label>
-                  <Input name="end_date" type="date" required />
-                </div>
-
-                <h3 className="font-semibold pt-4">First Term</h3>
-                <Input name="t1_start" type="date" required />
-                <Input name="t1_end" type="date" required />
-
-                <h3 className="font-semibold pt-4">Second Term</h3>
-                <Input name="t2_start" type="date" required />
-                <Input name="t2_end" type="date" required />
-
-                <h3 className="font-semibold pt-4">Third Term</h3>
-                <Input name="t3_start" type="date" required />
-                <Input name="t3_end" type="date" required />
-
-                <Button type="submit" className="w-full">Create Session</Button>
-              </form>
-
-            </DialogContent>
-          </Dialog>
+              <DialogContent className="max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create New Session</DialogTitle>
+                  <p className="text-sm text-gray-600 mt-2">Create a session and its three terms at once</p>
+                </DialogHeader>
+                <form onSubmit={handleCreateSession} className="space-y-4">
+                  <div>
+                    <Label>Session Name</Label>
+                    <Input name="name" placeholder="e.g. 2026/2027" required />
+                  </div>
+                  <h3 className="font-semibold pt-4">First Term</h3>
+                  <Input name="t1_start" type="date" required />
+                  <Input name="t1_end" type="date" required />
+                  <h3 className="font-semibold pt-4">Second Term</h3>
+                  <Input name="t2_start" type="date" required />
+                  <Input name="t2_end" type="date" required />
+                  <h3 className="font-semibold pt-4">Third Term</h3>
+                  <Input name="t3_start" type="date" required />
+                  <Input name="t3_end" type="date" required />
+                  <Button type="submit" className="w-full">Create Session</Button>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-1">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Academic Sessions</CardTitle>
+              <CardTitle>Current Term</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition"
-                  >
-                    <div>
-                      <p className="font-medium">{session.name}</p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(session.start_date).toLocaleDateString()} - {new Date(session.end_date).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {session.is_current && (
-                        <Badge className="bg-green-100 text-green-800">Active</Badge>
-                      )}
-                      {!isPast(session.end_date) && (
-                        <>
-                          <Dialog open={isEditSessionDialogOpen && editingSession?.id === session.id} onOpenChange={(open) => {
-                            if (!open) setEditingSession(null);
-                            setIsEditSessionDialogOpen(open);
-                          }}>
-                            <DialogTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => setEditingSession(session)}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Edit Session</DialogTitle>
-                              </DialogHeader>
-                              {editingSession && (
-                                <form onSubmit={handleUpdateSession} className="space-y-4">
-                                  <div>
-                                    <Label>Session Name</Label>
-                                    <Input name="name" defaultValue={editingSession.name} required />
-                                  </div>
-                                  <div>
-                                    <Label>Start Date</Label>
-                                    <Input name="start_date" type="date" defaultValue={editingSession.start_date} required />
-                                  </div>
-                                  <div>
-                                    <Label>End Date</Label>
-                                    <Input name="end_date" type="date" defaultValue={editingSession.end_date} required />
-                                  </div>
-                                  <Button type="submit" className="w-full">Update Session</Button>
-                                </form>
-                              )}
-                            </DialogContent>
-                          </Dialog>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteSession(session.id)}>
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
-                        </>
-                      )}
-
-                      {isPast(session.end_date) && (
-                        <Badge variant="secondary">Completed</Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {sessions.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">No sessions yet. Create one to get started.</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Terms</CardTitle>
-              <Dialog open={isTermDialogOpen} onOpenChange={setIsTermDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" disabled={sessions.length === 0}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Term
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New Term</DialogTitle>
-                    <p className="text-sm text-gray-600 mt-2">Add an additional term to an existing session</p>
-                  </DialogHeader>
-                  <form onSubmit={handleCreateTerm} className="space-y-4">
-                    <div>
-                      <Label htmlFor="session">Session</Label>
-                      <select
-                        id="session"
-                        className="w-full h-10 px-3 border rounded-md"
-                        value={selectedSession}
-                        onChange={(e) => setSelectedSession(e.target.value)}
-                        required
-                      >
-                        <option value="">Select session</option>
-                        {sessions.map((session) => (
-                          <option key={session.id} value={session.id}>
-                            {session.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <Label htmlFor="term_name">Term Name</Label>
-                      <Input id="term_name" name="name" placeholder="e.g., First Term" required />
-                    </div>
-                    <div>
-                      <Label htmlFor="term_start_date">Start Date</Label>
-                      <Input id="term_start_date" name="start_date" type="date" required />
-                    </div>
-                    <div>
-                      <Label htmlFor="term_end_date">End Date</Label>
-                      <Input id="term_end_date" name="end_date" type="date" required />
-                    </div>
-                    <Button type="submit" className="w-full">Create Term</Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {terms.map((term) => {
+                {terms.filter(term => term.is_current).map((term) => {
                   const session = sessions.find(s => s.id === term.session_id);
                   return (
                     <div
@@ -522,58 +373,13 @@ export default function SessionsPage() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {term.is_current && (
-                          <Badge className="bg-green-100 text-green-800">Active</Badge>
-                        )}
-                        {!isPast(term.end_date) && (
-                          <>
-                            <Dialog open={isEditTermDialogOpen && editingTerm?.id === term.id} onOpenChange={(open) => {
-                              if (!open) setEditingTerm(null);
-                              setIsEditTermDialogOpen(open);
-                            }}>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => setEditingTerm(term)}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Edit Term</DialogTitle>
-                                </DialogHeader>
-                                {editingTerm && (
-                                  <form onSubmit={handleUpdateTerm} className="space-y-4">
-                                    <div>
-                                      <Label>Term Name</Label>
-                                      <Input name="name" defaultValue={editingTerm.name} required />
-                                    </div>
-                                    <div>
-                                      <Label>Start Date</Label>
-                                      <Input name="start_date" type="date" defaultValue={editingTerm.start_date} required />
-                                    </div>
-                                    <div>
-                                      <Label>End Date</Label>
-                                      <Input name="end_date" type="date" defaultValue={editingTerm.end_date} required />
-                                    </div>
-                                    <Button type="submit" className="w-full">Update Term</Button>
-                                  </form>
-                                )}
-                              </DialogContent>
-                            </Dialog>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteTerm(term.id)}>
-                              <Trash2 className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </>
-                        )}
-
-                        {isPast(term.end_date) && (
-                          <Badge variant="secondary">Completed</Badge>
-                        )}
+                        <Badge className="bg-green-100 text-green-800">Active</Badge>
                       </div>
                     </div>
                   );
                 })}
-                {terms.length === 0 && (
-                  <p className="text-center text-gray-500 py-8">No terms yet. Create a session first.</p>
+                {terms.filter(term => term.is_current).length === 0 && (
+                  <p className="text-center text-gray-500 py-8">No current term set. Select a session to set its first term as current.</p>
                 )}
               </div>
             </CardContent>

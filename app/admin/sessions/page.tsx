@@ -286,7 +286,7 @@ export default function SessionsPage() {
       );
       // Set all sessions is_current = false, then set the current one true
       if (sessionsData && sessionsData.length > 0) {
-        await supabase.from('sessions').update({ is_current: false });
+        await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
       }
       if (session) {
         await supabase.from('sessions').update({ is_current: true }).eq('id', session.id);
@@ -304,14 +304,14 @@ export default function SessionsPage() {
         );
         // Set all terms is_current = false, then set the current one true
         if (termsData && termsData.length > 0) {
-          await supabase.from('terms').update({ is_current: false });
+          await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
         }
         if (term) {
           await supabase.from('terms').update({ is_current: true }).eq('id', term.id);
         }
       } else {
         // If no session, set all terms is_current = false
-        await supabase.from('terms').update({ is_current: false });
+        await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
       }
     } catch (error) {
       console.error('Error updating current session/term:', error);

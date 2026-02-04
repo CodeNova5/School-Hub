@@ -936,8 +936,8 @@ CREATE POLICY "Authenticated users can read sessions"
 CREATE POLICY "Admins can manage sessions"
   ON sessions FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_sessions') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_sessions') OR has_permission('admin_full'));
 
 -- TERMS
 CREATE POLICY "Authenticated users can read terms"
@@ -948,8 +948,8 @@ CREATE POLICY "Authenticated users can read terms"
 CREATE POLICY "Admins can manage terms"
   ON terms FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_terms') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_terms') OR has_permission('admin_full'));
 
 -- TEACHERS
 CREATE POLICY "Authenticated users can read teachers"
@@ -960,8 +960,8 @@ CREATE POLICY "Authenticated users can read teachers"
 CREATE POLICY "Admins can manage teachers"
   ON teachers FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_teachers') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_teachers') OR has_permission('admin_full'));
 
 -- CLASSES
 CREATE POLICY "Authenticated users can read classes"
@@ -972,8 +972,8 @@ CREATE POLICY "Authenticated users can read classes"
 CREATE POLICY "Admins can manage classes"
   ON classes FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_class') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_class') OR has_permission('admin_full'));
 
 -- SUBJECTS
 CREATE POLICY "Authenticated users can read subjects"
@@ -984,8 +984,8 @@ CREATE POLICY "Authenticated users can read subjects"
 CREATE POLICY "Admins can manage subjects"
   ON subjects FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_subjects') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_subjects') OR has_permission('admin_full'));
 
 -- STUDENTS
 CREATE POLICY "Authenticated users can read students"
@@ -996,8 +996,8 @@ CREATE POLICY "Authenticated users can read students"
 CREATE POLICY "Admins can manage students"
   ON students FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_students') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_students') OR has_permission('admin_full'));
 
 -- SUBJECT_CLASSES
 CREATE POLICY "Authenticated users can read subject_classes"
@@ -1008,8 +1008,8 @@ CREATE POLICY "Authenticated users can read subject_classes"
 CREATE POLICY "Admins can manage subject_classes"
   ON subject_classes FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_subjects') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_subjects') OR has_permission('admin_full'));
 
 -- SUBJECT_ASSIGNMENTS
 CREATE POLICY "Authenticated users can read subject_assignments"
@@ -1020,8 +1020,8 @@ CREATE POLICY "Authenticated users can read subject_assignments"
 CREATE POLICY "Admins can manage subject_assignments"
   ON subject_assignments FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_subjects') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_subjects') OR has_permission('admin_full'));
 
 -- ATTENDANCE
 CREATE POLICY "Authenticated users can read attendance"
@@ -1032,8 +1032,8 @@ CREATE POLICY "Authenticated users can read attendance"
 CREATE POLICY "Admins can manage attendance"
   ON attendance FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_attendance') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_attendance') OR has_permission('admin_full'));
 
 -- ASSIGNMENTS
 CREATE POLICY "Authenticated users can read assignments"
@@ -1044,8 +1044,8 @@ CREATE POLICY "Authenticated users can read assignments"
 CREATE POLICY "Admins can manage assignments"
   ON assignments FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_assignments') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_assignments') OR has_permission('admin_full'));
 
 -- ASSIGNMENT_SUBMISSIONS
 CREATE POLICY "Authenticated users can read assignment_submissions"
@@ -1056,8 +1056,8 @@ CREATE POLICY "Authenticated users can read assignment_submissions"
 CREATE POLICY "Admins can manage assignment_submissions"
   ON assignment_submissions FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_assignments') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_assignments') OR has_permission('admin_full'));
 
 -- SUBMISSIONS (legacy)
 CREATE POLICY "Authenticated users can read submissions"
@@ -1068,8 +1068,8 @@ CREATE POLICY "Authenticated users can read submissions"
 CREATE POLICY "Admins can manage submissions"
   ON submissions FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_assignments') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_assignments') OR has_permission('admin_full'));
 
 -- RESULTS
 CREATE POLICY "Authenticated users can read results"
@@ -1080,8 +1080,8 @@ CREATE POLICY "Authenticated users can read results"
 CREATE POLICY "Admins can manage results"
   ON results FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_results') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_results') OR has_permission('admin_full'));
 
 -- STUDENT_SUBJECTS
 CREATE POLICY "Authenticated users can read student_subjects"
@@ -1092,8 +1092,8 @@ CREATE POLICY "Authenticated users can read student_subjects"
 CREATE POLICY "Admins can manage student_subjects"
   ON student_subjects FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_students') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_students') OR has_permission('admin_full'));
 
 -- ADMISSIONS
 CREATE POLICY "Authenticated users can read admissions"
@@ -1104,8 +1104,8 @@ CREATE POLICY "Authenticated users can read admissions"
 CREATE POLICY "Admins can manage admissions"
   ON admissions FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_admissions') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_admissions') OR has_permission('admin_full'));
 
 -- EVENTS
 CREATE POLICY "Authenticated users can read events"
@@ -1116,8 +1116,8 @@ CREATE POLICY "Authenticated users can read events"
 CREATE POLICY "Admins can manage events"
   ON events FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_events') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_events') OR has_permission('admin_full'));
 
 -- NEWS
 CREATE POLICY "Authenticated users can read news"
@@ -1128,8 +1128,8 @@ CREATE POLICY "Authenticated users can read news"
 CREATE POLICY "Admins can manage news"
   ON news FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_news') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_news') OR has_permission('admin_full'));
 
 -- TESTIMONIALS
 CREATE POLICY "Authenticated users can read testimonials"
@@ -1140,8 +1140,8 @@ CREATE POLICY "Authenticated users can read testimonials"
 CREATE POLICY "Admins can manage testimonials"
   ON testimonials FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_testimonials') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_testimonials') OR has_permission('admin_full'));
 
 -- NOTIFICATIONS
 CREATE POLICY "Users can read their own notifications"
@@ -1152,8 +1152,8 @@ CREATE POLICY "Users can read their own notifications"
 CREATE POLICY "Admins can manage all notifications"
   ON notifications FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_notifications') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_notifications') OR has_permission('admin_full'));
 
 -- SCHOOL_SETTINGS
 CREATE POLICY "Authenticated users can read school_settings"
@@ -1164,8 +1164,8 @@ CREATE POLICY "Authenticated users can read school_settings"
 CREATE POLICY "Admins can manage school_settings"
   ON school_settings FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_settings') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_settings') OR has_permission('admin_full'));
 
 -- PERIOD_SLOTS
 CREATE POLICY "Authenticated users can read period_slots"
@@ -1176,8 +1176,8 @@ CREATE POLICY "Authenticated users can read period_slots"
 CREATE POLICY "Admins can manage period_slots"
   ON period_slots FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_timetable') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_timetable') OR has_permission('admin_full'));
 
 -- STUDENT_OPTIONAL_SUBJECTS
 CREATE POLICY "Authenticated users can read student_optional_subjects"
@@ -1188,8 +1188,8 @@ CREATE POLICY "Authenticated users can read student_optional_subjects"
 CREATE POLICY "Admins can manage student_optional_subjects"
   ON student_optional_subjects FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_students') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_students') OR has_permission('admin_full'));
 
 -- TIMETABLE_ENTRIES
 CREATE POLICY "Authenticated users can read timetable_entries"
@@ -1200,8 +1200,8 @@ CREATE POLICY "Authenticated users can read timetable_entries"
 CREATE POLICY "Admins can manage timetable_entries"
   ON timetable_entries FOR ALL
   TO authenticated
-  USING (is_admin())
-  WITH CHECK (is_admin());
+  USING (has_permission('edit_timetable') OR has_permission('admin_full'))
+  WITH CHECK (has_permission('edit_timetable') OR has_permission('admin_full'));
 
 -- PARENTS
 CREATE POLICY "Parents can read own data"
@@ -1214,7 +1214,7 @@ CREATE POLICY "Parents can update own data"
 
 CREATE POLICY "Admins can manage parents"
   ON parents FOR ALL
-  USING (is_admin());
+  USING (has_permission('edit_students') OR has_permission('admin_full'));
 
 CREATE POLICY "Service role can insert parents"
   ON parents FOR INSERT

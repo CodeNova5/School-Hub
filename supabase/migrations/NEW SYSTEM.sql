@@ -40,6 +40,15 @@ insert into permissions (key) values
 ('edit_attendance'),
 ('edit_calendar'),
 ('edit_settings'),
+('edit_teachers'),
+('edit_assignments'),
+('edit_admissions'),
+('edit_events'),
+('edit_news'),
+('edit_testimonials'),
+('edit_notifications'),
+('edit_sessions'),
+('edit_terms'),
 ('admin_full')
 on conflict do nothing;
 
@@ -151,5 +160,19 @@ as $$
       or has_permission('edit_timetable')
       or has_permission('edit_results')
       or has_permission('manage_admins');
+$$;
+
+-- Helper function to get admin user details
+create or replace function get_admin_users(user_ids uuid[])
+returns table (
+  id uuid,
+  email text
+)
+language sql
+security definer
+as $$
+  select id, email
+  from auth.users
+  where id = any(user_ids);
 $$;
 

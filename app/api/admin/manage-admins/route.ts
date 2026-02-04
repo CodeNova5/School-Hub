@@ -1,6 +1,9 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+import nodemailer from "nodemailer";
+import crypto from "crypto";
 
 
 export async function GET(req: NextRequest) {
@@ -155,7 +158,154 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { userId, roleId, permissions } = body;
+  const { userId, roleId, permissions, email, name } = body;
+
+  // If email and name are provided, create a new admin user
+  if (email && name) {
+    try {
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Check if admin already exists
+      const { data: existingAdmin } = await supabaseAdmin
+        .from("admins")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+
+      if (existingAdmin) {
+        return NextResponse.json(
+          { error: "An admin with this email already exists" },
+          { status: 400 }
+        );
+      }
+
+      // Create auth user
+      const { data: authData, error: authError } =
+        await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: crypto.randomUUID(),
+          email_confirm: true,
+          user_metadata: { role: "admin", name },
+        });
+
+      if (authError || !authData.user) {
+        return NextResponse.json(
+          { error: authError?.message || "Failed to create auth user" },
+          { status: 400 }
+        );
+      }
+
+      // Insert admin record
+      const { data: admin, error: adminError } = await supabaseAdmin
+        .from("admins")
+        .insert({
+          name,
+          email,
+          user_id: authData.user.id,
+          is_active: false,
+          status: "inactive",
+        })
+        .select()
+        .single();
+
+      if (adminError || !admin) {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        return NextResponse.json({ error: adminError?.message }, { status: 400 });
+      }
+
+      // Assign role
+      if (roleId) {
+        const { error: roleError } = await supabaseAdmin
+          .from("user_role_links")
+          .insert({ user_id: authData.user.id, role_id: roleId });
+
+        if (roleError) {
+          await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+          return NextResponse.json({ error: roleError.message }, { status: 500 });
+        }
+      }
+
+      // If custom permissions are provided (for admin role), update role_permissions
+      if (permissions && Array.isArray(permissions) && permissions.length > 0) {
+        const { data: adminRole } = await supabaseAdmin
+          .from("roles")
+          .select("id")
+          .eq("name", "admin")
+          .single();
+
+        if (adminRole && roleId === adminRole.id) {
+          // Remove existing permissions for this role
+          await supabaseAdmin
+            .from("role_permissions")
+            .delete()
+            .eq("role_id", adminRole.id);
+
+          // Add new permissions
+          const permissionInserts = permissions.map((permId: string) => ({
+            role_id: adminRole.id,
+            permission_id: permId,
+          }));
+
+          await supabaseAdmin.from("role_permissions").insert(permissionInserts);
+        }
+      }
+
+      // Generate activation token
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+      await supabaseAdmin
+        .from("admins")
+        .update({
+          activation_token_hash: tokenHash,
+          activation_expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 hours
+        })
+        .eq("id", admin.id);
+
+      // Send activation email
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/admin/activate?token=${rawToken}`;
+
+      await transporter.sendMail({
+        from: `"School Hub" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Activate Your Admin Account",
+        html: `
+          <p>Hello ${name},</p>
+          <p>Your administrator account has been created.</p>
+          <p>Click the link below to activate your account and set your password:</p>
+          <p><a href="${activationLink}">Activate Account</a></p>
+          <p>This link expires in 24 hours.</p>
+        `,
+      });
+
+      return NextResponse.json({ success: true, admin });
+    } catch (err: any) {
+      console.error(err);
+      return NextResponse.json(
+        { error: err.message || "Unexpected server error" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Existing update logic for editing existing admin
+  if (!userId || !roleId) {
+    return NextResponse.json(
+      { error: "User ID and role ID are required" },
+      { status: 400 }
+    );
+  }
 
   // First, remove existing role links for this user
   await supabase.from("user_role_links").delete().eq("user_id", userId);

@@ -140,10 +140,8 @@ export default function ManageAdminsPage() {
   
   // Add Admin state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [userSearchTerm, setUserSearchTerm] = useState("");
-  const [searchedUsers, setSearchedUsers] = useState<any[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>("");
-  const [searching, setSearching] = useState(false);
+  const [newAdminName, setNewAdminName] = useState("");
+  const [newAdminEmail, setNewAdminEmail] = useState("");
 
   // Form state
   const [selectedRole, setSelectedRole] = useState<string>("");
@@ -199,33 +197,22 @@ export default function ManageAdminsPage() {
     setEditDialogOpen(true);
   };
 
-  const searchUsers = async () => {
-    if (!userSearchTerm.trim()) return;
-    
-    setSearching(true);
-    try {
-      const res = await fetch(`/api/admin/search-users?email=${encodeURIComponent(userSearchTerm)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSearchedUsers(data.users || []);
-      }
-    } catch (error) {
-      console.error("Error searching users:", error);
+  const handleAddAdmin = async () => {
+    if (!newAdminEmail || !newAdminName || !selectedRole) {
       toast({
         title: "Error",
-        description: "Failed to search users",
+        description: "Please fill in all fields",
         variant: "destructive",
       });
-    } finally {
-      setSearching(false);
+      return;
     }
-  };
 
-  const handleAddAdmin = async () => {
-    if (!selectedUserId || !selectedRole) {
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newAdminEmail)) {
       toast({
         title: "Error",
-        description: "Please select a user and role",
+        description: "Please enter a valid email address",
         variant: "destructive",
       });
       return;
@@ -238,33 +225,35 @@ export default function ManageAdminsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: selectedUserId,
+          email: newAdminEmail,
+          name: newAdminName,
           roleId: selectedRole,
           permissions: selectedPermissions,
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error("Failed to add admin");
+        throw new Error(data.error || "Failed to add admin");
       }
 
       toast({
         title: "Success",
-        description: "Admin added successfully",
+        description: "Admin created successfully. Activation email has been sent.",
       });
 
       setAddDialogOpen(false);
-      setSelectedUserId("");
+      setNewAdminEmail("");
+      setNewAdminName("");
       setSelectedRole("");
       setSelectedPermissions([]);
-      setUserSearchTerm("");
-      setSearchedUsers([]);
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding admin:", error);
       toast({
         title: "Error",
-        description: "Failed to add admin",
+        description: error.message || "Failed to add admin",
         variant: "destructive",
       });
     } finally {
@@ -632,77 +621,55 @@ export default function ManageAdminsPage() {
           <DialogHeader>
             <DialogTitle>Add Administrator</DialogTitle>
             <DialogDescription>
-              Search for a user and assign them an administrative role
+              Create a new administrator account and assign permissions
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 py-4">
-            {/* User Search */}
+            {/* Name Input */}
             <div className="space-y-2">
-              <Label>Search User by Email</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter email address..."
-                  value={userSearchTerm}
-                  onChange={(e) => setUserSearchTerm(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && searchUsers()}
-                />
-                <Button onClick={searchUsers} disabled={searching}>
-                  {searching ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Search className="w-4 h-4" />
-                  )}
-                </Button>
-              </div>
+              <Label htmlFor="admin-name">Full Name</Label>
+              <Input
+                id="admin-name"
+                placeholder="Enter administrator's full name"
+                value={newAdminName}
+                onChange={(e) => setNewAdminName(e.target.value)}
+                disabled={saving}
+              />
             </div>
 
-            {/* Search Results */}
-            {searchedUsers.length > 0 && (
-              <div className="space-y-2">
-                <Label>Select User</Label>
-                <div className="border rounded-lg divide-y">
-                  {searchedUsers.map((user) => (
-                    <div
-                      key={user.id}
-                      className={`p-3 cursor-pointer hover:bg-accent transition-colors ${
-                        selectedUserId === user.id ? "bg-accent" : ""
-                      }`}
-                      onClick={() => setSelectedUserId(user.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{user.email}</p>
-                          <p className="text-sm text-muted-foreground">ID: {user.id}</p>
-                        </div>
-                        {selectedUserId === user.id && (
-                          <CheckCircle2 className="w-5 h-5 text-primary" />
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Email Input */}
+            <div className="space-y-2">
+              <Label htmlFor="admin-email">Email Address</Label>
+              <Input
+                id="admin-email"
+                type="email"
+                placeholder="Enter email address"
+                value={newAdminEmail}
+                onChange={(e) => setNewAdminEmail(e.target.value)}
+                disabled={saving}
+              />
+              <p className="text-xs text-muted-foreground">
+                An activation link will be sent to this email
+              </p>
+            </div>
 
             {/* Role Selection */}
-            {selectedUserId && (
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <Select value={selectedRole} onValueChange={setSelectedRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        <span className="capitalize">{role.name.replace("_", " ")}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={role.id}>
+                      <span className="capitalize">{role.name.replace("_", " ")}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
             {/* Permissions Grid */}
             {selectedRole && roles.find((r) => r.id === selectedRole)?.name === "admin" && (
@@ -740,6 +707,13 @@ export default function ManageAdminsPage() {
                       </div>
                     ))}
                 </div>
+
+                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                  <p className="text-sm text-blue-900 dark:text-blue-100">
+                    {selectedPermissions.length} permission{selectedPermissions.length !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
               </div>
             )}
 
@@ -764,24 +738,26 @@ export default function ManageAdminsPage() {
               variant="outline"
               onClick={() => {
                 setAddDialogOpen(false);
-                setSelectedUserId("");
+                setNewAdminEmail("");
+                setNewAdminName("");
                 setSelectedRole("");
                 setSelectedPermissions([]);
-                setUserSearchTerm("");
-                setSearchedUsers([]);
               }}
               disabled={saving}
             >
               Cancel
             </Button>
-            <Button onClick={handleAddAdmin} disabled={saving || !selectedUserId || !selectedRole}>
+            <Button 
+              onClick={handleAddAdmin} 
+              disabled={saving || !newAdminEmail || !newAdminName || !selectedRole}
+            >
               {saving ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Adding...
+                  Creating...
                 </>
               ) : (
-                "Add Admin"
+                "Create Admin"
               )}
             </Button>
           </DialogFooter>

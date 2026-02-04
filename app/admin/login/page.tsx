@@ -39,11 +39,15 @@ export default function LoginPage() {
     if (!canAccess) {
       setErrorMsg("Your account is not authorized for admin access.");
       await supabase.auth.signOut();
+      setLoading(false);
       return;
     }
 
-
+    // Force page reload so session is available
     router.push(redirectedFrom);
+    // Note: The page reload is necessary to ensure the session is properly initialized on the client side.
+    // show the session in the console for debugging
+    console.log("[DEBUG] User session after login:", signInData.session);
   }
 
   return (

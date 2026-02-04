@@ -287,21 +287,40 @@ export default function SessionsPage() {
   }
 
 
-  // Only set current term for current session
+  // Only set current term for current session based on today's date
   async function updateCurrentSessionAndTerm(sessionId?: string) {
     try {
       const targetSessionId = sessionId || currentSessionId;
       // Set all terms is_current = false
       await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
-      // Set current term for current session (first term by start_date)
+      // Set current term for current session based on today's date
       if (targetSessionId) {
+        const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+        
         const { data: termsData } = await supabase
           .from('terms')
           .select('*')
           .eq('session_id', targetSessionId)
+          .lte('start_date', today)
+          .gte('end_date', today)
           .order('start_date', { ascending: true });
+        
         if (termsData && termsData.length > 0) {
+          // Found a term that includes today's date
           await supabase.from('terms').update({ is_current: true }).eq('id', termsData[0].id);
+        } else {
+          // No term includes today, fall back to the next upcoming term
+          const { data: upcomingTerms } = await supabase
+            .from('terms')
+            .select('*')
+            .eq('session_id', targetSessionId)
+            .gt('start_date', today)
+            .order('start_date', { ascending: true })
+            .limit(1);
+          
+          if (upcomingTerms && upcomingTerms.length > 0) {
+            await supabase.from('terms').update({ is_current: true }).eq('id', upcomingTerms[0].id);
+          }
         }
       }
       // Refresh terms to show updated state

@@ -29,8 +29,10 @@ export default function SessionsPage() {
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);
 
+
   useEffect(() => {
     async function init() {
+      await updateCurrentSessionAndTerm();
       await fetchSessions();
       await fetchTerms();
     }
@@ -39,24 +41,15 @@ export default function SessionsPage() {
 
   async function fetchSessions() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'sessions',
-          select: '*',
-          order: [{ column: 'start_date', ascending: false }],
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Error fetching sessions:', data.error);
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*')
+        .order('start_date', { ascending: false });
+      if (error) {
+        console.error('Error fetching sessions:', error.message);
         return;
       }
-
-      setSessions(data);
+      setSessions(data || []);
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
@@ -64,24 +57,15 @@ export default function SessionsPage() {
 
   async function fetchTerms() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'terms',
-          select: '*',
-          order: [{ column: 'start_date', ascending: false }],
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Error fetching terms:', data.error);
+      const { data, error } = await supabase
+        .from('terms')
+        .select('*')
+        .order('start_date', { ascending: false });
+      if (error) {
+        console.error('Error fetching terms:', error.message);
         return;
       }
-
-      setTerms(data);
+      setTerms(data || []);
     } catch (error) {
       console.error('Error fetching terms:', error);
     }
@@ -100,24 +84,18 @@ export default function SessionsPage() {
       return;
     }
 
-    const sessionResponse = await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'insert',
-        table: 'sessions',
-        data: {
-          name,
-          start_date: start,
-          end_date: end,
-          is_current: false,
-        },
-      }),
-    });
+    // Insert session
+    const { data: sessionResult, error: sessionError } = await supabase
+      .from('sessions')
+      .insert({
+        name,
+        start_date: start,
+        end_date: end,
+        is_current: false,
+      })
+      .select();
 
-    const sessionResult = await sessionResponse.json();
-    if (!sessionResponse.ok || !sessionResult || sessionResult.length === 0) return;
-
+    if (sessionError || !sessionResult || sessionResult.length === 0) return;
     const session = sessionResult[0];
 
     // Create 3 terms
@@ -142,15 +120,7 @@ export default function SessionsPage() {
       },
     ];
 
-    await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'insert',
-        table: 'terms',
-        data: terms,
-      }),
-    });
+    await supabase.from('terms').insert(terms);
 
     setIsSessionDialogOpen(false);
     await fetchSessions();
@@ -167,23 +137,15 @@ export default function SessionsPage() {
       return;
     }
 
-    const response = await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'insert',
-        table: 'terms',
-        data: {
-          session_id: selectedSession,
-          name: formData.get('name') as string,
-          start_date: formData.get('start_date') as string,
-          end_date: formData.get('end_date') as string,
-          is_current: false,
-        },
-      }),
+    const { error } = await supabase.from('terms').insert({
+      session_id: selectedSession,
+      name: formData.get('name') as string,
+      start_date: formData.get('start_date') as string,
+      end_date: formData.get('end_date') as string,
+      is_current: false,
     });
 
-    if (!response.ok) {
+    if (error) {
       alert('Failed to create term');
       return;
     }
@@ -198,7 +160,6 @@ export default function SessionsPage() {
     if (!editingSession) return;
 
     const formData = new FormData(e.currentTarget);
-
     const start = formData.get("start_date") as string;
     const end = formData.get("end_date") as string;
 
@@ -207,22 +168,16 @@ export default function SessionsPage() {
       return;
     }
 
-    const response = await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'update',
-        table: 'sessions',
-        data: {
-          name: formData.get("name"),
-          start_date: formData.get("start_date"),
-          end_date: formData.get("end_date"),
-        },
-        filters: { id: editingSession.id },
-      }),
-    });
+    const { error } = await supabase
+      .from('sessions')
+      .update({
+        name: formData.get("name"),
+        start_date: formData.get("start_date"),
+        end_date: formData.get("end_date"),
+      })
+      .eq('id', editingSession.id);
 
-    if (!response.ok) {
+    if (error) {
       alert('Failed to update session');
       return;
     }
@@ -242,25 +197,8 @@ export default function SessionsPage() {
 
     if (!confirm("Delete this session and all its terms?")) return;
 
-    await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'delete',
-        table: 'terms',
-        filters: { session_id: id },
-      }),
-    });
-
-    await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'delete',
-        table: 'sessions',
-        filters: { id },
-      }),
-    });
+    await supabase.from('terms').delete().eq('session_id', id);
+    await supabase.from('sessions').delete().eq('id', id);
 
     fetchSessions();
     fetchTerms();
@@ -272,22 +210,16 @@ export default function SessionsPage() {
 
     const formData = new FormData(e.currentTarget);
 
-    const response = await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'update',
-        table: 'terms',
-        data: {
-          name: formData.get("name"),
-          start_date: formData.get("start_date"),
-          end_date: formData.get("end_date"),
-        },
-        filters: { id: editingTerm.id },
-      }),
-    });
+    const { error } = await supabase
+      .from('terms')
+      .update({
+        name: formData.get("name"),
+        start_date: formData.get("start_date"),
+        end_date: formData.get("end_date"),
+      })
+      .eq('id', editingTerm.id);
 
-    if (!response.ok) {
+    if (error) {
       alert('Failed to update term');
       return;
     }
@@ -308,15 +240,7 @@ export default function SessionsPage() {
 
     if (!confirm("Delete this term?")) return;
 
-    await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'delete',
-        table: 'terms',
-        filters: { id },
-      }),
-    });
+    await supabase.from('terms').delete().eq('id', id);
     fetchTerms();
   }
 
@@ -351,31 +275,46 @@ export default function SessionsPage() {
 
   async function updateCurrentSessionAndTerm() {
     try {
-      const response = await fetch('/api/set-current-session-term', {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        alert('Failed to update current session and term');
-        return;
+      // Find the session and term for today
+      const today = new Date().toISOString().slice(0, 10);
+      // Find session
+      const { data: sessionsData } = await supabase
+        .from('sessions')
+        .select('*');
+      const session = (sessionsData || []).find(
+        (s) => s.start_date <= today && s.end_date >= today
+      );
+      // Set all sessions is_current = false, then set the current one true
+      if (sessionsData && sessionsData.length > 0) {
+        await supabase.from('sessions').update({ is_current: false }).neq('id', '');
+      }
+      if (session) {
+        await supabase.from('sessions').update({ is_current: true }).eq('id', session.id);
       }
 
-      const result = await response.json();
-      
-      // Refresh the data to show updated is_current flags
-      await fetchSessions();
-      await fetchTerms();
-
-      if (result.session && result.term) {
-        alert(`Active session set to: ${result.session.name}\nActive term set to: ${result.term.name}`);
-      } else if (result.session) {
-        alert(`Active session set to: ${result.session.name}\nNo active term found for current date`);
+      // Find term
+      let term = null;
+      if (session) {
+        const { data: termsData } = await supabase
+          .from('terms')
+          .select('*')
+          .eq('session_id', session.id);
+        term = (termsData || []).find(
+          (t) => t.start_date <= today && t.end_date >= today
+        );
+        // Set all terms is_current = false, then set the current one true
+        if (termsData && termsData.length > 0) {
+          await supabase.from('terms').update({ is_current: false }).neq('id', '');
+        }
+        if (term) {
+          await supabase.from('terms').update({ is_current: true }).eq('id', term.id);
+        }
       } else {
-        alert('No active session found for current date');
+        // If no session, set all terms is_current = false
+        await supabase.from('terms').update({ is_current: false }).neq('id', '');
       }
     } catch (error) {
       console.error('Error updating current session/term:', error);
-      alert('An error occurred while updating');
     }
   }
 

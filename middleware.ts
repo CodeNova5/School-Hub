@@ -23,14 +23,9 @@ export async function middleware(req: NextRequest) {
     } = await supabase.auth.getSession();
 
     if (loginSession) {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", loginSession.user.id);
+      const { data: canAccess } = await supabase.rpc("can_access_admin");
 
-      const isAdmin = roles?.some((r) => r.role === "admin");
-
-      if (isAdmin) {
+      if (canAccess) {
         const redirectUrl = req.nextUrl.clone();
         redirectUrl.pathname = "/admin";
         redirectUrl.searchParams.delete("redirectedFrom");
@@ -53,27 +48,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Session exists: check admin role
-  const { data: roles, error } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", session.user.id);
+  // Session exists: check admin access using new permission system
+  const { data: canAccess, error } = await supabase.rpc("can_access_admin");
 
-  const isAdmin = roles?.some((r) => r.role === "admin") ?? false;
-
-  if (error || !isAdmin) {
+  if (error || !canAccess) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = "/admin/login";
     redirectUrl.searchParams.set("error", "unauthorized");
     redirectUrl.searchParams.set("redirectedFrom", pathname);
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  // Prevent logged-in admins from visiting login page again
-  if (isLoginRoute && isAdmin) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/admin";
-    redirectUrl.searchParams.delete("redirectedFrom");
     return NextResponse.redirect(redirectUrl);
   }
 

@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 
   interface UserRoleLink {
     user_id: string;
-    roles: AdminRole[];
+    roles: AdminRole | null;
   }
 
   interface AdminData {
@@ -116,11 +116,11 @@ export async function GET(req: NextRequest) {
   // Combine the data
   const adminUsers = (adminsData as AdminData[] | undefined)?.map((admin: AdminData) => {
     // Find the role for this user
-    const userRole = (userRoleLinks as UserRoleLink[] | undefined)?.find(
+    const userRole = (userRoleLinks as unknown as UserRoleLink[] | undefined)?.find(
       (link: UserRoleLink) => link.user_id === admin.user_id
     );
     
-    const roleInfo = userRole?.roles?.[0];
+    const roleInfo = userRole?.roles; // roles is an object, not an array
     
     // Get permission IDs for this role
     const rolePerms = (rolePermissions as RolePermission[] | undefined)

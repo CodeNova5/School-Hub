@@ -117,9 +117,10 @@ export async function GET(req: NextRequest) {
     );
     // If multiple roles, pick the first one for display, or adjust as needed
     const primaryRole = admin.roles && admin.roles.length > 0 ? admin.roles[0] : null;
+    // Get permission IDs (not keys) for this role
     const rolePerms = (rolePermissions as RolePermission[] | undefined)
       ?.filter((rp: RolePermission) => rp.role_id === primaryRole?.id)
-      .flatMap((rp: RolePermission) => rp.permissions?.map((perm) => perm.key) || []) || [];
+      .map((rp: RolePermission) => rp.permission_id) || [];
 
     return {
       id: admin.user_id,

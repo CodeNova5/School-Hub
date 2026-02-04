@@ -9,14 +9,15 @@ export async function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl;
   const isAdminRoute = pathname.startsWith("/admin");
   const isLoginRoute = pathname === "/admin/login";
+  const isActivateRoute = pathname === "/admin/activate";
 
   // If route is not under /admin, let it pass
   if (!isAdminRoute) {
     return res;
   }
 
-  // Allow unauthenticated access to the login page itself
-  if (isLoginRoute) {
+  // Allow unauthenticated access to the login and activate pages
+  if (isLoginRoute || isActivateRoute) {
     // If already admin, bounce to dashboard
     const {
       data: { session: loginSession },

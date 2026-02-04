@@ -35,7 +35,6 @@ export default function LoginPage() {
     }
 
     const { data: canAccess } = await supabase.rpc("can_access_admin");
-
     if (!canAccess) {
       setErrorMsg("Your account is not authorized for admin access.");
       await supabase.auth.signOut();
@@ -43,66 +42,63 @@ export default function LoginPage() {
       return;
     }
 
-    // Force page reload so session is available
-    router.push(redirectedFrom);
-    // Note: The page reload is necessary to ensure the session is properly initialized on the client side.
-    // show the session in the console for debugging
-    console.log("[DEBUG] User session after login:", signInData.session);
+    // Force reload so middleware sees session cookie
+    window.location.href = redirectedFrom;
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <form
-        onSubmit={handleLogin}
-        className="w-full max-w-md space-y-4 rounded-lg border bg-white p-8 shadow-sm"
-      >
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold">Admin Login</h1>
-          <p className="text-sm text-gray-500">
-            Sign in with your administrator credentials to access the dashboard.
-          </p>
-        </div>
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-md space-y-4 rounded-lg border bg-white p-8 shadow-sm"
+        >
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold">Admin Login</h1>
+            <p className="text-sm text-gray-500">
+              Sign in with your administrator credentials to access the dashboard.
+            </p>
+          </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700" htmlFor="email">
-            Email
-          </label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@school.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700" htmlFor="email">
+              Email
+            </label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@school.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700" htmlFor="password">
-            Password
-          </label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
-        </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700" htmlFor="password">
+              Password
+            </label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
 
-        {errorMsg && (
-          <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-            {errorMsg}
-          </p>
-        )}
+          {errorMsg && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+              {errorMsg}
+            </p>
+          )}
 
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Signing in..." : "Sign in"}
-        </Button>
-      </form>
-    </div>
-  );
-}
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Signing in..." : "Sign in"}
+          </Button>
+        </form>
+      </div>
+    );
+  }

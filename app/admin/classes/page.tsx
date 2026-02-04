@@ -44,6 +44,12 @@ export default function ClassesPage() {
     fetchTeachers();
   }, []);
 
+  useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    console.log("Current user:", user);
+  });
+}, []);
+
   async function fetchClasses() {
     const { data: { user } } = await supabase.auth.getUser();
     console.log(user?.id);

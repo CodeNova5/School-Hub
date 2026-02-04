@@ -43,12 +43,26 @@ export default function ClassesPage() {
     fetchClasses();
     fetchTeachers();
   }, []);
-
+  
   useEffect(() => {
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    console.log("Current user:", user);
-  });
-}, []);
+    const getUser = async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("Error getting session:", error);
+        return;
+      }
+
+      console.log("Current session:", session);
+      console.log("Current user:", session?.user ?? null);
+    };
+
+    getUser();
+  }, []);
+
 
   async function fetchClasses() {
     const { data: { user } } = await supabase.auth.getUser();

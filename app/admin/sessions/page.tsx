@@ -39,6 +39,13 @@ export default function SessionsPage() {
     init();
   }, []);
 
+  // Update current term when currentSessionId changes
+  useEffect(() => {
+    if (currentSessionId) {
+      updateCurrentSessionAndTerm(currentSessionId);
+    }
+  }, [currentSessionId]);
+
   async function fetchSessions() {
     try {
       const { data, error } = await supabase
@@ -252,7 +259,6 @@ export default function SessionsPage() {
     setCurrentSessionId(sessionId);
     await updateCurrentSessionAndTerm(sessionId);
     await fetchSessions();
-    await fetchTerms();
   }
 
   async function isSessionOverlapping(start: string, end: string, excludeId?: string) {
@@ -298,6 +304,8 @@ export default function SessionsPage() {
           await supabase.from('terms').update({ is_current: true }).eq('id', termsData[0].id);
         }
       }
+      // Refresh terms to show updated state
+      await fetchTerms();
     } catch (error) {
       console.error('Error updating current term:', error);
     }

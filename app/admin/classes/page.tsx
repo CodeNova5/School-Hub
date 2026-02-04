@@ -46,25 +46,20 @@ export default function ClassesPage() {
 
   async function fetchClasses() {
     try {
-      const response = await fetch("/api/admin-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operation: "select",
-          table: "classes",
-          select: "*",
-          order: [{ column: "level", ascending: true }],
-        }),
-      });
+      // ✅ Direct Supabase query - RLS handles permissions via is_admin()
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .order("level", { ascending: true });
 
-      const data = await response.json();
-      if (!response.ok) {
-        console.error("Error fetching classes:", data.error);
+      if (error) {
+        console.error("Error fetching classes:", error);
+        toast.error("Failed to fetch classes");
         return;
       }
 
       const classesWithStats = await Promise.all(
-        data.map(async (cls: any) => {
+        (data || []).map(async (cls: any) => {
           const [studentsRes, subjectsRes] = await Promise.all([
             supabase.from("students").select("id", { count: "exact" }).eq("class_id", cls.id),
             supabase.from("subject_classes").select("id", { count: "exact" }).eq("class_id", cls.id),
@@ -81,32 +76,29 @@ export default function ClassesPage() {
       setClasses(classesWithStats);
     } catch (error) {
       console.error("Error fetching classes:", error);
+      toast.error("Failed to fetch classes");
     }
   }
 
   async function fetchTeachers() {
     try {
-      const response = await fetch("/api/admin-read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operation: "select",
-          table: "teachers",
-          select: "*",
-          filters: { status: "active" },
-          order: [{ column: "first_name", ascending: true }],
-        }),
-      });
+      // ✅ Direct Supabase query - RLS handles permissions via is_admin()
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("*")
+        .eq("status", "active")
+        .order("first_name", { ascending: true });
 
-      const data = await response.json();
-      if (!response.ok) {
-        console.error("Error fetching teachers:", data.error);
+      if (error) {
+        console.error("Error fetching teachers:", error);
+        toast.error("Failed to fetch teachers");
         return;
       }
 
-      setTeachers(data);
+      setTeachers(data || []);
     } catch (error) {
       console.error("Error fetching teachers:", error);
+      toast.error("Failed to fetch teachers");
     }
   }
 
@@ -141,47 +133,36 @@ export default function ClassesPage() {
 
     try {
       if (editingClass) {
-        const response = await fetch("/api/admin-operation", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            operation: "update",
-            table: "classes",
-            data: classData,
-            filters: { id: editingClass.id },
-          }),
-        });
+        // ✅ Direct Supabase update - RLS handles permissions via is_admin()
+        const { error } = await supabase
+          .from("classes")
+          .update(classData)
+          .eq("id", editingClass.id);
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error);
+        if (error) throw new Error(error.message);
 
         toast.success("Class updated");
         closeDialog();
         fetchClasses();
       } else {
+        // Check if class already exists
         const exists = classes.some(
           c =>
             c.education_level === selectedEducationLevel &&
             c.level === selectedLevel &&
-            c.stream === normalizedStream // Include stream in uniqueness check
+            c.stream === normalizedStream
         );
         if (exists) {
           toast.error("This class already exists");
           return;
         }
 
-        const response = await fetch("/api/admin-operation", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            operation: "insert",
-            table: "classes",
-            data: classData,
-          }),
-        });
+        // ✅ Direct Supabase insert - RLS handles permissions via is_admin()
+        const { error } = await supabase
+          .from("classes")
+          .insert(classData);
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error);
+        if (error) throw new Error(error.message);
 
         toast.success("Class created");
         closeDialog();
@@ -197,18 +178,13 @@ export default function ClassesPage() {
     if (!confirm("Are you sure you want to delete this class?")) return;
 
     try {
-      const response = await fetch("/api/admin-operation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          operation: "delete",
-          table: "classes",
-          filters: { id },
-        }),
-      });
+      // ✅ Direct Supabase delete - RLS handles permissions via is_admin()
+      const { error } = await supabase
+        .from("classes")
+        .delete()
+        .eq("id", id);
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      if (error) throw new Error(error.message);
 
       toast.success("Class deleted");
       fetchClasses();

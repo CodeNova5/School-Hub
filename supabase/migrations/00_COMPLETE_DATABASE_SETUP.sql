@@ -1483,6 +1483,77 @@ INSERT INTO period_slots (day_of_week, period_number, start_time, end_time, is_b
 ('Friday', 8, '11:45', '12:30', false)
 ON CONFLICT (day_of_week, period_number) DO NOTHING;
 
+-- First, verify the function exists and check its definition
+SELECT routine_name, routine_definition 
+FROM information_schema.routines 
+WHERE routine_name = 'can_access_admin';
+
+-- Then run this to recreate it properly
+CREATE OR REPLACE FUNCTION can_access_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM user_role_links ul
+    JOIN roles r ON r.id = ul.role_id
+    WHERE ul.user_id = auth.uid()
+      AND r.name IN ('super_admin', 'admin')
+  );
+$$;
+
+-- Also verify your user is in the table:
+SELECT * FROM user_role_links WHERE user_id = '20b92bf4-1bb9-4694-a09e-57746987e05a';
+
+-- And check the roles table:
+SELECT * FROM roles;
+
+-- Fix RLS policies
+DROP POLICY IF EXISTS "only super admin assigns roles" ON user_role_links;
+DROP POLICY IF EXISTS "users read their own roles" ON user_role_links;
+
+CREATE POLICY "users read their own roles"
+ON user_role_links
+FOR SELECT
+TO authenticated
+USING (user_id = auth.uid() OR has_permission('manage_admins'));
+
+CREATE POLICY "admins can modify roles"
+ON user_role_links
+FOR INSERT
+TO authenticated
+WITH CHECK (has_permission('manage_admins'));
+
+CREATE POLICY "admins can update roles"
+ON user_role_links
+FOR UPDATE
+TO authenticated
+USING (has_permission('manage_admins'))
+WITH CHECK (has_permission('manage_admins'));
+
+CREATE POLICY "admins can delete roles"
+ON user_role_links
+FOR DELETE
+TO authenticated
+USING (has_permission('manage_admins'));
+
+-- Add user search function
+CREATE OR REPLACE FUNCTION search_users_by_email(search_email text)
+RETURNS TABLE (
+  id uuid,
+  email text
+)
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT id, email
+  FROM auth.users
+  WHERE email ILIKE '%' || search_email || '%'
+  LIMIT 10;
+$$;
 -- ============================================================================
 -- COMPLETION NOTICE
 -- ============================================================================

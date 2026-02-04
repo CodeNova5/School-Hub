@@ -137,6 +137,13 @@ export default function ManageAdminsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [adminToDelete, setAdminToDelete] = useState<Admin | null>(null);
   const [saving, setSaving] = useState(false);
+  
+  // Add Admin state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [searchedUsers, setSearchedUsers] = useState<any[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [searching, setSearching] = useState(false);
 
   // Form state
   const [selectedRole, setSelectedRole] = useState<string>("");
@@ -190,6 +197,79 @@ export default function ManageAdminsPage() {
     
     setSelectedPermissions(perms);
     setEditDialogOpen(true);
+  };
+
+  const searchUsers = async () => {
+    if (!userSearchTerm.trim()) return;
+    
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/admin/search-users?email=${encodeURIComponent(userSearchTerm)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchedUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error("Error searching users:", error);
+      toast({
+        title: "Error",
+        description: "Failed to search users",
+        variant: "destructive",
+      });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAddAdmin = async () => {
+    if (!selectedUserId || !selectedRole) {
+      toast({
+        title: "Error",
+        description: "Please select a user and role",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const res = await fetch("/api/admin/manage-admins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: selectedUserId,
+          roleId: selectedRole,
+          permissions: selectedPermissions,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to add admin");
+      }
+
+      toast({
+        title: "Success",
+        description: "Admin added successfully",
+      });
+
+      setAddDialogOpen(false);
+      setSelectedUserId("");
+      setSelectedRole("");
+      setSelectedPermissions([]);
+      setUserSearchTerm("");
+      setSearchedUsers([]);
+      fetchData();
+    } catch (error) {
+      console.error("Error adding admin:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add admin",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveAdmin = async () => {
@@ -339,6 +419,10 @@ export default function ManageAdminsPage() {
                 className="pl-10"
               />
             </div>
+            <Button onClick={() => setAddDialogOpen(true)}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add Admin
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -536,6 +620,168 @@ export default function ManageAdminsPage() {
                 </>
               ) : (
                 "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Admin Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add Administrator</DialogTitle>
+            <DialogDescription>
+              Search for a user and assign them an administrative role
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* User Search */}
+            <div className="space-y-2">
+              <Label>Search User by Email</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter email address..."
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && searchUsers()}
+                />
+                <Button onClick={searchUsers} disabled={searching}>
+                  {searching ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Search className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Search Results */}
+            {searchedUsers.length > 0 && (
+              <div className="space-y-2">
+                <Label>Select User</Label>
+                <div className="border rounded-lg divide-y">
+                  {searchedUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className={`p-3 cursor-pointer hover:bg-accent transition-colors ${
+                        selectedUserId === user.id ? "bg-accent" : ""
+                      }`}
+                      onClick={() => setSelectedUserId(user.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{user.email}</p>
+                          <p className="text-sm text-muted-foreground">ID: {user.id}</p>
+                        </div>
+                        {selectedUserId === user.id && (
+                          <CheckCircle2 className="w-5 h-5 text-primary" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Role Selection */}
+            {selectedUserId && (
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={role.id}>
+                        <span className="capitalize">{role.name.replace("_", " ")}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Permissions Grid */}
+            {selectedRole && roles.find((r) => r.id === selectedRole)?.name === "admin" && (
+              <div className="space-y-3">
+                <Label className="text-base">Permissions</Label>
+                <p className="text-sm text-muted-foreground">
+                  Select specific permissions for this administrator
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-lg p-4">
+                  {permissions
+                    .filter((p) => p.key !== "admin_full")
+                    .map((permission) => (
+                      <div
+                        key={permission.id}
+                        className="flex items-start space-x-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                      >
+                        <Checkbox
+                          id={`add-${permission.id}`}
+                          checked={selectedPermissions.includes(permission.id)}
+                          onCheckedChange={() => togglePermission(permission.id)}
+                          className="mt-1"
+                        />
+                        <div className="flex-1">
+                          <Label
+                            htmlFor={`add-${permission.id}`}
+                            className="font-medium cursor-pointer leading-none"
+                          >
+                            {PERMISSION_LABELS[permission.key] || permission.key}
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            {PERMISSION_DESCRIPTIONS[permission.key] || ""}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Super Admin Note */}
+            {selectedRole && roles.find((r) => r.id === selectedRole)?.name === "super_admin" && (
+              <div className="flex items-start gap-3 p-4 bg-purple-50 dark:bg-purple-950 rounded-lg border border-purple-200 dark:border-purple-800">
+                <Shield className="w-5 h-5 text-purple-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-purple-900 dark:text-purple-100">
+                    Super Administrator
+                  </p>
+                  <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                    Super admins have all permissions by default and can manage other admins.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAddDialogOpen(false);
+                setSelectedUserId("");
+                setSelectedRole("");
+                setSelectedPermissions([]);
+                setUserSearchTerm("");
+                setSearchedUsers([]);
+              }}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddAdmin} disabled={saving || !selectedUserId || !selectedRole}>
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                "Add Admin"
               )}
             </Button>
           </DialogFooter>

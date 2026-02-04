@@ -140,14 +140,26 @@ create policy "users read their own roles"
 on user_role_links
 for select
 to authenticated
-using (user_id = auth.uid());
+using (user_id = auth.uid() or has_permission('manage_admins'));
 
-create policy "only super admin assigns roles"
+create policy "admins can modify roles"
 on user_role_links
-for all
+for insert
+to authenticated
+with check (has_permission('manage_admins'));
+
+create policy "admins can update roles"
+on user_role_links
+for update
 to authenticated
 using (has_permission('manage_admins'))
 with check (has_permission('manage_admins'));
+
+create policy "admins can delete roles"
+on user_role_links
+for delete
+to authenticated
+using (has_permission('manage_admins'));
 
 
 create or replace function can_access_admin()
@@ -177,5 +189,20 @@ as $$
   select id, email
   from auth.users
   where id = any(user_ids);
+$$;
+
+-- Helper function to search users by email
+create or replace function search_users_by_email(search_email text)
+returns table (
+  id uuid,
+  email text
+)
+language sql
+security definer
+as $$
+  select id, email
+  from auth.users
+  where email ilike '%' || search_email || '%'
+  limit 10;
 $$;
 

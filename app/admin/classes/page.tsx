@@ -52,6 +52,9 @@ export default function ClassesPage() {
         .select("*")
         .order("level", { ascending: true });
 
+      // Debug log
+      console.log("[DEBUG] fetchClasses result:", { data, error });
+
       if (error) {
         console.error("Error fetching classes:", error);
         toast.error("Failed to fetch classes");

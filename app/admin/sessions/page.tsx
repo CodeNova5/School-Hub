@@ -81,6 +81,18 @@ export default function SessionsPage() {
 
     const name = formData.get("name") as string;
 
+    // Prevent duplicate session names
+    const { data: existing } = await supabase
+      .from('sessions')
+      .select('id')
+      .eq('name', name)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      alert('A session with this name already exists.');
+      return;
+    }
+
     // Insert session
     const { data: sessionResult, error: sessionError } = await supabase
       .from('sessions')
@@ -333,7 +345,17 @@ export default function SessionsPage() {
                 <form onSubmit={handleCreateSession} className="space-y-4">
                   <div>
                     <Label>Session Name</Label>
-                    <Input name="name" placeholder="e.g. 2026/2027" required />
+                    <select name="name" className="w-full h-10 px-3 border rounded-md" required>
+                      <option value="">Select session</option>
+                      {Array.from({ length: 2050 - 2026 + 1 }, (_, i) => {
+                        const year1 = 2026 + i;
+                        const year2 = year1 + 1;
+                        const label = `${year1}/${year2}`;
+                        return (
+                          <option key={label} value={label}>{label}</option>
+                        );
+                      })}
+                    </select>
                   </div>
                   <h3 className="font-semibold pt-4">First Term</h3>
                   <Input name="t1_start" type="date" required />

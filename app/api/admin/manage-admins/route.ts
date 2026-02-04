@@ -25,27 +25,61 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-
-  // Get all admins with their roles and permissions, joining with admins table for name/email
-  const { data: admins, error: adminsError } = await supabase
-    .from("user_role_links")
-    .select(`
-      user_id,
-      role_id,
-      roles (
-        id,
-        name
-      ),
-      admins (
-        id,
-        name,
-        email
-      )
-    `)
-    .order("user_id");
+  // Get all admins from the admins table with their roles
+  const { data: adminsData, error: adminsError } = await supabase
+    .from("admins")
+    .select("*")
+    .order("created_at", { ascending: false });
 
   if (adminsError) {
     return NextResponse.json({ error: adminsError.message }, { status: 500 });
+  }
+
+  // Get user role links
+  const { data: userRoleLinks, error: roleLinksError } = await supabase
+    .from("user_role_links")
+    .select(
+      `
+      user_id,
+      roles (
+        id,
+        name
+      )
+    `
+    );
+
+  if (roleLinksError) {
+    return NextResponse.json({ error: roleLinksError.message }, { status: 500 });
+  }
+
+  interface AdminRole {
+    id: string;
+    name: string;
+  }
+
+  interface UserRoleLink {
+    user_id: string;
+    roles: AdminRole[];
+  }
+
+  interface AdminData {
+    id: string;
+    user_id: string;
+    name: string;
+    email: string;
+    is_active: boolean;
+    status: string;
+  }
+
+  interface Permission {
+    id: string;
+    key: string;
+  }
+
+  interface RolePermission {
+    role_id: string;
+    permission_id: string;
+    permissions: Permission[];
   }
 
   // Get all available permissions
@@ -79,23 +113,29 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: rolePermError.message }, { status: 500 });
   }
 
-
   // Combine the data
-  const adminUsers = (admins as any[] | undefined)?.map((admin: any) => {
-    // If multiple roles, pick the first one for display, or adjust as needed
-    const primaryRole = admin.roles && admin.roles.length > 0 ? admin.roles[0] : null;
-    // Get permission IDs (not keys) for this role
-    const rolePerms = (rolePermissions as any[] | undefined)
-      ?.filter((rp: any) => rp.role_id === primaryRole?.id)
-      .map((rp: any) => rp.permission_id) || [];
+  const adminUsers = (adminsData as AdminData[] | undefined)?.map((admin: AdminData) => {
+    // Find the role for this user
+    const userRole = (userRoleLinks as UserRoleLink[] | undefined)?.find(
+      (link: UserRoleLink) => link.user_id === admin.user_id
+    );
+    
+    const roleInfo = userRole?.roles?.[0];
+    
+    // Get permission IDs for this role
+    const rolePerms = (rolePermissions as RolePermission[] | undefined)
+      ?.filter((rp: RolePermission) => rp.role_id === roleInfo?.id)
+      .map((rp: RolePermission) => rp.permissions[0]?.id || rp.permission_id) || [];
 
     return {
       id: admin.user_id,
-      name: admin.admins?.name || '',
-      email: admin.admins?.email || '',
-      role: primaryRole?.name,
-      role_id: primaryRole?.id,
+      name: admin.name,
+      email: admin.email,
+      role: roleInfo?.name,
+      role_id: roleInfo?.id,
       permissions: rolePerms,
+      is_active: admin.is_active,
+      status: admin.status,
     };
   }) || [];
 

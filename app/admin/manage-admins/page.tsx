@@ -66,10 +66,13 @@ interface Role {
 
 interface Admin {
   id: string;
+  name: string;
   email: string;
   role: string;
   role_id: string;
   permissions: string[];
+  is_active: boolean;
+  status: string;
 }
 
 interface RolePermission {
@@ -364,7 +367,8 @@ export default function ManageAdminsPage() {
   };
 
   const filteredAdmins = admins.filter((admin) =>
-    admin.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    admin.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    admin.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getPermissionBadgeColor = (permKey: string) => {
@@ -402,7 +406,7 @@ export default function ManageAdminsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
               <Input
-                placeholder="Search admins by email..."
+                placeholder="Search admins by name or email..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -428,6 +432,7 @@ export default function ManageAdminsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Permissions</TableHead>
@@ -437,14 +442,15 @@ export default function ManageAdminsPage() {
             <TableBody>
               {filteredAdmins.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                     No administrators found
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredAdmins.map((admin) => (
                   <TableRow key={admin.id}>
-                    <TableCell className="font-medium">{admin.email}</TableCell>
+                    <TableCell className="font-medium">{admin.name}</TableCell>
+                    <TableCell>{admin.email}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">
                         {admin.role?.replace("_", " ")}

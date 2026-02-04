@@ -380,15 +380,41 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  // Remove role links
-  const { error } = await supabase
-    .from("user_role_links")
-    .delete()
-    .eq("user_id", userId);
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // 1. Remove role links
+    await supabase
+      .from("user_role_links")
+      .delete()
+      .eq("user_id", userId);
+
+    // 2. Delete admin record (if exists)
+    await supabaseAdmin
+      .from("admins")
+      .delete()
+      .eq("user_id", userId);
+
+    // 3. Delete auth user (this will cascade delete sessions and everything)
+    const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+
+    if (deleteUserError) {
+      console.error("Error deleting auth user:", deleteUserError);
+      return NextResponse.json(
+        { error: "Failed to delete user authentication" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error deleting admin:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to delete admin" },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ success: true });
 }

@@ -927,7 +927,65 @@ ALTER TABLE timetable_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results_publication ENABLE ROW LEVEL SECURITY;
 
+-- DROP existing policies if any
+DROP POLICY IF EXISTS "Authenticated users can read sessions" ON sessions;
+DROP POLICY IF EXISTS "Admins can manage sessions" ON sessions;
+DROP POLICY IF EXISTS "Authenticated users can read terms" ON terms;
+DROP POLICY IF EXISTS "Admins can manage terms" ON terms;
+DROP POLICY IF EXISTS "Authenticated users can read teachers" ON teachers;
+DROP POLICY IF EXISTS "Admins can manage teachers" ON teachers;
+DROP POLICY IF EXISTS "Authenticated users can read classes" ON classes;
+DROP POLICY IF EXISTS "Admins can manage classes" ON classes;
+DROP POLICY IF EXISTS "Authenticated users can read subjects" ON subjects;
+DROP POLICY IF EXISTS "Admins can manage subjects" ON subjects;
+DROP POLICY IF EXISTS "Authenticated users can read students" ON students;
+DROP POLICY IF EXISTS "Admins can manage students" ON students;
+DROP POLICY IF EXISTS "Authenticated users can read subject_classes" ON subject_classes;
+DROP POLICY IF EXISTS "Admins can manage subject_classes" ON subject_classes;
+DROP POLICY IF EXISTS "Authenticated users can read subject_assignments" ON subject_assignments;
+DROP POLICY IF EXISTS "Admins can manage subject_assignments" ON subject_assignments;
+DROP POLICY IF EXISTS "Authenticated users can read attendance" ON attendance;
+DROP POLICY IF EXISTS "Admins can manage attendance" ON attendance;
+DROP POLICY IF EXISTS "Authenticated users can read assignments" ON assignments;
+DROP POLICY IF EXISTS "Admins can manage assignments" ON assignments;
+DROP POLICY IF EXISTS "Authenticated users can read assignment_submissions" ON assignment_submissions;
+DROP POLICY IF EXISTS "Admins can manage assignment_submissions" ON assignment_submissions;
+DROP POLICY IF EXISTS "Authenticated users can read submissions" ON submissions;
+DROP POLICY IF EXISTS "Admins can manage submissions" ON submissions;
+DROP POLICY IF EXISTS "Authenticated users can read results" ON results;
+DROP POLICY IF EXISTS "Admins can manage results" ON results;
+DROP POLICY IF EXISTS "Authenticated users can read student_subjects" ON student_subjects;
+DROP POLICY IF EXISTS "Admins can manage student_subjects" ON student_subjects;
+DROP POLICY IF EXISTS "Authenticated users can read admissions" ON admissions;
+DROP POLICY IF EXISTS "Admins can manage admissions" ON admissions;
+DROP POLICY IF EXISTS "Authenticated users can read events" ON events;
+DROP POLICY IF EXISTS "Admins can manage events" ON events;
+DROP POLICY IF EXISTS "Authenticated users can read news" ON news;
+DROP POLICY IF EXISTS "Admins can manage news" ON news;
+DROP POLICY IF EXISTS "Authenticated users can read testimonials" ON testimonials;
+DROP POLICY IF EXISTS "Admins can manage testimonials" ON testimonials;
+DROP POLICY IF EXISTS "Authenticated users can read notifications" ON notifications;
+DROP POLICY IF EXISTS "Admins can manage notifications" ON notifications;
+DROP POLICY IF EXISTS "Authenticated users can read school_settings" ON school_settings;
+DROP POLICY IF EXISTS "Admins can manage school_settings" ON school_settings;
+DROP POLICY IF EXISTS "Authenticated users can read period_slots" ON period_slots;
+DROP POLICY IF EXISTS "Admins can manage period_slots" ON period_slots;
+DROP POLICY IF EXISTS "Authenticated users can read student_optional_subjects" ON student_optional_subjects;
+DROP POLICY IF EXISTS "Admins can manage student_optional_subjects" ON student_optional_subjects;
+DROP POLICY IF EXISTS "Authenticated users can read timetable_entries" ON timetable_entries;
+DROP POLICY IF EXISTS "Admins can manage timetable_entries" ON timetable_entries;
+DROP POLICY IF EXISTS "Authenticated users can read parents" ON parents;
+DROP POLICY IF EXISTS "Admins can manage parents" ON parents;
+DROP POLICY IF EXISTS "Authenticated users can read results_publication" ON results_publication;
+DROP POLICY IF EXISTS "Admins can manage results_publication" ON results_publication;
+DROP POLICY IF EXISTS "Admins can manage admissions" ON admissions;
+-- notifications
+DROP POLICY IF EXISTS "Authenticated users can read notifications" ON notifications;
+DROP POLICY IF EXISTS "Admins can manage notifications" ON notifications;
+DROP POLICY IF EXISTS "Users can read their own notifications" ON notifications;
 -- SESSIONS
+
+
 CREATE POLICY "Authenticated users can read sessions"
   ON sessions FOR SELECT
   TO authenticated

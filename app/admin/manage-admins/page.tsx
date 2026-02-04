@@ -52,6 +52,7 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
+import { DashboardLayout } from "@/components/dashboard-layout";
 
 interface Permission {
   id: string;
@@ -313,6 +314,7 @@ export default function ManageAdminsPage() {
   }
 
   return (
+    <DashboardLayout role="admin">
     <div className="container mx-auto py-8 px-4 max-w-7xl">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
@@ -571,5 +573,6 @@ export default function ManageAdminsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </DashboardLayout>
   );
 }

@@ -156,10 +156,13 @@ language sql
 stable
 security definer
 as $$
-  select has_permission('admin_full')
-      or has_permission('edit_timetable')
-      or has_permission('edit_results')
-      or has_permission('manage_admins');
+  select exists (
+    select 1
+    from user_role_links ul
+    join roles r on r.id = ul.role_id
+    where ul.user_id = auth.uid()
+      and r.name in ('super_admin', 'admin')
+  );
 $$;
 
 -- Helper function to get admin user details

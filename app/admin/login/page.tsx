@@ -34,9 +34,21 @@ export default function LoginPage() {
       return;
     }
 
-    const { data: canAccess } = await supabase.rpc("can_access_admin");
+    const { data: canAccess, error: rpcError } = await supabase.rpc("can_access_admin");
+    
+    // Debug: Check user role links
+    const { data: roleLinks } = await supabase
+      .from("user_role_links")
+      .select("*, roles(*)")
+      .eq("user_id", signInData.user.id);
+    
+    console.log("User ID:", signInData.user.id);
+    console.log("Can Access:", canAccess);
+    console.log("RPC Error:", rpcError);
+    console.log("Role Links:", roleLinks);
+    
     if (!canAccess) {
-      setErrorMsg("Your account is not authorized for admin access.");
+      setErrorMsg(`Your account is not authorized for admin access. User ID: ${signInData.user.id}. Check console for details.`);
       await supabase.auth.signOut();
       setLoading(false);
       return;

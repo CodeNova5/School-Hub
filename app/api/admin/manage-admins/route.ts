@@ -25,59 +25,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Get all admins with their roles and permissions
+
+  // Get all admins with their roles and permissions, joining with admins table for name/email
   const { data: admins, error: adminsError } = await supabase
     .from("user_role_links")
-    .select(
-      `
+    .select(`
       user_id,
+      role_id,
       roles (
         id,
         name
+      ),
+      admins (
+        id,
+        name,
+        email
       )
-    `
-    )
+    `)
     .order("user_id");
 
   if (adminsError) {
     return NextResponse.json({ error: adminsError.message }, { status: 500 });
   }
-
-  // Get user details from auth.users
-  interface AdminRole {
-    id: string;
-    name: string;
-  }
-
-  interface Admin {
-    user_id: string;
-    roles: AdminRole[];
-  }
-
-  interface UserInfo {
-    id: string;
-    email: string;
-  }
-
-  interface Permission {
-    id: string;
-    key: string;
-  }
-
-  interface RolePermission {
-    role_id: string;
-    permission_id: string;
-    permissions: Permission[];
-  }
-
-  const userIds: string[] = Array.from(
-    new Set((admins as Admin[] | undefined)?.map((a: Admin) => a.user_id) || [])
-  );
-  
-  const { data: users, error: usersError } = await supabase.rpc(
-    "get_admin_users",
-    { user_ids: userIds }
-  );
 
   // Get all available permissions
   const { data: permissions, error: permissionsError } = await supabase
@@ -110,21 +79,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: rolePermError.message }, { status: 500 });
   }
 
+
   // Combine the data
-  const adminUsers = (admins as Admin[] | undefined)?.map((admin: Admin) => {
-    const userInfo = (users as UserInfo[] | undefined)?.find(
-      (u: UserInfo) => u.id === admin.user_id
-    );
+  const adminUsers = (admins as any[] | undefined)?.map((admin: any) => {
     // If multiple roles, pick the first one for display, or adjust as needed
     const primaryRole = admin.roles && admin.roles.length > 0 ? admin.roles[0] : null;
     // Get permission IDs (not keys) for this role
-    const rolePerms = (rolePermissions as RolePermission[] | undefined)
-      ?.filter((rp: RolePermission) => rp.role_id === primaryRole?.id)
-      .map((rp: RolePermission) => rp.permission_id) || [];
+    const rolePerms = (rolePermissions as any[] | undefined)
+      ?.filter((rp: any) => rp.role_id === primaryRole?.id)
+      .map((rp: any) => rp.permission_id) || [];
 
     return {
       id: admin.user_id,
-      email: userInfo?.email,
+      name: admin.admins?.name || '',
+      email: admin.admins?.email || '',
       role: primaryRole?.name,
       role_id: primaryRole?.id,
       permissions: rolePerms,

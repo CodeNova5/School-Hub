@@ -269,34 +269,75 @@ export default function ClassPage() {
   }
 
   async function handleRemoveStudent(studentId: string) {
-    if (!confirm("Remove this student from the class? They will become unassigned.")) return;
+    if (!confirm("Remove this student from the class? They will become unassigned. Their results and subject assignments for this class will be deleted.")) return;
     try {
+      // Delete results for this student
+      await supabase
+        .from("results")
+        .delete()
+        .eq("student_id", studentId);
+
+      // Delete student subject assignments
+      await supabase
+        .from("student_subjects")
+        .delete()
+        .eq("student_id", studentId);
+
+      // Delete optional subject selections
+      await supabase
+        .from("student_optional_subjects")
+        .delete()
+        .eq("student_id", studentId);
+
+      // Remove from class
       await supabase
         .from("students")
         .update({ class_id: null })
         .eq("id", studentId);
+
       toast.success("Student removed from class");
       fetchStudents();
       fetchAvailableStudents();
     } catch (error) {
+      console.error("Failed to remove student:", error);
       toast.error("Failed to remove student");
     }
   }
 
   async function handleBulkRemove(studentIds: string[]) {
     if (studentIds.length === 0) return;
-    if (!confirm(`Remove ${studentIds.length} student(s) from this class?`)) return;
-
-    const updates = studentIds.map(id =>
-      supabase.from("students").update({ class_id: null }).eq("id", id)
-    );
+    if (!confirm(`Remove ${studentIds.length} student(s) from this class? Their results and subject assignments for this class will be deleted.`)) return;
 
     try {
+      // Delete results for these students
+      await supabase
+        .from("results")
+        .delete()
+        .in("student_id", studentIds);
+
+      // Delete student subject assignments
+      await supabase
+        .from("student_subjects")
+        .delete()
+        .in("student_id", studentIds);
+
+      // Delete optional subject selections
+      await supabase
+        .from("student_optional_subjects")
+        .delete()
+        .in("student_id", studentIds);
+
+      // Remove from class
+      const updates = studentIds.map(id =>
+        supabase.from("students").update({ class_id: null }).eq("id", id)
+      );
       await Promise.all(updates);
+
       toast.success(`Removed ${studentIds.length} student(s)`);
       fetchStudents();
       fetchAvailableStudents();
     } catch (error) {
+      console.error("Failed to remove students:", error);
       toast.error(`Failed to remove some student(s)`);
     }
   }
@@ -304,16 +345,34 @@ export default function ClassPage() {
   async function handleAddStudentsToClass(studentIds: string[]) {
     if (studentIds.length === 0) return;
 
-    const updates = studentIds.map(id =>
-      supabase.from("students").update({ class_id: classId }).eq("id", id)
-    );
-
     try {
+      // Clean up old results and subject assignments before moving
+      await supabase
+        .from("results")
+        .delete()
+        .in("student_id", studentIds);
+
+      await supabase
+        .from("student_subjects")
+        .delete()
+        .in("student_id", studentIds);
+
+      await supabase
+        .from("student_optional_subjects")
+        .delete()
+        .in("student_id", studentIds);
+
+      // Add to new class
+      const updates = studentIds.map(id =>
+        supabase.from("students").update({ class_id: classId }).eq("id", id)
+      );
       await Promise.all(updates);
-      toast.success(`Added ${studentIds.length} student(s) to class`);
+
+      toast.success(`Added ${studentIds.length} student(s) to class. Subject assignments will be set up automatically.`);
       fetchStudents();
       fetchAvailableStudents();
     } catch (error) {
+      console.error("Failed to add students:", error);
       toast.error(`Failed to add some student(s)`);
     }
   }

@@ -496,9 +496,6 @@ export default function StudentTimetablePage() {
                             >
                               <div className="text-center">
                                 <div className="font-semibold text-yellow-800 text-sm">BREAK TIME</div>
-                                <div className="text-xs text-gray-600 mt-0.5">
-                                  {period.start_time} - {period.end_time}
-                                </div>
                               </div>
                             </td>
                           );
@@ -523,9 +520,6 @@ export default function StudentTimetablePage() {
                                 <div className="flex items-center gap-1 text-xs text-blue-700">
                                   <User className="h-3 w-3" />
                                   <span className="truncate">{cell.teacher}</span>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {period.start_time} - {period.end_time}
                                 </div>
                               </div>
                             ) : (
@@ -558,31 +552,7 @@ export default function StudentTimetablePage() {
             )}
           </CardContent>
         </Card>
-
-        {/* Legend */}
-        {stats.totalPeriods > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Legend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded"></div>
-                  <span className="text-gray-700">Your Classes</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-yellow-50 border border-yellow-200 rounded"></div>
-                  <span className="text-gray-700">Break Time</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white border border-gray-300 rounded"></div>
-                  <span className="text-gray-700">Free Period</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        
       </div>
     </DashboardLayout>
   );

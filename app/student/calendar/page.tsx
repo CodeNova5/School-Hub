@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { getCurrentUser } from '@/lib/auth';
-import { AttendanceTimeline } from '@/components/attendance-timeline';
 
 export default function StudentCalendarPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -20,7 +19,6 @@ export default function StudentCalendarPage() {
   const [filterType, setFilterType] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [studentId, setStudentId] = useState('');
 
@@ -63,22 +61,12 @@ export default function StudentCalendarPage() {
         .from('events')
         .select('*')
         .order('start_date', { ascending: true });
-      
+
       if (eventsData) {
         setEvents(eventsData);
         setFilteredEvents(eventsData);
       }
 
-      // Fetch attendance records
-      const { data: attendanceData } = await supabase
-        .from('attendance')
-        .select('date, status')
-        .eq('student_id', studentData.id)
-        .order('date', { ascending: false });
-
-      if (attendanceData) {
-        setAttendance(attendanceData);
-      }
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error("Failed to load calendar data");
@@ -142,7 +130,7 @@ export default function StudentCalendarPage() {
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
-    
+
     return { daysInMonth, startingDayOfWeek, year, month };
   };
 
@@ -215,8 +203,8 @@ export default function StudentCalendarPage() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">Calendar & Attendance</h1>
-          <p className="text-gray-600 mt-1">View school events and your attendance records</p>
+          <h1 className="text-3xl font-bold">Calendar</h1>
+          <p className="text-gray-600 mt-1">View school events</p>
         </div>
 
         {/* Stats */}
@@ -263,19 +251,7 @@ export default function StudentCalendarPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-purple-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Attendance</p>
-                  <p className="text-3xl font-bold text-purple-600">{attendance.length}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <CalendarIcon className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -323,20 +299,18 @@ export default function StudentCalendarPage() {
                       <button
                         key={day}
                         onClick={() => setSelectedDate(date)}
-                        className={`aspect-square p-1 transition-all hover:shadow-md flex flex-col items-center justify-center ${
-                          selected
+                        className={`aspect-square p-1 transition-all hover:shadow-md flex flex-col items-center justify-center ${selected
                             ? 'bg-blue-50'
                             : ''
-                        }`}
+                          }`}
                       >
-                        <div 
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                            today
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${today
                               ? 'bg-blue-500 text-white'
                               : dayEvents.length > 0
-                              ? `${eventTypeColors[dayEvents[0].event_type] || 'bg-gray-400 text-white'}`
-                              : 'text-gray-900'
-                          }`}
+                                ? `${eventTypeColors[dayEvents[0].event_type] || 'bg-gray-400 text-white'}`
+                                : 'text-gray-900'
+                            }`}
                         >
                           {day}
                         </div>
@@ -439,14 +413,12 @@ export default function StudentCalendarPage() {
                   return (
                     <div
                       key={event.id}
-                      className={`p-5 border-2 rounded-xl transition-all hover:shadow-lg ${
-                        eventTypeBgColors[event.event_type] || 'bg-gray-50 border-gray-200'
-                      }`}
+                      className={`p-5 border-2 rounded-xl transition-all hover:shadow-lg ${eventTypeBgColors[event.event_type] || 'bg-gray-50 border-gray-200'
+                        }`}
                     >
                       <div className="flex items-start gap-4">
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          eventTypeColors[event.event_type] || 'bg-gray-400 text-white'
-                        }`}>
+                        <div className={`h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 ${eventTypeColors[event.event_type] || 'bg-gray-400 text-white'
+                          }`}>
                           <CalendarIcon className="h-6 w-6" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -468,7 +440,7 @@ export default function StudentCalendarPage() {
                               )}
                             </div>
                           </div>
-                          
+
                           {event.description && (
                             <p className="text-sm text-gray-700 mb-3">{event.description}</p>
                           )}
@@ -477,15 +449,15 @@ export default function StudentCalendarPage() {
                             <div className="flex items-center gap-1">
                               <Clock className="h-4 w-4" />
                               <span>
-                                {event.is_all_day 
+                                {event.is_all_day
                                   ? new Date(event.start_date).toLocaleDateString()
                                   : new Date(event.start_date).toLocaleString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
                                 }
                               </span>
                             </div>
@@ -516,15 +488,6 @@ export default function StudentCalendarPage() {
           </CardContent>
         </Card>
 
-        {/* Attendance Timeline */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Your Attendance Record</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AttendanceTimeline attendance={attendance} />
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );

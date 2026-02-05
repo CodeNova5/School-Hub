@@ -105,10 +105,10 @@ export default function ParentChildPage() {
           // Get pending assignments
           const { data: studentSubjects } = await supabase
             .from("student_subjects")
-            .select("subject_id")
+            .select("subject_class_id")
             .eq("student_id", student.id);
 
-          const subjectIds = studentSubjects?.map(ss => ss.subject_id) || [];
+          const subjectIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
 
           let pending_assignments = 0;
           if (subjectIds.length > 0) {

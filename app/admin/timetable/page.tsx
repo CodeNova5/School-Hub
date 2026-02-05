@@ -557,18 +557,12 @@ export default function TimetablePage() {
         religion: null,
       };
 
-      const response = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'update',
-          table: 'timetable_entries',
-          data: payload,
-          filters: { id: editingEntry.id },
-        }),
-      });
+      const { error } = await supabase
+        .from("timetable_entries")
+        .update(payload)
+        .eq("id", editingEntry.id);
 
-      if (!response.ok) toast.error("Failed to update entry");
+      if (error) toast.error("Failed to update entry");
       else {
         toast.success("Entry updated");
         closeDialog();
@@ -608,19 +602,13 @@ export default function TimetablePage() {
         }
       }
 
-      const response = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'insert',
-          table: 'timetable_entries',
-          data: payload,
-        }),
-      });
+      const { error } = await supabase
+        .from("timetable_entries")
+        .insert(payload);
 
-      if (!response.ok) toast.error("Failed to create entry");
+      if (error) toast.error("Failed to create entry");
       else {
-        toast.success("Entry added");
+        toast.success("Entry created");
         closeDialog();
         await fetchAll();
         if (formClassId) await showTimetable(formClassId);
@@ -682,17 +670,11 @@ export default function TimetablePage() {
         return;
       }
 
-      const response = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'insert',
-          table: 'timetable_entries',
-          data: inserts,
-        }),
-      });
+      const { error } = await supabase
+        .from("timetable_entries")
+        .insert(inserts);
 
-      if (!response.ok) toast.error("Failed to create religious entries");
+      if (error) toast.error("Failed to create religious entries");
       else {
         toast.success("Religious entries added");
         closeDialog();
@@ -766,17 +748,11 @@ export default function TimetablePage() {
       return;
     }
 
-    const response = await fetch('/api/admin-operation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'insert',
-        table: 'timetable_entries',
-        data: inserts,
-      }),
-    });
+    const { error } = await supabase
+      .from("timetable_entries")
+      .insert(inserts);
 
-    if (!response.ok) toast.error("Failed to create departmental entries");
+    if (error) toast.error("Failed to create departmental entries");
     else {
       toast.success("Departmental entries added");
       closeDialog();
@@ -863,54 +839,52 @@ export default function TimetablePage() {
       const religionTeacherMap: Record<string, string> = {};
 
       g.raw.forEach((r: any) => {
-        const subjName = r.subject_classes?.subjects?.name || "";
-        const subjDept = r.subject_classes?.subjects?.department || r.department || "";
-        const subjReligion = r.subject_classes?.subjects?.religion || r.religion || "";
-        const code = shortCode(subjName);
-        const subjTeacherName = teacherForSubjectClass(r.subject_classes);
-
-        if (subjReligion) {
-          religionMap[subjReligion] = code || subjName;
-          if (subjTeacherName) religionTeacherMap[subjReligion] = subjTeacherName;
+        const sname = r.subject_classes?.subjects?.name || "";
+        const sdept = r.subject_classes?.subjects?.department || r.department || "";
+        const sreligion = r.subject_classes?.subjects?.religion || r.religion || "";
+        const code = shortCode(sname);
+        const teacherName = teacherForSubjectClass(r.subject_classes);
+        if (sreligion) {
+          religionMap[sreligion] = code || sname;
+          if (teacherName) religionTeacherMap[sreligion] = teacherName;
           return;
         }
-
-        if (subjDept) {
-          deptMap[subjDept] = code;
-          if (subjTeacherName) teacherMap[subjDept] = subjTeacherName;
+        if (sdept) {
+          deptMap[sdept] = code;
+          if (teacherName) teacherMap[sdept] = teacherName;
         } else {
-          deptMap["_single"] = subjName;
-          if (subjTeacherName) teacherMap["_single"] = subjTeacherName;
+          deptMap["_single"] = sname;
+          if (teacherName) teacherMap["_single"] = teacherName;
         }
       });
 
-      let combined = "";
+      let display = "";
       if (Object.keys(religionMap).length > 0) {
-        combined = religionOrder.map((rel) => religionMap[rel]).filter(Boolean).join(" / ");
+        display = religionOrder.map((rel) => religionMap[rel]).filter(Boolean).join(" / ");
       }
 
-      if (!combined) {
-        if (deptMap["_single"]) combined = deptMap["_single"];
-        else combined = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
+      if (!display) {
+        if (deptMap["_single"]) display = deptMap["_single"];
+        else display = order.map((d) => deptMap[d]).filter(Boolean).join(" / ");
       }
 
-      let teachersCombined = "";
+      let teacherDisplay = "";
       if (Object.keys(religionTeacherMap).length > 0) {
-        teachersCombined = religionOrder
+        teacherDisplay = religionOrder
           .map((rel) => religionTeacherMap[rel])
           .filter(Boolean)
           .join(" / ");
       }
 
-      if (!teachersCombined) {
-        if (teacherMap["_single"]) teachersCombined = teacherMap["_single"];
-        else teachersCombined = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
+      if (!teacherDisplay) {
+        if (teacherMap["_single"]) teacherDisplay = teacherMap["_single"];
+        else teacherDisplay = order.map((d) => teacherMap[d]).filter(Boolean).join(" / ");
       }
 
       return {
         ...g,
-        subject_display: combined,
-        teacher_display: teachersCombined,
+        subject_display: display,
+        teacher_display: teacherDisplay,
         rows: g.raw,
       };
     });
@@ -935,6 +909,7 @@ export default function TimetablePage() {
         subject_classes (
           id,
           subject_code,
+          teacher_id,
           subjects ( name, department, religion ),
           teachers ( first_name, last_name )
         )

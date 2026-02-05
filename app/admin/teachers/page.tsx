@@ -48,8 +48,8 @@ type SubjectClass = {
   id: string;
   subject_id: string;
   class_id: string;
-  subjects?: { name: string };
-  classes?: { name: string };
+  subjects?: any; // Changed to 'any' to fix type error
+  classes?: any;  // Changed to 'any' to fix type error
 };
 
 export default function TeachersPage() {
@@ -75,139 +75,79 @@ export default function TeachersPage() {
 
   async function fetchTeachers() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'teachers',
-          select: '*',
-          order: [{ column: 'created_at', ascending: false }],
-        }),
+      // Fetch all teachers
+      const { data: teachersData, error: teachersError } = await supabase
+        .from('teachers')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (teachersError) throw teachersError;
+
+      // Fetch all classes (for assignments)
+      const { data: allClasses } = await supabase
+        .from('classes')
+        .select('id, name, class_teacher_id');
+
+      // Fetch all subject_classes (for assignments)
+      const { data: allSubjectClasses } = await supabase
+        .from('subject_classes')
+        .select('id, subject_id, class_id, teacher_id');
+
+      // Build teacher details
+      const teachersWithDetails = (teachersData || []).map((teacher: any) => {
+        // Assigned class
+        const assignedClassObj = (allClasses || []).find(c => c.class_teacher_id === teacher.id);
+        // Assigned subject_classes
+        const assignedSubjectClasses = (allSubjectClasses || []).filter(sc => sc.teacher_id === teacher.id);
+        return {
+          ...teacher,
+          assignedClass: assignedClassObj?.name,
+          assignedClassId: assignedClassObj?.id,
+          assignedSubjects: assignedSubjectClasses.map(sc => `subject-${sc.subject_id}-class-${sc.class_id}`),
+          subjectCount: assignedSubjectClasses.length,
+        };
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Error fetching teachers:', data.error);
-        return;
-      }
-
-      // Fetch additional details for each teacher
-      const teachersWithDetails = await Promise.all(
-        data.map(async (teacher: any) => {
-          // Get assigned class
-          const classResponse = await fetch('/api/admin-read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              operation: 'select',
-              table: 'classes',
-              select: 'id, name',
-              filters: { class_teacher_id: teacher.id },
-            }),
-          });
-          const classData = await classResponse.json();
-
-          // Get assigned subjects from subject_classes
-          const subjectResponse = await fetch('/api/admin-read', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              operation: 'select',
-              table: 'subject_classes',
-              select: 'id, subject_id, class_id',
-              filters: { teacher_id: teacher.id },
-            }),
-          });
-          const subjectClassData = await subjectResponse.json();
-
-          return {
-            ...teacher,
-            assignedClass: classData?.[0]?.name,
-            assignedClassId: classData?.[0]?.id,
-            assignedSubjects: subjectClassData?.map((sc: any) => `subject-${sc.subject_id}-class-${sc.class_id}`).filter(Boolean) || [],
-            subjectCount: subjectClassData?.length || 0,
-          };
-        })
-      );
-
       setTeachers(teachersWithDetails);
     } catch (error) {
-      console.error('Error fetching teachers:', error);
+      toast.error('Failed to fetch teachers');
     }
   }
 
   async function fetchClasses() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'classes',
-          select: 'id, name, level_id',
-          order: [{ column: 'name', ascending: true }],
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Error fetching classes:', data.error);
-        return;
-      }
-
-      setClasses(data);
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name, level_id')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setClasses(data || []);
     } catch (error) {
-      console.error('Error fetching classes:', error);
+      toast.error('Failed to fetch classes');
     }
   }
 
   async function fetchSubjects() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'subjects',
-          select: 'id, name',
-          order: [{ column: 'name', ascending: true }],
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Error fetching subjects:', data.error);
-        return;
-      }
-
-      setSubjects(data);
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('id, name')
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setSubjects(data || []);
     } catch (error) {
-      console.error('Error fetching subjects:', error);
+      toast.error('Failed to fetch subjects');
     }
   }
 
   async function fetchSubjectClasses() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'subject_classes',
-          select: 'id, subject_id, class_id',
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Error fetching subject classes:', data.error);
-        return;
-      }
-
-      setSubjectClasses(data as any);
+      // Join with subjects and classes for display
+      const { data, error } = await supabase
+        .from('subject_classes')
+        .select('id, subject_id, class_id, subjects(name), classes(name)');
+      if (error) throw error;
+      setSubjectClasses(data || []);
     } catch (error) {
-      console.error('Error fetching subject classes:', error);
+      toast.error('Failed to fetch subject classes');
     }
   }
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {

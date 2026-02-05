@@ -23,7 +23,7 @@ import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
-import { apiClient } from "@/lib/api-client";
+import { supabase } from "@/lib/supabase";
 
 type SubjectClass = {
   id: string;
@@ -142,26 +142,24 @@ export function SubjectsTab({
     setIsEditSubmitting(true);
 
     try {
-      // Update the subject itself
-      await apiClient.apiWrite({
-        table: "subjects",
-        operation: "update",
-        data: {
+      const { error } = await supabase
+        .from("subjects")
+        .update({
           name: editName,
           is_optional: editIsOptional,
-        },
-        filters: { id: editingSubjectClass.subject.id },
-      });
+        })
+        .eq("id", editingSubjectClass.subject.id);
+
+      if (error) throw error;
 
       toast.success("Subject updated successfully");
       setIsEditOpen(false);
       onRefresh();
     } catch (error: any) {
-      console.error("Subject update error:", error);
-      if (error.message.includes('23505')) {
-        toast.error("A subject with this name already exists for this level");
+      if (error.message?.includes("23505")) {
+        toast.error("Subject name already exists");
       } else {
-        toast.error(`Failed to update subject: ${error.message}`);
+        toast.error("Failed to update subject");
       }
     } finally {
       setIsEditSubmitting(false);
@@ -170,63 +168,64 @@ export function SubjectsTab({
 
   async function openManageStudentsDialog(sc: SubjectClass) {
     setManagingSubjectClass(sc);
-    setIsLoadingEnrollment(true);
     setIsManageStudentsOpen(true);
+    setIsLoadingEnrollment(true);
 
     try {
-      // Fetch students enrolled in this optional subject
-      const data = await apiClient.apiRead({
-        table: "student_optional_subjects",
-        select: "student_id",
-        filters: { subject_id: sc.subject.id },
-      });
+      const { data, error } = await supabase
+        .from("student_optional_subjects")
+        .select("student_id")
+        .eq("subject_id", sc.subject.id);
 
-      setEnrolledStudentIds(data.map(d => d.student_id));
-    } catch (error) {
-      console.error("Error loading enrollment:", error);
-      toast.error("Failed to load enrollment data");
+      if (error) throw error;
+
+      setEnrolledStudentIds((data || []).map((d: any) => d.student_id));
+    } catch {
+      toast.error("Failed to load enrollment");
       setEnrolledStudentIds([]);
     } finally {
       setIsLoadingEnrollment(false);
     }
   }
 
-  async function handleToggleStudentEnrollment(studentId: string, isEnrolled: boolean) {
+  async function handleToggleStudentEnrollment(
+    studentId: string,
+    shouldEnroll: boolean
+  ) {
     if (!managingSubjectClass) return;
 
     try {
-      if (isEnrolled) {
-        // Enroll student
-        await apiClient.apiWrite({
-          table: "student_optional_subjects",
-          operation: "insert",
-          data: {
+      if (shouldEnroll) {
+        const { error } = await supabase
+          .from("student_optional_subjects")
+          .insert({
             student_id: studentId,
             subject_id: managingSubjectClass.subject.id,
-          },
-        });
+          });
 
-        setEnrolledStudentIds(prev => [...prev, studentId]);
+        if (error) throw error;
+
+        setEnrolledStudentIds((prev) => [...prev, studentId]);
         toast.success("Student enrolled");
       } else {
-        // Unenroll student - using delete
-        await apiClient.apiWrite({
-          table: "student_optional_subjects",
-          operation: "delete",
-          filters: {
-            student_id: studentId,
-            subject_id: managingSubjectClass.subject.id,
-          },
-        });
+        const { error } = await supabase
+          .from("student_optional_subjects")
+          .delete()
+          .eq("student_id", studentId)
+          .eq("subject_id", managingSubjectClass.subject.id);
 
-        setEnrolledStudentIds(prev => prev.filter(id => id !== studentId));
+        if (error) throw error;
+
+        setEnrolledStudentIds((prev) =>
+          prev.filter((id) => id !== studentId)
+        );
         toast.success("Student unenrolled");
       }
-    } catch (error) {
-      console.error("Enrollment error:", error);
-      toast.error(`Failed to ${isEnrolled ? 'enroll' : 'unenroll'} student`);
+    } catch {
+      toast.error("Update failed");
     }
   }
+
 
   return (
     <>

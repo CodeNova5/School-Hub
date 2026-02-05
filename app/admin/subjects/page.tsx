@@ -126,25 +126,18 @@ export default function SubjectsPage() {
 
   useEffect(() => {
     fetchSubjects();
-
   }, []);
 
   useEffect(() => {
     async function fetchTeachers() {
       try {
-        const response = await fetch('/api/admin-read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation: 'select',
-            table: 'teachers',
-            select: 'id, first_name, last_name',
-          }),
-        });
-        const data = await response.json();
-        if (response.ok) setTeachers(data as Teacher[]);
+        const { data, error } = await supabase
+          .from('teachers')
+          .select('id, first_name, last_name');
+        if (error) throw error;
+        setTeachers(data as Teacher[]);
       } catch (error) {
-        console.error('Error fetching teachers:', error);
+        toast.error('Error fetching teachers');
       }
     }
     fetchTeachers();
@@ -153,30 +146,14 @@ export default function SubjectsPage() {
 
   async function fetchSubjects() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'subjects',
-          select: '*',
-          order: [
-            { column: 'education_level', ascending: true },
-            { column: 'name', ascending: true },
-          ],
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        console.error('Error fetching subjects:', data.error);
-        toast.error('Failed to fetch subjects');
-        return;
-      }
-
-      setSubjects(data);
+      const { data, error } = await supabase
+        .from('subjects')
+        .select('*')
+        .order('education_level', { ascending: true })
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setSubjects(data || []);
     } catch (error) {
-      console.error('Error fetching subjects:', error);
       toast.error('Failed to fetch subjects');
     }
   }
@@ -241,31 +218,21 @@ export default function SubjectsPage() {
     // ===========================
     if (editingSubject) {
       try {
-        console.log('Updating subject:', editingSubject.id, 'with data:', subjectData);
-        
-        const response = await fetch('/api/admin-operation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation: 'update',
-            table: 'subjects',
-            data: subjectData,
-            filters: { id: editingSubject.id },
-          }),
-        });
+        // Update subject
+        const { error: updateError } = await supabase
+          .from('subjects')
+          .update(subjectData)
+          .eq('id', editingSubject.id);
 
-        const result = await response.json();
-        if (!response.ok) {
-          if (result.error?.includes('duplicate') || result.error?.includes('23505')) {
+        if (updateError) {
+          if (updateError.message?.includes('duplicate') || updateError.message?.includes('23505')) {
             toast.error('This subject already exists for this level/department');
           } else {
-            toast.error(result.error || 'Failed to update subject');
+            toast.error(updateError.message || 'Failed to update subject');
           }
           setIsSubmitting(false);
           return;
         }
-
-        console.log('Subject updated successfully:', result);
 
         // 🔥 AUTO ASSIGN TO EMPTY CLASSES
         const { data: emptyClasses } = await supabase
@@ -275,32 +242,21 @@ export default function SubjectsPage() {
           .is("class_teacher_id", null);
 
         if (emptyClasses && emptyClasses.length > 0 && selectedTeacher) {
-          const classIds = emptyClasses.map(c => c.id);
-
-          for (const classId of classIds) {
-            await fetch('/api/admin-operation', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                operation: 'update',
-                table: 'subject_classes',
-                data: { teacher_id: selectedTeacher || null },
-                filters: { subject_id: editingSubject.id, class_id: classId },
-              }),
-            });
+          for (const c of emptyClasses) {
+            await supabase
+              .from('subject_classes')
+              .update({ teacher_id: selectedTeacher || null })
+              .eq('subject_id', editingSubject.id)
+              .eq('class_id', c.id);
           }
         }
 
-        console.log('Refetching subjects...');
         await fetchSubjects();
-        console.log('Subjects refetched');
-        
         toast.success('Subject updated successfully');
         setIsSubmitting(false);
         closeDialog();
         return;
       } catch (error: any) {
-        console.error('Update error:', error);
         toast.error(error.message || 'Failed to update subject');
         setIsSubmitting(false);
         return;
@@ -311,145 +267,86 @@ export default function SubjectsPage() {
     // ➕ CREATE SUBJECT
     // ===========================
     try {
-      const response = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'insert',
-          table: 'subjects',
-          data: subjectData,
-        }),
-      });
+      // Insert subject
+      const { data: newSubjectArr, error: insertError } = await supabase
+        .from('subjects')
+        .insert([subjectData])
+        .select();
 
-      const result = await response.json();
-      if (!response.ok) {
-        if (result.error?.includes('duplicate') || result.error?.includes('23505')) {
+      if (insertError) {
+        if (insertError.message?.includes('duplicate') || insertError.message?.includes('23505')) {
           toast.error('This subject already exists for this level/department');
         } else {
-          toast.error(result.error || 'Failed to create subject');
+          toast.error(insertError.message || 'Failed to create subject');
         }
         setIsSubmitting(false);
         return;
       }
 
-      const newSubject = Array.isArray(result) ? result[0] : result;
-      console.log('✅ Subject created:', newSubject);
+      const newSubject = Array.isArray(newSubjectArr) ? newSubjectArr[0] : newSubjectArr;
 
-      // 1️⃣ Get all classes in level (with names) - using API, not direct Supabase
-      console.log('🔍 Fetching classes for level:', selectedLevel);
-      const classesResponse = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'classes',
-          select: 'id, name',
-          filters: { education_level: selectedLevel },
-          order: [{ column: 'name', ascending: true }],
-        }),
-      });
+      // Get all classes in level (with names)
+      const { data: classes, error: classesError } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('education_level', selectedLevel)
+        .order('name', { ascending: true });
 
-      const classes = await classesResponse.json();
-      console.log('📚 Classes found:', classes);
-
-      if (!classesResponse.ok || !Array.isArray(classes) || classes.length === 0) {
-        console.error('❌ Error fetching classes:', classes);
-        toast.error('Could not find classes to apply subjects to. Response: ' + JSON.stringify(classes));
+      if (classesError || !Array.isArray(classes) || classes.length === 0) {
+        toast.error('Could not find classes to apply subjects to.');
         setIsSubmitting(false);
         return;
       }
 
-      // 2️⃣ Generate subject code
+      // Generate subject code
       const generateSubjectCode = (subjectName: string, className: string) => {
         const clean = subjectName.replace(/\s+/g, "");
         const prefix = clean.slice(0, 3).toUpperCase();
         return `${prefix}-${className}`;
       };
 
-      // 3️⃣ Create subject_classes rows with subject_code
+      // Create subject_classes rows with subject_code
       const subjectClasses = classes.map((c: any) => ({
         class_id: c.id,
         subject_id: newSubject.id,
         subject_code: generateSubjectCode(newSubject.name, c.name),
       }));
 
-      console.log('📝 Creating subject_classes entries:', subjectClasses);
+      // Insert subject_classes
+      const { error: subjectClassesError } = await supabase
+        .from('subject_classes')
+        .insert(subjectClasses);
 
-      const subjectClassesResponse = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'insert',
-          table: 'subject_classes',
-          data: subjectClasses,
-        }),
-      });
-
-      const subjectClassesResult = await subjectClassesResponse.json();
-      console.log('🔧 Subject classes response:', { 
-        status: subjectClassesResponse.status, 
-        data: subjectClassesResult 
-      });
-
-      if (!subjectClassesResponse.ok) {
-        console.error('❌ Failed to create subject_classes:', subjectClassesResult);
-        toast.error(subjectClassesResult.error || 'Failed to create subject_classes');
+      if (subjectClassesError) {
+        toast.error(subjectClassesError.message || 'Failed to create subject_classes');
         setIsSubmitting(false);
         return;
       }
 
-      console.log('✅ Subject classes created successfully');
-
-      // 4️⃣ Auto assign to empty classes only
+      // Auto assign to empty classes only
       if (selectedTeacher) {
-        console.log('👨‍🏫 Attempting to assign teacher:', selectedTeacher);
         const { data: emptyClasses } = await supabase
           .from("classes")
           .select("id")
           .eq("education_level", selectedLevel)
           .is("class_teacher_id", null);
 
-        console.log('📋 Empty classes found:', emptyClasses);
-
         if (emptyClasses && emptyClasses.length > 0) {
-          const classIds = emptyClasses.map(c => c.id);
-          console.log('🎯 Assigning to class IDs:', classIds);
-
-          for (const classId of classIds) {
-            const assignResponse = await fetch('/api/admin-operation', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                operation: 'update',
-                table: 'subject_classes',
-                data: { teacher_id: selectedTeacher },
-                filters: { subject_id: newSubject.id, class_id: classId },
-              }),
-            });
-
-            const assignResult = await assignResponse.json();
-            if (!assignResponse.ok) {
-              console.warn('⚠️ Failed to assign teacher to class:', classId, assignResult.error);
-            } else {
-              console.log('✅ Teacher assigned to class:', classId);
-            }
+          for (const c of emptyClasses) {
+            await supabase
+              .from('subject_classes')
+              .update({ teacher_id: selectedTeacher })
+              .eq('subject_id', newSubject.id)
+              .eq('class_id', c.id);
           }
-        } else {
-          console.log('ℹ️ No empty classes found for teacher assignment');
         }
-      } else {
-        console.log('ℹ️ No teacher selected, skipping assignment');
       }
 
-      console.log('🔄 Refetching subjects...');
       await fetchSubjects();
-      console.log('✅ Subjects refetched');
-      
       toast.success('Subject created and applied to all classes in this level');
       setIsSubmitting(false);
       closeDialog();
     } catch (error: any) {
-      console.error('Create error:', error);
       toast.error(error.message || 'Failed to create subject');
       setIsSubmitting(false);
     }
@@ -461,34 +358,22 @@ export default function SubjectsPage() {
 
     try {
       // Delete subject_classes first
-      await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'delete',
-          table: 'subject_classes',
-          filters: { subject_id: id },
-        }),
-      });
+      await supabase
+        .from('subject_classes')
+        .delete()
+        .eq('subject_id', id);
 
       // Then delete the subject
-      const response = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'delete',
-          table: 'subjects',
-          filters: { id },
-        }),
-      });
+      const { error } = await supabase
+        .from('subjects')
+        .delete()
+        .eq('id', id);
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
+      if (error) throw error;
 
       await fetchSubjects();
       toast.success('Subject deleted successfully');
     } catch (error: any) {
-      console.error('Error:', error);
       toast.error(error.message || 'Failed to delete subject');
     }
   }
@@ -504,7 +389,7 @@ export default function SubjectsPage() {
     setIsOptional(subject.is_optional);
 
     // 🔥 Load existing assigned teacher (if any)
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("subject_classes")
       .select("teacher_id")
       .eq("subject_id", subject.id)

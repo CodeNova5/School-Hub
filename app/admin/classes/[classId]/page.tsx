@@ -96,39 +96,38 @@ export default function ClassPage() {
 
   async function fetchClass() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'classes',
-          select: '*',
-          filters: { id: classId },
-        }),
-      });
-      const data = await response.json();
-      if (response.ok && Array.isArray(data) && data.length > 0) {
-        setClassData(data[0]);
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .eq("id", classId)
+        .single();
+      if (!error && data) {
+        setClassData(data);
       }
     } catch (error) {
-      console.error('Error fetching class:', error);
+      toast.error("Error fetching class");
     } finally {
       setLoading(false);
     }
   }
+
   async function fetchClassSubjects() {
     setSubjectsLoading(true);
     try {
-      const data = await apiClient.readSubjectClasses(classId);
-      const formatted: SubjectClass[] = (data || []).map((item: any) => ({
-        id: item.id,
-        subject_code: item.subject_code,
-        subject: item.subject,
-        teacher: item.teacher ?? null,
-      }));
-      setSubjects(formatted);
+      const { data, error } = await supabase
+        .from("subject_classes")
+        .select(`id, subject_code, subjects:subject_id(id, name, is_optional, religion, department), teachers:teacher_id(id, first_name, last_name)`)
+        .eq("class_id", classId);
+      if (!error && data) {
+        const formatted: SubjectClass[] = (data || []).map((item: any) => ({
+          id: item.id,
+          subject_code: item.subject_code,
+          subject: item.subjects,
+          teacher: item.teachers ?? null,
+        }));
+        setSubjects(formatted);
+      }
     } catch (error) {
-      console.error('Error fetching subjects:', error);
       toast.error("Failed to load subjects");
     } finally {
       setSubjectsLoading(false);
@@ -138,10 +137,13 @@ export default function ClassPage() {
   async function fetchStudents() {
     setStudentsLoading(true);
     try {
-      const data = await apiClient.readStudents(classId);
-      setStudents(data || []);
+      const { data, error } = await supabase
+        .from("students")
+        .select("*")
+        .eq("class_id", classId);
+      if (!error && data) setStudents(data || []);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      toast.error("Error fetching students");
     } finally {
       setStudentsLoading(false);
     }
@@ -149,67 +151,60 @@ export default function ClassPage() {
 
   async function fetchSessions() {
     try {
-      const data = await apiClient.readSessions();
-      setSessions(data || []);
+      const { data, error } = await supabase
+        .from("sessions")
+        .select("*");
+      if (!error && data) setSessions(data || []);
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      toast.error("Error fetching sessions");
     }
   }
 
   async function fetchTerms() {
     try {
-      const data = await apiClient.readTerms();
-      setTerms(data || []);
+      const { data, error } = await supabase
+        .from("terms")
+        .select("*");
+      if (!error && data) setTerms(data || []);
     } catch (error) {
-      console.error('Error fetching terms:', error);
+      toast.error("Error fetching terms");
     }
   }
 
   async function fetchAllClasses() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'classes',
-          select: '*',
-          order: [{ column: 'level', ascending: true }],
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) setAllClasses(data || []);
+      const { data, error } = await supabase
+        .from("classes")
+        .select("*")
+        .order("level", { ascending: true });
+      if (!error && data) setAllClasses(data || []);
     } catch (error) {
-      console.error('Error fetching classes:', error);
+      toast.error("Error fetching classes");
     }
   }
 
   async function fetchAvailableStudents() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'students',
-          select: '*',
-          filters: { class_id: null, status: 'active' },
-          order: [{ column: 'first_name', ascending: true }],
-        }),
-      });
-      const data = await response.json();
-      if (response.ok) setAvailableStudents(data || []);
+      const { data, error } = await supabase
+        .from("students")
+        .select("*")
+        .is("class_id", null)
+        .eq("status", "active")
+        .order("first_name", { ascending: true });
+      if (!error && data) setAvailableStudents(data || []);
     } catch (error) {
-      console.error('Error fetching available students:', error);
+      toast.error("Error fetching available students");
     }
   }
 
   async function fetchTeachers() {
     try {
-      const data = await apiClient.readTeachers();
-      setTeachers(data || []);
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("id, first_name, last_name");
+      if (!error && data) setTeachers(data || []);
     } catch (error) {
-      console.error('Error fetching teachers:', error);
+      toast.error("Error fetching teachers");
     }
   }
 
@@ -231,9 +226,12 @@ export default function ClassPage() {
       return;
     }
 
-    const updates = subjectsWithoutCode.map(sc => {
+    const updates = subjectsWithoutCode.map(async sc => {
       const newCode = generateSubjectCode(sc.subject.name, classData.name);
-      return apiClient.updateSubjectCode(sc.id, newCode);
+      await supabase
+        .from("subject_classes")
+        .update({ subject_code: newCode })
+        .eq("id", sc.id);
     });
 
     try {
@@ -242,43 +240,47 @@ export default function ClassPage() {
       fetchClassSubjects();
     } catch (error) {
       toast.error("Failed to update some subject codes");
-      console.error(error);
     }
   }
 
   async function handleAssignTeacher(subjectClassId: string, teacherId: string) {
     try {
-      await apiClient.assignTeacher(subjectClassId, teacherId);
+      await supabase
+        .from("subject_classes")
+        .update({ teacher_id: teacherId })
+        .eq("id", subjectClassId);
       toast.success("Teacher assigned");
       fetchClassSubjects();
     } catch (error) {
       toast.error("Failed to assign teacher");
-      console.error(error);
     }
   }
 
   async function deleteSubjectClass(subjectClassId: string) {
     try {
-      await apiClient.deleteSubjectClass(subjectClassId);
+      await supabase
+        .from("subject_classes")
+        .delete()
+        .eq("id", subjectClassId);
       toast.success("Subject removed from class");
       fetchClassSubjects();
     } catch (error) {
       toast.error("Failed to delete subject from class");
-      console.error(error);
     }
   }
 
   async function handleRemoveStudent(studentId: string) {
     if (!confirm("Remove this student from the class? They will become unassigned.")) return;
-    
     try {
-      await apiClient.updateStudentClass(studentId, null);
+      await supabase
+        .from("students")
+        .update({ class_id: null })
+        .eq("id", studentId);
       toast.success("Student removed from class");
       fetchStudents();
       fetchAvailableStudents();
     } catch (error) {
       toast.error("Failed to remove student");
-      console.error(error);
     }
   }
 
@@ -286,7 +288,9 @@ export default function ClassPage() {
     if (studentIds.length === 0) return;
     if (!confirm(`Remove ${studentIds.length} student(s) from this class?`)) return;
 
-    const updates = studentIds.map(id => apiClient.updateStudentClass(id, null));
+    const updates = studentIds.map(id =>
+      supabase.from("students").update({ class_id: null }).eq("id", id)
+    );
 
     try {
       await Promise.all(updates);
@@ -295,14 +299,15 @@ export default function ClassPage() {
       fetchAvailableStudents();
     } catch (error) {
       toast.error(`Failed to remove some student(s)`);
-      console.error(error);
     }
   }
 
   async function handleAddStudentsToClass(studentIds: string[]) {
     if (studentIds.length === 0) return;
 
-    const updates = studentIds.map(id => apiClient.updateStudentClass(id, classId));
+    const updates = studentIds.map(id =>
+      supabase.from("students").update({ class_id: classId }).eq("id", id)
+    );
 
     try {
       await Promise.all(updates);
@@ -311,7 +316,6 @@ export default function ClassPage() {
       fetchAvailableStudents();
     } catch (error) {
       toast.error(`Failed to add some student(s)`);
-      console.error(error);
     }
   }
 
@@ -319,7 +323,9 @@ export default function ClassPage() {
     if (studentIds.length === 0 || !targetClassId) return;
     if (!confirm(`Transfer ${studentIds.length} student(s) to the selected class?`)) return;
 
-    const updates = studentIds.map(id => apiClient.updateStudentClass(id, targetClassId));
+    const updates = studentIds.map(id =>
+      supabase.from("students").update({ class_id: targetClassId }).eq("id", id)
+    );
 
     try {
       await Promise.all(updates);
@@ -327,7 +333,6 @@ export default function ClassPage() {
       fetchStudents();
     } catch (error) {
       toast.error(`Failed to transfer some student(s)`);
-      console.error(error);
     }
   }
 

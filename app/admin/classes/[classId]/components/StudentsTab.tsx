@@ -32,6 +32,8 @@ import { Student, Session, Term } from "@/lib/types";
 import { StudentDetailsModal } from "@/components/student-details-modal";
 import * as XLSX from "xlsx-js-style";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase"; // Make sure this import exists
+
 
 type ClassData = {
   id: string;
@@ -115,21 +117,16 @@ export function StudentsTab({
 
   async function handleViewStudentWithAttendance(student: Student) {
     try {
-      // Fetch attendance for this student
-      const attendanceRes = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table: 'attendance',
-          operation: 'select',
-        }),
-      }).then(r => r.json());
+      // Fetch attendance for this student using supabase client
+      const { data: attendance, error } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("student_id", student.id);
 
-      const attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
-      const studentAttendance = attendance.filter((a: any) => a.student_id === student.id);
-      
-      const total = studentAttendance.length;
-      const present = studentAttendance.filter(
+      if (error) throw error;
+
+      const total = attendance.length;
+      const present = attendance.filter(
         (r: any) => r.status === "present" || r.status === "late" || r.status === "excused"
       ).length;
 
@@ -149,6 +146,7 @@ export function StudentsTab({
     }
     setIsStudentDetailsOpen(true);
   }
+
 
   function handleExportStudents() {
     const exportData = filteredStudents.map((s, i) => ({
@@ -410,9 +408,8 @@ export function StudentsTab({
                     return (
                       <div
                         key={student.id}
-                        className={`p-3 border-b hover:bg-muted/50 cursor-pointer flex items-center gap-3 ${
-                          isSelected ? "bg-blue-50" : ""
-                        }`}
+                        className={`p-3 border-b hover:bg-muted/50 cursor-pointer flex items-center gap-3 ${isSelected ? "bg-blue-50" : ""
+                          }`}
                         onClick={() => handleSelectStudent(student.id)}
                       >
                         <input

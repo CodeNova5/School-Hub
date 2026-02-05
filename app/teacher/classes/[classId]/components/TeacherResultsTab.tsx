@@ -38,7 +38,7 @@ import {
     Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { supabase } from "@/lib/supabase";
 import { Student, Session, Term } from "@/lib/types";
 import * as XLSX from "xlsx-js-style";
 import { StudentDetailsModal } from "@/components/student-details-modal";
@@ -123,26 +123,16 @@ export default function TeacherResultsTab({
         setLoading(true);
 
         try {
-            // Fetch all results for this class in the selected term
-            const resultsData = await apiClient.apiRead({
-                table: "results",
-                select: `
-          *,
-          student:students!inner(id, student_id, first_name, last_name, gender, class_id),
-          subject_class:subject_classes!inner(
-            id,
-            class_id,
-            subject:subjects(name)
-          )
-        `,
-                filters: {
-                    term_id: selectedTermId,
-                    session_id: selectedSessionId,
-                },
-            });
+            // Fetch all results for this class in the selected term using Supabase
+            const { data: resultsData, error } = await supabase
+                .from("results")
+                .select(`*, student:students!inner(id, student_id, first_name, last_name, gender, class_id), subject_class:subject_classes!inner(id, class_id, subject:subjects(name))`)
+                .eq("term_id", selectedTermId)
+                .eq("session_id", selectedSessionId);
+            if (error) throw error;
 
             // Filter by class on client side since results doesn't have class_id
-            const classResults = resultsData?.filter((r: any) => r.subject_class?.class_id === classId) || [];
+            const classResults = (resultsData || []).filter((r: any) => r.subject_class?.class_id === classId);
 
             // Group results by student
             const studentResultsMap = new Map<string, StudentResult>();
@@ -342,15 +332,13 @@ export default function TeacherResultsTab({
                 return;
             }
 
-            // Fetch actual results data to recalculate scores based on mode
-            const resultsData = await apiClient.apiRead({
-                table: "results",
-                select: "student_id, welcome_test, mid_term_test, vetting, exam",
-                filters: {
-                    term_id: selectedTermId,
-                    session_id: selectedSessionId,
-                },
-            });
+            // Fetch actual results data to recalculate scores based on mode using Supabase
+            const { data: resultsData, error } = await supabase
+                .from("results")
+                .select("student_id, welcome_test, mid_term_test, vetting, exam")
+                .eq("term_id", selectedTermId)
+                .eq("session_id", selectedSessionId);
+            if (error) throw error;
 
             // Calculate scores per student based on mode
             const studentScoresMap = new Map<string, number>();
@@ -434,23 +422,18 @@ export default function TeacherResultsTab({
             // Calculate class average
             const classAvg = sortedStudents.reduce((sum, s) => sum + s.calculatedScore, 0) / sortedStudents.length;
 
-            // Update all results for each student with their position
+            // Update all results for each student with their position using Supabase
             const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
-                // Update all results for this student in this term and session
-                await apiClient.apiWrite({
-                    table: "results",
-                    operation: "update",
-                    data: {
+                await supabase
+                    .from("results")
+                    .update({
                         class_position: position,
                         total_students: sortedStudents.length,
                         class_average: classAvg
-                    },
-                    filters: {
-                        student_id: studentId,
-                        term_id: selectedTermId,
-                        session_id: selectedSessionId
-                    }
-                });
+                    })
+                    .eq("student_id", studentId)
+                    .eq("term_id", selectedTermId)
+                    .eq("session_id", selectedSessionId);
             });
 
             await Promise.all(updatePromises);
@@ -755,20 +738,14 @@ export default function TeacherResultsTab({
                                                             onClick={async () => {
                                                                 const studentObj = students.find(s => s.id === result.student_id);
                                                                 if (studentObj) {
-                                                                    // Fetch attendance for this student
+                                                                    // Fetch attendance for this student using Supabase
                                                                     try {
-                                                                        const attendanceRes = await fetch('/api/admin-read', {
-                                                                            method: 'POST',
-                                                                            headers: { 'Content-Type': 'application/json' },
-                                                                            body: JSON.stringify({
-                                                                                table: 'attendance',
-                                                                                operation: 'select',
-                                                                            }),
-                                                                        }).then(r => r.json());
-
-                                                                        const attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
-                                                                        const studentAttendance = attendance.filter((a: any) => a.student_id === result.student_id);
-                                                                        
+                                                                        const { data: attendance, error } = await supabase
+                                                                            .from('attendance')
+                                                                            .select('*')
+                                                                            .eq('student_id', result.student_id);
+                                                                        if (error) throw error;
+                                                                        const studentAttendance = attendance || [];
                                                                         const total = studentAttendance.length;
                                                                         const present = studentAttendance.filter(
                                                                             (r: any) => r.status === "present" || r.status === "late" || r.status === "excused"

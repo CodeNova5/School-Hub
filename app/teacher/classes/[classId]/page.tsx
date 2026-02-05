@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { apiClient } from "@/lib/api-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -106,19 +105,13 @@ export default function TeacherClassManagement({ params }: PageProps) {
 
   async function fetchClass() {
     try {
-      const response = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'classes',
-          select: '*',
-          filters: { id: classId },
-        }),
-      });
-      const data = await response.json();
-      if (response.ok && Array.isArray(data) && data.length > 0) {
-        setClassData(data[0]);
+      const { data, error } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('id', classId)
+        .single();
+      if (!error && data) {
+        setClassData(data);
       }
     } catch (error) {
       console.error('Error fetching class:', error);
@@ -129,7 +122,10 @@ export default function TeacherClassManagement({ params }: PageProps) {
   async function fetchClassSubjects() {
     setSubjectsLoading(true);
     try {
-      const data = await apiClient.readSubjectClasses(classId);
+      const { data, error } = await supabase
+        .from('subject_classes')
+        .select(`id, subject_code, subject:subjects(id, name, is_optional, religion, department), teacher:teachers(id, first_name, last_name)`) // adjust join syntax as needed
+        .eq('class_id', classId);
       const formatted: SubjectClass[] = (data || []).map((item: any) => ({
         id: item.id,
         subject_code: item.subject_code,
@@ -147,7 +143,10 @@ export default function TeacherClassManagement({ params }: PageProps) {
   async function fetchStudents() {
     setStudentsLoading(true);
     try {
-      const data = await apiClient.readStudents(classId);
+      const { data, error } = await supabase
+        .from('students')
+        .select('*')
+        .eq('class_id', classId);
       setStudents(data || []);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -158,7 +157,9 @@ export default function TeacherClassManagement({ params }: PageProps) {
 
   async function fetchSessions() {
     try {
-      const data = await apiClient.readSessions();
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('*');
       setSessions(data || []);
     } catch (error) {
       console.error('Error fetching sessions:', error);
@@ -167,7 +168,9 @@ export default function TeacherClassManagement({ params }: PageProps) {
 
   async function fetchTerms() {
     try {
-      const data = await apiClient.readTerms();
+      const { data, error } = await supabase
+        .from('terms')
+        .select('*');
       setTerms(data || []);
     } catch (error) {
       console.error('Error fetching terms:', error);

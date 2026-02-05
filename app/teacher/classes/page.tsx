@@ -2,15 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { apiClient } from "@/lib/api-client";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
-
+import { supabase } from "@/lib/supabase";
 type ClassData = {
   id: string;
   name: string;
@@ -80,46 +78,29 @@ export default function TeacherClassesPage() {
         return;
       }
 
-      // Get teacher record by user ID
-      const teacherRes = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'teachers',
-          select: 'id',
-          filters: { user_id: user.id },
-        }),
-      });
+      // Get teacher record by user ID using Supabase client
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
 
-      const teacherData = await teacherRes.json();
-      const teacher = Array.isArray(teacherData) ? teacherData[0] : teacherData?.data?.[0];
-
-      if (!teacher?.id) {
+      if (teacherError || !teacherData?.id) {
         toast.error("Teacher record not found");
         router.push("/teacher/login");
         return;
       }
 
-      setTeacherId(teacher.id);
+      setTeacherId(teacherData.id);
 
-      // Fetch classes assigned to this teacher (as class teacher or subject teacher)
-      const classesRes = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'select',
-          table: 'classes',
-          select: '*',
-          filters: { class_teacher_id: teacher.id },
-          ordering: { column: 'name', ascending: true },
-        }),
-      });
+      // Fetch classes assigned to this teacher using Supabase client
+      const { data: classes, error: classesError } = await supabase
+        .from('classes')
+        .select('*')
+        .eq('class_teacher_id', teacherData.id)
+        .order('name', { ascending: true });
 
-      const classesData = await classesRes.json();
-      const classes = Array.isArray(classesData) ? classesData : (classesData?.data || []);
-
-      if (classes.length === 0) {
+      if (classesError || !classes || classes.length === 0) {
         toast.error("No classes assigned to you");
         setAssignedClasses([]);
       } else {

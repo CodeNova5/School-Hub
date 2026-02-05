@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
 import * as XLSX from "xlsx-js-style";
 import { Student } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 
 interface StudentAttendance {
   id: string;
@@ -45,11 +45,11 @@ export default function TeacherAttendanceTab({
   async function fetchAttendance(date: string) {
     setAttendanceLoading(true);
     try {
-      const attendanceData = await apiClient.apiRead({
-        table: "attendance",
-        select: "*",
-        filters: { class_id: classId, date },
-      });
+      const { data: attendanceData, error } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("class_id", classId)
+        .eq("date", date);
 
       const studentsWithAttendance: StudentAttendance[] = (students || []).map((student: any) => {
         const attendance = (Array.isArray(attendanceData) ? attendanceData : []).find(
@@ -123,22 +123,25 @@ export default function TeacherAttendanceTab({
       // Delete existing records
       if (existingRecords.length > 0) {
         const deleteIds = existingRecords.map((s) => s.attendanceId).filter(Boolean);
-        for (const id of deleteIds) {
-          await apiClient.apiWrite({
-            table: "attendance",
-            operation: "delete",
-            filters: { id },
-          });
+        if (deleteIds.length > 0) {
+          const { error: deleteError } = await supabase
+            .from("attendance")
+            .delete()
+            .in("id", deleteIds);
+          if (deleteError) {
+            throw deleteError;
+          }
         }
       }
 
       // Insert new records
       if (attendanceRecords.length > 0) {
-        await apiClient.apiWrite({
-          table: "attendance",
-          operation: "insert",
-          data: attendanceRecords,
-        });
+        const { error: insertError } = await supabase
+          .from("attendance")
+          .insert(attendanceRecords);
+        if (insertError) {
+          throw insertError;
+        }
       }
 
       toast.success("Attendance saved successfully!", { id: savingToast });

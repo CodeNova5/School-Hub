@@ -98,7 +98,17 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
     useEffect(() => {
         if (selectedSessionId && selectedTermId) {
+            console.log("Fetching results for:", { 
+                classId, 
+                sessionId: selectedSessionId, 
+                termId: selectedTermId 
+            });
             fetchStudentResults();
+        } else {
+            console.log("Missing selection:", { 
+                hasSession: !!selectedSessionId, 
+                hasTerm: !!selectedTermId 
+            });
         }
     }, [selectedSessionId, selectedTermId]);
 
@@ -116,12 +126,18 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 .select("*");
             if (termsError) throw termsError;
 
+            console.log("Fetched sessions:", sessionsData?.length || 0);
+            console.log("Fetched terms:", termsData?.length || 0);
+
             setSessions(sessionsData || []);
             setTerms(termsData || []);
 
             // Auto-select current session and term if available
             const currentSession = sessionsData?.find((s: any) => s.is_current);
             const currentTerm = termsData?.find((t: any) => t.is_current);
+
+            console.log("Current session:", currentSession?.name || "None");
+            console.log("Current term:", currentTerm?.name || "None");
 
             if (currentSession) setSelectedSessionId(currentSession.id);
             if (currentTerm) setSelectedTermId(currentTerm.id);
@@ -136,6 +152,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
         try {
             // Fetch all results for this class in the selected term
+            // Filter by class through the subject_classes join
             const { data: resultsData, error: resultsError } = await supabase
                 .from("results")
                 .select(`
@@ -148,15 +165,24 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     )
                 `)
                 .eq("term_id", selectedTermId)
-                .eq("session_id", selectedSessionId);
+                .eq("session_id", selectedSessionId)
+                .eq("subject_classes.class_id", classId);
 
-            if (resultsError) throw resultsError;
+            if (resultsError) {
+                console.error("Supabase error fetching results:", resultsError);
+                throw resultsError;
+            }
 
-            // Filter by class on client side since results doesn't have class_id
-            const classResults = resultsData?.filter((r: any) => r.subject_classes?.class_id === classId) || [];
+            console.log("Fetched results data:", resultsData);
+            console.log("Number of results:", resultsData?.length || 0);
+
+            // Results are already filtered by class_id in the query
+            const classResults = resultsData || [];
 
             // Group results by student
             const studentResultsMap = new Map<string, StudentResult>();
+
+            console.log("Processing results for", students.length, "students");
 
             students.forEach((student) => {
                 studentResultsMap.set(student.id, {
@@ -226,6 +252,12 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
             // Sort by average score (descending)
             results.sort((a, b) => b.average_score - a.average_score);
+
+            console.log("Final processed results:", {
+                total: results.length,
+                withResults: results.filter(r => r.has_results).length,
+                withoutResults: results.filter(r => !r.has_results).length
+            });
 
             setStudentResults(results);
         } catch (error) {

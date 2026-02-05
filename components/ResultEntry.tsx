@@ -255,25 +255,16 @@ export default function ResultEntry({
               const nextTerm = allTerms[currentTermIdx + 1];
               nextTermDateValue = nextTerm?.start_date || "";
             } else {
-              // Last term, get first term of next session using date comparison
-              const { data: nextSession } = await supabase
-                .from("sessions")
+              // Last term in session, get first term that starts after this term ends
+              const { data: nextTerms } = await supabase
+                .from("terms")
                 .select("*")
-                .gt("start_date", sessionData.end_date || sessionData.start_date)
+                .gt("start_date", termData.end_date || termData.start_date)
                 .order("start_date", { ascending: true })
-                .limit(1)
-                .maybeSingle();
+                .limit(1);
 
-              if (nextSession) {
-                const { data: nextSessionTerms } = await supabase
-                  .from("terms")
-                  .select("*")
-                  .eq("session_id", nextSession.id)
-                  .order("start_date", { ascending: true });
-
-                if (nextSessionTerms && nextSessionTerms.length > 0) {
-                  nextTermDateValue = nextSessionTerms[0].start_date || "";
-                }
+              if (nextTerms && nextTerms.length > 0) {
+                nextTermDateValue = nextTerms[0].start_date || "";
               }
             }
           }
@@ -615,51 +606,38 @@ export default function ResultEntry({
     if (!canEdit || isReadOnly || !student || !session || !term) return;
     setIsSaving(true);
     try {
-        // Save each subject's result separately
-        const savePromises = scores.map(score => {
-            const saveData = {
-                student_id: student.id,
-                session_id: session.id,
-                term_id: term.id,
-                subject_class_id: score.subject_class_id,
-                welcome_test: score.welcome_test,
-                mid_term_test: score.mid_term_test,
-                vetting: score.vetting,
-                exam: score.exam,
-                total: score.total,
-                grade: score.grade,
-                remark: score.remark,
-                attendance,
-                next_term_begins: nextTermDate,
-                class_teacher_remark: classTeacherRemark,
-                principal_remark: principalRemark,
-                class_position: classPosition,
-                total_students: totalStudents,
-                class_average: classAverage,
-            };
+        // Save each subject's result separately using Supabase upsert
+        const saveDataArray = scores.map(score => ({
+            student_id: student.id,
+            session_id: session.id,
+            term_id: term.id,
+            subject_class_id: score.subject_class_id,
+            welcome_test: score.welcome_test,
+            mid_term_test: score.mid_term_test,
+            vetting: score.vetting,
+            exam: score.exam,
+            total: score.total,
+            grade: score.grade,
+            remark: score.remark,
+            attendance,
+            next_term_begins: nextTermDate,
+            class_teacher_remark: classTeacherRemark,
+            principal_remark: principalRemark,
+            class_position: classPosition,
+            total_students: totalStudents,
+            class_average: classAverage,
+        }));
 
-            return fetch("/api/admin-operation", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    operation: "upsert",
-                    table: "results",
-                    data: saveData,
-                    conflictColumns: ["student_id", "session_id", "term_id", "subject_class_id"],
-                }),
+        // Upsert all results at once
+        const { error } = await supabase
+            .from("results")
+            .upsert(saveDataArray, {
+                onConflict: "student_id,session_id,term_id,subject_class_id",
             });
-        });
 
-        const responses = await Promise.all(savePromises);
-        const results = await Promise.all(responses.map(r => r.json()));
-
-        const hasError = responses.some((r, i) => !r.ok);
-        if (hasError) {
-            const errorResults = results.filter((_, i) => !responses[i].ok);
-            console.error("Error saving results:", errorResults);
-            toast.error(errorResults[0]?.error || "Failed to save some results");
+        if (error) {
+            console.error("Error saving results:", error);
+            toast.error(error.message || "Failed to save results");
         } else {
             toast.success("Results saved successfully");
         }

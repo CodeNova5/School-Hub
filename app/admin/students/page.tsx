@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { apiClient } from '@/lib/api-client';
 import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
@@ -133,67 +132,35 @@ export default function AdminStudentsPage() {
   async function loadData() {
     setIsLoading(true);
     try {
-      // Load all students in the system (admin view)
-      const [studentsRes, sessionsRes, termsRes, classesRes] = await Promise.all([
-        fetch('/api/admin-read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            table: 'students',
-            operation: 'select',
-            ordering: { column: 'first_name', ascending: true },
-          }),
-        }).then(r => r.json()),
-        fetch('/api/admin-read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            table: 'sessions',
-            operation: 'select',
-            ordering: { column: 'start_date', ascending: false },
-          }),
-        }).then(r => r.json()),
-        fetch('/api/admin-read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            table: 'terms',
-            operation: 'select',
-            ordering: { column: 'start_date', ascending: false },
-          }),
-        }).then(r => r.json()),
-        fetch('/api/admin-read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            table: 'classes',
-            operation: 'select',
-            ordering: { column: 'name', ascending: true },
-          }),
-        }).then(r => r.json()),
+      // Use Supabase client instead of API
+      const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }] = await Promise.all([
+        supabase.from('students').select('*').order('first_name', { ascending: true }),
+        supabase.from('sessions').select('*').order('start_date', { ascending: false }),
+        supabase.from('terms').select('*').order('start_date', { ascending: false }),
+        supabase.from('classes').select('*').order('name', { ascending: true }),
       ]);
 
-      const studentList = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || []);
-      const sessionsList = Array.isArray(sessionsRes) ? sessionsRes : (sessionsRes?.data || []);
-      const termsList = Array.isArray(termsRes) ? termsRes : (termsRes?.data || []);
-      const classList = Array.isArray(classesRes) ? classesRes : (classesRes?.data || []);
+      if (studentsError || sessionsError || termsError || classesError) {
+        throw new Error(
+          studentsError?.message ||
+          sessionsError?.message ||
+          termsError?.message ||
+          classesError?.message ||
+          'Unknown error'
+        );
+      }
 
-      const studentIds = studentList.map((s: Student) => s.id).filter(Boolean);
+      const studentIds = (studentList || []).map((s: Student) => s.id).filter(Boolean);
 
       let attendance: any[] = [];
       if (studentIds.length > 0) {
-        const attendanceRes = await fetch('/api/admin-read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            table: 'attendance',
-            operation: 'select',
-          }),
-        }).then(r => r.json());
+        const { data: attendanceRes, error: attendanceError } = await supabase
+          .from('attendance')
+          .select('*')
+          .in('student_id', studentIds);
 
-        attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
-        // Filter by student IDs on client side
-        attendance = attendance.filter((a: any) => studentIds.includes(a.student_id));
+        if (attendanceError) throw attendanceError;
+        attendance = attendanceRes || [];
       }
 
       interface AttendanceRecord {
@@ -208,7 +175,7 @@ export default function AdminStudentsPage() {
         total_attendance: number;
       }
 
-      const studentsWithAttendance: StudentWithAttendance[] = studentList.map((student: Student) => {
+      const studentsWithAttendance: StudentWithAttendance[] = (studentList || []).map((student: Student) => {
         const records: AttendanceRecord[] = attendance.filter((a: AttendanceRecord) => a.student_id === student.id) || [];
         const total: number = records.length;
         const present: number = records.filter(
@@ -223,16 +190,16 @@ export default function AdminStudentsPage() {
       });
 
       setStudents(studentsWithAttendance);
-      setSessions(sessionsList);
-      setTerms(termsList);
-      setClasses(classList);
+      setSessions(sessionsList || []);
+      setTerms(termsList || []);
+      setClasses(classList || []);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
     } finally {
       setIsLoading(false);
     }
   }
-
+  // ...existing code...
   function handleViewDetails(student: Student) {
     setSelectedStudent(student);
     setIsModalOpen(true);
@@ -520,7 +487,7 @@ export default function AdminStudentsPage() {
                     <h3 className="font-semibold mb-3">Parent/Guardian Information</h3>
                     <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                       <p className="text-sm text-blue-900">
-                        <strong>📌 Important:</strong> If this student has siblings already registered, 
+                        <strong>📌 Important:</strong> If this student has siblings already registered,
                         use the <strong>same parent email</strong> to link them to the existing parent account.
                       </p>
                     </div>

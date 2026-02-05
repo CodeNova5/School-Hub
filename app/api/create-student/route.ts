@@ -12,11 +12,16 @@ export async function POST(req: Request) {
   try {
     const studentData = await req.json();
 
-    // 1️⃣ Create auth user for student (won't be used for login, just for data association)
+    // Determine if student has their own email or using parent's
+    const hasOwnEmail = studentData.email && studentData.email.trim() !== '';
+    const studentEmail = hasOwnEmail ? studentData.email : studentData.parent_email;
+    const studentIsActive = !hasOwnEmail; // Only active if no own email (using parent's)
+
+    // 1️⃣ Create auth user for student
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: studentData.email,
+      email: studentEmail,
       password: crypto.randomUUID(),
-      email_confirm: true,
+      email_confirm: hasOwnEmail ? false : true, // Confirm if using parent email
       user_metadata: {
         role: "student",
         student_id: studentData.student_id,
@@ -36,7 +41,6 @@ export async function POST(req: Request) {
     let isNewParent = false;
 
     if (existingParent) {
-      // Parent exists, use existing user_id
       parentUserId = existingParent.user_id;
     } else {
       // Create new parent auth user
@@ -103,15 +107,71 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3️⃣ Create student row with user_id and parent_email
-    await supabase.from("students").insert({
+    // 3️⃣ Create student row
+    const studentInsertData = {
       ...studentData,
+      email: studentEmail,
+      phone: studentData.phone || studentData.parent_phone || null,
       user_id: authData.user.id,
-      is_active: true, // Student is active once parent activates
+      is_active: studentIsActive,
       status: "active",
-    });
+    };
 
-    // 3.5️⃣ Automatically assign subjects based on religion and department
+    await supabase.from("students").insert(studentInsertData);
+
+    // 3.5️⃣ If student has own email, generate and send activation code
+    if (hasOwnEmail) {
+      const activationCode = crypto.randomBytes(3).toString("hex").toUpperCase(); // 6-char code
+      const codeHash = crypto
+        .createHash("sha256")
+        .update(activationCode)
+        .digest("hex");
+
+      // Store activation code in students table
+      await supabase
+        .from("students")
+        .update({
+          activation_code_hash: codeHash,
+          activation_code_expires_at: new Date(Date.now() + 3600000), // 1 hour expiry
+        })
+        .eq("user_id", authData.user.id);
+
+      // Send activation code email to student
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+
+      await transporter.sendMail({
+        from: `"School Hub" <${process.env.EMAIL_USER}>`,
+        to: studentData.email,
+        subject: "Activate Your Student Account",
+        html: `
+    <p>Hello ${studentData.first_name},</p>
+    <p>Your student account has been created in the School Hub system.</p>
+    <p>Enter the activation code below to activate your account:</p>
+    <p style="font-size: 24px; font-weight: bold; color: #2563eb; letter-spacing: 2px;">
+      ${activationCode}
+    </p>
+    <p>
+      Or click the link below to activate your account and set your password:
+      <br/>
+      <a href="${process.env.NEXT_PUBLIC_APP_URL}/student/activate?code=${activationCode}&email=${encodeURIComponent(studentData.email)}" style="color:#2563eb;">
+        Activate Student Account
+      </a>
+    </p>
+    <p>This code expires in 1 hour.</p>
+    <p>Once activated, you'll be able to access assignments, grades, attendance, and more.</p>
+  `,
+      });
+
+    }
+
+    // 3.6️⃣ Automatically assign subjects based on religion and department
     const { data: subjectClassesData, error: subjectClassesError } = await supabase
       .from("subject_classes")
       .select(`
@@ -128,29 +188,24 @@ export async function POST(req: Request) {
       .eq("class_id", studentData.class_id);
 
     if (!subjectClassesError && subjectClassesData) {
-      // Filter subjects based on student's department and religion
       const eligibleSubjectClasses = subjectClassesData.filter((sc: any) => {
         const subject = Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects;
-        
-        // Filter by department if applicable
+
         if (subject.department && studentData.department) {
           if (subject.department !== studentData.department) {
             return false;
           }
         }
 
-        // Filter by religion if applicable
         if (subject.religion && studentData.religion) {
           if (subject.religion !== studentData.religion) {
             return false;
           }
         }
 
-        // Only auto-assign compulsory subjects
         return !subject.is_optional;
       });
 
-      // Insert student_subjects for all eligible compulsory subjects
       if (eligibleSubjectClasses.length > 0) {
         const studentSubjectsToInsert = eligibleSubjectClasses.map((sc: any) => ({
           student_id: studentData.student_id,
@@ -163,12 +218,11 @@ export async function POST(req: Request) {
 
         if (studentSubjectsError) {
           console.error("Error inserting student subjects:", studentSubjectsError);
-          // Don't throw error, just log it - student creation should succeed
         }
       }
     }
 
-    // 4️⃣ If parent already exists and is active, send notification email
+    // 4️⃣ Notify parent if new student added to existing account
     if (!isNewParent && existingParent?.is_active) {
       const transporter = nodemailer.createTransport({
         service: "gmail",
@@ -191,7 +245,10 @@ export async function POST(req: Request) {
       });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      message: hasOwnEmail ? "Student created. Activation code sent to student email." : "Student created. Using parent portal for now."
+    });
 
   } catch (e: any) {
     console.error(e);

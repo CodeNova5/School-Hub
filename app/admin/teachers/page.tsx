@@ -36,7 +36,7 @@ type TeacherWithDetails = Teacher & {
 type Class = {
   id: string;
   name: string;
-  level_id: string;
+  level: string;
 };
 
 type Subject = {
@@ -116,7 +116,7 @@ export default function TeachersPage() {
     try {
       const { data, error } = await supabase
         .from('classes')
-        .select('id, name, level_id')
+        .select('id, name, level')
         .order('name', { ascending: true });
       if (error) throw error;
       setClasses(data || []);

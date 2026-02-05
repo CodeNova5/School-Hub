@@ -135,7 +135,7 @@ export default function AdminStudentsPage() {
       // Use Supabase client instead of API
       const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }] = await Promise.all([
         supabase.from('students').select('*').order('first_name', { ascending: true }),
-        supabase.from('sessions').select('*').order('start_date', { ascending: false }),
+        supabase.from('sessions').select('*').order('name', { ascending: false }),
         supabase.from('terms').select('*').order('start_date', { ascending: false }),
         supabase.from('classes').select('*').order('name', { ascending: true }),
       ]);
@@ -308,8 +308,9 @@ export default function AdminStudentsPage() {
   const totalStudents = students.length;
   const activeStudents = students.filter((s) => s.status === 'active').length;
   const suspendedStudents = students.filter((s) => s.status === 'suspended').length;
-
-  const currentTermStartDate = terms.length > 0 ? new Date(terms[0].start_date) : null;
+  const currentTermStartDate = terms.filter(t => t.is_current).length > 0
+    ? new Date(terms.find(t => t.is_current)?.start_date || '')
+    : null;
   const newThisTerm = currentTermStartDate
     ? students.filter((s) => new Date(s.admission_date) >= currentTermStartDate).length
     : 0;

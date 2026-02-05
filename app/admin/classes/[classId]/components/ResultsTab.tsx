@@ -690,23 +690,22 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                                             onClick={async () => {
                                                                 const studentObj = students.find(s => s.id === result.student_id);
                                                                 if (studentObj) {
-                                                                    // Fetch attendance for this student
                                                                     try {
-                                                                        const attendanceRes = await fetch('/api/admin-read', {
-                                                                            method: 'POST',
-                                                                            headers: { 'Content-Type': 'application/json' },
-                                                                            body: JSON.stringify({
-                                                                                table: 'attendance',
-                                                                                operation: 'select',
-                                                                            }),
-                                                                        }).then(r => r.json());
+                                                                        // Fetch attendance for this student using Supabase
+                                                                        const { data: attendance, error } = await supabase
+                                                                            .from("attendance")
+                                                                            .select("*")
+                                                                            .eq("student_id", result.student_id);
 
-                                                                        const attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
-                                                                        const studentAttendance = attendance.filter((a: any) => a.student_id === result.student_id);
+                                                                        if (error) throw error;
 
+                                                                        const studentAttendance = attendance || [];
                                                                         const total = studentAttendance.length;
                                                                         const present = studentAttendance.filter(
-                                                                            (r: any) => r.status === "present" || r.status === "late" || r.status === "excused"
+                                                                            (r: any) =>
+                                                                                r.status === "present" ||
+                                                                                r.status === "late" ||
+                                                                                r.status === "excused"
                                                                         ).length;
 
                                                                         const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);

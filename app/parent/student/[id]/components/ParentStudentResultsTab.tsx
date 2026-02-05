@@ -52,6 +52,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
     const [sessions, setSessions] = useState<any[]>([]);
     const [terms, setTerms] = useState<any[]>([]);
     const [parentVisibility, setParentVisibility] = useState<PublicationLookup>({});
+    const [allTerms, setAllTerms] = useState<any[]>([]); // Store all terms for filtering
 
     useEffect(() => {
         loadData();
@@ -60,26 +61,31 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
     // Auto-assign session and term based on the active one
     useEffect(() => {
         if (sessions.length > 0) {
-            const activeSession = sessions.find((s) => s.is_active);
-            if (activeSession) setSelectedSession(activeSession.id);
+            // Prefer is_current, fallback to is_active
+            const currentSession = sessions.find((s) => s.is_current) || sessions.find((s) => s.is_active);
+            if (currentSession) setSelectedSession(currentSession.id);
         }
+    }, [sessions]);
+
+    useEffect(() => {
         if (terms.length > 0) {
-            const activeTerm = terms.find((t) => t.is_active);
-            if (activeTerm) setSelectedTerm(activeTerm.id);
+            // Prefer is_current, fallback to is_active
+            const currentTerm = terms.find((t) => t.is_current) || terms.find((t) => t.is_active);
+            if (currentTerm) setSelectedTerm(currentTerm.id);
         }
-    }, [sessions, terms]);
+    }, [terms]);
 
     async function loadData() {
         setIsLoading(true);
         try {
-            // Get sessions and terms
+            // Get sessions and all terms
             const [sessionsRes, termsRes] = await Promise.all([
                 supabase.from("sessions").select("*").order("name", { ascending: false }),
                 supabase.from("terms").select("*").order("start_date", { ascending: false }),
             ]);
 
             setSessions(sessionsRes.data || []);
-            setTerms(termsRes.data || []);
+            setAllTerms(termsRes.data || []);
 
             // Get results
             const { data: resultsData, error } = await supabase
@@ -90,8 +96,8 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
             class_id,
             subjects(name)
           ),
-          terms(name),
-          sessions(name)
+          terms(name, session_id, is_current, is_active),
+          sessions(name, is_current, is_active)
         `)
                 .eq("student_id", studentId)
                 .order("created_at", { ascending: false });
@@ -129,6 +135,17 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                 pubLookup[`${row.class_id}|${row.session_id}|${row.term_id}`] = !!row.is_published_to_parents;
             });
             setParentVisibility(pubLookup);
+
+            // Filter terms for selected session
+            // If selectedSession is not set yet, fallback to is_current or is_active session
+            let sessionId = selectedSession;
+            if (!sessionId && sessionsRes.data) {
+                const currentSession = sessionsRes.data.find((s: any) => s.is_current) || sessionsRes.data.find((s: any) => s.is_active);
+                if (currentSession) sessionId = currentSession.id;
+            }
+            // Only show terms for the selected session
+            const filteredTerms = (termsRes.data || []).filter((t: any) => t.session_id === sessionId);
+            setTerms(filteredTerms);
         } catch (error: any) {
             toast.error("Failed to load results: " + error.message);
         } finally {
@@ -178,7 +195,15 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                             <label className="block text-sm font-medium mb-2">Session</label>
                             <select
                                 value={selectedSession}
-                                onChange={(e) => setSelectedSession(e.target.value)}
+                                onChange={e => {
+                                    setSelectedSession(e.target.value);
+                                    // When session changes, update terms to only those for that session
+                                    const filteredTerms = allTerms.filter((t: any) => t.session_id === e.target.value);
+                                    setTerms(filteredTerms);
+                                    // Auto-select is_current or is_active term for new session
+                                    const currentTerm = filteredTerms.find((t: any) => t.is_current) || filteredTerms.find((t: any) => t.is_active);
+                                    setSelectedTerm(currentTerm ? currentTerm.id : "");
+                                }}
                                 className="w-full px-3 py-2 border rounded-md"
                             >
                                 <option value="">All Sessions</option>
@@ -209,6 +234,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
             </Card>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                {/* ...existing code... */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Average Score</CardTitle>
@@ -218,7 +244,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                         <div className="text-2xl font-bold text-blue-600">{averageScore}%</div>
                     </CardContent>
                 </Card>
-
+                {/* ...existing code... */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Total Subjects</CardTitle>
@@ -228,7 +254,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                         <div className="text-2xl font-bold">{filteredResults.length}</div>
                     </CardContent>
                 </Card>
-
+                {/* ...existing code... */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Passed</CardTitle>
@@ -238,7 +264,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                         <div className="text-2xl font-bold text-green-600">{passedSubjects}</div>
                     </CardContent>
                 </Card>
-
+                {/* ...existing code... */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Failed</CardTitle>

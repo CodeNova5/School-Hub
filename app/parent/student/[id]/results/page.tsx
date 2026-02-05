@@ -106,7 +106,7 @@ export default function ParentStudentResultsPage() {
 
       // Get sessions and terms
       const [sessionsRes, termsRes] = await Promise.all([
-        supabase.from("sessions").select("*").order("start_date", { ascending: false }),
+        supabase.from("sessions").select("*").order("name", { ascending: false }),
         supabase.from("terms").select("*").order("start_date", { ascending: false }),
       ]);
 

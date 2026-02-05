@@ -142,7 +142,7 @@ export default function TeacherStudentsPage() {
           .select('*')
           .in('class_id', classIds)
           .order('first_name'),
-        supabase.from('sessions').select('*').order('start_date', { ascending: false }),
+        supabase.from('sessions').select('*').order('name', { ascending: false }),
         supabase.from('terms').select('*').order('start_date', { ascending: false }),
         supabase.from('classes').select('*').order('name'),
       ]);

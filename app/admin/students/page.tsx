@@ -352,7 +352,6 @@ export default function AdminStudentsPage() {
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="student@example.com"
-                          required
                         />
                       </div>
                       <div>

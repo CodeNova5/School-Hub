@@ -173,25 +173,26 @@ export async function POST(req: Request) {
       .single();
 
     if (studentError) throw studentError;
-
-    // 3.5️⃣ If student has own email, generate and send activation code
+    // 3.5️⃣ If student has own email, generate and send activation token link
     if (hasOwnEmail) {
-      const activationCode = crypto.randomBytes(3).toString("hex").toUpperCase(); // 6-char code
-      const codeHash = crypto
+      // Generate activation token
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const tokenHash = crypto
         .createHash("sha256")
-        .update(activationCode)
+        .update(rawToken)
         .digest("hex");
 
-      // Store activation code in students table
+      // Save token in students table
       await supabase
         .from("students")
         .update({
-          activation_code_hash: codeHash,
-          activation_code_expires_at: new Date(Date.now() + 3600000), // 1 hour expiry
+          activation_token_hash: tokenHash,
+          activation_expires_at: new Date(Date.now() + 86400000), // 24 hours expiry
+          activation_used: false,
         })
-        .eq("user_id", authData.user.id);
+        .eq("email", studentData.email);
 
-      // Send activation code email to student
+      // Send activation email
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
@@ -200,31 +201,26 @@ export async function POST(req: Request) {
         },
       });
 
+      const activationLink =
+        `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${rawToken}`;
+
       await transporter.sendMail({
         from: `"School Hub" <${process.env.EMAIL_USER}>`,
         to: studentData.email,
         subject: "Activate Your Student Account",
         html: `
-          <p>Hello ${studentData.first_name},</p>
-          <p>Your student account has been created in the School Hub system.</p>
-          <p>Student ID: <strong>${generatedStudentId}</strong></p>
-          <p>Enter the activation code below to activate your account:</p>
-          <p style="font-size: 24px; font-weight: bold; color: #2563eb; letter-spacing: 2px;">
-            ${activationCode}
-          </p>
-          <p>
-            Or click the link below to activate your account and set your password:
-            <br/>
-            <a href="${process.env.NEXT_PUBLIC_APP_URL}/student/activate?code=${activationCode}&email=${encodeURIComponent(studentData.email)}" style="color:#2563eb;">
-              Activate Student Account
-            </a>
-          </p>
-          <p>This code expires in 1 hour.</p>
-          <p>Once activated, you'll be able to access assignments, grades, attendance, and more.</p>
-        `,
+      <p>Hello ${studentData.first_name},</p>
+      <p>Your student account has been created.</p>
+      <p>Click the link below to activate your account and set your password:</p>
+      <p>
+        <a href="${activationLink}" style="color:#2563eb;">
+          Activate Account
+        </a>
+      </p>
+      <p>This link expires in 24 hours.</p>
+    `,
       });
     }
-
     // 3.6️⃣ Automatically assign subjects based on religion and department
     if (studentData.class_id) {
       const { data: subjectClassesData, error: subjectClassesError } = await supabase

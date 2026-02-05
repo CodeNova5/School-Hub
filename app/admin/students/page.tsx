@@ -219,12 +219,7 @@ export default function AdminStudentsPage() {
       setIsCreating(false);
       return;
     }
-
-    if (!formData.email.trim()) {
-      toast.error('Email is required');
-      setIsCreating(false);
-      return;
-    }
+    
 
     if (!formData.parent_name.trim() || !formData.parent_email.trim()) {
       toast.error('Parent name and email are required');
@@ -345,7 +340,7 @@ export default function AdminStudentsPage() {
                     <h3 className="font-semibold mb-3">Basic Information</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="email">Email *</Label>
+                        <Label htmlFor="email">Email</Label>
                         <Input
                           id="email"
                           type="email"

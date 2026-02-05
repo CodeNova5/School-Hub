@@ -401,17 +401,6 @@ export function StudentsTab({
                             <UserMinus className="mr-2 h-4 w-4" />
                             Remove from Class
                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                    <td className="p-3 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
                           <DropdownMenuItem
                             className="text-red-700 focus:text-red-700"
                             onClick={() => {

@@ -68,12 +68,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4️⃣ Set password
-    const { error: updateError } =
-      await supabase.auth.admin.updateUserById(
-        user.id,
-        { password }
-      );
+    // 4️⃣ Set password and confirm email
+    const { error: updateError } = await supabase.auth.admin.updateUserById(
+      user.id,
+      { password, email_confirm: true }
+    );
 
     if (updateError) {
       return NextResponse.json(

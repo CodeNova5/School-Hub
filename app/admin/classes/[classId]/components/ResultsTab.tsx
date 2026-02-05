@@ -28,7 +28,6 @@ import {
     TrendingDown,
     Minus,
     Calculator,
-    EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Student, Session, Term } from "@/lib/types";
@@ -431,93 +430,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         return <span className="font-semibold text-gray-700">{position}th</span>;
     }
 
-    async function toggleParentVisibility() {
-        if (!selectedSessionId || !selectedTermId) {
-            toast.error("Please select a session and term");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const newVisibilityState = !isVisibleToParents;
-
-            // Check if publication record exists
-            const { data: existingPub, error: checkError } = await supabase
-                .from("results_publication")
-                .select("id")
-                .eq("class_id", classId)
-                .eq("session_id", selectedSessionId)
-                .eq("term_id", selectedTermId)
-                .single();
-
-            if (checkError && checkError.code !== "PGRST116") {
-                throw checkError;
-            }
-
-            if (existingPub) {
-                // Update existing record
-                const { error: updateError } = await supabase
-                    .from("results_publication")
-                    .update({ is_published_to_parents: newVisibilityState })
-                    .eq("id", existingPub.id);
-
-                if (updateError) throw updateError;
-            } else {
-                // Create new record
-                const { error: insertError } = await supabase
-                    .from("results_publication")
-                    .insert({
-                        class_id: classId,
-                        session_id: selectedSessionId,
-                        term_id: selectedTermId,
-                        is_published_to_parents: newVisibilityState,
-                        is_published_to_students: false,
-                    });
-
-                if (insertError) throw insertError;
-            }
-
-            setIsVisibleToParents(newVisibilityState);
-            toast.success(
-                newVisibilityState
-                    ? "Results are now visible to parents"
-                    : "Results are hidden from parents"
-            );
-        } catch (error) {
-            console.error("Error toggling parent visibility:", error);
-            toast.error("Failed to update visibility");
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    // Add this useEffect to load parent visibility state when session/term changes
-    useEffect(() => {
-        if (selectedSessionId && selectedTermId) {
-            loadParentVisibility();
-        }
-    }, [selectedSessionId, selectedTermId]);
-
-    async function loadParentVisibility() {
-        try {
-            const { data, error } = await supabase
-                .from("results_publication")
-                .select("is_published_to_parents")
-                .eq("class_id", classId)
-                .eq("session_id", selectedSessionId)
-                .eq("term_id", selectedTermId)
-                .single();
-
-            if (error && error.code !== "PGRST116") {
-                throw error;
-            }
-
-            setIsVisibleToParents(data?.is_published_to_parents || false);
-        } catch (error) {
-            console.error("Error loading parent visibility:", error);
-        }
-    }
-
     return (
         <Card>
             <CardHeader>
@@ -529,24 +441,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                         </p>
                     </div>
                     <div className="flex gap-2">
-                        <Button
-                            size="sm"
-                            variant={isVisibleToParents ? "default" : "outline"}
-                            onClick={toggleParentVisibility}
-                            disabled={!selectedSessionId || !selectedTermId || loading}
-                        >
-                            {isVisibleToParents ? (
-                                <>
-                                    <Eye className="h-4 w-4 mr-1" />
-                                    Visible to Parents
-                                </>
-                            ) : (
-                                <>
-                                    <EyeOff className="h-4 w-4 mr-1" />
-                                    Hidden from Parents
-                                </>
-                            )}
-                        </Button>
                         <Button
                             size="sm"
                             onClick={() => setIsPublicationDialogOpen(true)}

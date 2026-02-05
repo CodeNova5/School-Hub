@@ -5,8 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createRouteHandlerClient({ cookies });
 
-// Middleware to check permission
-async function checkPermission(requiredPermission: string) {
+// Middleware to check if user is admin
+async function checkIsAdmin() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -15,20 +15,18 @@ async function checkPermission(requiredPermission: string) {
     return { authorized: false, error: "Unauthorized", status: 401 };
   }
 
-  const { data: hasPermission } = await supabase.rpc("has_permission", {
-    p_key: requiredPermission,
-  });
+  const { data: isAdmin } = await supabase.rpc("is_admin");
 
-  if (!hasPermission) {
+  if (!isAdmin) {
     return { authorized: false, error: "Forbidden", status: 403 };
   }
 
   return { authorized: true };
 }
 
-// GET: Fetch admins, roles, permissions
+// GET: Fetch admins
 export async function GET(req: NextRequest) {
-  const permission = await checkPermission("manage_admins");
+  const permission = await checkIsAdmin();
   if (!permission.authorized) {
     return NextResponse.json(
       { error: permission.error },
@@ -37,90 +35,42 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { searchParams } = new URL(req.url);
-    const action = searchParams.get("action");
+    const { data: adminsData, error: adminsError } = await supabase
+      .from("admins")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    // Fetch admins
-    if (action === "admins" || !action) {
-      const { data: adminsData, error: adminsError } = await supabase
-        .from("admins")
-        .select("*")
-        .order("created_at", { ascending: false });
+    if (adminsError) throw adminsError;
 
-      if (adminsError) throw adminsError;
+    const { data: userRoleLinks, error: roleLinksError } = await supabase
+      .from("user_role_links")
+      .select(`
+        user_id,
+        roles (
+          id,
+          name
+        )
+      `);
 
-      const { data: userRoleLinks, error: roleLinksError } = await supabase
-        .from("user_role_links")
-        .select(`
-          user_id,
-          roles (
-            id,
-            name
-          )
-        `);
+    if (roleLinksError) throw roleLinksError;
 
-      if (roleLinksError) throw roleLinksError;
+    const adminUsers = (adminsData || []).map((admin: any) => {
+      const userRole = (userRoleLinks || []).find(
+        (link: any) => link.user_id === admin.user_id
+      );
+      const roleInfo = Array.isArray(userRole?.roles) ? userRole?.roles[0] : userRole?.roles;
 
-      const { data: permissions, error: permissionsError } = await supabase
-        .from("permissions")
-        .select("*")
-        .order("key");
+      return {
+        id: admin.user_id,
+        name: admin.name,
+        email: admin.email,
+        role: roleInfo?.name || "super_admin",
+        is_active: admin.is_active,
+        status: admin.status,
+      };
+    });
 
-      if (permissionsError) throw permissionsError;
-
-      const { data: rolePermissions, error: rolePermError } = await supabase
-        .from("role_permissions")
-        .select(`
-          role_id,
-          permission_id,
-          permissions (
-            id,
-            key
-          )
-        `);
-
-      if (rolePermError) throw rolePermError;
-
-      const adminUsers = (adminsData || []).map((admin: any) => {
-        const userRole = (userRoleLinks || []).find(
-          (link: any) => link.user_id === admin.user_id
-        );
-        const roleInfo = Array.isArray(userRole?.roles) ? userRole?.roles[0] : userRole?.roles;
-        const rolePerms = (rolePermissions || [])
-          .filter((rp: any) => rp.role_id === roleInfo?.id)
-          .map((rp: any) => rp.permissions[0]?.id || rp.permission_id) || [];
-
-        return {
-          id: admin.user_id,
-          name: admin.name,
-          email: admin.email,
-          role: roleInfo?.name,
-          role_id: roleInfo?.id,
-          permissions: rolePerms,
-          is_active: admin.is_active,
-          status: admin.status,
-        };
-      });
-
-      return NextResponse.json({
-        admins: adminUsers,
-        permissions,
-        rolePermissions,
-      });
-    }
-
-    // Fetch roles
-    if (action === "roles") {
-      const { data: roles, error } = await supabase
-        .from("roles")
-        .select("*")
-        .order("name");
-
-      if (error) throw error;
-      return NextResponse.json({ roles });
-    }
-
-    throw new Error("Invalid action");
+    return NextResponse.json({ admins: adminUsers });
   } catch (error: any) {
     console.error("Error in GET:", error);
     return NextResponse.json(
@@ -130,7 +80,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: Create admin, update admin, update role permissions, delete student
+// POST: Create admin or delete student
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { action } = body;
@@ -227,7 +177,7 @@ export async function POST(req: NextRequest) {
     }
 
     // For other actions, check permission
-    const permission = await checkPermission("manage_admins");
+    const permission = await checkIsAdmin();
     if (!permission.authorized) {
       return NextResponse.json(
         { error: permission.error },
@@ -235,9 +185,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { email, name, userId, roleId, permissions: perms, permissionIds } = body;
+    const { email, name } = body;
 
-    // Create new admin
+    // Create new admin (always as super_admin)
     if (action === "create" && email && name) {
       const supabaseAdmin = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -279,95 +229,20 @@ export async function POST(req: NextRequest) {
 
       if (adminError) throw adminError;
 
-      // Add role
-      if (roleId) {
-        await supabaseAdmin
-          .from("user_role_links")
-          .insert({ user_id: authData.user.id, role_id: roleId });
-      }
-
-      // Add permissions only for admin role (not super_admin)
-      if (perms && Array.isArray(perms) && roleId) {
-        const adminRole = await supabaseAdmin
-          .from("roles")
-          .select("id")
-          .eq("name", "admin")
-          .single();
-
-        if (adminRole.data && roleId === adminRole.data.id) {
-          const permissionInserts = perms.map((permId: string) => ({
-            role_id: adminRole.data.id,
-            permission_id: permId,
-          }));
-          await supabaseAdmin.from("role_permissions").insert(permissionInserts);
-        }
-      }
-
-      return NextResponse.json({ success: true });
-    }
-
-    // Update admin role and permissions
-    if (action === "update" && userId && roleId) {
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!
-      );
-
-      // Delete existing role links for this user
-      await supabaseAdmin
-        .from("user_role_links")
-        .delete()
-        .eq("user_id", userId);
-
-      // Insert new role
-      const { error: roleError } = await supabaseAdmin
-        .from("user_role_links")
-        .insert({ user_id: userId, role_id: roleId });
-
-      if (roleError) throw roleError;
-
-      // Get role name
-      const { data: roleData } = await supabaseAdmin
+      // Get super_admin role
+      const { data: superAdminRole } = await supabaseAdmin
         .from("roles")
-        .select("name")
-        .eq("id", roleId)
+        .select("id")
+        .eq("name", "super_admin")
         .single();
 
-      // Update permissions only for admin role
-      if (roleData?.name === "admin") {
-        // Delete existing permissions for this role
+      if (superAdminRole) {
+        // Add super_admin role to user
         await supabaseAdmin
-          .from("role_permissions")
-          .delete()
-          .eq("role_id", roleId);
-
-        // Insert new permissions
-        if (perms && Array.isArray(perms) && perms.length > 0) {
-          const permissionInserts = perms.map((permId: string) => ({
-            role_id: roleId,
-            permission_id: permId,
-          }));
-
-          await supabaseAdmin.from("role_permissions").insert(permissionInserts);
-        }
+          .from("user_role_links")
+          .insert({ user_id: authData.user.id, role_id: superAdminRole.id });
       }
 
-      return NextResponse.json({ success: true });
-    }
-
-    // Update role permissions
-    if (action === "update-permissions" && roleId && permissionIds) {
-      await supabase
-        .from("role_permissions")
-        .delete()
-        .eq("role_id", roleId);
-
-      const permissionInserts = permissionIds.map((permId: string) => ({
-        role_id: roleId,
-        permission_id: permId,
-      }));
-
-      await supabase.from("role_permissions").insert(permissionInserts);
       return NextResponse.json({ success: true });
     }
 
@@ -383,7 +258,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE: Remove admin
 export async function DELETE(req: NextRequest) {
-  const permission = await checkPermission("manage_admins");
+  const permission = await checkIsAdmin();
   if (!permission.authorized) {
     return NextResponse.json(
       { error: permission.error },

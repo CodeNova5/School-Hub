@@ -1,5 +1,5 @@
 -- ============================================================================
--- NEW GRANULAR RBAC SYSTEM
+-- SIMPLIFIED ADMIN SYSTEM - SUPER ADMIN ONLY
 -- ============================================================================
 
 create table if not exists roles (
@@ -25,34 +25,25 @@ create table if not exists user_role_links (
   primary key (user_id, role_id)
 );
 
+-- Only super_admin role
 insert into roles (name) values
-('super_admin'),
-('admin')
+('super_admin')
 on conflict do nothing;
 
+-- Only admin_full permission
 insert into permissions (key) values
-('manage_admins'),
-('manage_classes'),
-('manage_teachers'),
-('manage_admissions'),
-('manage_sessions'),
-('manage_terms'),
-('manage_events'),
-('manage_news'),
-('manage_calendar'),
-('manage_testimonials'),
-('manage_notifications'),
-('manage_settings'),
 ('admin_full')
 on conflict do nothing;
 
+-- Grant admin_full to super_admin
 insert into role_permissions
 select r.id, p.id
 from roles r, permissions p
-where r.name = 'super_admin'
+where r.name = 'super_admin' and p.key = 'admin_full'
 on conflict do nothing;
 
-create or replace function has_permission(p_key text)
+-- Check if user has admin_full permission (super_admin)
+create or replace function is_admin()
 returns boolean
 language sql
 stable
@@ -64,17 +55,8 @@ as $$
     join role_permissions rp on rp.role_id = ul.role_id
     join permissions p on p.id = rp.permission_id
     where ul.user_id = auth.uid()
-      and p.key = p_key
+      and p.key = 'admin_full'
   );
-$$;
-
-create or replace function is_admin()
-returns boolean
-language sql
-stable
-security definer
-as $$
-  select has_permission('admin_full');
 $$;
 
 insert into user_role_links (user_id, role_id)
@@ -95,8 +77,8 @@ create policy "only super admin manages roles"
 on roles
 for all
 to authenticated
-using (has_permission('manage_admins'))
-with check (has_permission('manage_admins'));
+using (is_admin())
+with check (is_admin());
 
 alter table permissions enable row level security;
 
@@ -110,8 +92,8 @@ create policy "only super admin manages permissions"
 on permissions
 for all
 to authenticated
-using (has_permission('manage_admins'))
-with check (has_permission('manage_admins'));
+using (is_admin())
+with check (is_admin());
 
 alter table role_permissions enable row level security;
 
@@ -125,8 +107,8 @@ create policy "only super admin manages role permissions"
 on role_permissions
 for all
 to authenticated
-using (has_permission('manage_admins'))
-with check (has_permission('manage_admins'));
+using (is_admin())
+with check (is_admin());
 
 alter table user_role_links enable row level security;
 
@@ -134,69 +116,35 @@ create policy "users read their own roles"
 on user_role_links
 for select
 to authenticated
-using (user_id = auth.uid() or has_permission('manage_admins'));
+using (user_id = auth.uid() or is_admin());
 
-create policy "admins can modify roles"
+create policy "super admins can modify roles"
 on user_role_links
 for insert
 to authenticated
-with check (has_permission('manage_admins'));
+with check (is_admin());
 
-create policy "admins can update roles"
+create policy "super admins can update roles"
 on user_role_links
 for update
 to authenticated
-using (has_permission('manage_admins'))
-with check (has_permission('manage_admins'));
+using (is_admin())
+with check (is_admin());
 
-create policy "admins can delete roles"
+create policy "super admins can delete roles"
 on user_role_links
 for delete
 to authenticated
-using (has_permission('manage_admins'));
+using (is_admin());
 
 
+-- Check if user can access admin panel
 create or replace function can_access_admin()
 returns boolean
 language sql
 stable
 security definer
 as $$
-  select exists (
-    select 1
-    from user_role_links ul
-    join roles r on r.id = ul.role_id
-    where ul.user_id = auth.uid()
-      and r.name in ('super_admin', 'admin')
-  );
-$$;
-
--- Helper function to get admin user details
-create or replace function get_admin_users(user_ids uuid[])
-returns table (
-  id uuid,
-  email text
-)
-language sql
-security definer
-as $$
-  select id, email
-  from auth.users
-  where id = any(user_ids);
-$$;
-
--- Helper function to search users by email
-create or replace function search_users_by_email(search_email text)
-returns table (
-  id uuid,
-  email text
-)
-language sql
-security definer
-as $$
-  select id, email
-  from auth.users
-  where email ilike '%' || search_email || '%'
-  limit 10;
+  select is_admin();
 $$;
 

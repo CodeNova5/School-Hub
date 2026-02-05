@@ -20,8 +20,6 @@ export default function ParentCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
-  const [studentId, setStudentId] = useState('');
-
   useEffect(() => {
     loadStudentData();
   }, []);
@@ -41,20 +39,6 @@ export default function ParentCalendarPage() {
         window.location.href = "/parent/login";
         return;
       }
-
-      // Fetch student profile linked to parent
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('parent_id', user.id)
-        .single();
-
-      if (studentError || !studentData) {
-        toast.error("Student profile not found");
-        return;
-      }
-
-      setStudentId(studentData.id);
 
       // Fetch events
       const { data: eventsData } = await supabase
@@ -199,7 +183,7 @@ export default function ParentCalendarPage() {
   }
 
   return (
-    <DashboardLayout role="student">
+    <DashboardLayout role="parent">
       <div className="space-y-6">
         {/* Header */}
         <div>

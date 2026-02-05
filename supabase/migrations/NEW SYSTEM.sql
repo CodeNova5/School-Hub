@@ -27,7 +27,10 @@ create table if not exists user_role_links (
 
 -- Only super_admin role
 insert into roles (name) values
-('super_admin')
+('super_admin'),
+('teacher'),
+('student'),
+('parent')
 on conflict do nothing;
 
 -- Only admin_full permission
@@ -146,5 +149,80 @@ stable
 security definer
 as $$
   select is_admin();
+$$;
+
+
+-- Check if user is a teacher (must exist in teachers table and be active)
+create or replace function is_teacher()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select exists (
+    select 1 from teachers t
+    where t.user_id = auth.uid()
+      and t.is_active = true
+  );
+$$;
+
+-- Check if user can access teacher panel
+create or replace function can_access_teacher()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select is_teacher();
+$$;
+
+
+-- Check if user is a student (must exist in students table and be active)
+create or replace function is_student()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select exists (
+    select 1 from students s
+    where s.user_id = auth.uid()
+      and s.is_active = true
+  );
+$$;
+
+-- Check if user can access student panel
+create or replace function can_access_student()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select is_student();
+$$;
+
+
+-- Check if user is a parent (must exist in parents table and be active)
+create or replace function is_parent()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select exists (
+    select 1 from parents p
+    where p.user_id = auth.uid()
+      and p.is_active = true
+  );
+$$;
+
+-- Check if user can access parent portal
+create or replace function can_access_parent()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select is_parent();
 $$;
 

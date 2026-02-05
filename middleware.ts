@@ -2,59 +2,88 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
 
-  const { pathname, searchParams } = req.nextUrl;
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isLoginRoute = pathname === "/admin/login";
-  const isActivateRoute = pathname === "/admin/activate";
+  const { pathname } = req.nextUrl;
 
-  // If route is not under /admin, let it pass
-  if (!isAdminRoute) {
+  // Route configs
+  const routeConfigs = [
+    {
+      prefix: "/admin",
+      login: "/admin/login",
+      activate: "/admin/activate",
+      rpc: "can_access_admin",
+      dashboard: "/admin",
+    },
+    {
+      prefix: "/teacher",
+      login: "/teacher/login",
+      activate: "/teacher/activate",
+      rpc: "can_access_teacher",
+      dashboard: "/teacher",
+    },
+    {
+      prefix: "/student",
+      login: "/student/login",
+      activate: "/student/activate",
+      rpc: "can_access_student",
+      dashboard: "/student",
+    },
+    {
+      prefix: "/parent",
+      login: "/parent/login",
+      activate: "/parent/activate",
+      rpc: "can_access_parent",
+      dashboard: "/parent",
+    },
+  ];
+
+  // Find which config matches
+  const config = routeConfigs.find((cfg) => pathname.startsWith(cfg.prefix));
+  if (!config) {
     return res;
   }
 
-  // Allow unauthenticated access to the login and activate pages
+  const isLoginRoute = pathname === config.login;
+  const isActivateRoute = pathname === config.activate;
+
+  // Allow unauthenticated access to login and activate
   if (isLoginRoute || isActivateRoute) {
-    // If already admin, bounce to dashboard
     const {
       data: { session: loginSession },
     } = await supabase.auth.getSession();
 
     if (loginSession) {
-      const { data: canAccess } = await supabase.rpc("can_access_admin");
-
+      const { data: canAccess } = await supabase.rpc(config.rpc);
       if (canAccess) {
         const redirectUrl = req.nextUrl.clone();
-        redirectUrl.pathname = "/admin";
+        redirectUrl.pathname = config.dashboard;
         redirectUrl.searchParams.delete("redirectedFrom");
         return NextResponse.redirect(redirectUrl);
       }
     }
-
     return res;
   }
 
+  // All other protected routes
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
-  // No session -> redirect to login
   if (!session) {
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/admin/login";
+    redirectUrl.pathname = config.login;
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Session exists: check admin access using new permission system
-  const { data: canAccess, error } = await supabase.rpc("can_access_admin");
-
+  const { data: canAccess, error } = await supabase.rpc(config.rpc);
   if (error || !canAccess) {
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/admin/login";
+    redirectUrl.pathname = config.login;
     redirectUrl.searchParams.set("error", "unauthorized");
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
@@ -64,5 +93,10 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: [
+    "/admin/:path*",
+    "/teacher/:path*",
+    "/student/:path*",
+    "/parent/:path*",
+  ],
 };

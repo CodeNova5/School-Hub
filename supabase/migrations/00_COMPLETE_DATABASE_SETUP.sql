@@ -47,15 +47,6 @@ ON CONFLICT (name) DO NOTHING;
 
 -- Insert default permissions
 INSERT INTO permissions (key) VALUES
-('manage_admins'),
-('edit_timetable'),
-('edit_results'),
-('edit_students'),
-('edit_subjects'),
-('edit_class'),
-('edit_attendance'),
-('edit_calendar'),
-('edit_settings'),
 ('admin_full')
 ON CONFLICT (key) DO NOTHING;
 
@@ -100,11 +91,9 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT has_permission('admin_full')
-      OR has_permission('edit_timetable')
-      OR has_permission('edit_results')
-      OR has_permission('manage_admins');
+  SELECT has_permission('admin_full');
 $$;
+
 
 -- Enable RLS on RBAC tables
 ALTER TABLE roles ENABLE ROW LEVEL SECURITY;
@@ -1488,22 +1477,6 @@ SELECT routine_name, routine_definition
 FROM information_schema.routines 
 WHERE routine_name = 'can_access_admin';
 
--- Then run this to recreate it properly
-CREATE OR REPLACE FUNCTION can_access_admin()
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM user_role_links ul
-    JOIN roles r ON r.id = ul.role_id
-    WHERE ul.user_id = auth.uid()
-      AND r.name IN ('super_admin', 'admin')
-  );
-$$;
 
 -- Also verify your user is in the table:
 SELECT * FROM user_role_links WHERE user_id = '20b92bf4-1bb9-4694-a09e-57746987e05a';

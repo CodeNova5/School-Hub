@@ -23,7 +23,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { supabase } from "@/lib/supabase";
 
 interface ResultsPublicationDialogProps {
   isOpen: boolean;
@@ -86,15 +86,14 @@ export function ResultsPublicationDialog({
   async function loadPublicationSettings() {
     setLoading(true);
     try {
-      const data = await apiClient.apiRead({
-        table: "results_publication",
-        select: "*",
-        filters: {
-          class_id: classId,
-          session_id: sessionId,
-          term_id: termId,
-        },
-      });
+      const { data, error } = await supabase
+        .from("results_publication")
+        .select("*")
+        .eq("class_id", classId)
+        .eq("session_id", sessionId)
+        .eq("term_id", termId);
+
+      if (error) throw error;
 
       if (data && data.length > 0) {
         setSettings(data[0]);
@@ -110,11 +109,12 @@ export function ResultsPublicationDialog({
     setChecking(true);
     try {
       // Get all students in this class
-      const students = await apiClient.apiRead({
-        table: "students",
-        select: "id, student_id, first_name, last_name",
-        filters: { class_id: classId },
-      });
+      const { data: students, error: studentsError } = await supabase
+        .from("students")
+        .select("id, student_id, first_name, last_name")
+        .eq("class_id", classId);
+
+      if (studentsError) throw studentsError;
 
       if (!students || students.length === 0) {
         toast.info("No students in this class");
@@ -122,21 +122,20 @@ export function ResultsPublicationDialog({
       }
 
       // Get all results for this class/session/term
-      const results = await apiClient.apiRead({
-        table: "results",
-        select: `
+      const { data: results, error: resultsError } = await supabase
+        .from("results")
+        .select(`
           student_id,
           welcome_test,
           mid_term_test,
           vetting,
           exam,
           subject_class:subject_classes!inner(class_id)
-        `,
-        filters: {
-          session_id: sessionId,
-          term_id: termId,
-        },
-      });
+        `)
+        .eq("session_id", sessionId)
+        .eq("term_id", termId);
+
+      if (resultsError) throw resultsError;
 
       // Filter results for this class
       const classResults = results?.filter((r: any) => r.subject_class?.class_id === classId) || [];
@@ -360,16 +359,13 @@ export function ResultsPublicationDialog({
         published_at: settings.is_published ? new Date().toISOString() : null,
       };
 
-      await apiClient.apiWrite({
-        table: "results_publication",
-        operation: settings.id ? "update" : "insert",
-        data: publicationData,
-        filters: settings.id ? { id: settings.id } : {
-          class_id: classId,
-          session_id: sessionId,
-          term_id: termId,
-        },
-      });
+      const { error } = await supabase
+        .from("results_publication")
+        .upsert(publicationData, {
+          onConflict: 'class_id,session_id,term_id'
+        });
+
+      if (error) throw error;
 
       toast.success(
         settings.is_published
@@ -389,25 +385,25 @@ export function ResultsPublicationDialog({
 
   async function recalculatePositions() {
     // Get all students in this class
-    const students = await apiClient.apiRead({
-      table: "students",
-      select: "id",
-      filters: { class_id: classId },
-    });
+    const { data: students, error: studentsError } = await supabase
+      .from("students")
+      .select("id")
+      .eq("class_id", classId);
+
+    if (studentsError) throw studentsError;
 
     if (!students || students.length === 0) {
       return;
     }
 
     // Fetch actual results data to calculate scores based on mode
-    const resultsData = await apiClient.apiRead({
-      table: "results",
-      select: "student_id, welcome_test, mid_term_test, vetting, exam, subject_class:subject_classes!inner(class_id)",
-      filters: {
-        term_id: termId,
-        session_id: sessionId,
-      },
-    });
+    const { data: resultsData, error: resultsError } = await supabase
+      .from("results")
+      .select("student_id, welcome_test, mid_term_test, vetting, exam, subject_class:subject_classes!inner(class_id)")
+      .eq("term_id", termId)
+      .eq("session_id", sessionId);
+
+    if (resultsError) throw resultsError;
 
     // Filter results for this class
     const classResults = resultsData?.filter((r: any) => r.subject_class?.class_id === classId) || [];
@@ -488,20 +484,18 @@ export function ResultsPublicationDialog({
 
     // Update all results for each student with their position
     const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
-      await apiClient.apiWrite({
-        table: "results",
-        operation: "update",
-        data: {
+      const { error } = await supabase
+        .from("results")
+        .update({
           class_position: position,
           total_students: studentsWithScores.length,
           class_average: classAvg
-        },
-        filters: {
-          student_id: studentId,
-          term_id: termId,
-          session_id: sessionId
-        }
-      });
+        })
+        .eq("student_id", studentId)
+        .eq("term_id", termId)
+        .eq("session_id", sessionId);
+
+      if (error) throw error;
     });
 
     await Promise.all(updatePromises);

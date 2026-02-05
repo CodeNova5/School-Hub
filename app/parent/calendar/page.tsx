@@ -5,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar as CalendarIcon, Clock, MapPin, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Event, AttendanceEntry } from '@/lib/types';
+import { Event } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { getCurrentUser } from '@/lib/auth';
 
-export default function StudentCalendarPage() {
+export default function ParentCalendarPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,15 +38,15 @@ export default function StudentCalendarPage() {
       const user = await getCurrentUser();
       if (!user) {
         toast.error("Please log in to continue");
-        window.location.href = "/student/login";
+        window.location.href = "/parent/login";
         return;
       }
 
-      // Fetch student details
+      // Fetch student profile linked to parent
       const { data: studentData, error: studentError } = await supabase
-        .from("students")
-        .select("id")
-        .eq("user_id", user.id)
+        .from('students')
+        .select('*')
+        .eq('parent_id', user.id)
         .single();
 
       if (studentError || !studentData) {
@@ -190,7 +190,7 @@ export default function StudentCalendarPage() {
 
   if (loading) {
     return (
-      <DashboardLayout role="student">
+      <DashboardLayout role="parent">
         <div className="flex items-center justify-center h-screen">
           <p className="text-gray-500">Loading calendar...</p>
         </div>

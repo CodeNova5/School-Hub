@@ -46,14 +46,14 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
     setIsLoading(true);
     try {
       const { data: timetableData, error } = await supabase
-        .from("timetable")
+        .from("timetable_entries")
         .select(`
           *,
           subjects(name),
           teachers(first_name, last_name)
         `)
         .eq("class_id", classId)
-        .order("day")
+        .order("day", { ascending: true })
         .order("period");
 
       if (error) throw error;

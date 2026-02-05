@@ -137,6 +137,9 @@ export async function POST(req: NextRequest) {
 
   try {
     // Delete student - no permission check needed (handled separately)
+    // ...existing code...
+
+    // Delete student - no permission check needed (handled separately)
     if (action === "delete-student") {
       const { studentId, userId } = body;
 
@@ -152,53 +155,80 @@ export async function POST(req: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
+      // First, get the student to find their user_id if not provided
+      let userIdToDelete = userId;
+      if (!userIdToDelete) {
+        const { data: studentData } = await supabaseAdmin
+          .from("students")
+          .select("user_id")
+          .eq("id", studentId)
+          .single();
+        
+        userIdToDelete = studentData?.user_id;
+      }
+
       // 1. Delete attendance records
-      await supabaseAdmin
+      const { error: attendanceError } = await supabaseAdmin
         .from("attendance")
         .delete()
         .eq("student_id", studentId);
 
       // 2. Delete results
-      await supabaseAdmin
+      const { error: resultsError } = await supabaseAdmin
         .from("results")
         .delete()
         .eq("student_id", studentId);
 
-      // 3. Delete class assignments
-      await supabaseAdmin
-        .from("class_assignments")
+      // 5. Delete student_subjects
+      const { error: studentSubjectsError } = await supabaseAdmin
+        .from("student_subjects")
         .delete()
         .eq("student_id", studentId);
 
-      // 4. Delete session/term links
-      await supabaseAdmin
-        .from("student_sessions")
+      // 6. Delete student_optional_subjects
+      const { error: optionalError } = await supabaseAdmin
+        .from("student_optional_subjects")
         .delete()
         .eq("student_id", studentId);
 
-      await supabaseAdmin
-        .from("student_terms")
+      // 7. Delete assignment submissions
+      const { error: submissionsError } = await supabaseAdmin
+        .from("assignment_submissions")
         .delete()
         .eq("student_id", studentId);
 
-      // 5. Delete auth user if userId is provided
-      if (userId) {
+      // 8. Delete auth user FIRST before student record
+      if (userIdToDelete) {
         try {
-          await supabaseAdmin.auth.admin.deleteUser(userId);
+          const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userIdToDelete);
+          if (deleteUserError) {
+            console.error("Error deleting auth user:", deleteUserError);
+            // Continue anyway
+          }
         } catch (authError: any) {
           console.error("Error deleting auth user:", authError);
-          // Continue anyway, auth user might not exist
+          // Continue anyway
         }
       }
 
-      // 6. Delete student record
-      await supabaseAdmin
+      // 9. Finally, delete student record
+      const { error: studentError } = await supabaseAdmin
         .from("students")
         .delete()
         .eq("id", studentId);
 
+      if (studentError || attendanceError || resultsError || studentSubjectsError) {
+        throw new Error(
+          studentError?.message || 
+          attendanceError?.message || 
+          resultsError?.message ||
+          "Failed to delete some student data"
+        );
+      }
+
       return NextResponse.json({ success: true });
     }
+
 
     // For other actions, check permission
     const permission = await checkPermission("manage_admins");

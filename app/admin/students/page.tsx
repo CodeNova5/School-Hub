@@ -41,7 +41,6 @@ export default function AdminStudentsPage() {
 
   // Form fields for creating student
   const [formData, setFormData] = useState({
-    student_id: '',
     first_name: '',
     last_name: '',
     email: '',
@@ -199,7 +198,7 @@ export default function AdminStudentsPage() {
       setIsLoading(false);
     }
   }
-  // ...existing code...
+
   function handleViewDetails(student: Student) {
     setSelectedStudent(student);
     setIsModalOpen(true);
@@ -215,12 +214,6 @@ export default function AdminStudentsPage() {
     setIsCreating(true);
 
     // Validation
-    if (!formData.student_id.trim()) {
-      toast.error('Student ID is required');
-      setIsCreating(false);
-      return;
-    }
-
     if (!formData.first_name.trim() || !formData.last_name.trim()) {
       toast.error('First name and last name are required');
       setIsCreating(false);
@@ -256,11 +249,10 @@ export default function AdminStudentsPage() {
         return;
       }
 
-      toast.success('Student created successfully. Activation email sent.', { id: creatingToast });
+      toast.success(`Student created successfully (ID: ${result.studentId}). Activation email sent.`, { id: creatingToast });
 
       // Reset form
       setFormData({
-        student_id: '',
         first_name: '',
         last_name: '',
         email: '',
@@ -352,16 +344,6 @@ export default function AdminStudentsPage() {
                   <div className="border-b pb-4">
                     <h3 className="font-semibold mb-3">Basic Information</h3>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="student_id">Student ID *</Label>
-                        <Input
-                          id="student_id"
-                          value={formData.student_id}
-                          onChange={(e) => setFormData({ ...formData, student_id: e.target.value })}
-                          placeholder="e.g., STU001"
-                          required
-                        />
-                      </div>
                       <div>
                         <Label htmlFor="email">Email *</Label>
                         <Input

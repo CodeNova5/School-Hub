@@ -8,9 +8,46 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Function to generate unique student ID
+async function generateUniqueStudentId(): Promise<string> {
+  let studentId: string;
+  let isUnique = false;
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (!isUnique && attempts < maxAttempts) {
+    // Format: STU + 6 random digits (e.g., STU123456)
+    const randomNum = Math.floor(Math.random() * 1000000)
+      .toString()
+      .padStart(6, '0');
+    studentId = `STU${randomNum}`;
+
+    // Check if this ID already exists
+    const { data: existingStudent } = await supabase
+      .from('students')
+      .select('id')
+      .eq('student_id', studentId)
+      .single();
+
+    if (!existingStudent) {
+      isUnique = true;
+    }
+    attempts++;
+  }
+
+  if (!isUnique) {
+    throw new Error('Failed to generate unique student ID after multiple attempts');
+  }
+
+  return studentId!;
+}
+
 export async function POST(req: Request) {
   try {
     const studentData = await req.json();
+
+    // Generate unique student ID
+    const generatedStudentId = await generateUniqueStudentId();
 
     // Determine if student has their own email or using parent's
     const hasOwnEmail = studentData.email && studentData.email.trim() !== '';
@@ -24,7 +61,7 @@ export async function POST(req: Request) {
       email_confirm: hasOwnEmail ? false : true, // Confirm if using parent email
       user_metadata: {
         role: "student",
-        student_id: studentData.student_id,
+        student_id: generatedStudentId,
       },
     });
 
@@ -95,6 +132,7 @@ export async function POST(req: Request) {
         html: `
           <p>Hello ${studentData.parent_name},</p>
           <p>A student account has been created for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
+          <p>Student ID: <strong>${generatedStudentId}</strong></p>
           <p>Click the link below to activate your parent portal account and set your password:</p>
           <p>
             <a href="${activationLink}" style="color:#2563eb;">
@@ -107,17 +145,34 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3️⃣ Create student row
+    // 3️⃣ Create student row with generated ID
     const studentInsertData = {
-      ...studentData,
+      first_name: studentData.first_name,
+      last_name: studentData.last_name,
       email: studentEmail,
       phone: studentData.phone || studentData.parent_phone || null,
+      date_of_birth: studentData.date_of_birth || null,
+      gender: studentData.gender || null,
+      address: studentData.address || null,
+      class_id: studentData.class_id || null,
+      department: studentData.department || null,
+      parent_name: studentData.parent_name,
+      parent_email: studentData.parent_email,
+      parent_phone: studentData.parent_phone || null,
+      admission_date: studentData.admission_date,
+      student_id: generatedStudentId,
       user_id: authData.user.id,
       is_active: studentIsActive,
       status: "active",
     };
 
-    await supabase.from("students").insert(studentInsertData);
+    const { data: createdStudent, error: studentError } = await supabase
+      .from("students")
+      .insert(studentInsertData)
+      .select()
+      .single();
+
+    if (studentError) throw studentError;
 
     // 3.5️⃣ If student has own email, generate and send activation code
     if (hasOwnEmail) {
@@ -145,79 +200,80 @@ export async function POST(req: Request) {
         },
       });
 
-
       await transporter.sendMail({
         from: `"School Hub" <${process.env.EMAIL_USER}>`,
         to: studentData.email,
         subject: "Activate Your Student Account",
         html: `
-    <p>Hello ${studentData.first_name},</p>
-    <p>Your student account has been created in the School Hub system.</p>
-    <p>Enter the activation code below to activate your account:</p>
-    <p style="font-size: 24px; font-weight: bold; color: #2563eb; letter-spacing: 2px;">
-      ${activationCode}
-    </p>
-    <p>
-      Or click the link below to activate your account and set your password:
-      <br/>
-      <a href="${process.env.NEXT_PUBLIC_APP_URL}/student/activate?code=${activationCode}&email=${encodeURIComponent(studentData.email)}" style="color:#2563eb;">
-        Activate Student Account
-      </a>
-    </p>
-    <p>This code expires in 1 hour.</p>
-    <p>Once activated, you'll be able to access assignments, grades, attendance, and more.</p>
-  `,
+          <p>Hello ${studentData.first_name},</p>
+          <p>Your student account has been created in the School Hub system.</p>
+          <p>Student ID: <strong>${generatedStudentId}</strong></p>
+          <p>Enter the activation code below to activate your account:</p>
+          <p style="font-size: 24px; font-weight: bold; color: #2563eb; letter-spacing: 2px;">
+            ${activationCode}
+          </p>
+          <p>
+            Or click the link below to activate your account and set your password:
+            <br/>
+            <a href="${process.env.NEXT_PUBLIC_APP_URL}/student/activate?code=${activationCode}&email=${encodeURIComponent(studentData.email)}" style="color:#2563eb;">
+              Activate Student Account
+            </a>
+          </p>
+          <p>This code expires in 1 hour.</p>
+          <p>Once activated, you'll be able to access assignments, grades, attendance, and more.</p>
+        `,
       });
-
     }
 
     // 3.6️⃣ Automatically assign subjects based on religion and department
-    const { data: subjectClassesData, error: subjectClassesError } = await supabase
-      .from("subject_classes")
-      .select(`
-        id,
-        subject_id,
-        subjects (
+    if (studentData.class_id) {
+      const { data: subjectClassesData, error: subjectClassesError } = await supabase
+        .from("subject_classes")
+        .select(`
           id,
-          name,
-          department,
-          religion,
-          is_optional
-        )
-      `)
-      .eq("class_id", studentData.class_id);
+          subject_id,
+          subjects (
+            id,
+            name,
+            department,
+            religion,
+            is_optional
+          )
+        `)
+        .eq("class_id", studentData.class_id);
 
-    if (!subjectClassesError && subjectClassesData) {
-      const eligibleSubjectClasses = subjectClassesData.filter((sc: any) => {
-        const subject = Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects;
+      if (!subjectClassesError && subjectClassesData) {
+        const eligibleSubjectClasses = subjectClassesData.filter((sc: any) => {
+          const subject = Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects;
 
-        if (subject.department && studentData.department) {
-          if (subject.department !== studentData.department) {
-            return false;
+          if (subject.department && studentData.department) {
+            if (subject.department !== studentData.department) {
+              return false;
+            }
           }
-        }
 
-        if (subject.religion && studentData.religion) {
-          if (subject.religion !== studentData.religion) {
-            return false;
+          if (subject.religion && studentData.religion) {
+            if (subject.religion !== studentData.religion) {
+              return false;
+            }
           }
-        }
 
-        return !subject.is_optional;
-      });
+          return !subject.is_optional;
+        });
 
-      if (eligibleSubjectClasses.length > 0) {
-        const studentSubjectsToInsert = eligibleSubjectClasses.map((sc: any) => ({
-          student_id: studentData.student_id,
-          subject_class_id: sc.id,
-        }));
+        if (eligibleSubjectClasses.length > 0) {
+          const studentSubjectsToInsert = eligibleSubjectClasses.map((sc: any) => ({
+            student_id: createdStudent.id,
+            subject_class_id: sc.id,
+          }));
 
-        const { error: studentSubjectsError } = await supabase
-          .from("student_subjects")
-          .insert(studentSubjectsToInsert);
+          const { error: studentSubjectsError } = await supabase
+            .from("student_subjects")
+            .insert(studentSubjectsToInsert);
 
-        if (studentSubjectsError) {
-          console.error("Error inserting student subjects:", studentSubjectsError);
+          if (studentSubjectsError) {
+            console.error("Error inserting student subjects:", studentSubjectsError);
+          }
         }
       }
     }
@@ -239,7 +295,7 @@ export async function POST(req: Request) {
         html: `
           <p>Hello ${studentData.parent_name},</p>
           <p>A new student has been added to your parent portal account:</p>
-          <p><strong>${studentData.first_name} ${studentData.last_name}</strong> (ID: ${studentData.student_id})</p>
+          <p><strong>${studentData.first_name} ${studentData.last_name}</strong> (ID: ${generatedStudentId})</p>
           <p>You can now view their information in your parent portal.</p>
         `,
       });
@@ -247,6 +303,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
+      studentId: generatedStudentId,
       message: hasOwnEmail ? "Student created. Activation code sent to student email." : "Student created. Using parent portal for now."
     });
 

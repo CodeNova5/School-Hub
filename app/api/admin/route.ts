@@ -137,9 +137,6 @@ export async function POST(req: NextRequest) {
 
   try {
     // Delete student - no permission check needed (handled separately)
-    // ...existing code...
-
-    // Delete student - no permission check needed (handled separately)
     if (action === "delete-student") {
       const { studentId, userId } = body;
 
@@ -229,7 +226,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-
     // For other actions, check permission
     const permission = await checkPermission("manage_admins");
     if (!permission.authorized) {
@@ -290,7 +286,7 @@ export async function POST(req: NextRequest) {
           .insert({ user_id: authData.user.id, role_id: roleId });
       }
 
-      // Add permissions if admin role
+      // Add permissions only for admin role (not super_admin)
       if (perms && Array.isArray(perms) && roleId) {
         const adminRole = await supabaseAdmin
           .from("roles")
@@ -312,37 +308,47 @@ export async function POST(req: NextRequest) {
 
     // Update admin role and permissions
     if (action === "update" && userId && roleId) {
-      await supabase
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      // Delete existing role links for this user
+      await supabaseAdmin
         .from("user_role_links")
         .delete()
         .eq("user_id", userId);
 
-      const { error: roleError } = await supabase
+      // Insert new role
+      const { error: roleError } = await supabaseAdmin
         .from("user_role_links")
         .insert({ user_id: userId, role_id: roleId });
 
       if (roleError) throw roleError;
 
-      // Update permissions if admin role
-      if (perms && Array.isArray(perms)) {
-        const { data: adminRole } = await supabase
-          .from("roles")
-          .select("id")
-          .eq("name", "admin")
-          .single();
+      // Get role name
+      const { data: roleData } = await supabaseAdmin
+        .from("roles")
+        .select("name")
+        .eq("id", roleId)
+        .single();
 
-        if (adminRole && roleId === adminRole.id) {
-          await supabase
-            .from("role_permissions")
-            .delete()
-            .eq("role_id", adminRole.id);
+      // Update permissions only for admin role
+      if (roleData?.name === "admin") {
+        // Delete existing permissions for this role
+        await supabaseAdmin
+          .from("role_permissions")
+          .delete()
+          .eq("role_id", roleId);
 
+        // Insert new permissions
+        if (perms && Array.isArray(perms) && perms.length > 0) {
           const permissionInserts = perms.map((permId: string) => ({
-            role_id: adminRole.id,
+            role_id: roleId,
             permission_id: permId,
           }));
 
-          await supabase.from("role_permissions").insert(permissionInserts);
+          await supabaseAdmin.from("role_permissions").insert(permissionInserts);
         }
       }
 

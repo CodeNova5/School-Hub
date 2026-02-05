@@ -140,21 +140,12 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 return;
             }
 
-            // Fetch results for current students only
+            // Fetch results for each student
             const { data: resultsData, error: resultsError } = await supabase
                 .from("results")
-                .select(`
-                    *,
-                    students!inner(id, student_id, first_name, last_name, gender, class_id),
-                    subject_classes!inner(
-                        id,
-                        class_id,
-                        subjects(name)
-                    )
-                `)
+                .select("*")
                 .eq("term_id", selectedTermId)
                 .eq("session_id", selectedSessionId)
-                .eq("subject_classes.class_id", classId)
                 .in("student_id", currentStudentIds);
 
             if (resultsError) {
@@ -162,12 +153,10 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 throw resultsError;
             }
 
-            // Results are already filtered by class_id and current students
-            const classResults = resultsData || [];
-
             // Group results by student
             const studentResultsMap = new Map<string, StudentResult>();
 
+            // Initialize all students
             students.forEach((student) => {
                 studentResultsMap.set(student.id, {
                     student_id: student.id,
@@ -187,14 +176,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             });
 
             // Process results
-            classResults.forEach((result: any) => {
-                // Student should always exist since we filtered by current student IDs
-                if (!result.student || !result.student.id) {
-                    return;
-                }
-
-                const studentId = result.student.id;
-                const studentResult = studentResultsMap.get(studentId);
+            (resultsData || []).forEach((result: any) => {
+                const studentResult = studentResultsMap.get(result.student_id);
 
                 if (!studentResult) {
                     return;
@@ -217,8 +200,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     studentResult.grade[grade as keyof typeof studentResult.grade] += 1;
                 }
 
-                // Store class position if available
-                if (result.class_position) {
+                // Store class position if available (from first result)
+                if (result.class_position && !studentResult.class_position) {
                     studentResult.class_position = result.class_position;
                 }
             });

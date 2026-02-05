@@ -160,8 +160,8 @@ export default function ManageAdminsPage() {
       
       // Fetch admins and permissions
       const [adminsRes, rolesRes] = await Promise.all([
-        fetch("/api/admin/manage-admins"),
-        fetch("/api/admin/roles"),
+        fetch("/api/admin"),
+        fetch("/api/admin?action=roles"),
       ]);
 
       if (!adminsRes.ok || !rolesRes.ok) {
@@ -210,7 +210,6 @@ export default function ManageAdminsPage() {
       return;
     }
 
-    // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newAdminEmail)) {
       toast({
@@ -224,10 +223,11 @@ export default function ManageAdminsPage() {
     try {
       setSaving(true);
 
-      const res = await fetch("/api/admin/manage-admins", {
+      const res = await fetch("/api/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "create",
           email: newAdminEmail,
           name: newAdminName,
           roleId: selectedRole,
@@ -277,24 +277,11 @@ export default function ManageAdminsPage() {
     try {
       setSaving(true);
 
-      // Update role permissions first if it's admin role
-      const adminRole = roles.find((r) => r.name === "admin");
-      if (adminRole && selectedRole === adminRole.id) {
-        await fetch("/api/admin/role-permissions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            roleId: selectedRole,
-            permissionIds: selectedPermissions,
-          }),
-        });
-      }
-
-      // Update user role
-      const res = await fetch("/api/admin/manage-admins", {
+      const res = await fetch("/api/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "update",
           userId: selectedAdmin.id,
           roleId: selectedRole,
           permissions: selectedPermissions,
@@ -330,7 +317,7 @@ export default function ManageAdminsPage() {
     try {
       setSaving(true);
       const res = await fetch(
-        `/api/admin/manage-admins?userId=${adminToDelete.id}`,
+        `/api/admin?userId=${adminToDelete.id}`,
         { method: "DELETE" }
       );
 

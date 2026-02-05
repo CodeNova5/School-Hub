@@ -33,7 +33,7 @@ import { StudentDetailsModal } from "@/components/student-details-modal";
 import * as XLSX from "xlsx-js-style";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; // Make sure this import exists
-
+import { AlertTriangle } from "lucide-react";
 
 type ClassData = {
   id: string;
@@ -76,6 +76,9 @@ export function StudentsTab({
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
   const [transferTargetClassId, setTransferTargetClassId] = useState("");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
   const filteredStudents = useMemo(() => {
     return students.filter((s) => {
@@ -145,6 +148,38 @@ export function StudentsTab({
       setSelectedStudent(student);
     }
     setIsStudentDetailsOpen(true);
+  }
+
+  async function handleDeleteStudentCompletely() {
+    if (!studentToDelete) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete-student",
+          studentId: studentToDelete.id,
+          authId: studentToDelete.auth_id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Failed to delete student");
+        return;
+      }
+
+      toast.success("Student and all related data deleted.");
+      setIsDeleteDialogOpen(false);
+      setStudentToDelete(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error("Failed to delete student: " + (error.message || error));
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
 
@@ -369,6 +404,27 @@ export function StudentsTab({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </td>
+                    <td className="p-3 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-red-700 focus:text-red-700"
+                            onClick={() => {
+                              setStudentToDelete(student);
+                              setIsDeleteDialogOpen(true);
+                            }}
+                          >
+                            <AlertTriangle className="mr-2 h-4 w-4 text-red-700" />
+                            Delete Completely
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -508,6 +564,50 @@ export function StudentsTab({
                 disabled={!transferTargetClassId}
               >
                 Transfer
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Student Warning Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              <span className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="h-5 w-5" />
+                Delete Student Completely
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-red-700 font-semibold">
+              This will permanently delete <b>{studentToDelete?.first_name} {studentToDelete?.last_name}</b> and all related data:
+            </p>
+            <ul className="list-disc pl-6 text-sm text-red-600">
+              <li>Student record</li>
+              <li>Attendance, results, class assignments</li>
+              <li>Session/term links</li>
+              <li>Auth user account (cannot be undone)</li>
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. Are you sure you want to proceed?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteStudentCompletely}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete Permanently"}
               </Button>
             </div>
           </div>

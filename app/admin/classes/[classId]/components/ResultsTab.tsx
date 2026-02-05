@@ -178,6 +178,12 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
             // Process results
             classResults.forEach((result: any) => {
+                // Check if student exists (may be undefined if student was deleted)
+                if (!result.student || !result.student.id) {
+                    console.warn('Result found without associated student:', result.id);
+                    return;
+                }
+
                 const studentId = result.student.id;
                 const studentResult = studentResultsMap.get(studentId);
 

@@ -88,19 +88,19 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
             setAllTerms(termsRes.data || []);
 
             // Get results
-            const { data: resultsData, error } = await supabase
-                .from("results")
-                .select(`
-          *,
-          subject_classes!inner(
-            class_id,
-            subjects(name)
-          ),
-          terms(name, session_id, is_current, is_active),
-          sessions(name, is_current, is_active)
-        `)
-                .eq("student_id", studentId)
-                .order("created_at", { ascending: false });
+                        const { data: resultsData, error } = await supabase
+                                .from("results")
+                                .select(`
+                    *,
+                    subject_classes!inner(
+                        class_id,
+                        subjects(name)
+                    ),
+                    terms(name, session_id, is_current),
+                    sessions(name, is_current)
+                `)
+                                .eq("student_id", studentId)
+                                .order("created_at", { ascending: false });
 
             if (error) throw error;
             setResults(resultsData || []);
@@ -200,8 +200,8 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                                     // When session changes, update terms to only those for that session
                                     const filteredTerms = allTerms.filter((t: any) => t.session_id === e.target.value);
                                     setTerms(filteredTerms);
-                                    // Auto-select is_current or is_active term for new session
-                                    const currentTerm = filteredTerms.find((t: any) => t.is_current) || filteredTerms.find((t: any) => t.is_active);
+                                    // Auto-select is_current term for new session
+                                    const currentTerm = filteredTerms.find((t: any) => t.is_current);
                                     setSelectedTerm(currentTerm ? currentTerm.id : "");
                                 }}
                                 className="w-full px-3 py-2 border rounded-md"

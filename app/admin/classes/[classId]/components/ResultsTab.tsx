@@ -88,10 +88,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
     const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
-
-    // Add a new state for managing visibility toggle
-    const [isVisibleToParents, setIsVisibleToParents] = useState(false);
-
     useEffect(() => {
         fetchSessionsAndTerms();
     }, []);
@@ -101,7 +97,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             console.log("Fetching results for:", { 
                 classId, 
                 sessionId: selectedSessionId, 
-                termId: selectedTermId 
+                termId: selectedTermId,
+                studentCount: students.length
             });
             fetchStudentResults();
         } else {
@@ -110,7 +107,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 hasTerm: !!selectedTermId 
             });
         }
-    }, [selectedSessionId, selectedTermId]);
+    }, [selectedSessionId, selectedTermId, students]);
 
     async function fetchSessionsAndTerms() {
         try {
@@ -151,8 +148,17 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         setLoading(true);
 
         try {
-            // Fetch all results for this class in the selected term
-            // Filter by class through the subject_classes join
+            // Get list of current student IDs in this class
+            const currentStudentIds = students.map(s => s.id);
+            
+            if (currentStudentIds.length === 0) {
+                console.log("No students in this class");
+                setStudentResults([]);
+                setLoading(false);
+                return;
+            }
+
+            // Fetch results for current students only
             const { data: resultsData, error: resultsError } = await supabase
                 .from("results")
                 .select(`
@@ -166,7 +172,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 `)
                 .eq("term_id", selectedTermId)
                 .eq("session_id", selectedSessionId)
-                .eq("subject_classes.class_id", classId);
+                .eq("subject_classes.class_id", classId)
+                .in("student_id", currentStudentIds);
 
             if (resultsError) {
                 console.error("Supabase error fetching results:", resultsError);
@@ -176,7 +183,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             console.log("Fetched results data:", resultsData);
             console.log("Number of results:", resultsData?.length || 0);
 
-            // Results are already filtered by class_id in the query
+            // Results are already filtered by class_id and current students
             const classResults = resultsData || [];
 
             // Group results by student
@@ -204,37 +211,40 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
             // Process results
             classResults.forEach((result: any) => {
-                // Check if student exists (may be undefined if student was deleted)
+                // Student should always exist since we filtered by current student IDs
                 if (!result.student || !result.student.id) {
-                    console.warn('Result found without associated student:', result.id);
+                    console.warn('Result found without associated student (should not happen):', result.id);
                     return;
                 }
 
                 const studentId = result.student.id;
                 const studentResult = studentResultsMap.get(studentId);
 
-                if (studentResult) {
-                    studentResult.has_results = true;
-                    studentResult.total_subjects += 1;
-                    studentResult.total_score += result.total || 0;
+                if (!studentResult) {
+                    console.warn('Result for student not in current class roster:', studentId);
+                    return;
+                }
 
-                    if (result.total > studentResult.highest_score) {
-                        studentResult.highest_score = result.total;
-                    }
-                    if (result.total < studentResult.lowest_score) {
-                        studentResult.lowest_score = result.total;
-                    }
+                studentResult.has_results = true;
+                studentResult.total_subjects += 1;
+                studentResult.total_score += result.total || 0;
 
-                    // Count grades
-                    const grade = result.grade?.toUpperCase();
-                    if (grade && grade in studentResult.grade) {
-                        studentResult.grade[grade as keyof typeof studentResult.grade] += 1;
-                    }
+                if (result.total > studentResult.highest_score) {
+                    studentResult.highest_score = result.total;
+                }
+                if (result.total < studentResult.lowest_score) {
+                    studentResult.lowest_score = result.total;
+                }
 
-                    // Store class position if available
-                    if (result.class_position) {
-                        studentResult.class_position = result.class_position;
-                    }
+                // Count grades
+                const grade = result.grade?.toUpperCase();
+                if (grade && grade in studentResult.grade) {
+                    studentResult.grade[grade as keyof typeof studentResult.grade] += 1;
+                }
+
+                // Store class position if available
+                if (result.class_position) {
+                    studentResult.class_position = result.class_position;
                 }
             });
 

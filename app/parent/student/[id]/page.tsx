@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { 
   ArrowLeft, 
   User,
@@ -52,7 +52,9 @@ interface Student {
 export default function ParentStudentDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const studentId = params.id as string;
+  const tabParam = searchParams.get('tab');
 
   const [student, setStudent] = useState<Student | null>(null);
   const [stats, setStats] = useState({
@@ -62,11 +64,17 @@ export default function ParentStudentDetailPage() {
     totalSubjects: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(tabParam || "overview");
 
   useEffect(() => {
     loadData();
   }, [studentId]);
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   async function loadData() {
     setIsLoading(true);

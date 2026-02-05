@@ -6,8 +6,18 @@ import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { 
+  Users, 
+  Calendar, 
+  BookOpen, 
+  TrendingUp, 
+  Clock,
+  FileText,
+  CheckCircle,
+  AlertCircle,
+  Eye
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Users, Eye, TrendingUp, Clock, FileText } from "lucide-react";
 
 interface Student {
   id: string;
@@ -29,9 +39,10 @@ interface Student {
   };
 }
 
-export default function ParentChildrenPage() {
+export default function ParentChildPage() {
   const router = useRouter();
   const [children, setChildren] = useState<Student[]>([]);
+  const [parentName, setParentName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -48,18 +59,22 @@ export default function ParentChildrenPage() {
         return;
       }
 
-      const { data: parent } = await supabase
+      // Get parent info
+      const { data: parent, error: parentError } = await supabase
         .from("parents")
-        .select("email")
+        .select("*")
         .eq("user_id", user.id)
         .single();
 
-      if (!parent) {
+      if (parentError || !parent) {
         toast.error("Parent account not found");
         router.push("/parent/login");
         return;
       }
 
+      setParentName(parent.name);
+
+      // Get all children
       const { data: students, error: studentsError } = await supabase
         .from("students")
         .select(`
@@ -71,8 +86,10 @@ export default function ParentChildrenPage() {
 
       if (studentsError) throw studentsError;
 
+      // Fetch additional data for each child
       const enrichedStudents = await Promise.all(
         (students || []).map(async (student) => {
+          // Get attendance
           const { data: attendance } = await supabase
             .from("attendance")
             .select("status")
@@ -85,6 +102,7 @@ export default function ParentChildrenPage() {
 
           const average_attendance = totalRecords === 0 ? 0 : Math.round((presentRecords / totalRecords) * 100);
 
+          // Get pending assignments
           const { data: studentSubjects } = await supabase
             .from("student_subjects")
             .select("subject_id")
@@ -114,11 +132,11 @@ export default function ParentChildrenPage() {
             }
           }
 
+          // Get latest result
           const { data: results } = await supabase
             .from("results")
             .select("total, grade")
             .eq("student_id", student.id)
-            .eq("is_published", true)
             .order("created_at", { ascending: false })
             .limit(1);
 
@@ -153,14 +171,66 @@ export default function ParentChildrenPage() {
     <DashboardLayout role="parent">
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold">My Children</h1>
+          <h1 className="text-3xl font-bold">Welcome, {parentName}</h1>
           <p className="text-gray-600 mt-1">
-            View and manage all your children's academic information
+            Monitor your {children.length === 1 ? "child's" : "children's"} academic progress
           </p>
         </div>
 
-        {children.length > 0 ? (
-          <div className="grid gap-6">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Total Children</CardTitle>
+              <Users className="h-4 w-4 text-gray-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{children.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Active Students</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                {children.filter(c => c.status === "active").length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Avg Attendance</CardTitle>
+              <Clock className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">
+                {children.length === 0 
+                  ? "N/A" 
+                  : Math.round(children.reduce((sum, c) => sum + (c.average_attendance || 0), 0) / children.length) + "%"
+                }
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
+              <AlertCircle className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">
+                {children.reduce((sum, c) => sum + (c.pending_assignments || 0), 0)}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-bold mb-4">Your Children</h2>
+          <div className="grid gap-6 md:grid-cols-2">
             {children.map((child) => (
               <Card key={child.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -186,7 +256,7 @@ export default function ParentChildrenPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-blue-600" />
                       <div>
@@ -202,7 +272,7 @@ export default function ParentChildrenPage() {
                       </div>
                     </div>
                     {child.latest_result && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 col-span-2">
                         <TrendingUp className="h-4 w-4 text-green-600" />
                         <div>
                           <p className="text-xs text-gray-600">Latest Result</p>
@@ -212,17 +282,45 @@ export default function ParentChildrenPage() {
                         </div>
                       </div>
                     )}
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-purple-600" />
-                      <div>
-                        <p className="text-xs text-gray-600">Email</p>
-                        <p className="font-semibold text-xs">{child.email}</p>
-                      </div>
-                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/parent/student/${child.id}?tab=attendance`)}
+                    >
+                      <Calendar className="mr-1 h-3 w-3" />
+                      Attendance
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/parent/student/${child.id}?tab=results`)}
+                    >
+                      <TrendingUp className="mr-1 h-3 w-3" />
+                      Results
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/parent/student/${child.id}?tab=assignments`)}
+                    >
+                      <FileText className="mr-1 h-3 w-3" />
+                      Assignments
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/parent/student/${child.id}?tab=timetable`)}
+                    >
+                      <BookOpen className="mr-1 h-3 w-3" />
+                      Timetable
+                    </Button>
                   </div>
 
                   <Button
-                    className="w-full"
+                    className="w-full mt-3"
                     onClick={() => router.push(`/parent/student/${child.id}`)}
                   >
                     <Eye className="mr-2 h-4 w-4" />
@@ -232,17 +330,19 @@ export default function ParentChildrenPage() {
               </Card>
             ))}
           </div>
-        ) : (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No children registered yet</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Contact the school administration to add students
-              </p>
-            </CardContent>
-          </Card>
-        )}
+
+          {children.length === 0 && (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No children registered yet</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Contact the school administration to add students
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );

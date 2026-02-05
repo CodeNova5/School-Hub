@@ -390,7 +390,10 @@ export function StudentsTab({
                             <User className="mr-2 h-4 w-4" />
                             Manage Subjects
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setIsTransferStudentOpen(true)}>
+                          <DropdownMenuItem onClick={() => {
+                            setSelectedStudents(new Set([student.id]));
+                            setIsTransferStudentOpen(true);
+                          }}>
                             <ArrowRightLeft className="mr-2 h-4 w-4" />
                             Transfer Student
                           </DropdownMenuItem>

@@ -322,16 +322,33 @@ export default function ClassPage() {
     if (studentIds.length === 0 || !targetClassId) return;
     if (!confirm(`Transfer ${studentIds.length} student(s) to the selected class?`)) return;
 
-    const updates = studentIds.map(id =>
-      supabase.from("students").update({ class_id: targetClassId }).eq("id", id)
-    );
-
     try {
-      await Promise.all(updates);
-      toast.success(`Transferred ${studentIds.length} student(s)`);
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "transfer-students",
+          studentIds,
+          targetClassId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Failed to transfer students");
+        return;
+      }
+
+      if (result.failed > 0) {
+        toast.warning(`Transferred ${result.transferred} student(s), ${result.failed} failed`);
+      } else {
+        toast.success(`Successfully transferred ${result.transferred} student(s) with updated subjects`);
+      }
+      
       fetchStudents();
-    } catch (error) {
-      toast.error(`Failed to transfer some student(s)`);
+    } catch (error: any) {
+      toast.error("Failed to transfer students: " + (error.message || error));
     }
   }
 

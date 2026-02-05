@@ -246,6 +246,144 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // Transfer students to another class with subject reassignment
+    if (action === "transfer-students") {
+      const { studentIds, targetClassId } = body;
+
+      if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+        return NextResponse.json(
+          { error: "Student IDs are required" },
+          { status: 400 }
+        );
+      }
+
+      if (!targetClassId) {
+        return NextResponse.json(
+          { error: "Target class ID is required" },
+          { status: 400 }
+        );
+      }
+
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const transferredStudents = [];
+      const failedStudents = [];
+
+      for (const studentId of studentIds) {
+        try {
+          // 1. Get student's department and religion
+          const { data: student, error: studentError } = await supabaseAdmin
+            .from("students")
+            .select("department, religion")
+            .eq("id", studentId)
+            .single();
+
+          if (studentError || !student) {
+            failedStudents.push({ studentId, error: "Student not found" });
+            continue;
+          }
+
+          // 2. Delete all existing student_subjects for this student
+          const { error: deleteSubjectsError } = await supabaseAdmin
+            .from("student_subjects")
+            .delete()
+            .eq("student_id", studentId);
+
+          if (deleteSubjectsError) {
+            failedStudents.push({ studentId, error: "Failed to remove old subjects" });
+            continue;
+          }
+
+          // 3. Get all subject_classes for the target class
+          const { data: subjectClassesData, error: subjectClassesError } = await supabaseAdmin
+            .from("subject_classes")
+            .select(`
+              id,
+              subject_id,
+              subjects (
+                id,
+                name,
+                department,
+                religion,
+                is_optional
+              )
+            `)
+            .eq("class_id", targetClassId);
+
+          if (subjectClassesError) {
+            failedStudents.push({ studentId, error: "Failed to fetch target class subjects" });
+            continue;
+          }
+
+          // 4. Filter eligible subjects based on department and religion
+          if (subjectClassesData) {
+            const eligibleSubjectClasses = subjectClassesData.filter((sc: any) => {
+              const subject = Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects;
+
+              // Check department matching (if both subject and student have department)
+              if (subject.department && student.department) {
+                if (subject.department !== student.department) {
+                  return false;
+                }
+              }
+
+              // Check religion matching (if both subject and student have religion)
+              if (subject.religion && student.religion) {
+                if (subject.religion !== student.religion) {
+                  return false;
+                }
+              }
+
+              // Only include non-optional subjects
+              return !subject.is_optional;
+            });
+
+            // 5. Insert new student_subjects entries
+            if (eligibleSubjectClasses.length > 0) {
+              const studentSubjectsToInsert = eligibleSubjectClasses.map((sc: any) => ({
+                student_id: studentId,
+                subject_class_id: sc.id,
+              }));
+
+              const { error: insertSubjectsError } = await supabaseAdmin
+                .from("student_subjects")
+                .insert(studentSubjectsToInsert);
+
+              if (insertSubjectsError) {
+                failedStudents.push({ studentId, error: "Failed to assign new subjects" });
+                continue;
+              }
+            }
+          }
+
+          // 6. Update student's class_id
+          const { error: updateError } = await supabaseAdmin
+            .from("students")
+            .update({ class_id: targetClassId })
+            .eq("id", studentId);
+
+          if (updateError) {
+            failedStudents.push({ studentId, error: "Failed to update class" });
+            continue;
+          }
+
+          transferredStudents.push(studentId);
+        } catch (err: any) {
+          failedStudents.push({ studentId, error: err.message });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        transferred: transferredStudents.length,
+        failed: failedStudents.length,
+        failedStudents,
+      });
+    }
+
     throw new Error("Invalid action");
   } catch (error: any) {
     console.error("Error in POST:", error);

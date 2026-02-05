@@ -253,7 +253,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
             {filteredResults.length > 0 && selectedSession && selectedTerm ? (
                 <ResultEntry
                     studentId={studentId}
-                    role="student"
+                    role="parent"
                     canEditPrincipalComment={false}
                     canEdit={false}
                     isReadOnly={true}

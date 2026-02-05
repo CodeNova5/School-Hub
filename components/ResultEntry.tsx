@@ -26,7 +26,7 @@ interface SubjectScore {
 
 interface ResultEntryProps {
   studentId: string;
-  role: 'admin' | 'class_teacher' | 'teacher' | 'student';
+  role: 'admin' | 'class_teacher' | 'teacher' | 'student' | 'parent';
   canEditPrincipalComment: boolean;
   canEdit: boolean;
   isReadOnly: boolean;
@@ -143,9 +143,9 @@ export default function ResultEntry({
       setSession(sessionData);
       setTerm(termData);
 
-      // 3.5 Load publication settings (for students)
+      // 3.5 Load publication settings (for students and parents)
       let currentCalculationMode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all' = 'all';
-      if (role === 'student') {
+      if (role === 'student' || role === 'parent') {
         const { data: pubSettings } = await supabase
           .from("results_publication")
           .select("*")
@@ -156,14 +156,19 @@ export default function ResultEntry({
 
         if (pubSettings) {
           setPublicationSettings(pubSettings);
-          setIsPublished(pubSettings.is_published);
+          // Check appropriate publication flag based on role
+          if (role === 'parent') {
+            setIsPublished(pubSettings.is_published_to_parents);
+          } else {
+            setIsPublished(pubSettings.is_published);
+          }
           // Set calculation mode to match published mode
           if (pubSettings.calculation_mode) {
             currentCalculationMode = pubSettings.calculation_mode;
             setScoreCalculationMode(pubSettings.calculation_mode);
           }
         } else {
-          // No publication settings = results not visible to students
+          // No publication settings = results not visible to students/parents
           setIsPublished(false);
         }
       } else {
@@ -363,9 +368,9 @@ export default function ResultEntry({
   // Helper to check if a component should be visible
   function isComponentVisible(component: 'welcome_test' | 'mid_term_test' | 'vetting' | 'exam'): boolean {
     // Admin and teachers can always see all components
-    if (role !== 'student') return true;
+    if (role !== 'student' && role !== 'parent') return true;
 
-    // Students can only see published components
+    // Students and parents can only see published components
     if (!publicationSettings || !isPublished) return false;
 
     const visibilityMap = {

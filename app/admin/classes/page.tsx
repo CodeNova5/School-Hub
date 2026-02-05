@@ -43,7 +43,7 @@ export default function ClassesPage() {
     fetchClasses();
     fetchTeachers();
   }, []);
-  
+
   useEffect(() => {
     const getUser = async () => {
       const {
@@ -52,12 +52,10 @@ export default function ClassesPage() {
       } = await supabase.auth.getSession();
 
       if (error) {
-        console.error("Error getting session:", error);
+        console.error("Error fetching session:", error);
+        toast.error("Error fetching session: " + error.message);
         return;
       }
-
-      console.log("Current session:", session);
-      console.log("Current user:", session?.user ?? null);
     };
 
     getUser();
@@ -66,7 +64,6 @@ export default function ClassesPage() {
 
   async function fetchClasses() {
     const { data: { user } } = await supabase.auth.getUser();
-    console.log(user?.id);
 
     try {
       // ✅ Direct Supabase query - RLS handles permissions via is_admin()
@@ -74,9 +71,6 @@ export default function ClassesPage() {
         .from("classes")
         .select("*")
         .order("level", { ascending: true });
-
-      // Debug log
-      console.log("[DEBUG] fetchClasses result:", { data, error });
 
       if (error) {
         console.error("Error fetching classes:", error);

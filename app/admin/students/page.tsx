@@ -40,7 +40,7 @@ export default function AdminStudentsPage() {
   const [filterStatus, setFilterStatus] = useState('');
 
   // Form fields for creating student
-  const [formData, setFormData] = useState({
+  const [ formData, setFormData] = useState({
     first_name: '',
     last_name: '',
     email: '',
@@ -219,7 +219,7 @@ export default function AdminStudentsPage() {
       setIsCreating(false);
       return;
     }
-    
+
 
     if (!formData.parent_name.trim() || !formData.parent_email.trim()) {
       toast.error('Parent name and email are required');

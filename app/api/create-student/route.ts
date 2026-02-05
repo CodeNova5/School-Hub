@@ -54,18 +54,23 @@ export async function POST(req: Request) {
     const studentEmail = hasOwnEmail ? studentData.email : studentData.parent_email;
     const studentIsActive = !hasOwnEmail; // Only active if no own email (using parent's)
 
-    // 1️⃣ Create auth user for student
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: studentEmail,
-      password: crypto.randomUUID(),
-      email_confirm: hasOwnEmail ? false : true, // Confirm if using parent email
-      user_metadata: {
-        role: "student",
-        student_id: generatedStudentId,
-      },
-    });
+    // 1️⃣ Create auth user for student ONLY if they have their own email
+    let authUserId: string | null = null;
+    
+    if (hasOwnEmail) {
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: studentEmail,
+        password: crypto.randomUUID(),
+        email_confirm: false, // They need to activate
+        user_metadata: {
+          role: "student",
+          student_id: generatedStudentId,
+        },
+      });
 
-    if (authError) throw authError;
+      if (authError) throw authError;
+      authUserId = authData.user.id;
+    }
 
     // 2️⃣ Check if parent already exists
     const { data: existingParent } = await supabase
@@ -79,6 +84,7 @@ export async function POST(req: Request) {
 
     if (existingParent) {
       parentUserId = existingParent.user_id;
+      // Do not create new parent or send activation email
     } else {
       // Create new parent auth user
       const { data: parentAuthData, error: parentAuthError } = await supabase.auth.admin.createUser({
@@ -161,7 +167,7 @@ export async function POST(req: Request) {
       parent_phone: studentData.parent_phone || null,
       admission_date: studentData.admission_date,
       student_id: generatedStudentId,
-      user_id: authData.user.id,
+      user_id: authUserId, // Will be null if no own email
       is_active: studentIsActive,
       status: "active",
     };

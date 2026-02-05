@@ -56,7 +56,7 @@ export default function StudentReportPage() {
         const { data: sessionsData } = await supabase
           .from("sessions")
           .select("*")
-          .order("start_date", { ascending: false });
+          .order("name", { ascending: false });
 
         const { data: termsData } = await supabase
           .from("terms")

@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
   try {
     // Delete student - no permission check needed (handled separately)
     if (action === "delete-student") {
-      const { studentId, authId } = body;
+      const { studentId, userId } = body;
 
       if (!studentId) {
         return NextResponse.json(
@@ -181,10 +181,10 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq("student_id", studentId);
 
-      // 5. Delete auth user if authId is provided
-      if (authId) {
+      // 5. Delete auth user if userId is provided
+      if (userId) {
         try {
-          await supabaseAdmin.auth.admin.deleteUser(authId);
+          await supabaseAdmin.auth.admin.deleteUser(userId);
         } catch (authError: any) {
           console.error("Error deleting auth user:", authError);
           // Continue anyway, auth user might not exist

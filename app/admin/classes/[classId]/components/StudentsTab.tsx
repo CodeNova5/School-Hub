@@ -160,7 +160,7 @@ export function StudentsTab({
         body: JSON.stringify({
           action: "delete-student",
           studentId: studentToDelete.id,
-          authId: studentToDelete.auth_id,
+          userId: studentToDelete.user_id,
         }),
       });
 

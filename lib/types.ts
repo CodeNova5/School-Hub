@@ -89,7 +89,7 @@ export interface Result {
 
 export interface Student {
   id: string;
-  auth_id?: string;
+  user_id?: string;
   student_id: string;
   first_name: string;
   last_name: string;

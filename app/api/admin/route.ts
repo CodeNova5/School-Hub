@@ -273,31 +273,109 @@ export async function POST(req: NextRequest) {
       let failed = 0;
 
       try {
+        // Fetch target class details
+        const { data: targetClass, error: classError } = await supabaseAdmin
+          .from("classes")
+          .select("id, name")
+          .eq("id", targetClassId)
+          .single();
+
+        if (classError || !targetClass) {
+          throw new Error("Target class not found");
+        }
+
         for (const studentId of studentIds) {
           try {
-            // 1. Delete old results
+            // 1. Fetch student details (department, religion)
+            const { data: student, error: studentError } = await supabaseAdmin
+              .from("students")
+              .select("id, department, religion")
+              .eq("id", studentId)
+              .single();
+
+            if (studentError || !student) {
+              throw new Error("Student not found");
+            }
+
+            // 2. Delete old results
             await supabaseAdmin
               .from("results")
               .delete()
               .eq("student_id", studentId);
 
-            // 2. Delete old student_subjects
+            // 3. Delete old student_subjects
             await supabaseAdmin
               .from("student_subjects")
               .delete()
               .eq("student_id", studentId);
 
-            // 3. Delete old optional subjects
+            // 4. Delete old optional subjects
             await supabaseAdmin
               .from("student_optional_subjects")
               .delete()
               .eq("student_id", studentId);
 
-            // 4. Update student's class
+            // 5. Update student's class
             await supabaseAdmin
               .from("students")
               .update({ class_id: targetClassId })
               .eq("id", studentId);
+
+            // 6. Fetch available subject_classes for target class
+            const { data: subjectClasses, error: scError } = await supabaseAdmin
+              .from("subject_classes")
+              .select(`
+                id,
+                subject_id,
+                subjects (
+                  id,
+                  name,
+                  is_optional,
+                  department,
+                  religion
+                )
+              `)
+              .eq("class_id", targetClassId);
+
+            if (scError) throw scError;
+
+            // 7. Filter subjects based on student's department and religion
+            const filteredSubjects = (subjectClasses || []).filter((sc: any) => {
+              const subject = sc.subjects;
+              
+              // Filter by department if applicable
+              if (subject.department && student.department) {
+                if (subject.department !== student.department) {
+                  return false;
+                }
+              }
+
+              // Filter by religion if applicable
+              if (subject.religion && student.religion) {
+                if (subject.religion !== student.religion) {
+                  return false;
+                }
+              }
+
+              return true;
+            });
+
+            // 8. Auto-select all compulsory subjects
+            const subjectsToAssign = filteredSubjects
+              .filter((sc: any) => !sc.subjects.is_optional)
+              .map((sc: any) => ({
+                student_id: studentId,
+                subject_class_id: sc.id,
+              }));
+
+            // 9. Insert compulsory subjects if any
+            if (subjectsToAssign.length > 0) {
+              const { error: insertError } = await supabaseAdmin
+                .from("student_subjects")
+                .insert(subjectsToAssign);
+
+              if (insertError) throw insertError;
+            }
 
             transferred++;
           } catch (error) {
@@ -310,7 +388,7 @@ export async function POST(req: NextRequest) {
           success: true, 
           transferred, 
           failed,
-          message: `Transferred ${transferred} student(s). Subject assignments will be set up automatically.`
+          message: `Transferred ${transferred} student(s) with automatic subject assignments.`
         });
       } catch (error: any) {
         throw new Error(`Transfer failed: ${error.message}`);

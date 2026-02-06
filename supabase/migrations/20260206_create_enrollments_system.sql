@@ -66,7 +66,10 @@ CREATE POLICY "Admins can manage enrollments"
 -- ============================================================================
 
 -- View: Get CURRENT enrollments (most common query)
-CREATE OR REPLACE VIEW current_enrollments AS
+-- SECURITY INVOKER ensures this view respects RLS policies of querying user
+CREATE OR REPLACE VIEW current_enrollments 
+WITH (security_invoker = true)
+AS
 SELECT 
   e.id as enrollment_id,
   e.student_id,
@@ -104,7 +107,10 @@ WHERE sess.is_current = true
   AND e.status = 'active';
 
 -- View: All enrollments with details (for historical queries)
-CREATE OR REPLACE VIEW enrollment_details AS
+-- SECURITY INVOKER ensures this view respects RLS policies of querying user
+CREATE OR REPLACE VIEW enrollment_details 
+WITH (security_invoker = true)
+AS
 SELECT 
   e.id as enrollment_id,
   e.student_id,

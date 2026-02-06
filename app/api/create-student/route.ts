@@ -280,6 +280,42 @@ export async function POST(req: Request) {
       }
     }
 
+    // 3.7️⃣ Create enrollment record if class is assigned (ENROLLMENT SYSTEM INTEGRATION)
+    if (studentData.class_id) {
+      // Get current session and term
+      const { data: currentSession, error: sessionError } = await supabase
+        .from("sessions")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+
+      const { data: currentTerm, error: termError } = await supabase
+        .from("terms")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+
+      // Only create enrollment if both session and term exist
+      if (currentSession && currentTerm && !sessionError && !termError) {
+        const { error: enrollmentError } = await supabase
+          .from("enrollments")
+          .insert({
+            student_id: createdStudent.id,
+            class_id: studentData.class_id,
+            session_id: currentSession.id,
+            term_id: currentTerm.id,
+            status: "active",
+            enrollment_type: "new",
+            enrolled_at: new Date().toISOString(),
+          });
+
+        if (enrollmentError) {
+          console.error("Error creating enrollment record:", enrollmentError);
+          // Non-critical: log but don't fail the entire operation
+        }
+      }
+    }
+
     // 4️⃣ Notify parent if new student added to existing account
     if (!isNewParent && existingParent?.is_active) {
       const transporter = nodemailer.createTransport({

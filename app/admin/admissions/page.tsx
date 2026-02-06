@@ -1,286 +1,701 @@
 "use client";
 
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Check, X, Mail, MessageSquare, Calendar } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Admission } from '@/lib/types';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+} from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Loader2,
+  Eye,
+  CheckCircle,
+  XCircle,
+  FileText,
+  Search,
+  Filter,
+  Users,
+  Clock,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 
-export default function AdmissionsPage() {
-  const [admissions, setAdmissions] = useState<Admission[]>([]);
-  const [selectedAdmission, setSelectedAdmission] = useState<Admission | null>(null);
-  const [isExamDialogOpen, setIsExamDialogOpen] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+interface Application {
+  id: string;
+  application_number: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  date_of_birth: string;
+  gender: string;
+  address: string;
+  parent_name: string;
+  parent_email: string;
+  parent_phone: string;
+  desired_class: string;
+  previous_school: string;
+  notes: string;
+  status: string;
+  submitted_at: string;
+  reviewed_at: string | null;
+}
+
+interface Class {
+  id: string;
+  name: string;
+  level_id: string;
+  levels: {
+    name: string;
+  };
+}
+
+export default function AdminAdmissionsPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  
+  // Approval form data
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedReligion, setSelectedReligion] = useState("");
+  
+  // Rejection reason
+  const [rejectionReason, setRejectionReason] = useState("");
 
   useEffect(() => {
-    fetchAdmissions();
-  }, []);
+    fetchApplications();
+    fetchClasses();
+  }, [statusFilter]);
 
-  async function fetchAdmissions() {
-    const { data, error } = await supabase
-      .from('admissions')
-      .select('*')
-      .order('submitted_at', { ascending: false });
+  const fetchApplications = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/admissions/list?status=${statusFilter}`);
+      const data = await response.json();
 
-    if (data) setAdmissions(data);
-  }
+      if (!response.ok) throw new Error(data.error);
 
-  async function handleAccept(id: string) {
-    const { error } = await supabase
-      .from('admissions')
-      .update({ status: 'accepted', reviewed_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (!error) {
-      fetchAdmissions();
+      setApplications(data.applications || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
-  async function handleReject(id: string) {
-    const { error } = await supabase
-      .from('admissions')
-      .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
-      .eq('id', id);
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch("/api/admin/classes");
+      const data = await response.json();
 
-    if (!error) {
-      fetchAdmissions();
+      if (response.ok) {
+        setClasses(data.classes || []);
+      }
+    } catch (error) {
+      console.error("Error fetching classes:", error);
     }
-  }
+  };
 
-  async function handleScheduleExam(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!selectedAdmission) return;
-
-    const formData = new FormData(e.currentTarget);
-
-    const { error } = await supabase
-      .from('admissions')
-      .update({
-        status: 'exam_scheduled',
-        exam_date: formData.get('exam_date') as string,
-        exam_location: formData.get('exam_location') as string,
-        notes: formData.get('notes') as string,
-      })
-      .eq('id', selectedAdmission.id);
-
-    if (!error) {
-      setIsExamDialogOpen(false);
-      setSelectedAdmission(null);
-      fetchAdmissions();
+  const handleApprove = async () => {
+    if (!selectedClassId) {
+      toast({
+        title: "Error",
+        description: "Please select a class",
+        variant: "destructive",
+      });
+      return;
     }
-  }
 
-  const filteredAdmissions = filterStatus === 'all'
-    ? admissions
-    : admissions.filter(a => a.status === filterStatus);
+    setProcessing(true);
+    try {
+      const response = await fetch("/api/admissions/approve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: selectedApplication?.id,
+          classId: selectedClassId,
+          department: selectedDepartment || null,
+          religion: selectedReligion || null,
+        }),
+      });
 
-  const statusColors = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    accepted: 'bg-green-100 text-green-800',
-    rejected: 'bg-red-100 text-red-800',
-    exam_scheduled: 'bg-blue-100 text-blue-800',
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error);
+
+      toast({
+        title: "Success",
+        description: `Application approved. Student ID: ${data.studentId}`,
+      });
+
+      setApproveDialogOpen(false);
+      setSelectedApplication(null);
+      setSelectedClassId("");
+      setSelectedDepartment("");
+      setSelectedReligion("");
+      fetchApplications();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleReject = async () => {
+    setProcessing(true);
+    try {
+      const response = await fetch("/api/admissions/reject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applicationId: selectedApplication?.id,
+          reason: rejectionReason,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.error);
+
+      toast({
+        title: "Success",
+        description: "Application rejected successfully",
+      });
+
+      setRejectDialogOpen(false);
+      setSelectedApplication(null);
+      setRejectionReason("");
+      fetchApplications();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge className="bg-yellow-500">Pending</Badge>;
+      case "approved":
+        return <Badge className="bg-green-500">Approved</Badge>;
+      case "rejected":
+        return <Badge className="bg-red-500">Rejected</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const filteredApplications = applications.filter((app) => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      app.application_number.toLowerCase().includes(searchLower) ||
+      app.first_name.toLowerCase().includes(searchLower) ||
+      app.last_name.toLowerCase().includes(searchLower) ||
+      app.parent_name.toLowerCase().includes(searchLower) ||
+      app.parent_email.toLowerCase().includes(searchLower)
+    );
+  });
+
+  const stats = {
+    total: applications.length,
+    pending: applications.filter((a) => a.status === "pending").length,
+    approved: applications.filter((a) => a.status === "approved").length,
+    rejected: applications.filter((a) => a.status === "rejected").length,
   };
 
   return (
-    <DashboardLayout role="admin">
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Admissions</h1>
-            <p className="text-gray-600 mt-1">Review and manage admission applications</p>
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Admissions Management</h1>
+        <p className="text-gray-600 mt-1">Review and manage student applications</p>
+      </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
+            <Users className="h-4 w-4 text-gray-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+            <UserX className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Applications</CardTitle>
+          <CardDescription>Filter and search through applications</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by name, email, or application number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="w-full md:w-48">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex gap-2">
-          <Button
-            variant={filterStatus === 'all' ? 'default' : 'outline'}
-            onClick={() => setFilterStatus('all')}
-          >
-            All
-          </Button>
-          <Button
-            variant={filterStatus === 'pending' ? 'default' : 'outline'}
-            onClick={() => setFilterStatus('pending')}
-          >
-            Pending
-          </Button>
-          <Button
-            variant={filterStatus === 'exam_scheduled' ? 'default' : 'outline'}
-            onClick={() => setFilterStatus('exam_scheduled')}
-          >
-            Exam Scheduled
-          </Button>
-          <Button
-            variant={filterStatus === 'accepted' ? 'default' : 'outline'}
-            onClick={() => setFilterStatus('accepted')}
-          >
-            Accepted
-          </Button>
-          <Button
-            variant={filterStatus === 'rejected' ? 'default' : 'outline'}
-            onClick={() => setFilterStatus('rejected')}
-          >
-            Rejected
-          </Button>
-        </div>
+      {/* Applications Table */}
+      <Card>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+          ) : filteredApplications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+              <FileText className="h-12 w-12 mb-4 text-gray-300" />
+              <p className="text-lg font-medium">No applications found</p>
+              <p className="text-sm">Try adjusting your filters</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>App Number</TableHead>
+                    <TableHead>Student Name</TableHead>
+                    <TableHead>Parent Name</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Desired Class</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredApplications.map((app) => (
+                    <TableRow key={app.id}>
+                      <TableCell className="font-mono text-sm">{app.application_number}</TableCell>
+                      <TableCell className="font-medium">
+                        {app.first_name} {app.last_name}
+                      </TableCell>
+                      <TableCell>{app.parent_name}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div>{app.parent_email}</div>
+                          <div className="text-gray-500">{app.parent_phone}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{app.desired_class}</TableCell>
+                      <TableCell>{getStatusBadge(app.status)}</TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {new Date(app.submitted_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setSelectedApplication(app);
+                              setViewDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                          {app.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => {
+                                  setSelectedApplication(app);
+                                  setApproveDialogOpen(true);
+                                }}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => {
+                                  setSelectedApplication(app);
+                                  setRejectDialogOpen(true);
+                                }}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        <div className="grid gap-6">
-          {filteredAdmissions.map((admission) => (
-            <Card key={admission.id}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-4">
-                      <h3 className="text-lg font-semibold">
-                        {admission.first_name} {admission.last_name}
-                      </h3>
-                      <Badge className={statusColors[admission.status]}>
-                        {admission.status.replace('_', ' ').toUpperCase()}
-                      </Badge>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600">Application Number</p>
-                        <p className="font-medium">{admission.application_number}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Desired Class</p>
-                        <p className="font-medium">{admission.desired_class}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Parent Name</p>
-                        <p className="font-medium">{admission.parent_name}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Parent Contact</p>
-                        <p className="font-medium">{admission.parent_phone}</p>
-                        <p className="text-gray-500 text-xs">{admission.parent_email}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Date of Birth</p>
-                        <p className="font-medium">
-                          {admission.date_of_birth && new Date(admission.date_of_birth).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Submitted</p>
-                        <p className="font-medium">
-                          {new Date(admission.submitted_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    {admission.exam_date && (
-                      <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                        <p className="text-sm font-medium text-blue-900">Exam Scheduled</p>
-                        <p className="text-sm text-blue-700">
-                          {new Date(admission.exam_date).toLocaleString()} - {admission.exam_location}
-                        </p>
-                      </div>
-                    )}
+      {/* View Application Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Application Details</DialogTitle>
+            <DialogDescription>
+              Application Number: {selectedApplication?.application_number}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedApplication && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Student Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-600">First Name</Label>
+                    <p className="font-medium">{selectedApplication.first_name}</p>
                   </div>
+                  <div>
+                    <Label className="text-gray-600">Last Name</Label>
+                    <p className="font-medium">{selectedApplication.last_name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Date of Birth</Label>
+                    <p className="font-medium">
+                      {selectedApplication.date_of_birth
+                        ? new Date(selectedApplication.date_of_birth).toLocaleDateString()
+                        : "N/A"}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Gender</Label>
+                    <p className="font-medium capitalize">{selectedApplication.gender}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Email</Label>
+                    <p className="font-medium">{selectedApplication.email || "N/A"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Phone</Label>
+                    <p className="font-medium">{selectedApplication.phone || "N/A"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-gray-600">Address</Label>
+                    <p className="font-medium">{selectedApplication.address}</p>
+                  </div>
+                </div>
+              </div>
 
-                  {admission.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedAdmission(admission);
-                          setIsExamDialogOpen(true);
-                        }}
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        Schedule Exam
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-green-600 hover:text-green-700"
-                        onClick={() => handleAccept(admission.id)}
-                      >
-                        <Check className="mr-2 h-4 w-4" />
-                        Accept
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700"
-                        onClick={() => handleReject(admission.id)}
-                      >
-                        <X className="mr-2 h-4 w-4" />
-                        Reject
-                      </Button>
-                    </div>
-                  )}
+              <div>
+                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Parent/Guardian Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-600">Parent Name</Label>
+                    <p className="font-medium">{selectedApplication.parent_name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Parent Email</Label>
+                    <p className="font-medium">{selectedApplication.parent_email}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-gray-600">Parent Phone</Label>
+                    <p className="font-medium">{selectedApplication.parent_phone}</p>
+                  </div>
+                </div>
+              </div>
 
-                  {admission.status === 'exam_scheduled' && (
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline">
-                        <Mail className="mr-2 h-4 w-4" />
-                        Send Email
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <MessageSquare className="mr-2 h-4 w-4" />
-                        WhatsApp
-                      </Button>
+              <div>
+                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Academic Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-600">Desired Class</Label>
+                    <p className="font-medium">{selectedApplication.desired_class}</p>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Previous School</Label>
+                    <p className="font-medium">{selectedApplication.previous_school || "N/A"}</p>
+                  </div>
+                  {selectedApplication.notes && (
+                    <div className="col-span-2">
+                      <Label className="text-gray-600">Additional Notes</Label>
+                      <p className="font-medium">{selectedApplication.notes}</p>
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
 
-          {filteredAdmissions.length === 0 && (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <p className="text-gray-500">No applications found</p>
-              </CardContent>
-            </Card>
+              <div>
+                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Application Status</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-gray-600">Status</Label>
+                    <div className="mt-1">{getStatusBadge(selectedApplication.status)}</div>
+                  </div>
+                  <div>
+                    <Label className="text-gray-600">Submitted At</Label>
+                    <p className="font-medium">
+                      {new Date(selectedApplication.submitted_at).toLocaleString()}
+                    </p>
+                  </div>
+                  {selectedApplication.reviewed_at && (
+                    <div>
+                      <Label className="text-gray-600">Reviewed At</Label>
+                      <p className="font-medium">
+                        {new Date(selectedApplication.reviewed_at).toLocaleString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
-        </div>
+        </DialogContent>
+      </Dialog>
 
-        <Dialog open={isExamDialogOpen} onOpenChange={setIsExamDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Schedule Admission Exam</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleScheduleExam} className="space-y-4">
-              <div>
-                <Label htmlFor="exam_date">Exam Date & Time</Label>
-                <Input id="exam_date" name="exam_date" type="datetime-local" required />
-              </div>
-              <div>
-                <Label htmlFor="exam_location">Location</Label>
-                <Input id="exam_location" name="exam_location" placeholder="e.g., Main Hall" required />
-              </div>
-              <div>
-                <Label htmlFor="notes">Instructions/Notes</Label>
-                <Textarea
-                  id="notes"
-                  name="notes"
-                  placeholder="Additional instructions for the applicant..."
-                  rows={4}
-                />
-              </div>
-              <Button type="submit" className="w-full">Schedule Exam</Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </DashboardLayout>
+      {/* Approve Application Dialog */}
+      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Application</DialogTitle>
+            <DialogDescription>
+              Approving will create a student record and send activation emails.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>Student Name</Label>
+              <p className="font-medium">
+                {selectedApplication?.first_name} {selectedApplication?.last_name}
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="class_id">Assign to Class *</Label>
+              <Select value={selectedClassId} onValueChange={setSelectedClassId} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.name} - {cls.levels?.name || ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="department">Department (Optional)</Label>
+              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="science">Science</SelectItem>
+                  <SelectItem value="arts">Arts</SelectItem>
+                  <SelectItem value="commercial">Commercial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="religion">Religion (Optional)</Label>
+              <Select value={selectedReligion} onValueChange={setSelectedReligion}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select religion" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="christian">Christian</SelectItem>
+                  <SelectItem value="islamic">Islamic</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleApprove} disabled={processing || !selectedClassId}>
+              {processing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Approve & Create Student
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Application Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Application</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to reject this application?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label>Student Name</Label>
+              <p className="font-medium">
+                {selectedApplication?.first_name} {selectedApplication?.last_name}
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="reason">Reason for Rejection (Optional)</Label>
+              <Textarea
+                id="reason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Enter reason for rejection..."
+                rows={4}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleReject} disabled={processing}>
+              {processing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Reject Application
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

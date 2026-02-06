@@ -101,7 +101,14 @@ CREATE INDEX idx_current_enrollments_class ON current_enrollments(class_id);
 CREATE INDEX idx_current_enrollments_session_term ON current_enrollments(session_id, term_id);
 CREATE INDEX idx_current_enrollments_is_current ON current_enrollments(is_current_session, is_current_term);
 
+-- Create unique index for CONCURRENTLY refresh support
+CREATE UNIQUE INDEX idx_current_enrollments_unique ON current_enrollments(enrollment_id);
+
 COMMENT ON MATERIALIZED VIEW current_enrollments IS 'Pre-computed active enrollments with student/class details for fast queries';
+
+-- Grant access to authenticated users
+GRANT SELECT ON current_enrollments TO authenticated;
+GRANT SELECT ON current_enrollments TO anon;
 
 -- Function to refresh materialized view
 CREATE OR REPLACE FUNCTION refresh_current_enrollments()
@@ -150,7 +157,14 @@ CREATE INDEX idx_enrollment_analytics_session_term ON enrollment_analytics(sessi
 CREATE INDEX idx_enrollment_analytics_class ON enrollment_analytics(class_id);
 CREATE INDEX idx_enrollment_analytics_status ON enrollment_analytics(status);
 
+-- Create unique index for CONCURRENTLY refresh support
+CREATE UNIQUE INDEX idx_enrollment_analytics_unique ON enrollment_analytics(session_id, term_id, class_id, status, enrollment_type);
+
 COMMENT ON MATERIALIZED VIEW enrollment_analytics IS 'Pre-aggregated enrollment statistics for dashboards';
+
+-- Grant access to authenticated users
+GRANT SELECT ON enrollment_analytics TO authenticated;
+GRANT SELECT ON enrollment_analytics TO anon;
 
 -- Function to refresh analytics
 CREATE OR REPLACE FUNCTION refresh_enrollment_analytics()
@@ -272,9 +286,9 @@ GRANT SELECT ON enrollment_analytics TO authenticated;
 -- ============================================================================
 -- PART 7: HELPER FUNCTION TO GET STUDENT COUNT BY CLASS
 -- ============================================================================
-
--- Optimized function to get current student count for a class
-CREATE OR REPLACE FUNCTION get_class_student_count(
+Note: Materialized views don't support RLS. Access is controlled via GRANT statements.
+-- Already granted SELECT to authenticated/anon users in previous sections.
+-- Refresh functions use SECURITY DEFINER to bypass permission checks during refresh.
   p_class_id UUID,
   p_session_id UUID DEFAULT NULL,
   p_term_id UUID DEFAULT NULL

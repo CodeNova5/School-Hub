@@ -125,13 +125,14 @@ POST /api/admin/promote
 - ⏳ Update `app/admin/students/page.tsx` - Filter by enrollment
 - ⏳ Update `app/admin/students/[studentId]/subjects/page.tsx`
 - ⏳ Update `app/admin/timetable/page.tsx`
-- ⏳ Create `app/admin/promotions/page.tsx` - Bulk promotion UI
+- ✅ Create `app/admin/promotions/page.tsx` - Bulk promotion UI
 - ⏳ Update `app/admin/students/[studentId]/report/page.tsx` - Historical reports
 
 #### Components
 - ⏳ Update `components/results-table.tsx` - Use enrollment for class context
 - ⏳ Update `components/student-table.tsx` - Show enrollment status
-- ⏳ Add `components/enrollment-history.tsx` - Timeline view
+- ✅ Add `components/enrollment-history.tsx` - Timeline view
+- ✅ Add `components/enrollment-analytics.tsx` - Stats dashboard
 - ⏳ Update `components/class-timetable.tsx` - Enrollment-based
 
 ---

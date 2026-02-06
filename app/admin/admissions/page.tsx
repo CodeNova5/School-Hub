@@ -161,8 +161,8 @@ export default function AdminAdmissionsPage() {
         body: JSON.stringify({
           applicationId: selectedApplication?.id,
           classId: selectedClassId,
-          department: selectedDepartment || null,
-          religion: selectedReligion || null,
+          department: selectedDepartment === "none" ? null : selectedDepartment,
+          religion: selectedReligion === "none" ? null : selectedReligion,
         }),
       });
 
@@ -603,7 +603,7 @@ export default function AdminAdmissionsPage() {
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     <SelectItem value="science">Science</SelectItem>
                     <SelectItem value="arts">Arts</SelectItem>
                     <SelectItem value="commercial">Commercial</SelectItem>
@@ -618,7 +618,7 @@ export default function AdminAdmissionsPage() {
                     <SelectValue placeholder="Select religion" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     <SelectItem value="christian">Christian</SelectItem>
                     <SelectItem value="islamic">Islamic</SelectItem>
                     <SelectItem value="other">Other</SelectItem>

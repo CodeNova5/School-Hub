@@ -171,6 +171,8 @@ export default function TeacherClassManagement({ params }: PageProps) {
         enrollment_id: enrollment.enrollment_id,
         address: enrollment.address || null,
         admission_date: enrollment.admission_date || null,
+        attendance: enrollment.attendance || 0,
+        average_attendance: enrollment.average_attendance || 0,
         created_at: enrollment.created_at || new Date().toISOString(),
         updated_at: enrollment.updated_at || new Date().toISOString(),
       }));

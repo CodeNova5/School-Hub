@@ -6,10 +6,16 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Loader2, Save, BookOpen, CheckCircle2, Circle, GraduationCap } from "lucide-react";
+import { ArrowLeft, Loader2, Save, BookOpen, CheckCircle2, Circle, GraduationCap, Edit3 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Subject {
   id: string;
@@ -50,6 +56,11 @@ export default function StudentSubjectsPage() {
   const [studentClass, setStudentClass] = useState<any>(null);
   const [availableSubjects, setAvailableSubjects] = useState<SubjectClass[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<Set<string>>(new Set());
+  const [studentDepartment, setStudentDepartment] = useState<string | null>(null);
+  const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
+  const [newDepartment, setNewDepartment] = useState<string>("");
+  const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
+  const [isChangingDepartment, setIsChangingDepartment] = useState(false);
 
   useEffect(() => {
     loadStudentData();
@@ -87,6 +98,25 @@ export default function StudentSubjectsPage() {
 
       setStudentName(`${studentData.first_name} ${studentData.last_name}`);
       setStudentClass(studentData.classes);
+      setStudentDepartment(studentData.department);
+
+      // Fetch available departments from all subjects for this class
+      const { data: allSubjectClassesData } = await supabase
+        .from("subject_classes")
+        .select(`
+          subjects (
+            department
+          )
+        `)
+        .eq("class_id", studentData.class_id);
+
+      const departments = new Set<string>();
+      (allSubjectClassesData || []).forEach((sc: any) => {
+        if (sc.subjects?.department) {
+          departments.add(sc.subjects.department);
+        }
+      });
+      setAvailableDepartments(Array.from(departments).sort());
 
       // Fetch available subject_classes for the student's class
       const { data: subjectClassesData, error: subjectClassesError } = await supabase
@@ -233,6 +263,52 @@ export default function StudentSubjectsPage() {
     setSelectedSubjects(newSelected);
   }
 
+  async function handleChangeDepartment() {
+    if (!newDepartment) {
+      toast.error("Please select a department");
+      return;
+    }
+
+    if (newDepartment === studentDepartment) {
+      toast.info("Same department selected");
+      setIsDepartmentDialogOpen(false);
+      return;
+    }
+
+    setIsChangingDepartment(true);
+    try {
+      // Update student's department
+      const { error: updateError } = await supabase
+        .from("students")
+        .update({ department: newDepartment })
+        .eq("id", studentId);
+
+      if (updateError) throw updateError;
+
+      toast.success("Department changed successfully");
+      setStudentDepartment(newDepartment);
+      setIsDepartmentDialogOpen(false);
+
+      // Remove old departmental subjects from selectedSubjects
+      const newSelected = new Set(selectedSubjects);
+      availableSubjects.forEach((sc) => {
+        if (sc.subjects.department === studentDepartment) {
+          newSelected.delete(sc.id);
+        }
+      });
+
+      // Reload the page to get new available subjects and add compulsory departmental subjects
+      await new Promise(resolve => setTimeout(resolve, 500));
+      loadStudentData();
+      setNewDepartment("");
+    } catch (error: any) {
+      console.error("Error changing department:", error);
+      toast.error("Failed to change department: " + error.message);
+    } finally {
+      setIsChangingDepartment(false);
+    }
+  }
+
   if (loading) {
     return (
       <DashboardLayout role="admin">
@@ -282,10 +358,25 @@ export default function StudentSubjectsPage() {
                   <Badge variant="outline" className="text-sm">
                     {studentClass.education_level}
                   </Badge>
-                  {studentClass.department && (
-                    <Badge variant="outline" className="text-sm">
-                      {studentClass.department}
-                    </Badge>
+                  {studentDepartment && (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-sm">
+                        {studentDepartment}
+                      </Badge>
+                      {availableDepartments.length > 1 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setNewDepartment(studentDepartment || "");
+                            setIsDepartmentDialogOpen(true);
+                          }}
+                          className="h-6 px-2"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -503,7 +594,66 @@ export default function StudentSubjectsPage() {
           )}
         </div>
 
-       
+        {/* Change Department Dialog */}
+        <Dialog open={isDepartmentDialogOpen} onOpenChange={setIsDepartmentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Change Student Department</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Current Department: <span className="font-semibold text-foreground">{studentDepartment || "None"}</span>
+                </p>
+                <label className="block text-sm font-medium mb-2">Select New Department</label>
+                <select
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md bg-background"
+                >
+                  <option value="">-- Select Department --</option>
+                  {availableDepartments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+                <p className="text-sm text-amber-900">
+                  <strong>Note:</strong> Subjects from the old department will be removed, and all compulsory subjects from the new department will be automatically added.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDepartmentDialogOpen(false);
+                    setNewDepartment("");
+                  }}
+                  disabled={isChangingDepartment}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleChangeDepartment}
+                  disabled={isChangingDepartment || !newDepartment}
+                >
+                  {isChangingDepartment ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Changing...
+                    </>
+                  ) : (
+                    "Change Department"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

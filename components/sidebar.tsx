@@ -15,7 +15,9 @@ import {
   ClipboardList,
   School,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp,
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -43,6 +45,8 @@ export function Sidebar({ role }: SidebarProps) {
     { href: '/admin/timetable', label: 'Timetable', icon: <FileText className="h-5 w-5" /> },
     { href: '/admin/students', label: 'Students', icon: <Users className="h-5 w-5" /> },
     { href: '/admin/teachers', label: 'Teachers', icon: <GraduationCap className="h-5 w-5" /> },
+    { href: '/admin/enrollments', label: 'Enrollments', icon: <BarChart3 className="h-5 w-5" /> },
+    { href: '/admin/promotions', label: 'Promotions', icon: <TrendingUp className="h-5 w-5" /> },
     { href: '/admin/admissions', label: 'Admissions', icon: <ClipboardList className="h-5 w-5" /> },
     { href: '/admin/calendar', label: 'Calendar', icon: <Calendar className="h-5 w-5" /> },
     { href: '/admin/settings', label: 'Settings', icon: <Settings className="h-5 w-5" /> },

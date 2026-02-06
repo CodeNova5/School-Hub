@@ -33,32 +33,47 @@ interface EnrollmentStats {
   }>;
 }
 
-export function EnrollmentAnalytics() {
+interface EnrollmentAnalyticsProps {
+  sessionId?: string;
+  termId?: string;
+}
+
+export function EnrollmentAnalytics({ sessionId, termId }: EnrollmentAnalyticsProps = {}) {
   const [stats, setStats] = useState<EnrollmentStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [sessionId, termId]);
 
   async function fetchStats() {
     setLoading(true);
     try {
 
-      // Get current session and term
-      const { data: currentSession } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("is_current", true)
-        .single();
+      // Get current session and term (or use provided ones)
+      let targetSessionId = sessionId;
+      let targetTermId = termId;
 
-      const { data: currentTerm } = await supabase
-        .from("terms")
-        .select("id")
-        .eq("is_current", true)
-        .single();
+      if (!targetSessionId) {
+        const { data: currentSession } = await supabase
+          .from("sessions")
+          .select("id")
+          .eq("is_current", true)
+          .single();
+        targetSessionId = currentSession?.id;
+      }
 
-      if (!currentSession || !currentTerm) {
+      if (!targetTermId) {
+        const { data: currentTerm } = await supabase
+          .from("terms")
+          .select("id")
+          .eq("is_current", true)
+          .single();
+        targetTermId = currentTerm?.id;
+      }
+
+      if (!targetSessionId || !targetTermId) {
+        setStats(null);
         setLoading(false);
         return;
       }
@@ -67,8 +82,8 @@ export function EnrollmentAnalytics() {
       const { data: enrollments } = await supabase
         .from("enrollments")
         .select("status, class_id, classes(name)")
-        .eq("session_id", currentSession.id)
-        .eq("term_id", currentTerm.id);
+        .eq("session_id", targetSessionId)
+        .eq("term_id", targetTermId);
 
       if (!enrollments) {
         setLoading(false);

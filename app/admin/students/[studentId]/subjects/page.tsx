@@ -285,25 +285,28 @@ export default function StudentSubjectsPage() {
 
       if (updateError) throw updateError;
 
-      toast.success("Department changed successfully");
+      toast.success(studentDepartment ? "Department changed successfully" : "Department added successfully");
       setStudentDepartment(newDepartment);
       setIsDepartmentDialogOpen(false);
 
-      // Remove old departmental subjects from selectedSubjects
-      const newSelected = new Set(selectedSubjects);
-      availableSubjects.forEach((sc) => {
-        if (sc.subjects.department === studentDepartment) {
-          newSelected.delete(sc.id);
-        }
-      });
+      // Remove old departmental subjects from selectedSubjects (only if there was a previous department)
+      if (studentDepartment) {
+        const newSelected = new Set(selectedSubjects);
+        availableSubjects.forEach((sc) => {
+          if (sc.subjects.department === studentDepartment) {
+            newSelected.delete(sc.id);
+          }
+        });
+        setSelectedSubjects(newSelected);
+      }
 
       // Reload the page to get new available subjects and add compulsory departmental subjects
       await new Promise(resolve => setTimeout(resolve, 500));
       loadStudentData();
       setNewDepartment("");
     } catch (error: any) {
-      console.error("Error changing department:", error);
-      toast.error("Failed to change department: " + error.message);
+      console.error("Error updating department:", error);
+      toast.error("Failed to update department: " + error.message);
     } finally {
       setIsChangingDepartment(false);
     }
@@ -377,6 +380,19 @@ export default function StudentSubjectsPage() {
                         </Button>
                       )}
                     </div>
+                  )}
+                  {!studentDepartment && availableDepartments.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setNewDepartment("");
+                        setIsDepartmentDialogOpen(true);
+                      }}
+                      className="text-xs"
+                    >
+                      Add Department
+                    </Button>
                   )}
                 </div>
               )}
@@ -594,18 +610,24 @@ export default function StudentSubjectsPage() {
           )}
         </div>
 
-        {/* Change Department Dialog */}
+        {/* Change/Add Department Dialog */}
         <Dialog open={isDepartmentDialogOpen} onOpenChange={setIsDepartmentDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Change Student Department</DialogTitle>
+              <DialogTitle>
+                {studentDepartment ? "Change Student Department" : "Add Student Department"}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Current Department: <span className="font-semibold text-foreground">{studentDepartment || "None"}</span>
-                </p>
-                <label className="block text-sm font-medium mb-2">Select New Department</label>
+                {studentDepartment && (
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Current Department: <span className="font-semibold text-foreground">{studentDepartment}</span>
+                  </p>
+                )}
+                <label className="block text-sm font-medium mb-2">
+                  {studentDepartment ? "Select New Department" : "Select Department"}
+                </label>
                 <select
                   value={newDepartment}
                   onChange={(e) => setNewDepartment(e.target.value)}
@@ -622,7 +644,10 @@ export default function StudentSubjectsPage() {
               
               <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
                 <p className="text-sm text-amber-900">
-                  <strong>Note:</strong> Subjects from the old department will be removed, and all compulsory subjects from the new department will be automatically added.
+                  <strong>Note:</strong> 
+                  {studentDepartment 
+                    ? " Subjects from the old department will be removed, and all compulsory subjects from the new department will be automatically added."
+                    : " All compulsory subjects from the selected department will be automatically added."}
                 </p>
               </div>
 
@@ -644,10 +669,10 @@ export default function StudentSubjectsPage() {
                   {isChangingDepartment ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Changing...
+                      {studentDepartment ? "Changing..." : "Adding..."}
                     </>
                   ) : (
-                    "Change Department"
+                    studentDepartment ? "Change Department" : "Add Department"
                   )}
                 </Button>
               </div>

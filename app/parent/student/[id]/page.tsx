@@ -170,13 +170,29 @@ export default function ParentStudentDetailPage() {
       }
 
       // Get average score from published results
-      const { data: results } = await supabase
+      const { data: allResults } = await supabase
         .from("results")
-        .select("total")
+        .select("total, subject_classes(class_id), session_id, term_id")
         .eq("student_id", studentId);
 
-      const averageScore = results && results.length > 0
-        ? Math.round(results.reduce((sum, r) => sum + r.total, 0) / results.length)
+      // Get publication status for results
+      const { data: pubData } = await supabase
+        .from("results_publication")
+        .select("class_id, session_id, term_id, is_published_to_parents");
+
+      const pubLookup = new Map();
+      (pubData || []).forEach((p: any) => {
+        pubLookup.set(`${p.class_id}|${p.session_id}|${p.term_id}`, p.is_published_to_parents);
+      });
+
+      const publishedResults = (allResults || []).filter((r: any) => {
+        if (!r.subject_classes) return false;
+        const key = `${r.subject_classes.class_id}|${r.session_id}|${r.term_id}`;
+        return pubLookup.get(key) === true;
+      });
+
+      const averageScore = publishedResults.length > 0
+        ? Math.round(publishedResults.reduce((sum, r: any) => sum + r.total, 0) / publishedResults.length)
         : 0;
 
       setStats({

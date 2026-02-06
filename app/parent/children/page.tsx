@@ -142,19 +142,10 @@ export default function ParentChildPage() {
             }
           }
 
-          // Get latest result
-          const { data: results } = await supabase
-            .from("results")
-            .select("total, grade")
-            .eq("student_id", student.id)
-            .order("created_at", { ascending: false })
-            .limit(1);
-
           return {
             ...student,
             average_attendance,
             pending_assignments,
-            latest_result: results?.[0] || null,
           };
         })
       );
@@ -281,17 +272,7 @@ export default function ParentChildPage() {
                         <p className="font-semibold">{child.pending_assignments || 0} tasks</p>
                       </div>
                     </div>
-                    {child.latest_result && (
-                      <div className="flex items-center gap-2 col-span-2">
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                        <div>
-                          <p className="text-xs text-gray-600">Latest Result</p>
-                          <p className="font-semibold">
-                            {child.latest_result.total}% ({child.latest_result.grade})
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

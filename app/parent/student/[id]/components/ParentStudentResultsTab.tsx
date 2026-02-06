@@ -88,9 +88,9 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
             setAllTerms(termsRes.data || []);
 
             // Get results
-                        const { data: resultsData, error } = await supabase
-                                .from("results")
-                                .select(`
+            const { data: resultsData, error } = await supabase
+                .from("results")
+                .select(`
                     *,
                     subject_classes!inner(
                         class_id,
@@ -99,8 +99,8 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                     terms(name, session_id, is_current),
                     sessions(name, is_current)
                 `)
-                                .eq("student_id", studentId)
-                                .order("created_at", { ascending: false });
+                .eq("student_id", studentId)
+                .order("created_at", { ascending: false });
 
             if (error) throw error;
             setResults(resultsData || []);
@@ -292,8 +292,8 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                         <div className="text-center">
                             <Award className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                             <p className="text-gray-600">
-                                {!selectedSession || !selectedTerm 
-                                    ? "Please select a session and term to view results" 
+                                {!selectedSession || !selectedTerm
+                                    ? "Please select a session and term to view results"
                                     : "No published results found"}
                             </p>
                         </div>

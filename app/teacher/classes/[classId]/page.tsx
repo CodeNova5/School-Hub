@@ -143,11 +143,39 @@ export default function TeacherClassManagement({ params }: PageProps) {
   async function fetchStudents() {
     setStudentsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('students')
+      // Use current_enrollments view for current session/term
+      const { data: enrollmentsData, error } = await supabase
+        .from('current_enrollments')
         .select('*')
         .eq('class_id', classId);
-      setStudents(data || []);
+      
+      if (error) throw error;
+      
+      // Transform to student format with enrollment_id
+      const studentsData = (enrollmentsData || []).map((enrollment: any) => ({
+        id: enrollment.student_id,
+        student_id: enrollment.student_number,
+        first_name: enrollment.first_name,
+        last_name: enrollment.last_name,
+        email: enrollment.email,
+        phone: enrollment.phone,
+        gender: enrollment.gender,
+        date_of_birth: enrollment.date_of_birth,
+        parent_name: enrollment.parent_name,
+        parent_email: enrollment.parent_email,
+        parent_phone: enrollment.parent_phone,
+        status: enrollment.student_status,
+        religion: enrollment.religion,
+        department: enrollment.department,
+        class_id: enrollment.class_id,
+        enrollment_id: enrollment.enrollment_id,
+        address: enrollment.address || null,
+        admission_date: enrollment.admission_date || null,
+        created_at: enrollment.created_at || new Date().toISOString(),
+        updated_at: enrollment.updated_at || new Date().toISOString(),
+      }));
+      
+      setStudents(studentsData);
     } catch (error) {
       console.error('Error fetching students:', error);
     } finally {

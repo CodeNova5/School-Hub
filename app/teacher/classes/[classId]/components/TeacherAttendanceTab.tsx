@@ -19,6 +19,7 @@ interface StudentAttendance {
   gender: string;
   attendanceStatus: "present" | "absent" | "late" | "excused" | "not_marked";
   attendanceId?: string;
+  enrollment_id?: string;
 }
 
 interface TeacherAttendanceTabProps {
@@ -45,10 +46,12 @@ export default function TeacherAttendanceTab({
   async function fetchAttendance(date: string) {
     setAttendanceLoading(true);
     try {
+      const studentIds = students.map(s => s.id);
+      
       const { data: attendanceData, error } = await supabase
         .from("attendance")
         .select("*")
-        .eq("class_id", classId)
+        .in("student_id", studentIds)
         .eq("date", date);
 
       const studentsWithAttendance: StudentAttendance[] = (students || []).map((student: any) => {
@@ -56,9 +59,14 @@ export default function TeacherAttendanceTab({
           (a: any) => a.student_id === student.id
         );
         return {
-          ...student,
+          id: student.id,
+          student_id: student.student_id,
+          first_name: student.first_name,
+          last_name: student.last_name,
+          gender: student.gender,
           attendanceStatus: attendance ? (attendance.status as any) : "not_marked",
           attendanceId: attendance?.id,
+          enrollment_id: student.enrollment_id,
         };
       });
 
@@ -112,7 +120,7 @@ export default function TeacherAttendanceTab({
         .filter((s) => s.attendanceStatus !== "not_marked")
         .map((student) => ({
           student_id: student.id,
-          class_id: classId,
+          enrollment_id: student.enrollment_id, // Use enrollment_id instead of class_id
           date: selectedDate,
           status: student.attendanceStatus,
           marked_by: null,

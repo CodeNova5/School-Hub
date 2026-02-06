@@ -80,15 +80,19 @@ export default function ClassesPage() {
 
       const classesWithStats = await Promise.all(
         (data || []).map(async (cls: any) => {
-          const [studentsRes, subjectsRes] = await Promise.all([
-            supabase.from("students").select("id", { count: "exact" }).eq("class_id", cls.id),
-            supabase.from("subject_classes").select("id", { count: "exact" }).eq("class_id", cls.id),
-          ]);
+          // Use RPC function to get enrollment-based student count
+          const { data: studentCount, error: countError } = await supabase
+            .rpc("get_class_student_count", { p_class_id: cls.id });
+
+          const { data: subjectsData, count: subjectCount } = await supabase
+            .from("subject_classes")
+            .select("id", { count: "exact" })
+            .eq("class_id", cls.id);
 
           return {
             ...cls,
-            studentCount: studentsRes.count || 0,
-            subjectCount: subjectsRes.count || 0,
+            studentCount: countError ? 0 : (studentCount || 0),
+            subjectCount: subjectCount || 0,
             teacherName: undefined,
           };
         })

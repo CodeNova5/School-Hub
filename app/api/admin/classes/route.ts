@@ -3,10 +3,13 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createRouteHandlerClient({ cookies });
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // Middleware to check if user is admin
-async function checkIsAdmin() {
+async function checkIsAdmin(supabase: any) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -26,31 +29,21 @@ async function checkIsAdmin() {
 
 export async function GET(req: Request) {
   try {
+    // Initialize Supabase client inside the request handler
+    const supabase = createRouteHandlerClient({ cookies });
+
     // Verify admin authentication
-    const authCheck = await checkIsAdmin();
+    const authCheck = await checkIsAdmin(supabase);
     if (!authCheck.authorized) {
       return NextResponse.json(
         { error: authCheck.error },
         { status: authCheck.status }
       );
     }
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
 
     const { data: classes, error } = await supabaseAdmin
       .from("classes")
-      .select(`
-        id,
-        name,
-        level,
-        stream,
-        level_id,
-        levels (
-          name
-        )
-      `)
+      .select("*")
       .order("name", { ascending: true });
 
     if (error) throw error;

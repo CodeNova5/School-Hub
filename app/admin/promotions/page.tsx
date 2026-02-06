@@ -288,7 +288,7 @@ export default function PromotionsPage() {
 
         const { data: results } = await supabase
           .from("results")
-          .select("total_score, session_id, term_id")
+          .select("total, session_id, term_id")
           .eq("student_id", student.id)
           .eq("session_id", currentSession.id);
 
@@ -304,7 +304,7 @@ export default function PromotionsPage() {
           continue;
         }
 
-        const totalScore = results.reduce((sum, r) => sum + (r.total_score || 0), 0);
+        const totalScore = results.reduce((sum, r) => sum + (r.total || 0), 0);
         const averageScore = totalScore / results.length;
 
         studentPerformances.push({

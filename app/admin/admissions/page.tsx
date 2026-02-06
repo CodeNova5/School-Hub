@@ -604,9 +604,9 @@ export default function AdminAdmissionsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="science">Science</SelectItem>
-                    <SelectItem value="arts">Arts</SelectItem>
-                    <SelectItem value="commercial">Commercial</SelectItem>
+                    <SelectItem value="Science">Science</SelectItem>
+                    <SelectItem value="Arts">Arts</SelectItem>
+                    <SelectItem value="Commercial">Commercial</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -619,9 +619,9 @@ export default function AdminAdmissionsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="christian">Christian</SelectItem>
-                    <SelectItem value="islamic">Islamic</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="Christian">Christian</SelectItem>
+                    <SelectItem value="Muslim">Muslim</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

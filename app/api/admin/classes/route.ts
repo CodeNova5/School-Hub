@@ -1,13 +1,9 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = createRouteHandlerClient({ cookies });
 
 // Middleware to check if user is admin
 async function checkIsAdmin() {
@@ -38,8 +34,12 @@ export async function GET(req: Request) {
         { status: authCheck.status }
       );
     }
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    const { data: classes, error } = await supabase
+    const { data: classes, error } = await supabaseAdmin
       .from("classes")
       .select(`
         id,

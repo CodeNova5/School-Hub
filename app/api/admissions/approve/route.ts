@@ -1,9 +1,13 @@
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
 
-const supabase = createClient(
+const supabase = createRouteHandlerClient({ cookies });
+
+
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -43,7 +47,7 @@ export async function POST(req: Request) {
     const { applicationId, classId, department, religion } = await req.json();
 
     // Get application details
-    const { data: application, error: fetchError } = await supabase
+    const { data: application, error: fetchError } = await supabaseAdmin
       .from("admissions")
       .select("*")
       .eq("id", applicationId)
@@ -58,7 +62,7 @@ export async function POST(req: Request) {
     }
 
     // Update application status
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from("admissions")
       .update({
         status: "approved",

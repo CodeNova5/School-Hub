@@ -1,10 +1,11 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
+const supabase = createRouteHandlerClient({ cookies });
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
         const status = searchParams.get("status") || "all";
 
         // Build query
-        let query = supabase
+        let query = supabaseAdmin
             .from("admissions")
             .select("*")
             .order("submitted_at", { ascending: false });

@@ -1,10 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from "next/headers";
 
 // Helper to check admin permission
 async function checkIsAdmin() {
   const cookieStore = await cookies();
+  
+  // Get access token from cookies
+  const accessToken = cookieStore.get('sb-access-token')?.value;
+  const refreshToken = cookieStore.get('sb-refresh-token')?.value;
+
+  if (!accessToken) {
+    throw new Error("Unauthorized");
+  }
+
+  // Create supabase client with user's session
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    }
+  );
 
   const {
     data: { user },
@@ -20,7 +41,7 @@ async function checkIsAdmin() {
     throw new Error("Admin access required");
   }
 
-  return user;
+  return { user, supabase };
 }
 
 /**
@@ -37,9 +58,7 @@ async function checkIsAdmin() {
  */
 export async function POST(req: NextRequest) {
   try {
-    await checkIsAdmin();
-
-    const cookieStore = await cookies();
+    const { supabase } = await checkIsAdmin();
 
     const body = await req.json();
     const { 

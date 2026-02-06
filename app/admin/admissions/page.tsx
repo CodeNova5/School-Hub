@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DashboardLayout } from "@/components/dashboard-layout";
 import {
   Select,
   SelectContent,
@@ -95,12 +96,12 @@ export default function AdminAdmissionsPage() {
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
-  
+
   // Approval form data
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedReligion, setSelectedReligion] = useState("");
-  
+
   // Rejection reason
   const [rejectionReason, setRejectionReason] = useState("");
 
@@ -259,443 +260,445 @@ export default function AdminAdmissionsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Admissions Management</h1>
-        <p className="text-gray-600 mt-1">Review and manage student applications</p>
-      </div>
+    <DashboardLayout role="admin">
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Admissions Management</h1>
+          <p className="text-gray-600 mt-1">Review and manage student applications</p>
+        </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
+              <Users className="h-4 w-4 text-gray-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.total}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+              <Clock className="h-4 w-4 text-yellow-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Approved</CardTitle>
+              <UserCheck className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+              <UserX className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Applications</CardTitle>
-            <Users className="h-4 w-4 text-gray-500" />
+          <CardHeader>
+            <CardTitle>Applications</CardTitle>
+            <CardDescription>Filter and search through applications</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by name, email, or application number..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="w-full md:w-48">
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
+        {/* Applications Table */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              </div>
+            ) : filteredApplications.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+                <FileText className="h-12 w-12 mb-4 text-gray-300" />
+                <p className="text-lg font-medium">No applications found</p>
+                <p className="text-sm">Try adjusting your filters</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>App Number</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Parent Name</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Desired Class</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredApplications.map((app) => (
+                      <TableRow key={app.id}>
+                        <TableCell className="font-mono text-sm">{app.application_number}</TableCell>
+                        <TableCell className="font-medium">
+                          {app.first_name} {app.last_name}
+                        </TableCell>
+                        <TableCell>{app.parent_name}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <div>{app.parent_email}</div>
+                            <div className="text-gray-500">{app.parent_phone}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{app.desired_class}</TableCell>
+                        <TableCell>{getStatusBadge(app.status)}</TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {new Date(app.submitted_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedApplication(app);
+                                setViewDialogOpen(true);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            {app.status === "pending" && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => {
+                                    setSelectedApplication(app);
+                                    setApproveDialogOpen(true);
+                                  }}
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setSelectedApplication(app);
+                                    setRejectDialogOpen(true);
+                                  }}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved</CardTitle>
-            <UserCheck className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
-          </CardContent>
-        </Card>
+        {/* View Application Dialog */}
+        <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Application Details</DialogTitle>
+              <DialogDescription>
+                Application Number: {selectedApplication?.application_number}
+              </DialogDescription>
+            </DialogHeader>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rejected</CardTitle>
-            <UserX className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.rejected}</div>
-          </CardContent>
-        </Card>
-      </div>
+            {selectedApplication && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 border-b pb-2">Student Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-600">First Name</Label>
+                      <p className="font-medium">{selectedApplication.first_name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Last Name</Label>
+                      <p className="font-medium">{selectedApplication.last_name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Date of Birth</Label>
+                      <p className="font-medium">
+                        {selectedApplication.date_of_birth
+                          ? new Date(selectedApplication.date_of_birth).toLocaleDateString()
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Gender</Label>
+                      <p className="font-medium capitalize">{selectedApplication.gender}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Email</Label>
+                      <p className="font-medium">{selectedApplication.email || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Phone</Label>
+                      <p className="font-medium">{selectedApplication.phone || "N/A"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-gray-600">Address</Label>
+                      <p className="font-medium">{selectedApplication.address}</p>
+                    </div>
+                  </div>
+                </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Applications</CardTitle>
-          <CardDescription>Filter and search through applications</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by name, email, or application number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 border-b pb-2">Parent/Guardian Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-600">Parent Name</Label>
+                      <p className="font-medium">{selectedApplication.parent_name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Parent Email</Label>
+                      <p className="font-medium">{selectedApplication.parent_email}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <Label className="text-gray-600">Parent Phone</Label>
+                      <p className="font-medium">{selectedApplication.parent_phone}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 border-b pb-2">Academic Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-600">Desired Class</Label>
+                      <p className="font-medium">{selectedApplication.desired_class}</p>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Previous School</Label>
+                      <p className="font-medium">{selectedApplication.previous_school || "N/A"}</p>
+                    </div>
+                    {selectedApplication.notes && (
+                      <div className="col-span-2">
+                        <Label className="text-gray-600">Additional Notes</Label>
+                        <p className="font-medium">{selectedApplication.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-semibold text-lg mb-3 border-b pb-2">Application Status</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-600">Status</Label>
+                      <div className="mt-1">{getStatusBadge(selectedApplication.status)}</div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-600">Submitted At</Label>
+                      <p className="font-medium">
+                        {new Date(selectedApplication.submitted_at).toLocaleString()}
+                      </p>
+                    </div>
+                    {selectedApplication.reviewed_at && (
+                      <div>
+                        <Label className="text-gray-600">Reviewed At</Label>
+                        <p className="font-medium">
+                          {new Date(selectedApplication.reviewed_at).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Approve Application Dialog */}
+        <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Approve Application</DialogTitle>
+              <DialogDescription>
+                Approving will create a student record and send activation emails.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label>Student Name</Label>
+                <p className="font-medium">
+                  {selectedApplication?.first_name} {selectedApplication?.last_name}
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="class_id">Assign to Class *</Label>
+                <Select value={selectedClassId} onValueChange={setSelectedClassId} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name} - {cls.levels?.name || ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="department">Department (Optional)</Label>
+                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="science">Science</SelectItem>
+                    <SelectItem value="arts">Arts</SelectItem>
+                    <SelectItem value="commercial">Commercial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="religion">Religion (Optional)</Label>
+                <Select value={selectedReligion} onValueChange={setSelectedReligion}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select religion" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="christian">Christian</SelectItem>
+                    <SelectItem value="islamic">Islamic</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleApprove} disabled={processing || !selectedClassId}>
+                {processing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Approve & Create Student
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reject Application Dialog */}
+        <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reject Application</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to reject this application?
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label>Student Name</Label>
+                <p className="font-medium">
+                  {selectedApplication?.first_name} {selectedApplication?.last_name}
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="reason">Reason for Rejection (Optional)</Label>
+                <Textarea
+                  id="reason"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter reason for rejection..."
+                  rows={4}
                 />
               </div>
             </div>
-            <div className="w-full md:w-48">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Applications Table */}
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-            </div>
-          ) : filteredApplications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-              <FileText className="h-12 w-12 mb-4 text-gray-300" />
-              <p className="text-lg font-medium">No applications found</p>
-              <p className="text-sm">Try adjusting your filters</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>App Number</TableHead>
-                    <TableHead>Student Name</TableHead>
-                    <TableHead>Parent Name</TableHead>
-                    <TableHead>Contact</TableHead>
-                    <TableHead>Desired Class</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredApplications.map((app) => (
-                    <TableRow key={app.id}>
-                      <TableCell className="font-mono text-sm">{app.application_number}</TableCell>
-                      <TableCell className="font-medium">
-                        {app.first_name} {app.last_name}
-                      </TableCell>
-                      <TableCell>{app.parent_name}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div>{app.parent_email}</div>
-                          <div className="text-gray-500">{app.parent_phone}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{app.desired_class}</TableCell>
-                      <TableCell>{getStatusBadge(app.status)}</TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {new Date(app.submitted_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedApplication(app);
-                              setViewDialogOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
-                          {app.status === "pending" && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="default"
-                                className="bg-green-600 hover:bg-green-700"
-                                onClick={() => {
-                                  setSelectedApplication(app);
-                                  setApproveDialogOpen(true);
-                                }}
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => {
-                                  setSelectedApplication(app);
-                                  setRejectDialogOpen(true);
-                                }}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* View Application Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Application Details</DialogTitle>
-            <DialogDescription>
-              Application Number: {selectedApplication?.application_number}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedApplication && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Student Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-600">First Name</Label>
-                    <p className="font-medium">{selectedApplication.first_name}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Last Name</Label>
-                    <p className="font-medium">{selectedApplication.last_name}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Date of Birth</Label>
-                    <p className="font-medium">
-                      {selectedApplication.date_of_birth
-                        ? new Date(selectedApplication.date_of_birth).toLocaleDateString()
-                        : "N/A"}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Gender</Label>
-                    <p className="font-medium capitalize">{selectedApplication.gender}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Email</Label>
-                    <p className="font-medium">{selectedApplication.email || "N/A"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Phone</Label>
-                    <p className="font-medium">{selectedApplication.phone || "N/A"}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-gray-600">Address</Label>
-                    <p className="font-medium">{selectedApplication.address}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Parent/Guardian Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-600">Parent Name</Label>
-                    <p className="font-medium">{selectedApplication.parent_name}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Parent Email</Label>
-                    <p className="font-medium">{selectedApplication.parent_email}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-gray-600">Parent Phone</Label>
-                    <p className="font-medium">{selectedApplication.parent_phone}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Academic Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-600">Desired Class</Label>
-                    <p className="font-medium">{selectedApplication.desired_class}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Previous School</Label>
-                    <p className="font-medium">{selectedApplication.previous_school || "N/A"}</p>
-                  </div>
-                  {selectedApplication.notes && (
-                    <div className="col-span-2">
-                      <Label className="text-gray-600">Additional Notes</Label>
-                      <p className="font-medium">{selectedApplication.notes}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <h3 className="font-semibold text-lg mb-3 border-b pb-2">Application Status</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-600">Status</Label>
-                    <div className="mt-1">{getStatusBadge(selectedApplication.status)}</div>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Submitted At</Label>
-                    <p className="font-medium">
-                      {new Date(selectedApplication.submitted_at).toLocaleString()}
-                    </p>
-                  </div>
-                  {selectedApplication.reviewed_at && (
-                    <div>
-                      <Label className="text-gray-600">Reviewed At</Label>
-                      <p className="font-medium">
-                        {new Date(selectedApplication.reviewed_at).toLocaleString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Approve Application Dialog */}
-      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Approve Application</DialogTitle>
-            <DialogDescription>
-              Approving will create a student record and send activation emails.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label>Student Name</Label>
-              <p className="font-medium">
-                {selectedApplication?.first_name} {selectedApplication?.last_name}
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="class_id">Assign to Class *</Label>
-              <Select value={selectedClassId} onValueChange={setSelectedClassId} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select class" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id}>
-                      {cls.name} - {cls.levels?.name || ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="department">Department (Optional)</Label>
-              <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select department" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">None</SelectItem>
-                  <SelectItem value="science">Science</SelectItem>
-                  <SelectItem value="arts">Arts</SelectItem>
-                  <SelectItem value="commercial">Commercial</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="religion">Religion (Optional)</Label>
-              <Select value={selectedReligion} onValueChange={setSelectedReligion}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select religion" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">None</SelectItem>
-                  <SelectItem value="christian">Christian</SelectItem>
-                  <SelectItem value="islamic">Islamic</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleApprove} disabled={processing || !selectedClassId}>
-              {processing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve & Create Student
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reject Application Dialog */}
-      <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Application</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to reject this application?
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label>Student Name</Label>
-              <p className="font-medium">
-                {selectedApplication?.first_name} {selectedApplication?.last_name}
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="reason">Reason for Rejection (Optional)</Label>
-              <Textarea
-                id="reason"
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Enter reason for rejection..."
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleReject} disabled={processing}>
-              {processing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Reject Application
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleReject} disabled={processing}>
+                {processing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Reject Application
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DashboardLayout>
   );
 }

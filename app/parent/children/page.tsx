@@ -108,27 +108,37 @@ export default function ParentChildPage() {
             .select("subject_class_id")
             .eq("student_id", student.id);
 
-          const subjectIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
+          const subjectClassIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
 
           let pending_assignments = 0;
-          if (subjectIds.length > 0) {
-            const { data: assignments } = await supabase
-              .from("assignments")
-              .select("id")
-              .in("subject_id", subjectIds)
-              .gte("due_date", new Date().toISOString());
+          if (subjectClassIds.length > 0) {
+            // Get subject IDs from subject_classes
+            const { data: subjectClasses } = await supabase
+              .from("subject_classes")
+              .select("subject_id")
+              .in("id", subjectClassIds);
 
-            const assignmentIds = assignments?.map(a => a.id) || [];
+            const subjectIds = subjectClasses?.map(sc => sc.subject_id) || [];
 
-            if (assignmentIds.length > 0) {
-              const { data: submissions } = await supabase
-                .from("assignment_submissions")
-                .select("assignment_id")
-                .eq("student_id", student.id)
-                .in("assignment_id", assignmentIds);
+            if (subjectIds.length > 0) {
+              const { data: assignments } = await supabase
+                .from("assignments")
+                .select("id")
+                .in("subject_id", subjectIds)
+                .gte("due_date", new Date().toISOString());
 
-              const submittedIds = submissions?.map(s => s.assignment_id) || [];
-              pending_assignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+              const assignmentIds = assignments?.map(a => a.id) || [];
+
+              if (assignmentIds.length > 0) {
+                const { data: submissions } = await supabase
+                  .from("assignment_submissions")
+                  .select("assignment_id")
+                  .eq("student_id", student.id)
+                  .in("assignment_id", assignmentIds);
+
+                const submittedIds = submissions?.map(s => s.assignment_id) || [];
+                pending_assignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+              }
             }
           }
 

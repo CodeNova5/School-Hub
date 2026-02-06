@@ -162,6 +162,12 @@ export default function ClassPage() {
         department: enrollment.department,
         class_id: enrollment.class_id,
         enrollment_id: enrollment.enrollment_id,
+        address: enrollment.address || null,
+        admission_date: enrollment.admission_date || null,
+        attendance: enrollment.attendance || 0,
+        average_attendance: enrollment.average_attendance || 0,
+        created_at: enrollment.created_at || new Date().toISOString(),
+        updated_at: enrollment.updated_at || new Date().toISOString(),
       }));
       
       setStudents(studentsData);

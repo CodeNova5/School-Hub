@@ -108,7 +108,6 @@ export interface Student {
   status: 'active' | 'graduated' | 'withdrawn' | 'suspended';
   attendance: AttendanceEntry[];
   average_attendance: number;
-  results: Result[];
   created_at: string;
 }
 

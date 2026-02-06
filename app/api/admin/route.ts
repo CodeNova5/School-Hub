@@ -273,6 +273,27 @@ export async function POST(req: NextRequest) {
       let failed = 0;
 
       try {
+        // Get current session and term
+        const { data: currentSession, error: sessionError } = await supabaseAdmin
+          .from("sessions")
+          .select("id")
+          .eq("is_current", true)
+          .single();
+
+        if (sessionError || !currentSession) {
+          throw new Error("No current session found");
+        }
+
+        const { data: currentTerm, error: termError } = await supabaseAdmin
+          .from("terms")
+          .select("id")
+          .eq("is_current", true)
+          .single();
+
+        if (termError || !currentTerm) {
+          throw new Error("No current term found");
+        }
+
         // Fetch target class details
         const { data: targetClass, error: classError } = await supabaseAdmin
           .from("classes")
@@ -289,7 +310,7 @@ export async function POST(req: NextRequest) {
             // 1. Fetch student details (department, religion)
             const { data: student, error: studentError } = await supabaseAdmin
               .from("students")
-              .select("id, department, religion")
+              .select("id, department, religion, class_id")
               .eq("id", studentId)
               .single();
 
@@ -297,30 +318,75 @@ export async function POST(req: NextRequest) {
               throw new Error("Student not found");
             }
 
-            // 2. Delete old results
-            await supabaseAdmin
-              .from("results")
-              .delete()
-              .eq("student_id", studentId);
+            // 2. Mark current enrollment as transferred (NON-DESTRUCTIVE!)
+            const { data: oldEnrollment, error: oldEnrollmentError } = await supabaseAdmin
+              .from("enrollments")
+              .update({ 
+                status: 'transferred',
+                completed_at: new Date().toISOString()
+              })
+              .eq("student_id", studentId)
+              .eq("session_id", currentSession.id)
+              .eq("term_id", currentTerm.id)
+              .select()
+              .single();
 
-            // 3. Delete old student_subjects
-            await supabaseAdmin
-              .from("student_subjects")
-              .delete()
-              .eq("student_id", studentId);
+            // Note: If no enrollment exists, oldEnrollment will be null (new student to enrollment system)
 
-            // 4. Delete old optional subjects
-            await supabaseAdmin
-              .from("student_optional_subjects")
-              .delete()
-              .eq("student_id", studentId);
+            // 3. Create new enrollment in target class
+            const { data: newEnrollment, error: newEnrollmentError } = await supabaseAdmin
+              .from("enrollments")
+              .insert({
+                student_id: studentId,
+                class_id: targetClassId,
+                session_id: currentSession.id,
+                term_id: currentTerm.id,
+                status: 'active',
+                enrollment_type: 'transferred',
+                previous_enrollment_id: oldEnrollment?.id || null,
+                notes: `Transferred from ${student.class_id ? 'previous class' : 'unassigned'} to ${targetClass.name}`
+              })
+              .select()
+              .single();
 
-            // 5. Update student's class
+            if (newEnrollmentError) {
+              // If enrollment already exists, update it instead
+              if (newEnrollmentError.code === '23505') { // Unique constraint violation
+                await supabaseAdmin
+                  .from("enrollments")
+                  .update({
+                    class_id: targetClassId,
+                    status: 'active',
+                    enrollment_type: 'transferred',
+                    notes: `Re-transferred to ${targetClass.name}`
+                  })
+                  .eq("student_id", studentId)
+                  .eq("session_id", currentSession.id)
+                  .eq("term_id", currentTerm.id);
+              } else {
+                throw newEnrollmentError;
+              }
+            }
+
+            // 4. Update students.class_id for backward compatibility (auto-synced by trigger, but explicit for safety)
             await supabaseAdmin
               .from("students")
               .update({ class_id: targetClassId })
               .eq("id", studentId);
 
+            // 5. Delete old student_subjects and optional subjects (subject reassignment)
+            await supabaseAdmin
+              .from("student_subjects")
+              .delete()
+              .eq("student_id", studentId);
+
+            await supabaseAdmin
+              .from("student_optional_subjects")
+              .delete()
+              .eq("student_id", studentId);
+
+            // NOTE: We NO LONGER delete results! Historical data is preserved.
+            // NOTE: We NO LONGER delete results! Historical data is preserved.
             // 6. Fetch available subject_classes for target class
             const { data: subjectClasses, error: scError } = await supabaseAdmin
               .from("subject_classes")
@@ -388,7 +454,7 @@ export async function POST(req: NextRequest) {
           success: true, 
           transferred, 
           failed,
-          message: `Transferred ${transferred} student(s) with automatic subject assignments.`
+          message: `Transferred ${transferred} student(s) successfully. Historical results preserved.`
         });
       } catch (error: any) {
         throw new Error(`Transfer failed: ${error.message}`);

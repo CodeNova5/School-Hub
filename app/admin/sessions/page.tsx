@@ -99,14 +99,19 @@ export default function SessionsPage() {
       return;
     }
 
-    // Insert session
+    const t1Start = formData.get("t1_start") as string;
+    const t3End = formData.get("t3_end") as string;
+
     const { data: sessionResult, error: sessionError } = await supabase
       .from('sessions')
       .insert({
         name,
+        start_date: t1Start,   // ✅ auto from first term
+        end_date: t3End,      // ✅ auto from third term
         is_current: false,
       })
       .select();
+
 
     if (sessionError || !sessionResult || sessionResult.length === 0) return;
     const session = sessionResult[0];
@@ -116,7 +121,7 @@ export default function SessionsPage() {
       {
         session_id: session.id,
         name: "First Term",
-        start_date: formData.get("t1_start"),
+        start_date: t1Start,
         end_date: formData.get("t1_end"),
       },
       {
@@ -296,7 +301,7 @@ export default function SessionsPage() {
       // Set current term for current session based on today's date
       if (targetSessionId) {
         const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
-        
+
         const { data: termsData } = await supabase
           .from('terms')
           .select('*')
@@ -304,7 +309,7 @@ export default function SessionsPage() {
           .lte('start_date', today)
           .gte('end_date', today)
           .order('start_date', { ascending: true });
-        
+
         if (termsData && termsData.length > 0) {
           // Found a term that includes today's date
           await supabase.from('terms').update({ is_current: true }).eq('id', termsData[0].id);
@@ -317,7 +322,7 @@ export default function SessionsPage() {
             .gt('start_date', today)
             .order('start_date', { ascending: true })
             .limit(1);
-          
+
           if (upcomingTerms && upcomingTerms.length > 0) {
             await supabase.from('terms').update({ is_current: true }).eq('id', upcomingTerms[0].id);
           }

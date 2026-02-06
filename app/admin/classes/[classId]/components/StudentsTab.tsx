@@ -318,6 +318,7 @@ export function StudentsTab({
                   size="sm"
                   variant="destructive"
                   onClick={() => onBulkRemove(Array.from(selectedStudents))}
+                  title="Removes students from class but preserves historical enrollment data"
                 >
                   <UserMinus className="h-4 w-4 mr-1" />
                   Remove from Class

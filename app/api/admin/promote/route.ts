@@ -1,7 +1,6 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
 
 const supabase = createRouteHandlerClient({ cookies });
 
@@ -29,12 +28,13 @@ async function checkIsAdmin() {
  * Promote students to next class/session (NON-DESTRUCTIVE)
  * 
  * Body:
- * - action: 'promote-class' | 'promote-selected'
- * - sourceClassId?: uuid (for promote-class)
- * - targetClassId: uuid
+ * - action: 'promote-class' | 'promote-selected' | 'graduate-class'
+ * - sourceClassId?: uuid (for promote-class, graduate-class)
+ * - targetClassId?: uuid (required for promote actions, not for graduate)
  * - studentIds?: uuid[] (for promote-selected)
  * - targetSessionId?: uuid (optional, defaults to next session)
  * - targetTermId?: uuid (optional, defaults to first term of session)
+ * - excludeStudentIds?: uuid[] (optional, students to skip/retain)
  */
 export async function POST(req: NextRequest) {
     try {
@@ -53,12 +53,21 @@ export async function POST(req: NextRequest) {
             targetClassId,
             studentIds,
             targetSessionId,
-            targetTermId
+            targetTermId,
+            excludeStudentIds = [] // Students to retain/not promote
         } = body;
 
-        if (!action || !targetClassId) {
+        if (!action) {
             return NextResponse.json(
-                { error: "Missing required fields: action, targetClassId" },
+                { error: "Missing required field: action" },
+                { status: 400 }
+            );
+        }
+
+        // targetClassId not required for graduation
+        if (action !== 'graduate-class' && !targetClassId) {
+            return NextResponse.json(
+                { error: "Missing required field: targetClassId" },
                 { status: 400 }
             );
         }
@@ -94,7 +103,7 @@ export async function POST(req: NextRequest) {
         let finalTargetSessionId = targetSessionId;
         let finalTargetTermId = targetTermId;
 
-        if (!finalTargetSessionId) {
+        if (!finalTargetSessionId && action !== 'graduate-class') {
             // Find or create next session
             const { data: nextSession, error: nextSessionError } = await supabase
                 .from("sessions")
@@ -114,7 +123,7 @@ export async function POST(req: NextRequest) {
             finalTargetSessionId = nextSession.id;
         }
 
-        if (!finalTargetTermId) {
+        if (!finalTargetTermId && action !== 'graduate-class') {
             // Get first term of target session
             const { data: firstTerm, error: firstTermError } = await supabase
                 .from("terms")
@@ -134,27 +143,31 @@ export async function POST(req: NextRequest) {
             finalTargetTermId = firstTerm.id;
         }
 
-        // Get target class details
-        const { data: targetClass, error: targetClassError } = await supabase
-            .from("classes")
-            .select("id, name, education_level, department")
-            .eq("id", targetClassId)
-            .single();
+        // Get target class details (skip for graduation)
+        let targetClass: any = null;
+        if (action !== 'graduate-class') {
+            const { data: tClass, error: targetClassError } = await supabase
+                .from("classes")
+                .select("id, name, education_level, department")
+                .eq("id", targetClassId)
+                .single();
 
-        if (targetClassError || !targetClass) {
-            return NextResponse.json(
-                { error: "Target class not found" },
-                { status: 400 }
-            );
+            if (targetClassError || !tClass) {
+                return NextResponse.json(
+                    { error: "Target class not found" },
+                    { status: 400 }
+                );
+            }
+            targetClass = tClass;
         }
 
         let studentsToPromote: string[] = [];
 
         // Determine which students to promote
-        if (action === "promote-class") {
+        if (action === "promote-class" || action === "graduate-class") {
             if (!sourceClassId) {
                 return NextResponse.json(
-                    { error: "sourceClassId required for promote-class action" },
+                    { error: "sourceClassId required for promote-class/graduate-class action" },
                     { status: 400 }
                 );
             }
@@ -175,7 +188,10 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            studentsToPromote = (enrollments || []).map((e: any) => e.student_id);
+            const allStudents = (enrollments || []).map((e: any) => e.student_id);
+            
+            // Filter out excluded students (those being retained)
+            studentsToPromote = allStudents.filter((id: string) => !excludeStudentIds.includes(id));
 
         } else if (action === "promote-selected") {
             if (!studentIds || studentIds.length === 0) {
@@ -185,11 +201,12 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            studentsToPromote = studentIds;
+            // Filter out excluded students
+            studentsToPromote = studentIds.filter((id: string) => !excludeStudentIds.includes(id));
 
         } else {
             return NextResponse.json(
-                { error: "Invalid action. Use 'promote-class' or 'promote-selected'" },
+                { error: "Invalid action. Use 'promote-class', 'promote-selected', or 'graduate-class'" },
                 { status: 400 }
             );
         }
@@ -198,13 +215,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
                 success: true,
                 promoted: 0,
+                graduated: 0,
                 failed: 0,
                 message: "No students to promote"
             });
         }
 
-        // Promote each student
+        // Process each student
         let promoted = 0;
+        let graduated = 0;
         let failed = 0;
         const errors: string[] = [];
 
@@ -232,89 +251,114 @@ export async function POST(req: NextRequest) {
                     .eq("term_id", currentTerm.id)
                     .single();
 
-                // Mark current enrollment as completed
-                if (oldEnrollment) {
-                    await supabase
-                        .from("enrollments")
-                        .update({
-                            status: 'completed',
-                            completed_at: new Date().toISOString()
-                        })
-                        .eq("id", oldEnrollment.id);
-                }
+                if (action === 'graduate-class') {
+                    // Mark as graduated
+                    if (oldEnrollment) {
+                        await supabase
+                            .from("enrollments")
+                            .update({
+                                status: 'completed',
+                                completed_at: new Date().toISOString(),
+                                notes: 'Graduated'
+                            })
+                            .eq("id", oldEnrollment.id);
+                    }
 
-                // Create new enrollment in target class for next session
-                const { error: enrollmentError } = await supabase
-                    .from("enrollments")
-                    .insert({
-                        student_id: studentId,
-                        class_id: targetClassId,
-                        session_id: finalTargetSessionId,
-                        term_id: finalTargetTermId,
-                        status: 'active',
-                        enrollment_type: 'promoted',
-                        previous_enrollment_id: oldEnrollment?.id || null,
-                        notes: `Promoted from ${oldEnrollment ? 'previous class' : 'initial enrollment'} to ${targetClass.name} for new session`
+                    // Update student status to graduated
+                    await supabase
+                        .from("students")
+                        .update({
+                            status: 'graduated',
+                            graduation_date: new Date().toISOString()
+                        })
+                        .eq("id", studentId);
+
+                    graduated++;
+                } else {
+                    // Mark current enrollment as completed
+                    if (oldEnrollment) {
+                        await supabase
+                            .from("enrollments")
+                            .update({
+                                status: 'completed',
+                                completed_at: new Date().toISOString()
+                            })
+                            .eq("id", oldEnrollment.id);
+                    }
+
+                    // Create new enrollment in target class for next session
+                    const { error: enrollmentError } = await supabase
+                        .from("enrollments")
+                        .insert({
+                            student_id: studentId,
+                            class_id: targetClassId,
+                            session_id: finalTargetSessionId,
+                            term_id: finalTargetTermId,
+                            status: 'active',
+                            enrollment_type: 'promoted',
+                            previous_enrollment_id: oldEnrollment?.id || null,
+                            notes: `Promoted from ${oldEnrollment ? 'previous class' : 'initial enrollment'} to ${targetClass.name} for new session`
+                        });
+
+                    if (enrollmentError) {
+                        // Handle unique constraint violation (already promoted)
+                        if (enrollmentError.code === '23505') {
+                            errors.push(`Student ${student.student_id}: already enrolled in target session/term`);
+                            failed++;
+                            continue;
+                        }
+                        throw enrollmentError;
+                    }
+
+                    // Fetch available subject_classes for target class
+                    const { data: subjectClasses, error: scError } = await supabase
+                        .from("subject_classes")
+                        .select(`
+                            id,
+                            subject_id,
+                            subjects (
+                                id,
+                                name,
+                                is_optional,
+                                department,
+                                religion
+                            )
+                        `)
+                        .eq("class_id", targetClassId);
+
+                    if (scError) throw scError;
+
+                    // Filter subjects based on student's department and religion
+                    const filteredSubjects = (subjectClasses || []).filter((sc: any) => {
+                        const subject = sc.subjects;
+
+                        if (subject.department && student.department) {
+                            if (subject.department !== student.department) return false;
+                        }
+
+                        if (subject.religion && student.religion) {
+                            if (subject.religion !== student.religion) return false;
+                        }
+
+                        return true;
                     });
 
-                if (enrollmentError) {
-                    // Handle unique constraint violation (already promoted)
-                    if (enrollmentError.code === '23505') {
-                        errors.push(`Student ${student.student_id}: already enrolled in target session/term`);
-                        failed++;
-                        continue;
+                    // Auto-assign compulsory subjects
+                    const subjectsToAssign = filteredSubjects
+                        .filter((sc: any) => !sc.subjects.is_optional)
+                        .map((sc: any) => ({
+                            student_id: studentId,
+                            subject_class_id: sc.id,
+                        }));
+
+                    if (subjectsToAssign.length > 0) {
+                        await supabase
+                            .from("student_subjects")
+                            .insert(subjectsToAssign);
                     }
-                    throw enrollmentError;
+
+                    promoted++;
                 }
-
-                // Fetch available subject_classes for target class
-                const { data: subjectClasses, error: scError } = await supabase
-                    .from("subject_classes")
-                    .select(`
-            id,
-            subject_id,
-            subjects (
-              id,
-              name,
-              is_optional,
-              department,
-              religion
-            )
-          `)
-                    .eq("class_id", targetClassId);
-
-                if (scError) throw scError;
-
-                // Filter subjects based on student's department and religion
-                const filteredSubjects = (subjectClasses || []).filter((sc: any) => {
-                    const subject = sc.subjects;
-
-                    if (subject.department && student.department) {
-                        if (subject.department !== student.department) return false;
-                    }
-
-                    if (subject.religion && student.religion) {
-                        if (subject.religion !== student.religion) return false;
-                    }
-
-                    return true;
-                });
-
-                // Auto-assign compulsory subjects
-                const subjectsToAssign = filteredSubjects
-                    .filter((sc: any) => !sc.subjects.is_optional)
-                    .map((sc: any) => ({
-                        student_id: studentId,
-                        subject_class_id: sc.id,
-                    }));
-
-                if (subjectsToAssign.length > 0) {
-                    await supabase
-                        .from("student_subjects")
-                        .insert(subjectsToAssign);
-                }
-
-                promoted++;
 
             } catch (error: any) {
                 console.error(`Failed to promote student ${studentId}:`, error);
@@ -323,12 +367,17 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        const resultMessage = action === 'graduate-class' 
+            ? `Graduated ${graduated} student(s). ${failed > 0 ? `${failed} failed.` : ''}`
+            : `Promoted ${promoted} student(s) to ${targetClass.name}. ${failed > 0 ? `${failed} failed.` : ''}`;
+
         return NextResponse.json({
             success: true,
             promoted,
+            graduated,
             failed,
             errors: errors.length > 0 ? errors : undefined,
-            message: `Promoted ${promoted} student(s) to ${targetClass.name}. ${failed > 0 ? `${failed} failed.` : ''}`
+            message: resultMessage
         });
 
     } catch (error: any) {

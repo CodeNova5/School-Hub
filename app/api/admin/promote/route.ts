@@ -235,20 +235,6 @@ export async function POST(req: NextRequest) {
         let failed = 0;
         const errors: string[] = [];
 
-        // Get source class info for retained students
-        let sourceClassInfo: any = null;
-        if (studentsToRetain.length > 0 && action !== 'graduate-class') {
-            const { data: sClass, error: sClassError } = await supabase
-                .from("classes")
-                .select("id, name")
-                .eq("id", sourceClassId)
-                .single();
-
-            if (!sClassError && sClass) {
-                sourceClassInfo = sClass;
-            }
-        }
-
         for (const studentId of studentsToPromote) {
             try {
                 // Get student details
@@ -425,6 +411,23 @@ export async function POST(req: NextRequest) {
                         .eq("id", oldEnrollment.id);
                 }
 
+                // Get source class name for notes (with error handling)
+                let sourceClassName = 'current class';
+                try {
+                    const { data: sourceClass } = await supabase
+                        .from("classes")
+                        .select("name")
+                        .eq("id", sourceClassId)
+                        .single();
+
+                    if (sourceClass?.name) {
+                        sourceClassName = sourceClass.name;
+                    }
+                } catch (classError) {
+                    console.warn(`Could not fetch source class name for retention notes:`, classError);
+                    // Continue with default name
+                }
+
                 // Create new enrollment in SAME class for next session
                 const { error: enrollmentError } = await supabase
                     .from("enrollments")
@@ -436,7 +439,7 @@ export async function POST(req: NextRequest) {
                         status: 'active',
                         enrollment_type: 'retained',
                         previous_enrollment_id: oldEnrollment?.id || null,
-                        notes: `Retained to repeat ${sourceClassInfo?.name || 'current class'} for new session due to performance`
+                        notes: `Retained to repeat ${sourceClassName} for new session due to performance`
                     });
 
                 if (enrollmentError) {

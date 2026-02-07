@@ -98,6 +98,20 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         }
     }, [selectedSessionId, selectedTermId, students]);
 
+    // When session changes, reset term selection or auto-select first term of new session
+    useEffect(() => {
+        if (selectedSessionId) {
+            const sessionTerms = terms.filter(t => t.session_id === selectedSessionId);
+            if (sessionTerms.length > 0) {
+                // Auto-select first term or current term of the selected session
+                const currentTerm = sessionTerms.find(t => t.is_current);
+                setSelectedTermId(currentTerm?.id || sessionTerms[0].id);
+            } else {
+                setSelectedTermId("");
+            }
+        }
+    }, [selectedSessionId]);
+
     async function fetchSessionsAndTerms() {
         try {
             // Fetch sessions
@@ -483,16 +497,18 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Term</label>
-                        <Select value={selectedTermId} onValueChange={setSelectedTermId}>
+                        <Select value={selectedTermId} onValueChange={setSelectedTermId} disabled={!selectedSessionId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select term" />
                             </SelectTrigger>
                             <SelectContent>
-                                {terms.map((term) => (
-                                    <SelectItem key={term.id} value={term.id}>
-                                        {term.name} {term.is_current && "(Current)"}
-                                    </SelectItem>
-                                ))}
+                                {terms
+                                    .filter(term => term.session_id === selectedSessionId)
+                                    .map((term) => (
+                                        <SelectItem key={term.id} value={term.id}>
+                                            {term.name} {term.is_current && "(Current)"}
+                                        </SelectItem>
+                                    ))}
                             </SelectContent>
                         </Select>
                     </div>

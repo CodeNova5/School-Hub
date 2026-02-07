@@ -478,34 +478,48 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }
 
     async function handleExportResults() {
-        const exportData = filteredResults.map((result, i) => ({
-            "#": i + 1,
-            "Student ID": result.student_number,
-            "Student Name": result.student_name,
-            Gender: result.gender,
-            "Total Subjects": result.total_subjects,
-            "Total Score": result.total_score.toFixed(2),
-            "Average Score": result.average_score.toFixed(2),
-            "Highest Score": result.highest_score.toFixed(2),
-            "Lowest Score": result.lowest_score.toFixed(2),
-            "Average Grade": result.average_grade || "N/A",
-            Position: result.class_position || "N/A",
-        }));
+        try {
+            if (filteredResults.length === 0) {
+                toast.error("No results to export");
+                return;
+            }
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Results");
+            const exportData = filteredResults.map((result, i) => ({
+                "#": i + 1,
+                "Student ID": result.student_number,
+                "Student Name": result.student_name,
+                Gender: result.gender,
+                "Total Subjects": result.total_subjects,
+                "Total Score": result.total_score.toFixed(2),
+                "Average Score": result.average_score.toFixed(2),
+                "Highest Score": result.highest_score.toFixed(2),
+                "Lowest Score": result.lowest_score.toFixed(2),
+                "Average Grade": result.average_grade || "N/A",
+                Position: result.class_position || "N/A",
+            }));
 
-        const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
-        const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Results");
 
-        XLSX.writeFile(wb, `${className}-${sessionName}-${termName}-results.xlsx`);
-        toast.success("Results exported successfully");
+            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
+            const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
+
+            XLSX.writeFile(wb, `${className}-${sessionName}-${termName}-results.xlsx`);
+            toast.success("Results exported successfully");
+        } catch (error) {
+            console.error("Error exporting to Excel:", error);
+            toast.error("Failed to export results to Excel");
+        }
     }
 
     async function handleExportResultsPDF() {
         try {
             setLoading(true);
+            
+            // Wait for DOM to be fully rendered
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
 
@@ -513,7 +527,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             const table = document.querySelector('table#results-table');
             if (!table) {
                 console.error('Table not found. Available tables:', document.querySelectorAll('table'));
-                toast.error("Results table not visible. Please make sure you're in Term View.");
+                toast.error("Results table not found. Please ensure results are loaded and you're viewing the term results.");
+                setLoading(false);
                 return;
             }
 
@@ -583,6 +598,10 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     async function handleExportAnnualResultsPDF() {
         try {
             setAnnualLoading(true);
+            
+            // Wait for DOM to be fully rendered
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
 
@@ -590,7 +609,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             const table = document.querySelector('table#annual-results-table');
             if (!table) {
                 console.error('Annual results table not found. Available tables:', document.querySelectorAll('table'));
-                toast.error("Annual results table not visible. Please switch to Annual Results view.");
+                toast.error("Annual results table not found. Please ensure annual results are loaded and visible.");
+                setAnnualLoading(false);
                 return;
             }
 

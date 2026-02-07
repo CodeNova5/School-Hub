@@ -503,6 +503,137 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         toast.success("Results exported successfully");
     }
 
+    async function handleExportResultsPDF() {
+        try {
+            setLoading(true);
+            const { default: jsPDF } = await import('jspdf');
+            const html2canvas = (await import('html2canvas')).default;
+
+            // Get the results table element
+            const table = document.getElementById('results-table');
+            if (!table) {
+                toast.error("Could not find results table");
+                return;
+            }
+
+            // Create canvas from table
+            const canvas = await html2canvas(table, {
+                allowTaint: true,
+                useCORS: true,
+                scale: 2,
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('l', 'mm', 'a4');
+
+            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
+            const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
+            const title = `${className} - ${sessionName} - ${termName} Results`;
+
+            // Add title
+            pdf.setFontSize(16);
+            pdf.text(title, 15, 15);
+
+            // Add timestamp
+            pdf.setFontSize(10);
+            pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 15, 23);
+
+            // Calculate dimensions to fit page
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = pageWidth - 30;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let heightLeft = imgHeight;
+            let position = 30;
+
+            // Add image to PDF
+            pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
+            heightLeft -= (pageHeight - position);
+
+            // Add additional pages if needed
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+
+            pdf.save(`${className}-${sessionName}-${termName}-results.pdf`);
+            toast.success("PDF exported successfully");
+        } catch (error) {
+            console.error("Error exporting PDF:", error);
+            toast.error("Failed to export as PDF");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function handleExportAnnualResultsPDF() {
+        try {
+            setAnnualLoading(true);
+            const { default: jsPDF } = await import('jspdf');
+            const html2canvas = (await import('html2canvas')).default;
+
+            // Get the annual results table element
+            const table = document.getElementById('annual-results-table');
+            if (!table) {
+                toast.error("Could not find annual results table");
+                return;
+            }
+
+            // Create canvas from table
+            const canvas = await html2canvas(table, {
+                allowTaint: true,
+                useCORS: true,
+                scale: 2,
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('l', 'mm', 'a4');
+
+            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
+            const title = `${className} - ${sessionName} - Annual Performance Rankings`;
+
+            // Add title
+            pdf.setFontSize(16);
+            pdf.text(title, 15, 15);
+
+            // Add timestamp
+            pdf.setFontSize(10);
+            pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 15, 23);
+
+            // Calculate dimensions to fit page
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = pageWidth - 30;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            let heightLeft = imgHeight;
+            let position = 30;
+
+            // Add image to PDF
+            pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
+            heightLeft -= (pageHeight - position);
+
+            // Add additional pages if needed
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+
+            pdf.save(`${className}-${sessionName}-annual-results.pdf`);
+            toast.success("Annual results PDF exported successfully");
+        } catch (error) {
+            console.error("Error exporting annual results PDF:", error);
+            toast.error("Failed to export annual results as PDF");
+        } finally {
+            setAnnualLoading(false);
+        }
+    }
+
     function handleViewStudentReport(studentId: string) {
         // Navigate to student report page
         window.open(`/admin/students/${studentId}/report?term=${selectedTermId}`, "_blank");
@@ -641,15 +772,40 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             <Eye className="h-4 w-4 mr-1" />
                             Publish Results
                         </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleExportResults}
-                            disabled={loading || filteredResults.length === 0}
-                        >
-                            <Download className="h-4 w-4 mr-1" />
-                            Export
-                        </Button>
+                        {showAnnualResults && isThirdTerm ? (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleExportAnnualResultsPDF}
+                                disabled={annualLoading || annualResults.length === 0}
+                            >
+                                <Download className="h-4 w-4 mr-1" />
+                                Export PDF
+                            </Button>
+                        ) : (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={loading || filteredResults.length === 0}
+                                    >
+                                        <Download className="h-4 w-4 mr-1" />
+                                        Export
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={handleExportResults}>
+                                        <FileText className="mr-2 h-4 w-4" />
+                                        Export as Excel
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleExportResultsPDF}>
+                                        <FileText className="mr-2 h-4 w-4" />
+                                        Export as PDF
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </div>
                 </div>
             </CardHeader>
@@ -807,7 +963,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             <div className="text-center py-8 text-muted-foreground">Loading annual results...</div>
                         ) : (
                             <div className="border rounded-lg overflow-hidden shadow-sm">
-                                <table className="w-full text-sm">
+                                <table id="annual-results-table" className="w-full text-sm">
                                     <thead className="bg-gradient-to-r from-purple-100 to-blue-100 border-b-2 border-purple-300">
                                         <tr>
                                             <th className="p-4 text-left font-bold text-gray-800 w-12">Rank</th>
@@ -968,7 +1124,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             </div>
                         ) : (
                             <div className="border rounded-md overflow-hidden">
-                        <table className="w-full text-sm">
+                        <table id="results-table" className="w-full text-sm">
                             <thead className="bg-muted">
                                 <tr>
                                     <th className="p-3 text-left w-12">#</th>

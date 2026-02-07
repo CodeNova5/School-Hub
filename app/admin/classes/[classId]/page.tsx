@@ -136,43 +136,12 @@ export default function ClassPage() {
   async function fetchStudents() {
     setStudentsLoading(true);
     try {
-      // Use current_enrollments view for current session/term
-      const { data: enrollmentsData, error } = await supabase
-        .from("current_enrollments")
+      const { data, error } = await supabase
+        .from("students")
         .select("*")
         .eq("class_id", classId);
-      
-      if (error) throw error;
-      
-      // Transform enrollment data to match student structure
-      const studentsData = (enrollmentsData || []).map((enrollment: any) => ({
-        id: enrollment.student_id,
-        student_id: enrollment.student_number,
-        first_name: enrollment.first_name,
-        last_name: enrollment.last_name,
-        email: enrollment.email,
-        phone: enrollment.phone,
-        gender: enrollment.gender,
-        date_of_birth: enrollment.date_of_birth,
-        parent_name: enrollment.parent_name,
-        parent_email: enrollment.parent_email,
-        parent_phone: enrollment.parent_phone,
-        status: enrollment.student_status,
-        religion: enrollment.religion,
-        department: enrollment.department,
-        class_id: enrollment.class_id,
-        enrollment_id: enrollment.enrollment_id,
-        address: enrollment.address || null,
-        admission_date: enrollment.admission_date || null,
-        attendance: enrollment.attendance || 0,
-        average_attendance: enrollment.average_attendance || 0,
-        created_at: enrollment.created_at || new Date().toISOString(),
-        updated_at: enrollment.updated_at || new Date().toISOString(),
-      }));
-      
-      setStudents(studentsData);
+      if (!error && data) setStudents(data || []);
     } catch (error) {
-      console.error("Error fetching students:", error);
       toast.error("Error fetching students");
     } finally {
       setStudentsLoading(false);
@@ -215,57 +184,14 @@ export default function ClassPage() {
 
   async function fetchAvailableStudents() {
     try {
-      // Get current session and term
-      const { data: currentSession } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      const { data: currentTerm } = await supabase
-        .from("terms")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      if (!currentSession || !currentTerm) {
-        setAvailableStudents([]);
-        return;
-      }
-      
-      // Get all active students
-      const { data: allStudents, error: studentsError } = await supabase
+      const { data, error } = await supabase
         .from("students")
         .select("*")
+        .is("class_id", null)
         .eq("status", "active")
         .order("first_name", { ascending: true });
-      
-      if (studentsError || !allStudents) {
-        setAvailableStudents([]);
-        return;
-      }
-      
-      // Get students with active enrollments in current session/term
-      const { data: enrolledStudents, error: enrolledError } = await supabase
-        .from("enrollments")
-        .select("student_id")
-        .eq("session_id", currentSession.id)
-        .eq("term_id", currentTerm.id)
-        .eq("status", "active");
-      
-      if (enrolledError) {
-        setAvailableStudents([]);
-        return;
-      }
-      
-      const enrolledIds = new Set((enrolledStudents || []).map((e: any) => e.student_id));
-      
-      // Filter out already enrolled students
-      const unassigned = allStudents.filter(s => !enrolledIds.has(s.id));
-      setAvailableStudents(unassigned);
-      
+      if (!error && data) setAvailableStudents(data || []);
     } catch (error) {
-      console.error("Error fetching available students:", error);
       toast.error("Error fetching available students");
     }
   }
@@ -343,55 +269,33 @@ export default function ClassPage() {
   }
 
   async function handleRemoveStudent(studentId: string) {
-    if (!confirm("Remove this student from the class? They will become unassigned.")) return;
+    if (!confirm("Remove this student from the class? They will become unassigned. Their results and subject assignments for this class will be deleted.")) return;
     try {
-      // Get current session and term
-      const { data: currentSession } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      const { data: currentTerm } = await supabase
-        .from("terms")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      if (!currentSession || !currentTerm) {
-        toast.error("No current session/term found");
-        return;
-      }
-
-      // Mark enrollment as dropped (NON-DESTRUCTIVE)
+      // Delete results for this student
       await supabase
-        .from("enrollments")
-        .update({ 
-          status: 'dropped',
-          completed_at: new Date().toISOString()
-        })
-        .eq("student_id", studentId)
-        .eq("session_id", currentSession.id)
-        .eq("term_id", currentTerm.id);
+        .from("results")
+        .delete()
+        .eq("student_id", studentId);
 
-      // Update students.class_id for backward compatibility
-      await supabase
-        .from("students")
-        .update({ class_id: null })
-        .eq("id", studentId);
-
-      // Delete current subject assignments (will be reassigned if re-enrolled)
+      // Delete student subject assignments
       await supabase
         .from("student_subjects")
         .delete()
         .eq("student_id", studentId);
 
+      // Delete optional subject selections
       await supabase
         .from("student_optional_subjects")
         .delete()
         .eq("student_id", studentId);
 
-      toast.success("Student removed from class (history preserved)");
+      // Remove from class
+      await supabase
+        .from("students")
+        .update({ class_id: null })
+        .eq("id", studentId);
+
+      toast.success("Student removed from class");
       fetchStudents();
       fetchAvailableStudents();
     } catch (error) {
@@ -402,58 +306,34 @@ export default function ClassPage() {
 
   async function handleBulkRemove(studentIds: string[]) {
     if (studentIds.length === 0) return;
-    if (!confirm(`Remove ${studentIds.length} student(s) from this class?`)) return;
+    if (!confirm(`Remove ${studentIds.length} student(s) from this class? Their results and subject assignments for this class will be deleted.`)) return;
 
     try {
-      // Get current session and term
-      const { data: currentSession } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      const { data: currentTerm } = await supabase
-        .from("terms")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      if (!currentSession || !currentTerm) {
-        toast.error("No current session/term found");
-        return;
-      }
+      // Delete results for these students
+      await supabase
+        .from("results")
+        .delete()
+        .in("student_id", studentIds);
 
-      // Mark enrollments as dropped for each student
-      for (const studentId of studentIds) {
-        await supabase
-          .from("enrollments")
-          .update({ 
-            status: 'dropped',
-            completed_at: new Date().toISOString()
-          })
-          .eq("student_id", studentId)
-          .eq("session_id", currentSession.id)
-          .eq("term_id", currentTerm.id);
-      }
-
-      // Update students.class_id for backward compatibility
-      const updates = studentIds.map(id =>
-        supabase.from("students").update({ class_id: null }).eq("id", id)
-      );
-      await Promise.all(updates);
-
-      // Delete current subject assignments
+      // Delete student subject assignments
       await supabase
         .from("student_subjects")
         .delete()
         .in("student_id", studentIds);
 
+      // Delete optional subject selections
       await supabase
         .from("student_optional_subjects")
         .delete()
         .in("student_id", studentIds);
 
-      toast.success(`Removed ${studentIds.length} student(s) (history preserved)`);
+      // Remove from class
+      const updates = studentIds.map(id =>
+        supabase.from("students").update({ class_id: null }).eq("id", id)
+      );
+      await Promise.all(updates);
+
+      toast.success(`Removed ${studentIds.length} student(s)`);
       fetchStudents();
       fetchAvailableStudents();
     } catch (error) {
@@ -466,82 +346,34 @@ export default function ClassPage() {
     if (studentIds.length === 0) return;
 
     try {
-      // Get current session and term
-      const { data: currentSession } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      const { data: currentTerm } = await supabase
-        .from("terms")
-        .select("id")
-        .eq("is_current", true)
-        .single();
-      
-      if (!currentSession || !currentTerm) {
-        toast.error("No current session/term found");
-        return;
-      }
+      // Clean up old results and subject assignments before moving
+      await supabase
+        .from("results")
+        .delete()
+        .in("student_id", studentIds);
 
-      let added = 0;
-      let failed = 0;
+      await supabase
+        .from("student_subjects")
+        .delete()
+        .in("student_id", studentIds);
 
-      for (const studentId of studentIds) {
-        try {
-          // Create new enrollment
-          const { error: enrollmentError } = await supabase
-            .from("enrollments")
-            .insert({
-              student_id: studentId,
-              class_id: classId,
-              session_id: currentSession.id,
-              term_id: currentTerm.id,
-              status: 'active',
-              enrollment_type: 'new'
-            });
+      await supabase
+        .from("student_optional_subjects")
+        .delete()
+        .in("student_id", studentIds);
 
-          if (enrollmentError) {
-            // If already enrolled, update instead
-            if (enrollmentError.code === '23505') {
-              await supabase
-                .from("enrollments")
-                .update({
-                  class_id: classId,
-                  status: 'active'
-                })
-                .eq("student_id", studentId)
-                .eq("session_id", currentSession.id)
-                .eq("term_id", currentTerm.id);
-            } else {
-              throw enrollmentError;
-            }
-          }
+      // Add to new class
+      const updates = studentIds.map(id =>
+        supabase.from("students").update({ class_id: classId }).eq("id", id)
+      );
+      await Promise.all(updates);
 
-          // Update students.class_id for backward compatibility (trigger will also do this)
-          await supabase
-            .from("students")
-            .update({ class_id: classId })
-            .eq("id", studentId);
-
-          added++;
-        } catch (error) {
-          console.error(`Failed to add student ${studentId}:`, error);
-          failed++;
-        }
-      }
-
-      if (failed > 0) {
-        toast.warning(`Added ${added} student(s), ${failed} failed`);
-      } else {
-        toast.success(`Added ${added} student(s) to class successfully`);
-      }
-      
+      toast.success(`Added ${studentIds.length} student(s) to class. Subject assignments will be set up automatically.`);
       fetchStudents();
       fetchAvailableStudents();
     } catch (error) {
       console.error("Failed to add students:", error);
-      toast.error(`Failed to add students`);
+      toast.error(`Failed to add some student(s)`);
     }
   }
 

@@ -35,7 +35,6 @@ import * as XLSX from "xlsx-js-style";
 import { StudentDetailsModal } from "@/components/student-details-modal";
 import { ResultsPublicationDialog } from "@/components/ResultsPublicationDialog";
 import { supabase } from "@/lib/supabase";
-import { useRef } from "react";
 
 interface StudentResult {
     student_id: string;
@@ -63,21 +62,6 @@ interface StudentResult {
     has_results: boolean;
 }
 
-interface AnnualResult {
-    student_id: string;
-    student_name: string;
-    student_number: string;
-    gender: string;
-    term1_average: number | null;
-    term2_average: number | null;
-    term3_average: number | null;
-    annual_average: number;
-    annual_grade: string;
-    annual_position: number | null;
-    completed_terms: number; // How many terms have results (1, 2, or 3)
-    data_completeness: 'complete' | 'partial' | 'incomplete'; // 3 terms, 2 terms, 1 term
-}
-
 interface ResultsTabProps {
     classId: string;
     className: string;
@@ -92,9 +76,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [selectedTermId, setSelectedTermId] = useState<string>("");
     const [studentResults, setStudentResults] = useState<StudentResult[]>([]);
     const [loading, setLoading] = useState(false);
-    // Refs for tables
-    const resultsTableRef = useRef<HTMLTableElement | null>(null);
-    const annualResultsTableRef = useRef<HTMLTableElement | null>(null);
 
     // Filters
     const [search, setSearch] = useState("");
@@ -107,12 +88,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
     const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
-
-    // Annual results state
-    const [annualResults, setAnnualResults] = useState<AnnualResult[]>([]);
-    const [showAnnualResults, setShowAnnualResults] = useState(false);
-    const [isThirdTerm, setIsThirdTerm] = useState(false);
-    const [annualLoading, setAnnualLoading] = useState(false);
     useEffect(() => {
         fetchSessionsAndTerms();
     }, []);
@@ -122,37 +97,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             fetchStudentResults();
         }
     }, [selectedSessionId, selectedTermId, students]);
-
-    // When session changes, reset term selection or auto-select first term of new session
-    useEffect(() => {
-        if (selectedSessionId) {
-            const sessionTerms = terms.filter(t => t.session_id === selectedSessionId);
-            if (sessionTerms.length > 0) {
-                // Auto-select first term or current term of the selected session
-                const currentTerm = sessionTerms.find(t => t.is_current);
-                setSelectedTermId(currentTerm?.id || sessionTerms[0].id);
-            } else {
-                setSelectedTermId("");
-            }
-        }
-    }, [selectedSessionId]);
-
-    // Check if current term is the third term when term is selected
-    useEffect(() => {
-        if (selectedSessionId && selectedTermId) {
-            const sessionTerms = terms
-                .filter(t => t.session_id === selectedSessionId)
-                .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
-
-            const isThird = sessionTerms.length === 3 && sessionTerms[2].id === selectedTermId;
-            setIsThirdTerm(isThird);
-
-            // Load annual results if it's the third term
-            if (isThird) {
-                fetchAnnualResults();
-            }
-        }
-    }, [selectedSessionId, selectedTermId, terms]);
 
     async function fetchSessionsAndTerms() {
         try {
@@ -189,7 +133,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         try {
             // Get list of current student IDs in this class
             const currentStudentIds = students.map(s => s.id);
-
+            
             if (currentStudentIds.length === 0) {
                 setStudentResults([]);
                 setLoading(false);
@@ -286,136 +230,6 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         }
     }
 
-    async function fetchAnnualResults() {
-        setAnnualLoading(true);
-
-        try {
-            const currentStudentIds = students.map(s => s.id);
-
-            if (currentStudentIds.length === 0) {
-                setAnnualResults([]);
-                setAnnualLoading(false);
-                return;
-            }
-
-            // Get all three terms for this session
-            const sessionTerms = terms
-                .filter(t => t.session_id === selectedSessionId)
-                .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
-
-            if (sessionTerms.length < 3) {
-                toast.error("Less than 3 terms in this session");
-                setAnnualLoading(false);
-                return;
-            }
-
-            const term1Id = sessionTerms[0].id;
-            const term2Id = sessionTerms[1].id;
-            const term3Id = sessionTerms[2].id;
-
-            // Fetch results for all three terms
-            const [results1, results2, results3] = await Promise.all([
-                supabase
-                    .from("results")
-                    .select("*")
-                    .eq("term_id", term1Id)
-                    .eq("session_id", selectedSessionId)
-                    .in("student_id", currentStudentIds),
-                supabase
-                    .from("results")
-                    .select("*")
-                    .eq("term_id", term2Id)
-                    .eq("session_id", selectedSessionId)
-                    .in("student_id", currentStudentIds),
-                supabase
-                    .from("results")
-                    .select("*")
-                    .eq("term_id", term3Id)
-                    .eq("session_id", selectedSessionId)
-                    .in("student_id", currentStudentIds),
-            ]);
-
-            // Calculate averages for each term
-            const calculateTermAverage = (resultsArray: any[]) => {
-                const map = new Map<string, number[]>();
-                resultsArray.forEach((result: any) => {
-                    if (!map.has(result.student_id)) {
-                        map.set(result.student_id, []);
-                    }
-                    map.get(result.student_id)!.push(result.total || 0);
-                });
-
-                const averages = new Map<string, number>();
-                map.forEach((scores, studentId) => {
-                    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-                    averages.set(studentId, avg);
-                });
-                return averages;
-            };
-
-            const term1Averages = calculateTermAverage(results1.data || []);
-            const term2Averages = calculateTermAverage(results2.data || []);
-            const term3Averages = calculateTermAverage(results3.data || []);
-
-            // Build annual results
-            const annualResultsData: AnnualResult[] = students.map((student) => {
-                const t1 = term1Averages.get(student.id) || null;
-                const t2 = term2Averages.get(student.id) || null;
-                const t3 = term3Averages.get(student.id) || null;
-
-                const validScores = [t1, t2, t3].filter((s) => s !== null) as number[];
-                const completedTerms = validScores.length;
-                const annualAverage = validScores.length > 0
-                    ? validScores.reduce((a, b) => a + b, 0) / completedTerms
-                    : 0;
-
-                let dataCompleteness: 'complete' | 'partial' | 'incomplete';
-                if (completedTerms === 3) dataCompleteness = 'complete';
-                else if (completedTerms === 2) dataCompleteness = 'partial';
-                else dataCompleteness = 'incomplete';
-
-                return {
-                    student_id: student.id,
-                    student_name: `${student.first_name} ${student.last_name}`,
-                    student_number: student.student_id,
-                    gender: student.gender,
-                    term1_average: t1,
-                    term2_average: t2,
-                    term3_average: t3,
-                    annual_average: annualAverage,
-                    annual_grade: calculateAverageGrade(annualAverage),
-                    annual_position: null,
-                    completed_terms: completedTerms,
-                    data_completeness: dataCompleteness,
-                };
-            });
-
-            // Sort by annual average (descending)
-            annualResultsData.sort((a, b) => b.annual_average - a.annual_average);
-
-            // Assign positions (only if they have ALL three terms)
-            let position = 1;
-            annualResultsData.forEach((result, index) => {
-                if (result.data_completeness === 'complete') {
-                    // Check if same average as previous (tie)
-                    if (index > 0 && Math.abs(result.annual_average - annualResultsData[index - 1].annual_average) < 0.01) {
-                        result.annual_position = annualResultsData[index - 1].annual_position;
-                    } else {
-                        result.annual_position = position;
-                    }
-                    position++;
-                }
-            });
-
-            setAnnualResults(annualResultsData);
-        } catch (error) {
-            console.error("Error fetching annual results:", error);
-            toast.error("Failed to load annual results");
-        } finally {
-            setAnnualLoading(false);
-        }
-    }
-
     const filteredResults = useMemo(() => {
         return studentResults.filter((result) => {
             if (
@@ -482,176 +296,30 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }
 
     async function handleExportResults() {
-        try {
-            if (filteredResults.length === 0) {
-                toast.error("No results to export");
-                return;
-            }
+        const exportData = filteredResults.map((result, i) => ({
+            "#": i + 1,
+            "Student ID": result.student_number,
+            "Student Name": result.student_name,
+            Gender: result.gender,
+            "Total Subjects": result.total_subjects,
+            "Total Score": result.total_score.toFixed(2),
+            "Average Score": result.average_score.toFixed(2),
+            "Highest Score": result.highest_score.toFixed(2),
+            "Lowest Score": result.lowest_score.toFixed(2),
+            "Average Grade": result.average_grade || "N/A",
+            Position: result.class_position || "N/A",
+        }));
 
-            const exportData = filteredResults.map((result, i) => ({
-                "#": i + 1,
-                "Student ID": result.student_number,
-                "Student Name": result.student_name,
-                Gender: result.gender,
-                "Total Subjects": result.total_subjects,
-                "Total Score": result.total_score.toFixed(2),
-                "Average Score": result.average_score.toFixed(2),
-                "Highest Score": result.highest_score.toFixed(2),
-                "Lowest Score": result.lowest_score.toFixed(2),
-                "Average Grade": result.average_grade || "N/A",
-                Position: result.class_position || "N/A",
-            }));
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Results");
 
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Results");
+        const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
+        const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
 
-            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
-            const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
-
-            XLSX.writeFile(wb, `${className}-${sessionName}-${termName}-results.xlsx`);
-            toast.success("Results exported successfully");
-        } catch (error) {
-            console.error("Error exporting to Excel:", error);
-            toast.error("Failed to export results to Excel");
-        }
+        XLSX.writeFile(wb, `${className}-${sessionName}-${termName}-results.xlsx`);
+        toast.success("Results exported successfully");
     }
-
-    async function handleExportResultsPDF() {
-        // Validate that we have data and table is rendered
-        if (!selectedSessionId || !selectedTermId) {
-            toast.error("Please select a session and term first.");
-            return;
-        }
-        
-        if (filteredResults.length === 0) {
-            toast.error("No results to export.");
-            return;
-        }
-
-        try {
-            setLoading(true);
-            
-            // Wait a bit for the ref to be populated
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            const { default: jsPDF } = await import('jspdf');
-            const html2canvas = (await import('html2canvas')).default;
-            
-            // Use ref for table
-            const table = resultsTableRef.current;
-            if (!table) {
-                console.error('Table ref not found:', resultsTableRef.current);
-                toast.error("Results table not found. Please ensure results are loaded and you're viewing the term results.");
-                setLoading(false);
-                return;
-            }
-            const canvas = await html2canvas(table, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            });
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('l', 'mm', 'a4');
-            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
-            const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
-            const title = `${className} - ${sessionName} - ${termName} Results`;
-            pdf.setFontSize(16);
-            pdf.text(title, 15, 15);
-            pdf.setFontSize(10);
-            pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 15, 23);
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = pageWidth - 30;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let heightLeft = imgHeight;
-            let position = 30;
-            pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
-            heightLeft -= (pageHeight - position);
-            while (heightLeft > 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
-            }
-            pdf.save(`${className}-${sessionName}-${termName}-results.pdf`);
-            toast.success("PDF exported successfully");
-        } catch (error) {
-            console.error("Error exporting PDF:", error);
-            toast.error("Failed to export as PDF. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    async function handleExportAnnualResultsPDF() {
-        // Validate that we have annual data and are viewing annual results
-        if (!showAnnualResults) {
-            toast.error("Please switch to Annual Results view first.");
-            return;
-        }
-        
-        if (annualResults.length === 0) {
-            toast.error("No annual results to export.");
-            return;
-        }
-
-        try {
-            setAnnualLoading(true);
-            
-            // Wait a bit for the ref to be populated
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
-            const { default: jsPDF } = await import('jspdf');
-            const html2canvas = (await import('html2canvas')).default;
-            
-            // Use ref for annual table
-            const table = annualResultsTableRef.current;
-            if (!table) {
-                console.error('Annual results table ref not found:', annualResultsTableRef.current);
-                toast.error("Annual results table not found. Please ensure annual results are loaded and visible.");
-                setAnnualLoading(false);
-                return;
-            }
-            const canvas = await html2canvas(table, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            });
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('l', 'mm', 'a4');
-            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
-            const title = `${className} - ${sessionName} - Annual Performance Rankings`;
-            pdf.setFontSize(16);
-            pdf.text(title, 15, 15);
-            pdf.setFontSize(10);
-            pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 15, 23);
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const imgWidth = pageWidth - 30;
-            const imgHeight = (canvas.height * imgWidth) / canvas.width;
-            let heightLeft = imgHeight;
-            let position = 30;
-            pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
-            heightLeft -= (pageHeight - position);
-            while (heightLeft > 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
-            }
-            pdf.save(`${className}-${sessionName}-annual-results.pdf`);
-            toast.success("Annual results PDF exported successfully");
-        } catch (error) {
-            console.error("Error exporting annual results PDF:", error);
-            toast.error("Failed to export annual results as PDF. Please try again.");
-        } finally {
-            setAnnualLoading(false);
-        }
-    }
-
 
     function handleViewStudentReport(studentId: string) {
         // Navigate to student report page
@@ -772,17 +440,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             View and manage student results for {className}
                         </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        {isThirdTerm && (
-                            <Button
-                                size="sm"
-                                onClick={() => setShowAnnualResults(!showAnnualResults)}
-                                variant={showAnnualResults ? "default" : "outline"}
-                            >
-                                <Calculator className="h-4 w-4 mr-1" />
-                                {showAnnualResults ? "Term View" : "Annual Results"}
-                            </Button>
-                        )}
+                    <div className="flex gap-2">
                         <Button
                             size="sm"
                             onClick={() => setIsPublicationDialogOpen(true)}
@@ -791,40 +449,15 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             <Eye className="h-4 w-4 mr-1" />
                             Publish Results
                         </Button>
-                        {showAnnualResults && isThirdTerm ? (
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={handleExportAnnualResultsPDF}
-                                disabled={annualLoading || annualResults.length === 0}
-                            >
-                                <Download className="h-4 w-4 mr-1" />
-                                Export PDF
-                            </Button>
-                        ) : (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={loading || filteredResults.length === 0 || !selectedSessionId || !selectedTermId}
-                                    >
-                                        <Download className="h-4 w-4 mr-1" />
-                                        Export
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={handleExportResults}>
-                                        <FileText className="mr-2 h-4 w-4" />
-                                        Export as Excel
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={handleExportResultsPDF}>
-                                        <FileText className="mr-2 h-4 w-4" />
-                                        Export as PDF
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleExportResults}
+                            disabled={loading || filteredResults.length === 0}
+                        >
+                            <Download className="h-4 w-4 mr-1" />
+                            Export
+                        </Button>
                     </div>
                 </div>
             </CardHeader>
@@ -850,18 +483,16 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Term</label>
-                        <Select value={selectedTermId} onValueChange={setSelectedTermId} disabled={!selectedSessionId}>
+                        <Select value={selectedTermId} onValueChange={setSelectedTermId}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Select term" />
                             </SelectTrigger>
                             <SelectContent>
-                                {terms
-                                    .filter(term => term.session_id === selectedSessionId)
-                                    .map((term) => (
-                                        <SelectItem key={term.id} value={term.id}>
-                                            {term.name} {term.is_current && "(Current)"}
-                                        </SelectItem>
-                                    ))}
+                                {terms.map((term) => (
+                                    <SelectItem key={term.id} value={term.id}>
+                                        {term.name} {term.is_current && "(Current)"}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
@@ -934,388 +565,187 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     </div>
                 )}
 
-                {/* Results Table or Annual Results */}
-                {showAnnualResults && isThirdTerm ? (
-                    // Annual Results View
-                    <div className="space-y-6">
-                        {/* Annual Results Header */}
-                        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="text-4xl">📊</div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-gray-900">Annual Performance Rankings</h3>
-                                    <p className="text-sm text-gray-600">Academic Year Average (All 3 Terms)</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Annual Summary Stats */}
-                        {!annualLoading && annualResults.length > 0 && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-                                    <p className="text-sm text-blue-600 font-medium">Total Students</p>
-                                    <p className="text-2xl font-bold text-blue-900">{annualResults.length}</p>
-                                </div>
-                                <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-                                    <p className="text-sm text-green-600 font-medium">Complete Data</p>
-                                    <p className="text-2xl font-bold text-green-900">
-                                        {annualResults.filter(r => r.data_completeness === 'complete').length}
-                                    </p>
-                                </div>
-                                <div className="p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg border border-yellow-200">
-                                    <p className="text-sm text-yellow-600 font-medium">Partial Data</p>
-                                    <p className="text-2xl font-bold text-yellow-900">
-                                        {annualResults.filter(r => r.data_completeness === 'partial').length}
-                                    </p>
-                                </div>
-                                <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
-                                    <p className="text-sm text-orange-600 font-medium">Incomplete Data</p>
-                                    <p className="text-2xl font-bold text-orange-900">
-                                        {annualResults.filter(r => r.data_completeness === 'incomplete').length}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Annual Results Table */}
-                        {annualLoading ? (
-                            <div className="text-center py-8 text-muted-foreground">Loading annual results...</div>
-                        ) : (
-                            <div className="border rounded-lg overflow-hidden shadow-sm">
-                                <table id="annual-results-table" className="w-full text-sm" ref={annualResultsTableRef}>
-                                    <thead className="bg-gradient-to-r from-purple-100 to-blue-100 border-b-2 border-purple-300">
-                                        <tr>
-                                            <th className="p-4 text-left font-bold text-gray-800 w-12">Rank</th>
-                                            <th className="p-4 text-left font-bold text-gray-800">Student Name</th>
-                                            <th className="p-4 text-center font-bold text-gray-800">Term 1</th>
-                                            <th className="p-4 text-center font-bold text-gray-800">Term 2</th>
-                                            <th className="p-4 text-center font-bold text-gray-800">Term 3</th>
-                                            <th className="p-4 text-center font-bold text-gray-800">Annual Avg</th>
-                                            <th className="p-4 text-center font-bold text-gray-800">Grade</th>
-                                            <th className="p-4 text-center font-bold text-gray-800">Data Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {annualResults.map((result, i) => (
-                                            <tr
-                                                key={result.student_id}
-                                                className={`border-b transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                                                    } hover:bg-purple-50`}
-                                            >
-                                                <td className="p-4">
-                                                    {result.data_completeness === 'complete' && result.annual_position ? (
-                                                        getPositionDisplay(result.annual_position)
-                                                    ) : (
-                                                        <span className="text-gray-400">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4">
-                                                    <div>
-                                                        <p className="font-semibold text-gray-900">{result.student_name}</p>
-                                                        <p className="text-xs text-gray-500">{result.student_number}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    {result.term1_average !== null ? (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="font-bold text-blue-600">
-                                                                {result.term1_average.toFixed(1)}
-                                                            </span>
-                                                            <span className="text-xs text-gray-500">out of 100</span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-gray-400 font-medium">No data</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    {result.term2_average !== null ? (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="font-bold text-green-600">
-                                                                {result.term2_average.toFixed(1)}
-                                                            </span>
-                                                            <span className="text-xs text-gray-500">out of 100</span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-gray-400 font-medium">No data</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    {result.term3_average !== null ? (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="font-bold text-purple-600">
-                                                                {result.term3_average.toFixed(1)}
-                                                            </span>
-                                                            <span className="text-xs text-gray-500">out of 100</span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-gray-400 font-medium">No data</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <div className="flex flex-col items-center">
-                                                        <span className="text-lg font-bold text-gray-900">
-                                                            {result.annual_average > 0 ? result.annual_average.toFixed(1) : '—'}
-                                                        </span>
-                                                        <span className="text-xs text-gray-500">
-                                                            {result.completed_terms > 0 ? `(${result.completed_terms} terms)` : ''}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    {result.annual_average > 0 ? (
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={`text-sm font-bold ${getGradeColor(result.annual_grade)}`}
-                                                        >
-                                                            {result.annual_grade}
-                                                        </Badge>
-                                                    ) : (
-                                                        <span className="text-gray-400">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    {result.data_completeness === 'complete' && (
-                                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                                                            <span className="text-lg mr-1">✓</span> Complete
-                                                        </Badge>
-                                                    )}
-                                                    {result.data_completeness === 'partial' && (
-                                                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                                                            <span className="text-lg mr-1">⚠</span> Partial ({result.completed_terms}/3)
-                                                        </Badge>
-                                                    )}
-                                                    {result.data_completeness === 'incomplete' && (
-                                                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
-                                                            <span className="text-lg mr-1">✕</span> Incomplete ({result.completed_terms}/3)
-                                                        </Badge>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-
-                                {annualResults.length === 0 && (
-                                    <div className="p-8 text-center text-muted-foreground">
-                                        No student results found for annual calculation.
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Data Completeness Legend */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                            <h4 className="font-semibold text-blue-900">Data Status Legend:</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="flex items-start gap-2">
-                                    <span className="text-2xl">✓</span>
-                                    <div>
-                                        <p className="font-medium text-gray-900">Complete</p>
-                                        <p className="text-sm text-gray-600">Student has results for all 3 terms - ranking is valid</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-2">
-                                    <span className="text-2xl">⚠</span>
-                                    <div>
-                                        <p className="font-medium text-gray-900">Partial</p>
-                                        <p className="text-sm text-gray-600">Student has results for 2 terms only - average calculated from available data</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-2">
-                                    <span className="text-2xl">✕</span>
-                                    <div>
-                                        <p className="font-medium text-gray-900">Incomplete</p>
-                                        <p className="text-sm text-gray-600">Student has results for only 1 term - not ranked in annual standings</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                {/* Results Table */}
+                {loading ? (
+                    <div className="text-center py-8 text-muted-foreground">Loading results...</div>
+                ) : !selectedSessionId || !selectedTermId ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                        Please select a session and term to view results
                     </div>
                 ) : (
-                    // Regular Results Table (Term View)
-                    <>
-                        {loading ? (
-                            <div className="text-center py-8 text-muted-foreground">Loading results...</div>
-                        ) : !selectedSessionId || !selectedTermId ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                Please select a session and term to view results
-                            </div>
-                        ) : (
-                            <div className="border rounded-md overflow-hidden">
-                                <table id="results-table" className="w-full text-sm" ref={resultsTableRef}>
-                                    <thead className="bg-muted">
-                                        <tr>
-                                            <th className="p-3 text-left w-12">#</th>
-                                            <th className="p-3 text-left">Student</th>
-                                            <th className="p-3 text-center">Subjects</th>
-                                            <th className="p-3 text-center">Average</th>
-                                            <th className="p-3 text-center">Highest</th>
-                                            <th className="p-3 text-center">Lowest</th>
-                                            <th className="p-3 text-center">Performance</th>
-                                            <th className="p-3 text-center">Average Grade</th>
-                                            <th className="p-3 text-center">Position</th>
-                                            <th className="p-3 text-right w-12"></th>
+                    <div className="border rounded-md overflow-hidden">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted">
+                                <tr>
+                                    <th className="p-3 text-left w-12">#</th>
+                                    <th className="p-3 text-left">Student</th>
+                                    <th className="p-3 text-center">Subjects</th>
+                                    <th className="p-3 text-center">Average</th>
+                                    <th className="p-3 text-center">Highest</th>
+                                    <th className="p-3 text-center">Lowest</th>
+                                    <th className="p-3 text-center">Performance</th>
+                                    <th className="p-3 text-center">Average Grade</th>
+                                    <th className="p-3 text-center">Position</th>
+                                    <th className="p-3 text-right w-12"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredResults.map((result, i) => {
+                                    const performance = getPerformanceIndicator(result.average_score);
+                                    const PerformanceIcon = performance.icon;
+
+                                    return (
+                                        <tr key={result.student_id} className="border-t hover:bg-muted/50">
+                                            <td className="p-3">{i + 1}</td>
+                                            <td className="p-3">
+                                                <div>
+                                                    <p className="font-medium">{result.student_name}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {result.student_number}
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.has_results ? (
+                                                    <Badge variant="outline">{result.total_subjects}</Badge>
+                                                ) : (
+                                                    <span className="text-muted-foreground">No results</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.has_results ? (
+                                                    <span className="font-semibold">
+                                                        {result.average_score.toFixed(1)}%
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.has_results ? (
+                                                    <span className="text-green-600 font-medium">
+                                                        {result.highest_score.toFixed(0)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.has_results ? (
+                                                    <span className="text-orange-600 font-medium">
+                                                        {result.lowest_score.toFixed(0)}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.has_results ? (
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <PerformanceIcon className={`h-4 w-4 ${performance.color}`} />
+                                                        <span className={`text-xs ${performance.color}`}>
+                                                            {performance.label}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.has_results ? (
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`text-sm font-bold ${getGradeColor(result.average_grade)}`}
+                                                    >
+                                                        {result.average_grade}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.class_position ? (
+                                                    getPositionDisplay(result.class_position)
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
+                                            </td>
+                                            <td className="p-3 text-right">
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleViewStudentReport(result.student_id)}
+                                                        >
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            View Report Card
+                                                        </DropdownMenuItem>
+
+                                                        <DropdownMenuItem
+                                                            onClick={async () => {
+                                                                const studentObj = students.find(s => s.id === result.student_id);
+                                                                if (studentObj) {
+                                                                    try {
+                                                                        // Fetch attendance for this student using Supabase
+                                                                        const { data: attendance, error } = await supabase
+                                                                            .from("attendance")
+                                                                            .select("*")
+                                                                            .eq("student_id", result.student_id);
+
+                                                                        if (error) throw error;
+
+                                                                        const studentAttendance = attendance || [];
+                                                                        const total = studentAttendance.length;
+                                                                        const present = studentAttendance.filter(
+                                                                            (r: any) =>
+                                                                                r.status === "present" ||
+                                                                                r.status === "late" ||
+                                                                                r.status === "excused"
+                                                                        ).length;
+
+                                                                        const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
+
+                                                                        // Add attendance data to student object
+                                                                        const enrichedStudent = {
+                                                                            ...studentObj,
+                                                                            average_attendance: averageAttendance,
+                                                                            total_attendance: total,
+                                                                        };
+
+                                                                        setSelectedStudent(enrichedStudent);
+                                                                    } catch (error) {
+                                                                        console.error("Error fetching attendance:", error);
+                                                                        setSelectedStudent(studentObj);
+                                                                    }
+                                                                    setIsStudentDetailsOpen(true);
+                                                                }
+                                                            }}
+                                                        >
+                                                            <FileText className="mr-2 h-4 w-4" />
+                                                            View Details
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredResults.map((result, i) => {
-                                            const performance = getPerformanceIndicator(result.average_score);
-                                            const PerformanceIcon = performance.icon;
+                                    );
+                                })}
+                            </tbody>
+                        </table>
 
-                                            return (
-                                                <tr key={result.student_id} className="border-t hover:bg-muted/50">
-                                                    <td className="p-3">{i + 1}</td>
-                                                    <td className="p-3">
-                                                        <div>
-                                                            <p className="font-medium">{result.student_name}</p>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {result.student_number}
-                                                            </p>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {result.has_results ? (
-                                                            <Badge variant="outline">{result.total_subjects}</Badge>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">No results</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {result.has_results ? (
-                                                            <span className="font-semibold">
-                                                                {result.average_score.toFixed(1)}%
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {result.has_results ? (
-                                                            <span className="text-green-600 font-medium">
-                                                                {result.highest_score.toFixed(0)}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {result.has_results ? (
-                                                            <span className="text-orange-600 font-medium">
-                                                                {result.lowest_score.toFixed(0)}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {result.has_results ? (
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <PerformanceIcon className={`h-4 w-4 ${performance.color}`} />
-                                                                <span className={`text-xs ${performance.color}`}>
-                                                                    {performance.label}
-                                                                </span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {result.has_results ? (
-                                                            <Badge
-                                                                variant="outline"
-                                                                className={`text-sm font-bold ${getGradeColor(result.average_grade)}`}
-                                                            >
-                                                                {result.average_grade}
-                                                            </Badge>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-center">
-                                                        {result.class_position ? (
-                                                            getPositionDisplay(result.class_position)
-                                                        ) : (
-                                                            <span className="text-muted-foreground">—</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-right">
-                                                        <DropdownMenu>
-                                                            <DropdownMenuTrigger asChild>
-                                                                <Button variant="ghost" size="icon">
-                                                                    <MoreVertical className="h-4 w-4" />
-                                                                </Button>
-                                                            </DropdownMenuTrigger>
-                                                            <DropdownMenuContent align="end">
-
-                                                                <DropdownMenuItem
-                                                                    onClick={() => handleViewStudentReport(result.student_id)}
-                                                                >
-                                                                    <Eye className="mr-2 h-4 w-4" />
-                                                                    View Report Card
-                                                                </DropdownMenuItem>
-
-                                                                <DropdownMenuItem
-                                                                    onClick={async () => {
-                                                                        const studentObj = students.find(s => s.id === result.student_id);
-                                                                        if (studentObj) {
-                                                                            try {
-                                                                                // Fetch attendance for this student using Supabase
-                                                                                const { data: attendance, error } = await supabase
-                                                                                    .from("attendance")
-                                                                                    .select("*")
-                                                                                    .eq("student_id", result.student_id);
-
-                                                                                if (error) throw error;
-
-                                                                                const studentAttendance = attendance || [];
-                                                                                const total = studentAttendance.length;
-                                                                                const present = studentAttendance.filter(
-                                                                                    (r: any) =>
-                                                                                        r.status === "present" ||
-                                                                                        r.status === "late" ||
-                                                                                        r.status === "excused"
-                                                                                ).length;
-
-                                                                                const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
-
-                                                                                // Add attendance data to student object
-                                                                                const enrichedStudent = {
-                                                                                    ...studentObj,
-                                                                                    average_attendance: averageAttendance,
-                                                                                    total_attendance: total,
-                                                                                };
-
-                                                                                setSelectedStudent(enrichedStudent);
-                                                                            } catch (error) {
-                                                                                console.error("Error fetching attendance:", error);
-                                                                                setSelectedStudent(studentObj);
-                                                                            }
-                                                                            setIsStudentDetailsOpen(true);
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <FileText className="mr-2 h-4 w-4" />
-                                                                    View Details
-                                                                </DropdownMenuItem>
-                                                            </DropdownMenuContent>
-                                                        </DropdownMenu>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-
-                                {filteredResults.length === 0 && (
-                                    <div className="p-8 text-center text-muted-foreground">
-                                        {search || genderFilter !== "all" || performanceFilter !== "all"
-                                            ? "No results match your filters."
-                                            : "No student results found for this term."}
-                                    </div>
-                                )}
+                        {filteredResults.length === 0 && (
+                            <div className="p-8 text-center text-muted-foreground">
+                                {search || genderFilter !== "all" || performanceFilter !== "all"
+                                    ? "No results match your filters."
+                                    : "No student results found for this term."}
                             </div>
                         )}
-                    </>
+                    </div>
                 )}
             </CardContent>
             {/* Student Details Modal */}

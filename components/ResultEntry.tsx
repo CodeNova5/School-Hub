@@ -1,5 +1,6 @@
 "use client";
 
+import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +9,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
 import { toast } from "sonner";
+import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { Save, Printer, ArrowLeft, Loader2, Medal, FileDown } from "lucide-react";
 
 interface SubjectScore {

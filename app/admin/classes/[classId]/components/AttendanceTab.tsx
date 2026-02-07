@@ -18,7 +18,6 @@ interface StudentAttendance {
   gender: string;
   attendanceStatus: "present" | "absent" | "late" | "excused" | "not_marked";
   attendanceId?: string;
-  enrollment_id?: string;
 }
 
 interface AttendanceTabProps {
@@ -42,40 +41,19 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
   async function fetchAttendance(date: string) {
     setAttendanceLoading(true);
     try {
-      // Use current_enrollments view for accurate class roster
-      const { data: enrollmentsData, error: enrollmentsError } = await supabase
-        .from("current_enrollments")
-        .select("*")
-        .eq("class_id", classId);
+      const [{ data: studentsData, error: studentsError }, { data: attendanceData, error: attendanceError }] = await Promise.all([
+        supabase.from("students").select("* ").eq("class_id", classId),
+        supabase.from("attendance").select("*").eq("class_id", classId).eq("date", date),
+      ]);
 
-      if (enrollmentsError) throw new Error("Failed to fetch class students");
+      if (studentsError || attendanceError) throw new Error("Failed to fetch attendance data");
 
-      // Get student IDs and enrollment IDs
-      const studentIds = (enrollmentsData || []).map((e: any) => e.student_id);
-      const enrollmentMap = new Map(
-        (enrollmentsData || []).map((e: any) => [e.student_id, e.enrollment_id])
-      );
-
-      // Fetch attendance for these students
-      const { data: attendanceData, error: attendanceError } = await supabase
-        .from("attendance")
-        .select("*")
-        .in("student_id", studentIds)
-        .eq("date", date);
-
-      if (attendanceError) throw new Error("Failed to fetch attendance data");
-
-      const studentsWithAttendance: StudentAttendance[] = (enrollmentsData || []).map((enrollment: any) => {
-        const attendance = (attendanceData || []).find((a: any) => a.student_id === enrollment.student_id);
+      const studentsWithAttendance: StudentAttendance[] = (studentsData || []).map((student: any) => {
+        const attendance = (attendanceData || []).find((a: any) => a.student_id === student.id);
         return {
-          id: enrollment.student_id,
-          student_id: enrollment.student_number,
-          first_name: enrollment.first_name,
-          last_name: enrollment.last_name,
-          gender: enrollment.gender,
+          ...student,
           attendanceStatus: attendance ? (attendance.status as any) : "not_marked",
           attendanceId: attendance?.id,
-          enrollment_id: enrollment.enrollment_id,
         };
       });
 
@@ -129,7 +107,7 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
         .filter((s) => s.attendanceStatus !== "not_marked")
         .map((student) => ({
           student_id: student.id,
-          enrollment_id: student.enrollment_id, // Use enrollment_id instead of class_id
+          class_id: classId,
           date: selectedDate,
           status: student.attendanceStatus,
           marked_by: null,

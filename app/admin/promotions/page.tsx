@@ -376,7 +376,8 @@ export default function PromotionsPage() {
       successful: 0,
       failed: 0,
       graduated: 0,
-      retained: studentsToRetain.size,
+      promoted: 0,
+      retained: 0,
       errors: [] as string[]
     };
 
@@ -391,7 +392,7 @@ export default function PromotionsPage() {
             body: JSON.stringify({
               action: "graduate-class",
               sourceClassId: mapping.sourceClassId,
-              excludeStudentIds: Array.from(studentsToRetain)
+              retainedStudentIds: Array.from(studentsToRetain)
             })
           });
 
@@ -412,7 +413,7 @@ export default function PromotionsPage() {
               sourceClassId: mapping.sourceClassId,
               targetClassId: mapping.targetClassId,
               targetSessionId: nextSession?.id,
-              excludeStudentIds: Array.from(studentsToRetain)
+              retainedStudentIds: Array.from(studentsToRetain)
             })
           });
 
@@ -420,6 +421,7 @@ export default function PromotionsPage() {
 
           if (response.ok) {
             results.successful += result.promoted || 0;
+            results.retained += result.retained || 0;
             results.failed += result.failed || 0;
             if (result.errors) {
               results.errors.push(...result.errors);
@@ -434,16 +436,26 @@ export default function PromotionsPage() {
       setPromotionResults(results);
       
       if (results.failed === 0) {
-        const message = results.graduated > 0 
-          ? `Successfully promoted ${results.successful - results.graduated} students and graduated ${results.graduated} students!`
-          : `Successfully promoted ${results.successful} students!`;
+        let message = "";
+        if (results.graduated > 0) {
+          message = `Successfully promoted ${results.successful - results.graduated} students, graduated ${results.graduated} students!`;
+        } else {
+          message = `Successfully promoted ${results.promoted || results.successful} students!`;
+        }
+        if (results.retained > 0) {
+          message += ` ${results.retained} students retained to repeat current class.`;
+        }
         toast.success(message);
         setPromotionMappings([]);
         setPerformanceReviews([]);
         setStudentsToRetain(new Set());
         setIsPreviewOpen(false);
       } else {
-        toast.warning(`Promoted ${results.successful} students, ${results.failed} failed${results.retained > 0 ? `, ${results.retained} retained` : ''}`);
+        const summaryParts = [`Promoted ${results.successful} students`];
+        if (results.graduated > 0) summaryParts.push(`graduated ${results.graduated}`);
+        if (results.retained > 0) summaryParts.push(`retained ${results.retained}`);
+        summaryParts.push(`${results.failed} failed`);
+        toast.warning(summaryParts.join(", "));
       }
 
     } catch (error: any) {

@@ -34,7 +34,8 @@ async function checkIsAdmin() {
  * - studentIds?: uuid[] (for promote-selected)
  * - targetSessionId?: uuid (optional, defaults to next session)
  * - targetTermId?: uuid (optional, defaults to first term of session)
- * - excludeStudentIds?: uuid[] (optional, students to skip/retain)
+ * - excludeStudentIds?: uuid[] (optional, students to skip/retain - DEPRECATED, use retainedStudentIds)
+ * - retainedStudentIds?: uuid[] (optional, students to retain in same class next session)
  */
 export async function POST(req: NextRequest) {
     try {
@@ -54,7 +55,8 @@ export async function POST(req: NextRequest) {
             studentIds,
             targetSessionId,
             targetTermId,
-            excludeStudentIds = [] // Students to retain/not promote
+            excludeStudentIds = [], // DEPRECATED
+            retainedStudentIds = [] // Students to retain in same class for next session
         } = body;
 
         if (!action) {
@@ -162,6 +164,7 @@ export async function POST(req: NextRequest) {
         }
 
         let studentsToPromote: string[] = [];
+        let studentsToRetain: string[] = [];
 
         // Determine which students to promote
         if (action === "promote-class" || action === "graduate-class") {
@@ -190,8 +193,10 @@ export async function POST(req: NextRequest) {
 
             const allStudents = (enrollments || []).map((e: any) => e.student_id);
             
-            // Filter out excluded students (those being retained)
-            studentsToPromote = allStudents.filter((id: string) => !excludeStudentIds.includes(id));
+            // Use retainedStudentIds if provided, otherwise fall back to excludeStudentIds (deprecated)
+            const toExclude = retainedStudentIds.length > 0 ? retainedStudentIds : excludeStudentIds;
+            studentsToRetain = allStudents.filter((id: string) => toExclude.includes(id));
+            studentsToPromote = allStudents.filter((id: string) => !toExclude.includes(id));
 
         } else if (action === "promote-selected") {
             if (!studentIds || studentIds.length === 0) {
@@ -201,8 +206,9 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            // Filter out excluded students
-            studentsToPromote = studentIds.filter((id: string) => !excludeStudentIds.includes(id));
+            const toExclude = retainedStudentIds.length > 0 ? retainedStudentIds : excludeStudentIds;
+            studentsToRetain = studentIds.filter((id: string) => toExclude.includes(id));
+            studentsToPromote = studentIds.filter((id: string) => !toExclude.includes(id));
 
         } else {
             return NextResponse.json(
@@ -211,21 +217,37 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        if (studentsToPromote.length === 0) {
+        if (studentsToPromote.length === 0 && studentsToRetain.length === 0) {
             return NextResponse.json({
                 success: true,
                 promoted: 0,
                 graduated: 0,
+                retained: 0,
                 failed: 0,
-                message: "No students to promote"
+                message: "No students to process"
             });
         }
 
         // Process each student
         let promoted = 0;
         let graduated = 0;
+        let retained = 0;
         let failed = 0;
         const errors: string[] = [];
+
+        // Get source class info for retained students
+        let sourceClassInfo: any = null;
+        if (studentsToRetain.length > 0 && action !== 'graduate-class') {
+            const { data: sClass, error: sClassError } = await supabase
+                .from("classes")
+                .select("id, name")
+                .eq("id", sourceClassId)
+                .single();
+
+            if (!sClassError && sClass) {
+                sourceClassInfo = sClass;
+            }
+        }
 
         for (const studentId of studentsToPromote) {
             try {
@@ -367,14 +389,132 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // Process retained students - keep them in same class for next session
+        for (const studentId of studentsToRetain) {
+            try {
+                // Get student details
+                const { data: student, error: studentError } = await supabase
+                    .from("students")
+                    .select("id, student_id, first_name, last_name, department, religion")
+                    .eq("id", studentId)
+                    .single();
+
+                if (studentError || !student) {
+                    errors.push(`Student ${studentId}: not found`);
+                    failed++;
+                    continue;
+                }
+
+                // Get old enrollment
+                const { data: oldEnrollment } = await supabase
+                    .from("enrollments")
+                    .select("id, class_id")
+                    .eq("student_id", studentId)
+                    .eq("session_id", currentSession.id)
+                    .eq("term_id", currentTerm.id)
+                    .single();
+
+                // Mark current enrollment as completed
+                if (oldEnrollment) {
+                    await supabase
+                        .from("enrollments")
+                        .update({
+                            status: 'completed',
+                            completed_at: new Date().toISOString()
+                        })
+                        .eq("id", oldEnrollment.id);
+                }
+
+                // Create new enrollment in SAME class for next session
+                const { error: enrollmentError } = await supabase
+                    .from("enrollments")
+                    .insert({
+                        student_id: studentId,
+                        class_id: sourceClassId, // SAME class, not target
+                        session_id: finalTargetSessionId,
+                        term_id: finalTargetTermId,
+                        status: 'active',
+                        enrollment_type: 'retained',
+                        previous_enrollment_id: oldEnrollment?.id || null,
+                        notes: `Retained to repeat ${sourceClassInfo?.name || 'current class'} for new session due to performance`
+                    });
+
+                if (enrollmentError) {
+                    // Handle unique constraint violation (already enrolled)
+                    if (enrollmentError.code === '23505') {
+                        errors.push(`Student ${student.student_id}: already enrolled in target session/term`);
+                        failed++;
+                        continue;
+                    }
+                    throw enrollmentError;
+                }
+
+                // Fetch available subject_classes for SAME class
+                const { data: subjectClasses, error: scError } = await supabase
+                    .from("subject_classes")
+                    .select(`
+                        id,
+                        subject_id,
+                        subjects (
+                            id,
+                            name,
+                            is_optional,
+                            department,
+                            religion
+                        )
+                    `)
+                    .eq("class_id", sourceClassId);
+
+                if (scError) throw scError;
+
+                // Filter subjects based on student's department and religion
+                const filteredSubjects = (subjectClasses || []).filter((sc: any) => {
+                    const subject = sc.subjects;
+
+                    if (subject.department && student.department) {
+                        if (subject.department !== student.department) return false;
+                    }
+
+                    if (subject.religion && student.religion) {
+                        if (subject.religion !== student.religion) return false;
+                    }
+
+                    return true;
+                });
+
+                // Auto-assign compulsory subjects
+                const subjectsToAssign = filteredSubjects
+                    .filter((sc: any) => !sc.subjects.is_optional)
+                    .map((sc: any) => ({
+                        student_id: studentId,
+                        subject_class_id: sc.id,
+                    }));
+
+                if (subjectsToAssign.length > 0) {
+                    await supabase
+                        .from("student_subjects")
+                        .insert(subjectsToAssign);
+                }
+
+                retained++;
+
+            } catch (error: any) {
+                console.error(`Failed to retain student ${studentId}:`, error);
+                errors.push(`Student ${studentId}: ${error.message}`);
+                failed++;
+            }
+        }
+
         const resultMessage = action === 'graduate-class' 
             ? `Graduated ${graduated} student(s). ${failed > 0 ? `${failed} failed.` : ''}`
-            : `Promoted ${promoted} student(s) to ${targetClass.name}. ${failed > 0 ? `${failed} failed.` : ''}`;
+            : `Promoted ${promoted} student(s) to ${targetClass.name}. ${retained > 0 ? `Retained ${retained} student(s). ` : ''}${failed > 0 ? `${failed} failed.` : ''}`;
+
 
         return NextResponse.json({
             success: true,
             promoted,
             graduated,
+            retained,
             failed,
             errors: errors.length > 0 ? errors : undefined,
             message: resultMessage

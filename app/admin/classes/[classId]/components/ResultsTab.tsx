@@ -139,7 +139,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             const sessionTerms = terms
                 .filter(t => t.session_id === selectedSessionId)
                 .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
-            
+
             const isThird = sessionTerms.length === 3 && sessionTerms[2].id === selectedTermId;
             setIsThirdTerm(isThird);
 
@@ -185,7 +185,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         try {
             // Get list of current student IDs in this class
             const currentStudentIds = students.map(s => s.id);
-            
+
             if (currentStudentIds.length === 0) {
                 setStudentResults([]);
                 setLoading(false);
@@ -287,7 +287,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
         try {
             const currentStudentIds = students.map(s => s.id);
-            
+
             if (currentStudentIds.length === 0) {
                 setAnnualResults([]);
                 setAnnualLoading(false);
@@ -516,38 +516,27 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     async function handleExportResultsPDF() {
         try {
             setLoading(true);
-            
-            // Wait for DOM to be fully rendered
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
+
+            // Dynamically import jsPDF and html2canvas
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
 
             // Get the results table element
-            const table = document.querySelector('table#results-table');
+            const table = document.getElementById('results-table');
             if (!table) {
-                console.error('Table not found. Available tables:', document.querySelectorAll('table'));
-                toast.error("Results table not found. Please ensure results are loaded and you're viewing the term results.");
+                console.error('Table not found');
+                toast.error("Results table not found. Please ensure results are loaded.");
                 setLoading(false);
                 return;
             }
 
-            // Create a clone of the table to ensure it's fully visible
-            const tableClone = table.cloneNode(true) as HTMLElement;
-            tableClone.style.visibility = 'visible';
-            tableClone.style.position = 'absolute';
-            tableClone.style.left = '-9999px';
-            document.body.appendChild(tableClone);
-
-            // Create canvas from table
-            const canvas = await html2canvas(tableClone, {
-                allowTaint: true,
-                useCORS: true,
+            // Capture the element as canvas with high quality
+            const canvas = await html2canvas(table, {
                 scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
             });
-
-            // Remove the clone
-            document.body.removeChild(tableClone);
 
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('l', 'mm', 'a4');
@@ -598,38 +587,27 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     async function handleExportAnnualResultsPDF() {
         try {
             setAnnualLoading(true);
-            
-            // Wait for DOM to be fully rendered
-            await new Promise(resolve => setTimeout(resolve, 100));
-            
+
+            // Dynamically import jsPDF and html2canvas
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
 
             // Get the annual results table element
-            const table = document.querySelector('table#annual-results-table');
+            const table = document.getElementById('annual-results-table');
             if (!table) {
-                console.error('Annual results table not found. Available tables:', document.querySelectorAll('table'));
-                toast.error("Annual results table not found. Please ensure annual results are loaded and visible.");
+                console.error('Annual results table not found');
+                toast.error("Annual results table not found. Please ensure annual results are loaded.");
                 setAnnualLoading(false);
                 return;
             }
 
-            // Create a clone of the table to ensure it's fully visible
-            const tableClone = table.cloneNode(true) as HTMLElement;
-            tableClone.style.visibility = 'visible';
-            tableClone.style.position = 'absolute';
-            tableClone.style.left = '-9999px';
-            document.body.appendChild(tableClone);
-
-            // Create canvas from table
-            const canvas = await html2canvas(tableClone, {
-                allowTaint: true,
-                useCORS: true,
+            // Capture the element as canvas with high quality
+            const canvas = await html2canvas(table, {
                 scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
             });
-
-            // Remove the clone
-            document.body.removeChild(tableClone);
 
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('l', 'mm', 'a4');
@@ -675,6 +653,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             setAnnualLoading(false);
         }
     }
+
 
     function handleViewStudentReport(studentId: string) {
         // Navigate to student report page
@@ -1022,9 +1001,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                         {annualResults.map((result, i) => (
                                             <tr
                                                 key={result.student_id}
-                                                className={`border-b transition-colors ${
-                                                    i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                                                } hover:bg-purple-50`}
+                                                className={`border-b transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                                    } hover:bg-purple-50`}
                                             >
                                                 <td className="p-4">
                                                     {result.data_completeness === 'complete' && result.annual_position ? (
@@ -1166,177 +1144,177 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             </div>
                         ) : (
                             <div className="border rounded-md overflow-hidden">
-                        <table id="results-table" className="w-full text-sm">
-                            <thead className="bg-muted">
-                                <tr>
-                                    <th className="p-3 text-left w-12">#</th>
-                                    <th className="p-3 text-left">Student</th>
-                                    <th className="p-3 text-center">Subjects</th>
-                                    <th className="p-3 text-center">Average</th>
-                                    <th className="p-3 text-center">Highest</th>
-                                    <th className="p-3 text-center">Lowest</th>
-                                    <th className="p-3 text-center">Performance</th>
-                                    <th className="p-3 text-center">Average Grade</th>
-                                    <th className="p-3 text-center">Position</th>
-                                    <th className="p-3 text-right w-12"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredResults.map((result, i) => {
-                                    const performance = getPerformanceIndicator(result.average_score);
-                                    const PerformanceIcon = performance.icon;
-
-                                    return (
-                                        <tr key={result.student_id} className="border-t hover:bg-muted/50">
-                                            <td className="p-3">{i + 1}</td>
-                                            <td className="p-3">
-                                                <div>
-                                                    <p className="font-medium">{result.student_name}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {result.student_number}
-                                                    </p>
-                                                </div>
-                                            </td>
-                                            <td className="p-3 text-center">
-                                                {result.has_results ? (
-                                                    <Badge variant="outline">{result.total_subjects}</Badge>
-                                                ) : (
-                                                    <span className="text-muted-foreground">No results</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-center">
-                                                {result.has_results ? (
-                                                    <span className="font-semibold">
-                                                        {result.average_score.toFixed(1)}%
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-muted-foreground">—</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-center">
-                                                {result.has_results ? (
-                                                    <span className="text-green-600 font-medium">
-                                                        {result.highest_score.toFixed(0)}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-muted-foreground">—</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-center">
-                                                {result.has_results ? (
-                                                    <span className="text-orange-600 font-medium">
-                                                        {result.lowest_score.toFixed(0)}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-muted-foreground">—</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-center">
-                                                {result.has_results ? (
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <PerformanceIcon className={`h-4 w-4 ${performance.color}`} />
-                                                        <span className={`text-xs ${performance.color}`}>
-                                                            {performance.label}
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-muted-foreground">—</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-center">
-                                                {result.has_results ? (
-                                                    <Badge
-                                                        variant="outline"
-                                                        className={`text-sm font-bold ${getGradeColor(result.average_grade)}`}
-                                                    >
-                                                        {result.average_grade}
-                                                    </Badge>
-                                                ) : (
-                                                    <span className="text-muted-foreground">—</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-center">
-                                                {result.class_position ? (
-                                                    getPositionDisplay(result.class_position)
-                                                ) : (
-                                                    <span className="text-muted-foreground">—</span>
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon">
-                                                            <MoreVertical className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-
-                                                        <DropdownMenuItem
-                                                            onClick={() => handleViewStudentReport(result.student_id)}
-                                                        >
-                                                            <Eye className="mr-2 h-4 w-4" />
-                                                            View Report Card
-                                                        </DropdownMenuItem>
-
-                                                        <DropdownMenuItem
-                                                            onClick={async () => {
-                                                                const studentObj = students.find(s => s.id === result.student_id);
-                                                                if (studentObj) {
-                                                                    try {
-                                                                        // Fetch attendance for this student using Supabase
-                                                                        const { data: attendance, error } = await supabase
-                                                                            .from("attendance")
-                                                                            .select("*")
-                                                                            .eq("student_id", result.student_id);
-
-                                                                        if (error) throw error;
-
-                                                                        const studentAttendance = attendance || [];
-                                                                        const total = studentAttendance.length;
-                                                                        const present = studentAttendance.filter(
-                                                                            (r: any) =>
-                                                                                r.status === "present" ||
-                                                                                r.status === "late" ||
-                                                                                r.status === "excused"
-                                                                        ).length;
-
-                                                                        const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
-
-                                                                        // Add attendance data to student object
-                                                                        const enrichedStudent = {
-                                                                            ...studentObj,
-                                                                            average_attendance: averageAttendance,
-                                                                            total_attendance: total,
-                                                                        };
-
-                                                                        setSelectedStudent(enrichedStudent);
-                                                                    } catch (error) {
-                                                                        console.error("Error fetching attendance:", error);
-                                                                        setSelectedStudent(studentObj);
-                                                                    }
-                                                                    setIsStudentDetailsOpen(true);
-                                                                }
-                                                            }}
-                                                        >
-                                                            <FileText className="mr-2 h-4 w-4" />
-                                                            View Details
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </td>
+                                <table id="results-table" className="w-full text-sm">
+                                    <thead className="bg-muted">
+                                        <tr>
+                                            <th className="p-3 text-left w-12">#</th>
+                                            <th className="p-3 text-left">Student</th>
+                                            <th className="p-3 text-center">Subjects</th>
+                                            <th className="p-3 text-center">Average</th>
+                                            <th className="p-3 text-center">Highest</th>
+                                            <th className="p-3 text-center">Lowest</th>
+                                            <th className="p-3 text-center">Performance</th>
+                                            <th className="p-3 text-center">Average Grade</th>
+                                            <th className="p-3 text-center">Position</th>
+                                            <th className="p-3 text-right w-12"></th>
                                         </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                    </thead>
+                                    <tbody>
+                                        {filteredResults.map((result, i) => {
+                                            const performance = getPerformanceIndicator(result.average_score);
+                                            const PerformanceIcon = performance.icon;
 
-                        {filteredResults.length === 0 && (
-                            <div className="p-8 text-center text-muted-foreground">
-                                {search || genderFilter !== "all" || performanceFilter !== "all"
-                                    ? "No results match your filters."
-                                    : "No student results found for this term."}
-                            </div>
-                        )}
+                                            return (
+                                                <tr key={result.student_id} className="border-t hover:bg-muted/50">
+                                                    <td className="p-3">{i + 1}</td>
+                                                    <td className="p-3">
+                                                        <div>
+                                                            <p className="font-medium">{result.student_name}</p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {result.student_number}
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        {result.has_results ? (
+                                                            <Badge variant="outline">{result.total_subjects}</Badge>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">No results</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        {result.has_results ? (
+                                                            <span className="font-semibold">
+                                                                {result.average_score.toFixed(1)}%
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        {result.has_results ? (
+                                                            <span className="text-green-600 font-medium">
+                                                                {result.highest_score.toFixed(0)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        {result.has_results ? (
+                                                            <span className="text-orange-600 font-medium">
+                                                                {result.lowest_score.toFixed(0)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        {result.has_results ? (
+                                                            <div className="flex items-center justify-center gap-1">
+                                                                <PerformanceIcon className={`h-4 w-4 ${performance.color}`} />
+                                                                <span className={`text-xs ${performance.color}`}>
+                                                                    {performance.label}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        {result.has_results ? (
+                                                            <Badge
+                                                                variant="outline"
+                                                                className={`text-sm font-bold ${getGradeColor(result.average_grade)}`}
+                                                            >
+                                                                {result.average_grade}
+                                                            </Badge>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-center">
+                                                        {result.class_position ? (
+                                                            getPositionDisplay(result.class_position)
+                                                        ) : (
+                                                            <span className="text-muted-foreground">—</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-right">
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon">
+                                                                    <MoreVertical className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end">
+
+                                                                <DropdownMenuItem
+                                                                    onClick={() => handleViewStudentReport(result.student_id)}
+                                                                >
+                                                                    <Eye className="mr-2 h-4 w-4" />
+                                                                    View Report Card
+                                                                </DropdownMenuItem>
+
+                                                                <DropdownMenuItem
+                                                                    onClick={async () => {
+                                                                        const studentObj = students.find(s => s.id === result.student_id);
+                                                                        if (studentObj) {
+                                                                            try {
+                                                                                // Fetch attendance for this student using Supabase
+                                                                                const { data: attendance, error } = await supabase
+                                                                                    .from("attendance")
+                                                                                    .select("*")
+                                                                                    .eq("student_id", result.student_id);
+
+                                                                                if (error) throw error;
+
+                                                                                const studentAttendance = attendance || [];
+                                                                                const total = studentAttendance.length;
+                                                                                const present = studentAttendance.filter(
+                                                                                    (r: any) =>
+                                                                                        r.status === "present" ||
+                                                                                        r.status === "late" ||
+                                                                                        r.status === "excused"
+                                                                                ).length;
+
+                                                                                const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
+
+                                                                                // Add attendance data to student object
+                                                                                const enrichedStudent = {
+                                                                                    ...studentObj,
+                                                                                    average_attendance: averageAttendance,
+                                                                                    total_attendance: total,
+                                                                                };
+
+                                                                                setSelectedStudent(enrichedStudent);
+                                                                            } catch (error) {
+                                                                                console.error("Error fetching attendance:", error);
+                                                                                setSelectedStudent(studentObj);
+                                                                            }
+                                                                            setIsStudentDetailsOpen(true);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <FileText className="mr-2 h-4 w-4" />
+                                                                    View Details
+                                                                </DropdownMenuItem>
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+
+                                {filteredResults.length === 0 && (
+                                    <div className="p-8 text-center text-muted-foreground">
+                                        {search || genderFilter !== "all" || performanceFilter !== "all"
+                                            ? "No results match your filters."
+                                            : "No student results found for this term."}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>

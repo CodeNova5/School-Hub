@@ -109,6 +109,20 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [showAnnualResults, setShowAnnualResults] = useState(false);
     const [isThirdTerm, setIsThirdTerm] = useState(false);
     const [annualLoading, setAnnualLoading] = useState(false);
+    const [annualTableReady, setAnnualTableReady] = useState(false);
+        // Effect to check if annual results table is in the DOM when annual results are shown
+        useEffect(() => {
+            if (showAnnualResults && isThirdTerm && !annualLoading) {
+                // Wait for next tick to ensure DOM is updated
+                const timeout = setTimeout(() => {
+                    const table = document.getElementById('annual-results-table');
+                    setAnnualTableReady(!!table);
+                }, 100);
+                return () => clearTimeout(timeout);
+            } else {
+                setAnnualTableReady(false);
+            }
+        }, [showAnnualResults, isThirdTerm, annualLoading, annualResults]);
     useEffect(() => {
         fetchSessionsAndTerms();
     }, []);
@@ -776,8 +790,17 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={handleExportAnnualResultsPDF}
-                                disabled={annualLoading || annualResults.length === 0}
+                                onClick={() => {
+                                    const table = document.getElementById('annual-results-table');
+                                    if (!table) {
+                                        toast.error('Annual results table is not ready. Please wait a moment and try again.');
+                                        setAnnualTableReady(false);
+                                        return;
+                                    }
+                                    handleExportAnnualResultsPDF();
+                                }}
+                                disabled={annualLoading || annualResults.length === 0 || !annualTableReady}
+                                title={annualTableReady ? '' : 'Wait for table to load before exporting'}
                             >
                                 <Download className="h-4 w-4 mr-1" />
                                 Export PDF

@@ -62,6 +62,21 @@ interface StudentResult {
     has_results: boolean;
 }
 
+interface AnnualResult {
+    student_id: string;
+    student_name: string;
+    student_number: string;
+    gender: string;
+    term1_average: number | null;
+    term2_average: number | null;
+    term3_average: number | null;
+    annual_average: number;
+    annual_grade: string;
+    annual_position: number | null;
+    completed_terms: number; // How many terms have results (1, 2, or 3)
+    data_completeness: 'complete' | 'partial' | 'incomplete'; // 3 terms, 2 terms, 1 term
+}
+
 interface ResultsTabProps {
     classId: string;
     className: string;
@@ -88,6 +103,12 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
     const [isPublicationDialogOpen, setIsPublicationDialogOpen] = useState(false);
+
+    // Annual results state
+    const [annualResults, setAnnualResults] = useState<AnnualResult[]>([]);
+    const [showAnnualResults, setShowAnnualResults] = useState(false);
+    const [isThirdTerm, setIsThirdTerm] = useState(false);
+    const [annualLoading, setAnnualLoading] = useState(false);
     useEffect(() => {
         fetchSessionsAndTerms();
     }, []);
@@ -111,6 +132,23 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             }
         }
     }, [selectedSessionId]);
+
+    // Check if current term is the third term when term is selected
+    useEffect(() => {
+        if (selectedSessionId && selectedTermId) {
+            const sessionTerms = terms
+                .filter(t => t.session_id === selectedSessionId)
+                .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+            
+            const isThird = sessionTerms.length === 3 && sessionTerms[2].id === selectedTermId;
+            setIsThirdTerm(isThird);
+
+            // Load annual results if it's the third term
+            if (isThird) {
+                fetchAnnualResults();
+            }
+        }
+    }, [selectedSessionId, selectedTermId, terms]);
 
     async function fetchSessionsAndTerms() {
         try {
@@ -241,6 +279,136 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             toast.error("Failed to process results");
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function fetchAnnualResults() {
+        setAnnualLoading(true);
+
+        try {
+            const currentStudentIds = students.map(s => s.id);
+            
+            if (currentStudentIds.length === 0) {
+                setAnnualResults([]);
+                setAnnualLoading(false);
+                return;
+            }
+
+            // Get all three terms for this session
+            const sessionTerms = terms
+                .filter(t => t.session_id === selectedSessionId)
+                .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+
+            if (sessionTerms.length < 3) {
+                toast.error("Less than 3 terms in this session");
+                setAnnualLoading(false);
+                return;
+            }
+
+            const term1Id = sessionTerms[0].id;
+            const term2Id = sessionTerms[1].id;
+            const term3Id = sessionTerms[2].id;
+
+            // Fetch results for all three terms
+            const [results1, results2, results3] = await Promise.all([
+                supabase
+                    .from("results")
+                    .select("*")
+                    .eq("term_id", term1Id)
+                    .eq("session_id", selectedSessionId)
+                    .in("student_id", currentStudentIds),
+                supabase
+                    .from("results")
+                    .select("*")
+                    .eq("term_id", term2Id)
+                    .eq("session_id", selectedSessionId)
+                    .in("student_id", currentStudentIds),
+                supabase
+                    .from("results")
+                    .select("*")
+                    .eq("term_id", term3Id)
+                    .eq("session_id", selectedSessionId)
+                    .in("student_id", currentStudentIds),
+            ]);
+
+            // Calculate averages for each term
+            const calculateTermAverage = (resultsArray: any[]) => {
+                const map = new Map<string, number[]>();
+                resultsArray.forEach((result: any) => {
+                    if (!map.has(result.student_id)) {
+                        map.set(result.student_id, []);
+                    }
+                    map.get(result.student_id)!.push(result.total || 0);
+                });
+
+                const averages = new Map<string, number>();
+                map.forEach((scores, studentId) => {
+                    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                    averages.set(studentId, avg);
+                });
+                return averages;
+            };
+
+            const term1Averages = calculateTermAverage(results1.data || []);
+            const term2Averages = calculateTermAverage(results2.data || []);
+            const term3Averages = calculateTermAverage(results3.data || []);
+
+            // Build annual results
+            const annualResultsData: AnnualResult[] = students.map((student) => {
+                const t1 = term1Averages.get(student.id) || null;
+                const t2 = term2Averages.get(student.id) || null;
+                const t3 = term3Averages.get(student.id) || null;
+
+                const validScores = [t1, t2, t3].filter((s) => s !== null) as number[];
+                const completedTerms = validScores.length;
+                const annualAverage = validScores.length > 0
+                    ? validScores.reduce((a, b) => a + b, 0) / completedTerms
+                    : 0;
+
+                let dataCompleteness: 'complete' | 'partial' | 'incomplete';
+                if (completedTerms === 3) dataCompleteness = 'complete';
+                else if (completedTerms === 2) dataCompleteness = 'partial';
+                else dataCompleteness = 'incomplete';
+
+                return {
+                    student_id: student.id,
+                    student_name: `${student.first_name} ${student.last_name}`,
+                    student_number: student.student_id,
+                    gender: student.gender,
+                    term1_average: t1,
+                    term2_average: t2,
+                    term3_average: t3,
+                    annual_average: annualAverage,
+                    annual_grade: calculateAverageGrade(annualAverage),
+                    annual_position: null,
+                    completed_terms: completedTerms,
+                    data_completeness: dataCompleteness,
+                };
+            });
+
+            // Sort by annual average (descending)
+            annualResultsData.sort((a, b) => b.annual_average - a.annual_average);
+
+            // Assign positions (only if they have ALL three terms)
+            let position = 1;
+            annualResultsData.forEach((result, index) => {
+                if (result.data_completeness === 'complete') {
+                    // Check if same average as previous (tie)
+                    if (index > 0 && Math.abs(result.annual_average - annualResultsData[index - 1].annual_average) < 0.01) {
+                        result.annual_position = annualResultsData[index - 1].annual_position;
+                    } else {
+                        result.annual_position = position;
+                    }
+                    position++;
+                }
+            });
+
+            setAnnualResults(annualResultsData);
+        } catch (error) {
+            console.error("Error fetching annual results:", error);
+            toast.error("Failed to load annual results");
+        } finally {
+            setAnnualLoading(false);
         }
     }
 
@@ -454,7 +622,17 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             View and manage student results for {className}
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        {isThirdTerm && (
+                            <Button
+                                size="sm"
+                                onClick={() => setShowAnnualResults(!showAnnualResults)}
+                                variant={showAnnualResults ? "default" : "outline"}
+                            >
+                                <Calculator className="h-4 w-4 mr-1" />
+                                {showAnnualResults ? "Term View" : "Annual Results"}
+                            </Button>
+                        )}
                         <Button
                             size="sm"
                             onClick={() => setIsPublicationDialogOpen(true)}
@@ -581,15 +759,215 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     </div>
                 )}
 
-                {/* Results Table */}
-                {loading ? (
-                    <div className="text-center py-8 text-muted-foreground">Loading results...</div>
-                ) : !selectedSessionId || !selectedTermId ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                        Please select a session and term to view results
+                {/* Results Table or Annual Results */}
+                {showAnnualResults && isThirdTerm ? (
+                    // Annual Results View
+                    <div className="space-y-6">
+                        {/* Annual Results Header */}
+                        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="text-4xl">📊</div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900">Annual Performance Rankings</h3>
+                                    <p className="text-sm text-gray-600">Academic Year Average (All 3 Terms)</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Annual Summary Stats */}
+                        {!annualLoading && annualResults.length > 0 && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                                    <p className="text-sm text-blue-600 font-medium">Total Students</p>
+                                    <p className="text-2xl font-bold text-blue-900">{annualResults.length}</p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+                                    <p className="text-sm text-green-600 font-medium">Complete Data</p>
+                                    <p className="text-2xl font-bold text-green-900">
+                                        {annualResults.filter(r => r.data_completeness === 'complete').length}
+                                    </p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg border border-yellow-200">
+                                    <p className="text-sm text-yellow-600 font-medium">Partial Data</p>
+                                    <p className="text-2xl font-bold text-yellow-900">
+                                        {annualResults.filter(r => r.data_completeness === 'partial').length}
+                                    </p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg border border-orange-200">
+                                    <p className="text-sm text-orange-600 font-medium">Incomplete Data</p>
+                                    <p className="text-2xl font-bold text-orange-900">
+                                        {annualResults.filter(r => r.data_completeness === 'incomplete').length}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Annual Results Table */}
+                        {annualLoading ? (
+                            <div className="text-center py-8 text-muted-foreground">Loading annual results...</div>
+                        ) : (
+                            <div className="border rounded-lg overflow-hidden shadow-sm">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gradient-to-r from-purple-100 to-blue-100 border-b-2 border-purple-300">
+                                        <tr>
+                                            <th className="p-4 text-left font-bold text-gray-800 w-12">Rank</th>
+                                            <th className="p-4 text-left font-bold text-gray-800">Student Name</th>
+                                            <th className="p-4 text-center font-bold text-gray-800">Term 1</th>
+                                            <th className="p-4 text-center font-bold text-gray-800">Term 2</th>
+                                            <th className="p-4 text-center font-bold text-gray-800">Term 3</th>
+                                            <th className="p-4 text-center font-bold text-gray-800">Annual Avg</th>
+                                            <th className="p-4 text-center font-bold text-gray-800">Grade</th>
+                                            <th className="p-4 text-center font-bold text-gray-800">Data Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {annualResults.map((result, i) => (
+                                            <tr
+                                                key={result.student_id}
+                                                className={`border-b transition-colors ${
+                                                    i % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                                } hover:bg-purple-50`}
+                                            >
+                                                <td className="p-4">
+                                                    {result.data_completeness === 'complete' && result.annual_position ? (
+                                                        getPositionDisplay(result.annual_position)
+                                                    ) : (
+                                                        <span className="text-gray-400">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4">
+                                                    <div>
+                                                        <p className="font-semibold text-gray-900">{result.student_name}</p>
+                                                        <p className="text-xs text-gray-500">{result.student_number}</p>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {result.term1_average !== null ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="font-bold text-blue-600">
+                                                                {result.term1_average.toFixed(1)}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">out of 100</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-400 font-medium">No data</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {result.term2_average !== null ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="font-bold text-green-600">
+                                                                {result.term2_average.toFixed(1)}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">out of 100</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-400 font-medium">No data</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {result.term3_average !== null ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="font-bold text-purple-600">
+                                                                {result.term3_average.toFixed(1)}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">out of 100</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-400 font-medium">No data</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-lg font-bold text-gray-900">
+                                                            {result.annual_average > 0 ? result.annual_average.toFixed(1) : '—'}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500">
+                                                            {result.completed_terms > 0 ? `(${result.completed_terms} terms)` : ''}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {result.annual_average > 0 ? (
+                                                        <Badge
+                                                            variant="outline"
+                                                            className={`text-sm font-bold ${getGradeColor(result.annual_grade)}`}
+                                                        >
+                                                            {result.annual_grade}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-gray-400">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    {result.data_completeness === 'complete' && (
+                                                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                                                            <span className="text-lg mr-1">✓</span> Complete
+                                                        </Badge>
+                                                    )}
+                                                    {result.data_completeness === 'partial' && (
+                                                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                                                            <span className="text-lg mr-1">⚠</span> Partial ({result.completed_terms}/3)
+                                                        </Badge>
+                                                    )}
+                                                    {result.data_completeness === 'incomplete' && (
+                                                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-300">
+                                                            <span className="text-lg mr-1">✕</span> Incomplete ({result.completed_terms}/3)
+                                                        </Badge>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+
+                                {annualResults.length === 0 && (
+                                    <div className="p-8 text-center text-muted-foreground">
+                                        No student results found for annual calculation.
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Data Completeness Legend */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                            <h4 className="font-semibold text-blue-900">Data Status Legend:</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="flex items-start gap-2">
+                                    <span className="text-2xl">✓</span>
+                                    <div>
+                                        <p className="font-medium text-gray-900">Complete</p>
+                                        <p className="text-sm text-gray-600">Student has results for all 3 terms - ranking is valid</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="text-2xl">⚠</span>
+                                    <div>
+                                        <p className="font-medium text-gray-900">Partial</p>
+                                        <p className="text-sm text-gray-600">Student has results for 2 terms only - average calculated from available data</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="text-2xl">✕</span>
+                                    <div>
+                                        <p className="font-medium text-gray-900">Incomplete</p>
+                                        <p className="text-sm text-gray-600">Student has results for only 1 term - not ranked in annual standings</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 ) : (
-                    <div className="border rounded-md overflow-hidden">
+                    // Regular Results Table (Term View)
+                    <>
+                        {loading ? (
+                            <div className="text-center py-8 text-muted-foreground">Loading results...</div>
+                        ) : !selectedSessionId || !selectedTermId ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                                Please select a session and term to view results
+                            </div>
+                        ) : (
+                            <div className="border rounded-md overflow-hidden">
                         <table className="w-full text-sm">
                             <thead className="bg-muted">
                                 <tr>
@@ -761,7 +1139,9 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                     : "No student results found for this term."}
                             </div>
                         )}
-                    </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </CardContent>
             {/* Student Details Modal */}

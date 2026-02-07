@@ -518,15 +518,31 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }
 
     async function handleExportResultsPDF() {
+        // Validate that we have data and table is rendered
+        if (!selectedSessionId || !selectedTermId) {
+            toast.error("Please select a session and term first.");
+            return;
+        }
+        
+        if (filteredResults.length === 0) {
+            toast.error("No results to export.");
+            return;
+        }
+
         try {
             setLoading(true);
+            
+            // Wait a bit for the ref to be populated
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
+            
             // Use ref for table
             const table = resultsTableRef.current;
             if (!table) {
-                console.error('Table not found');
-                toast.error("Results table not found. Please ensure results are loaded.");
+                console.error('Table ref not found:', resultsTableRef.current);
+                toast.error("Results table not found. Please ensure results are loaded and you're viewing the term results.");
                 setLoading(false);
                 return;
             }
@@ -570,15 +586,31 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }
 
     async function handleExportAnnualResultsPDF() {
+        // Validate that we have annual data and are viewing annual results
+        if (!showAnnualResults) {
+            toast.error("Please switch to Annual Results view first.");
+            return;
+        }
+        
+        if (annualResults.length === 0) {
+            toast.error("No annual results to export.");
+            return;
+        }
+
         try {
             setAnnualLoading(true);
+            
+            // Wait a bit for the ref to be populated
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
+            
             // Use ref for annual table
             const table = annualResultsTableRef.current;
             if (!table) {
-                console.error('Annual results table not found');
-                toast.error("Annual results table not found. Please ensure annual results are loaded.");
+                console.error('Annual results table ref not found:', annualResultsTableRef.current);
+                toast.error("Annual results table not found. Please ensure annual results are loaded and visible.");
                 setAnnualLoading(false);
                 return;
             }
@@ -775,7 +807,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        disabled={loading || filteredResults.length === 0}
+                                        disabled={loading || filteredResults.length === 0 || !selectedSessionId || !selectedTermId}
                                     >
                                         <Download className="h-4 w-4 mr-1" />
                                         Export

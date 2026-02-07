@@ -391,7 +391,6 @@ export default function SessionsPage() {
     return (data?.length || 0) > 0;
   }
 
-
   // Only set current term for current session based on today's date
   async function updateCurrentSessionAndTerm(sessionId?: string) {
     try {

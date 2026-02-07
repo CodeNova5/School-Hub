@@ -35,6 +35,7 @@ import * as XLSX from "xlsx-js-style";
 import { StudentDetailsModal } from "@/components/student-details-modal";
 import { ResultsPublicationDialog } from "@/components/ResultsPublicationDialog";
 import { supabase } from "@/lib/supabase";
+import { useRef } from "react";
 
 interface StudentResult {
     student_id: string;
@@ -91,6 +92,9 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [selectedTermId, setSelectedTermId] = useState<string>("");
     const [studentResults, setStudentResults] = useState<StudentResult[]>([]);
     const [loading, setLoading] = useState(false);
+    // Refs for tables
+    const resultsTableRef = useRef<HTMLTableElement | null>(null);
+    const annualResultsTableRef = useRef<HTMLTableElement | null>(null);
 
     // Filters
     const [search, setSearch] = useState("");
@@ -516,64 +520,45 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     async function handleExportResultsPDF() {
         try {
             setLoading(true);
-
-            // Dynamically import jsPDF and html2canvas
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
-
-            // Get the results table element
-            const table = document.getElementById('results-table');
+            // Use ref for table
+            const table = resultsTableRef.current;
             if (!table) {
                 console.error('Table not found');
                 toast.error("Results table not found. Please ensure results are loaded.");
                 setLoading(false);
                 return;
             }
-
-            // Capture the element as canvas with high quality
             const canvas = await html2canvas(table, {
                 scale: 2,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff'
             });
-
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('l', 'mm', 'a4');
-
             const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
             const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
             const title = `${className} - ${sessionName} - ${termName} Results`;
-
-            // Add title
             pdf.setFontSize(16);
             pdf.text(title, 15, 15);
-
-            // Add timestamp
             pdf.setFontSize(10);
             pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 15, 23);
-
-            // Calculate dimensions to fit page
             const pageWidth = pdf.internal.pageSize.getWidth();
             const pageHeight = pdf.internal.pageSize.getHeight();
             const imgWidth = pageWidth - 30;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
             let heightLeft = imgHeight;
             let position = 30;
-
-            // Add image to PDF
             pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
             heightLeft -= (pageHeight - position);
-
-            // Add additional pages if needed
             while (heightLeft > 0) {
                 position = heightLeft - imgHeight;
                 pdf.addPage();
                 pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
             }
-
             pdf.save(`${className}-${sessionName}-${termName}-results.pdf`);
             toast.success("PDF exported successfully");
         } catch (error) {
@@ -587,63 +572,44 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     async function handleExportAnnualResultsPDF() {
         try {
             setAnnualLoading(true);
-
-            // Dynamically import jsPDF and html2canvas
             const { default: jsPDF } = await import('jspdf');
             const html2canvas = (await import('html2canvas')).default;
-
-            // Get the annual results table element
-            const table = document.getElementById('annual-results-table');
+            // Use ref for annual table
+            const table = annualResultsTableRef.current;
             if (!table) {
                 console.error('Annual results table not found');
                 toast.error("Annual results table not found. Please ensure annual results are loaded.");
                 setAnnualLoading(false);
                 return;
             }
-
-            // Capture the element as canvas with high quality
             const canvas = await html2canvas(table, {
                 scale: 2,
                 useCORS: true,
                 logging: false,
                 backgroundColor: '#ffffff'
             });
-
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jsPDF('l', 'mm', 'a4');
-
             const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
             const title = `${className} - ${sessionName} - Annual Performance Rankings`;
-
-            // Add title
             pdf.setFontSize(16);
             pdf.text(title, 15, 15);
-
-            // Add timestamp
             pdf.setFontSize(10);
             pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, 15, 23);
-
-            // Calculate dimensions to fit page
             const pageWidth = pdf.internal.pageSize.getWidth();
             const pageHeight = pdf.internal.pageSize.getHeight();
             const imgWidth = pageWidth - 30;
             const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
             let heightLeft = imgHeight;
             let position = 30;
-
-            // Add image to PDF
             pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
             heightLeft -= (pageHeight - position);
-
-            // Add additional pages if needed
             while (heightLeft > 0) {
                 position = heightLeft - imgHeight;
                 pdf.addPage();
                 pdf.addImage(imgData, 'PNG', 15, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
             }
-
             pdf.save(`${className}-${sessionName}-annual-results.pdf`);
             toast.success("Annual results PDF exported successfully");
         } catch (error) {
@@ -984,7 +950,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             <div className="text-center py-8 text-muted-foreground">Loading annual results...</div>
                         ) : (
                             <div className="border rounded-lg overflow-hidden shadow-sm">
-                                <table id="annual-results-table" className="w-full text-sm">
+                                <table id="annual-results-table" className="w-full text-sm" ref={annualResultsTableRef}>
                                     <thead className="bg-gradient-to-r from-purple-100 to-blue-100 border-b-2 border-purple-300">
                                         <tr>
                                             <th className="p-4 text-left font-bold text-gray-800 w-12">Rank</th>
@@ -1144,7 +1110,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             </div>
                         ) : (
                             <div className="border rounded-md overflow-hidden">
-                                <table id="results-table" className="w-full text-sm">
+                                <table id="results-table" className="w-full text-sm" ref={resultsTableRef}>
                                     <thead className="bg-muted">
                                         <tr>
                                             <th className="p-3 text-left w-12">#</th>

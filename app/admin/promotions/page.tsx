@@ -241,7 +241,7 @@ export default function PromotionsPage() {
             action: isGraduating ? "graduate" : student.is_eligible ? "promote" : "repeat",
             next_class_id: nextClass?.id,
             notes: isGraduating
-              ? "Graduated from SS3"
+              ? "Graduated from SSS 3"
               : student.is_eligible
               ? `Promoted with ${student.cumulative_average.toFixed(1)}% average`
               : `Repeated due to ${student.cumulative_average.toFixed(1)}% average (below ${settings.minimum_pass_percentage}%)`,
@@ -312,22 +312,17 @@ export default function PromotionsPage() {
     const nextClassName = progressionMap[currentClassName];
     if (!nextClassName) return undefined;
 
+    // Find next class - match by name and optionally by department if both are set
     return allClasses.find(
       (c) => {
-        // First check if name matches
         if (c.name !== nextClassName) return false;
         
-        // For SSS classes, check department (handle null departments)
-        if (nextClassName.startsWith("SSS")) {
-          // If both are null, it's a match
-          if (department === null && c.department === null) return true;
-          // If one is null and the other isn't, no match
-          if (department === null || c.department === null) return false;
-          // Otherwise, compare the values
+        // If this is SSS and both student and class have departments, they must match
+        if (nextClassName.startsWith("SSS") && department && c.department) {
           return c.department === department;
         }
         
-        // For non-SSS classes, name match is enough
+        // Otherwise, name match is sufficient
         return true;
       }
     );
@@ -435,7 +430,7 @@ export default function PromotionsPage() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Graduating (SS3)</CardTitle>
+                  <CardTitle className="text-sm font-medium">Graduating (SSS 3)</CardTitle>
                   <GraduationCap className="h-4 w-4 text-purple-600" />
                 </CardHeader>
                 <CardContent>
@@ -774,7 +769,7 @@ export default function PromotionsPage() {
                 <ul className="list-disc list-inside mt-2 space-y-1">
                   <li>Record class history for the selected students</li>
                   <li>Promote eligible students to the next class</li>
-                  <li>Mark SS3 students as graduated</li>
+                  <li>Mark SSS 3 students as graduated</li>
                   <li>Keep failed students in their current class</li>
                 </ul>
                 <p className="mt-3 font-semibold text-foreground">

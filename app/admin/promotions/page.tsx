@@ -202,6 +202,8 @@ export default function PromotionsPage() {
 
       if (classesError) throw classesError;
 
+      console.log("All classes:", allClasses);
+
       const promotions = students
         .filter((s) => selectedStudents.has(s.student_id))
         .map((student) => {
@@ -216,6 +218,13 @@ export default function PromotionsPage() {
               student.department,
               allClasses || []
             );
+            
+            console.log(`Next class for ${student.student_name} (${student.current_class_name}):`, nextClass);
+
+            // Warn if next class not found for students who should be promoted
+            if (!nextClass && student.is_eligible && !isGraduating) {
+              console.warn(`No next class found for ${student.student_name} in ${student.current_class_name}`);
+            }
           }
 
           return {
@@ -252,7 +261,18 @@ export default function PromotionsPage() {
 
       const result = await response.json();
 
-      toast.success(result.message);
+      console.log("Promotion results:", result);
+
+      // Show detailed results
+      if (result.results?.errors?.length > 0) {
+        toast.error(
+          `Completed with ${result.results.errors.length} error(s). Check console for details.`
+        );
+        console.error("Promotion errors:", result.results.errors);
+      } else {
+        toast.success(result.message);
+      }
+
       setShowConfirmDialog(false);
       setSelectedStudents(new Set());
       fetchPromotionData();
@@ -284,9 +304,9 @@ export default function PromotionsPage() {
       "Primary 6": "JSS 1",
       "JSS 1": "JSS 2",
       "JSS 2": "JSS 3",
-      "JSS 3": "SS 1",
-      "SS 1": "SS 2",
-      "SS 2": "SS 3",
+      "JSS 3": "SSS 1",
+      "SSS 1": "SSS 2",
+      "SSS 2": "SSS 3",
     };
 
     const nextClassName = progressionMap[currentClassName];
@@ -295,7 +315,7 @@ export default function PromotionsPage() {
     return allClasses.find(
       (c) =>
         c.name === nextClassName &&
-        (nextClassName.startsWith("SS") ? c.department === department : true)
+        (nextClassName.startsWith("SSS") ? c.department === department : true)
     );
   }
 

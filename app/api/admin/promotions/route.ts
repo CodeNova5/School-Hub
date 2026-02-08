@@ -153,9 +153,9 @@ export async function GET(request: NextRequest) {
 
       const isEligible = hasRequiredTerms && meetsPassMark;
 
-      // Check if SS3 (graduating class)
+      // Check if SSS 3 (graduating class)
       const className = (student.classes as any)?.name || "";
-      const isGraduating = className === "SS 3";
+      const isGraduating = className === "SSS 3";
 
       return {
         student_id: student.id,
@@ -243,8 +243,19 @@ export async function POST(request: NextRequest) {
           notes,
         } = promotion;
 
+        // Validate next_class_id for promotion action
+        if (action === "promote" && !next_class_id) {
+          console.error(`No next class found for student ${student_name} (${student_number})`);
+          results.errors.push({
+            student_id,
+            student_name,
+            error: `No next class found for promotion from ${current_class_name}`,
+          });
+          continue;
+        }
+
         // Record in class history
-        await supabase.from("class_history").upsert({
+        const { error: historyError } = await supabase.from("class_history").upsert({
           student_id,
           class_id: current_class_id,
           session_id: sessionId,
@@ -265,24 +276,40 @@ export async function POST(request: NextRequest) {
           promoted_at: new Date().toISOString(),
         });
 
+        if (historyError) {
+          console.error(`Error recording class history for ${student_name}:`, historyError);
+          throw new Error(`Failed to record class history: ${historyError.message}`);
+        }
+
         // Update student record
         if (action === "promote") {
-          await supabaseAdmin
+          console.log(`Promoting student ${student_name} from class ${current_class_id} to ${next_class_id}`);
+          const { error: updateError } = await supabaseAdmin
             .from("students")
             .update({
               class_id: next_class_id,
               status: "active",
             })
             .eq("id", student_id);
+
+          if (updateError) {
+            console.error(`Error updating student ${student_name}:`, updateError);
+            throw new Error(`Failed to update student record: ${updateError.message}`);
+          }
           results.promoted++;
         } else if (action === "graduate") {
-          await supabaseAdmin
+          const { error: updateError } = await supabaseAdmin
             .from("students")
             .update({
               status: "graduated",
-              class_id: current_class_id, // Keep in SS3
+              class_id: current_class_id, // Keep in SSS 3
             })
             .eq("id", student_id);
+
+          if (updateError) {
+            console.error(`Error graduating student ${student_name}:`, updateError);
+            throw new Error(`Failed to graduate student: ${updateError.message}`);
+          }
           results.graduated++;
         } else if (action === "repeat") {
           // Student stays in same class
@@ -292,6 +319,7 @@ export async function POST(request: NextRequest) {
         console.error(`Error processing promotion for student:`, error);
         results.errors.push({
           student_id: promotion.student_id,
+          student_name: promotion.student_name,
           error: error.message,
         });
       }

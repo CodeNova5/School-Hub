@@ -125,8 +125,8 @@ export default function HistoryPage() {
   const [queryMode, setQueryMode] = useState<string>("class_roster");
 
   // Filters
-  const [selectedSessionId, setSelectedSessionId] = useState("");
-  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedSessionId, setSelectedSessionId] = useState("all");
+  const [selectedClassId, setSelectedClassId] = useState("all");
   const [search, setSearch] = useState("");
   const [promotionStatusFilter, setPromotionStatusFilter] = useState("all");
   const [educationLevelFilter, setEducationLevelFilter] = useState("all");
@@ -175,8 +175,8 @@ export default function HistoryPage() {
     try {
       const params = new URLSearchParams();
 
-      if (selectedSessionId) params.append("sessionId", selectedSessionId);
-      if (selectedClassId) params.append("classId", selectedClassId);
+      if (selectedSessionId !== "all") params.append("sessionId", selectedSessionId);
+      if (selectedClassId !== "all") params.append("classId", selectedClassId);
       if (promotionStatusFilter !== "all")
         params.append("promotionStatus", promotionStatusFilter);
       if (educationLevelFilter !== "all")
@@ -348,7 +348,7 @@ export default function HistoryPage() {
                     <SelectValue placeholder="All sessions" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Sessions</SelectItem>
+                    <SelectItem value="all">All Sessions</SelectItem>
                     {sessions.map((session) => (
                       <SelectItem key={session.id} value={session.id}>
                         {session.name}
@@ -365,7 +365,7 @@ export default function HistoryPage() {
                     <SelectValue placeholder="All classes" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Classes</SelectItem>
+                    <SelectItem value="all">All Classes</SelectItem>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>
                         {cls.name}

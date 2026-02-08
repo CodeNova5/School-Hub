@@ -1,0 +1,313 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
+
+// GET - Get promotion eligibility for a session
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    const sessionId = searchParams.get("sessionId");
+
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "Session ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Get promotion settings for this session
+    const { data: settings, error: settingsError } = await supabase
+      .from("promotion_settings")
+      .select("*")
+      .eq("session_id", sessionId)
+      .single();
+
+    if (settingsError && settingsError.code !== "PGRST116") {
+      throw settingsError;
+    }
+
+    const promotionSettings = settings || {
+      minimum_pass_percentage: 40,
+      require_all_terms: false,
+      auto_promote: true,
+    };
+
+    // Get all students with their current class info
+    const { data: students, error: studentsError } = await supabase
+      .from("students")
+      .select(
+        `
+        id,
+        student_id,
+        first_name,
+        last_name,
+        status,
+        class_id,
+        department,
+        classes:class_id (
+          id,
+          name,
+          education_level,
+          department
+        )
+      `
+      )
+      .eq("status", "active");
+
+    if (studentsError) throw studentsError;
+
+    // Get all terms for this session
+    const { data: terms, error: termsError } = await supabase
+      .from("terms")
+      .select("*")
+      .eq("session_id", sessionId)
+      .order("name");
+
+    if (termsError) throw termsError;
+
+    // Get all results for this session
+    const studentIds = students?.map((s) => s.id) || [];
+    const { data: results, error: resultsError } = await supabase
+      .from("results")
+      .select("*")
+      .eq("session_id", sessionId)
+      .in("student_id", studentIds);
+
+    if (resultsError) throw resultsError;
+
+    // Calculate eligibility for each student
+    const eligibilityData = students?.map((student) => {
+      const studentResults = results?.filter(
+        (r) => r.student_id === student.id
+      ) || [];
+
+      // Group by term
+      const termResults = new Map();
+      studentResults.forEach((result) => {
+        if (!termResults.has(result.term_id)) {
+          termResults.set(result.term_id, []);
+        }
+        termResults.get(result.term_id).push(result);
+      });
+
+      // Calculate term averages
+      const termAverages: { term_id: string; average: number }[] = [];
+      let totalAverage = 0;
+      let termsWithResults = 0;
+
+      terms?.forEach((term) => {
+        const termData = termResults.get(term.id);
+        if (termData && termData.length > 0) {
+          const avg =
+            termData.reduce((sum: number, r: any) => sum + (r.total || 0), 0) /
+            termData.length;
+          termAverages.push({ term_id: term.id, average: avg });
+          totalAverage += avg;
+          termsWithResults++;
+        } else {
+          termAverages.push({ term_id: term.id, average: 0 });
+        }
+      });
+
+      const cumulativeAverage =
+        termsWithResults > 0 ? totalAverage / termsWithResults : 0;
+
+      // Determine eligibility
+      const hasRequiredTerms = promotionSettings.require_all_terms
+        ? termsWithResults === terms?.length
+        : termsWithResults > 0;
+
+      const meetsPassMark =
+        cumulativeAverage >= promotionSettings.minimum_pass_percentage;
+
+      const isEligible = hasRequiredTerms && meetsPassMark;
+
+      // Check if SS3 (graduating class)
+      const className = (student.classes as any)?.name || "";
+      const isGraduating = className === "SS 3";
+
+      return {
+        student_id: student.id,
+        student_number: student.student_id,
+        student_name: `${student.first_name} ${student.last_name}`,
+        current_class_id: student.class_id,
+        current_class_name: className,
+        education_level: (student.classes as any)?.education_level || "",
+        department: student.department,
+        terms_completed: termsWithResults,
+        total_terms: terms?.length || 0,
+        cumulative_average: cumulativeAverage,
+        is_eligible: isEligible,
+        is_graduating: isGraduating,
+        needs_manual_review: !isEligible && termsWithResults > 0,
+        term_averages: termAverages,
+      };
+    }) || [];
+
+    return NextResponse.json({
+      settings: promotionSettings,
+      students: eligibilityData,
+      total_students: eligibilityData.length,
+      eligible_count: eligibilityData.filter((s) => s.is_eligible).length,
+      graduating_count: eligibilityData.filter(
+        (s) => s.is_graduating && s.is_eligible
+      ).length,
+      needs_review_count: eligibilityData.filter((s) => s.needs_manual_review)
+        .length,
+    });
+  } catch (error: any) {
+    console.error("Error fetching promotion data:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch promotion data" },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Process promotions
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { sessionId, promotions } = body;
+
+    if (!sessionId || !promotions || !Array.isArray(promotions)) {
+      return NextResponse.json(
+        { error: "Invalid request data" },
+        { status: 400 }
+      );
+    }
+
+    const results = {
+      promoted: 0,
+      graduated: 0,
+      repeated: 0,
+      errors: [] as any[],
+    };
+
+    // Process each promotion
+    for (const promotion of promotions) {
+      try {
+        const {
+          student_id,
+          student_name,
+          student_number,
+          current_class_id,
+          current_class_name,
+          education_level,
+          department,
+          terms_completed,
+          cumulative_average,
+          cumulative_grade,
+          position,
+          total_students,
+          action, // 'promote', 'graduate', 'repeat'
+          next_class_id,
+          notes,
+        } = promotion;
+
+        // Record in class history
+        await supabase.from("class_history").upsert({
+          student_id,
+          class_id: current_class_id,
+          session_id: sessionId,
+          student_name,
+          student_number,
+          class_name: current_class_name,
+          education_level,
+          department,
+          terms_completed,
+          average_score: cumulative_average,
+          cumulative_grade,
+          position,
+          total_students,
+          promoted: action === "promote" || action === "graduate",
+          promotion_status: action === "graduate" ? "graduated" : action === "promote" ? "promoted" : "repeated",
+          promoted_to_class_id: next_class_id,
+          promotion_notes: notes,
+          promoted_at: new Date().toISOString(),
+        });
+
+        // Update student record
+        if (action === "promote") {
+          await supabase
+            .from("students")
+            .update({
+              class_id: next_class_id,
+              status: "active",
+            })
+            .eq("id", student_id);
+          results.promoted++;
+        } else if (action === "graduate") {
+          await supabase
+            .from("students")
+            .update({
+              status: "graduated",
+              class_id: current_class_id, // Keep in SS3
+            })
+            .eq("id", student_id);
+          results.graduated++;
+        } else if (action === "repeat") {
+          // Student stays in same class
+          results.repeated++;
+        }
+      } catch (error: any) {
+        console.error(`Error processing promotion for student:`, error);
+        results.errors.push({
+          student_id: promotion.student_id,
+          error: error.message,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      results,
+      message: `Processed ${promotions.length} students: ${results.promoted} promoted, ${results.graduated} graduated, ${results.repeated} repeated`,
+    });
+  } catch (error: any) {
+    console.error("Error processing promotions:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to process promotions" },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - Update promotion settings
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { sessionId, minimum_pass_percentage, require_all_terms, auto_promote } = body;
+
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "Session ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("promotion_settings")
+      .upsert({
+        session_id: sessionId,
+        minimum_pass_percentage,
+        require_all_terms,
+        auto_promote,
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({
+      success: true,
+      settings: data,
+    });
+  } catch (error: any) {
+    console.error("Error updating promotion settings:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to update promotion settings" },
+      { status: 500 }
+    );
+  }
+}

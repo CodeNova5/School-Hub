@@ -234,3 +234,37 @@ export interface Notification {
   read: boolean;
   created_at: string;
 }
+
+export interface ClassHistory {
+  id: string;
+  student_id: string;
+  class_id: string;
+  session_id: string;
+  student_name: string;
+  student_number: string;
+  class_name: string;
+  education_level: string;
+  department?: string;
+  terms_completed: number;
+  average_score: number;
+  cumulative_grade: string;
+  position?: number;
+  total_students?: number;
+  promoted: boolean;
+  promotion_status: 'promoted' | 'graduated' | 'repeated' | 'pending' | 'withdrawn';
+  promoted_to_class_id?: string;
+  promotion_notes?: string;
+  recorded_at: string;
+  promoted_at?: string;
+  created_at: string;
+}
+
+export interface PromotionSettings {
+  id: string;
+  session_id: string;
+  minimum_pass_percentage: number;
+  require_all_terms: boolean;
+  auto_promote: boolean;
+  created_at: string;
+  updated_at: string;
+}

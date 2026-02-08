@@ -895,7 +895,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                                 </thead>
                                 <tbody>
                                     {filteredCumulativeResults.map((result) => (
-                                        <tr key={result.student_id} className="border-t hover:bg-purple-50/50 transition-colors">
+                                        <tr key={result.student_id} className="border-t transition-colors">
                                             <td className="p-3">
                                                 <div className="flex items-center justify-center">
                                                     {getPositionDisplay(result.cumulative_position)}

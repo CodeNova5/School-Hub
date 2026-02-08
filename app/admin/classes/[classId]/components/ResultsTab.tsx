@@ -62,6 +62,19 @@ interface StudentResult {
     has_results: boolean;
 }
 
+interface CumulativeResult {
+    student_id: string;
+    student_name: string;
+    student_number: string;
+    gender: string;
+    terms_with_results: number;
+    term_averages: { term_name: string; average: number }[];
+    cumulative_average: number;
+    cumulative_grade: string;
+    cumulative_position: number | null;
+    is_complete: boolean; // has all 3 terms
+}
+
 interface ResultsTabProps {
     classId: string;
     className: string;
@@ -75,7 +88,10 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     const [selectedSessionId, setSelectedSessionId] = useState<string>("");
     const [selectedTermId, setSelectedTermId] = useState<string>("");
     const [studentResults, setStudentResults] = useState<StudentResult[]>([]);
+    const [cumulativeResults, setCumulativeResults] = useState<CumulativeResult[]>([]);
     const [loading, setLoading] = useState(false);
+    const [showCumulative, setShowCumulative] = useState(false);
+    const [isLastTerm, setIsLastTerm] = useState(false);
 
     // Filters
     const [search, setSearch] = useState("");
@@ -95,8 +111,20 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     useEffect(() => {
         if (selectedSessionId && selectedTermId) {
             fetchStudentResults();
+            
+            // Check if this is the last term
+            const sessionTerms = terms.filter(t => t.session_id === selectedSessionId);
+            const sortedTerms = sessionTerms.sort((a, b) => a.name.localeCompare(b.name));
+            const lastTerm = sortedTerms[sortedTerms.length - 1];
+            const isLast = lastTerm?.id === selectedTermId;
+            setIsLastTerm(isLast);
+            
+            // Fetch cumulative results if it's the last term
+            if (isLast && sessionTerms.length > 0) {
+                fetchCumulativeResults();
+            }
         }
-    }, [selectedSessionId, selectedTermId, students]);
+    }, [selectedSessionId, selectedTermId, students, terms]);
 
     // When session changes, reset term selection or auto-select first term of new session
     useEffect(() => {
@@ -244,6 +272,124 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
         }
     }
 
+    async function fetchCumulativeResults() {
+        try {
+            const currentStudentIds = students.map(s => s.id);
+            
+            if (currentStudentIds.length === 0) {
+                setCumulativeResults([]);
+                return;
+            }
+
+            // Get all terms for this session
+            const sessionTerms = terms
+                .filter(t => t.session_id === selectedSessionId)
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            if (sessionTerms.length === 0) {
+                setCumulativeResults([]);
+                return;
+            }
+
+            // Fetch results for all terms in this session
+            const { data: allSessionResults, error } = await supabase
+                .from("results")
+                .select("*")
+                .eq("session_id", selectedSessionId)
+                .in("student_id", currentStudentIds);
+
+            if (error) throw error;
+
+            // Process cumulative results per student
+            const cumulativeMap = new Map<string, CumulativeResult>();
+
+            students.forEach((student) => {
+                cumulativeMap.set(student.id, {
+                    student_id: student.id,
+                    student_name: `${student.first_name} ${student.last_name}`,
+                    student_number: student.student_id,
+                    gender: student.gender,
+                    terms_with_results: 0,
+                    term_averages: [],
+                    cumulative_average: 0,
+                    cumulative_grade: "",
+                    cumulative_position: null,
+                    is_complete: false,
+                });
+            });
+
+            // Group results by student and term
+            const studentTermResults = new Map<string, Map<string, any[]>>();
+
+            (allSessionResults || []).forEach((result: any) => {
+                if (!studentTermResults.has(result.student_id)) {
+                    studentTermResults.set(result.student_id, new Map());
+                }
+                const termMap = studentTermResults.get(result.student_id)!;
+                if (!termMap.has(result.term_id)) {
+                    termMap.set(result.term_id, []);
+                }
+                termMap.get(result.term_id)!.push(result);
+            });
+
+            // Calculate cumulative averages
+            studentTermResults.forEach((termMap, studentId) => {
+                const cumulativeResult = cumulativeMap.get(studentId)!;
+                let totalAverage = 0;
+                let termsCount = 0;
+
+                sessionTerms.forEach((term) => {
+                    const termResults = termMap.get(term.id);
+                    if (termResults && termResults.length > 0) {
+                        // Calculate average for this term
+                        const termTotal = termResults.reduce((sum, r) => sum + (r.total || 0), 0);
+                        const termAverage = termTotal / termResults.length;
+                        
+                        cumulativeResult.term_averages.push({
+                            term_name: term.name,
+                            average: termAverage,
+                        });
+
+                        totalAverage += termAverage;
+                        termsCount++;
+                    } else {
+                        cumulativeResult.term_averages.push({
+                            term_name: term.name,
+                            average: 0,
+                        });
+                    }
+                });
+
+                cumulativeResult.terms_with_results = termsCount;
+                if (termsCount > 0) {
+                    cumulativeResult.cumulative_average = totalAverage / termsCount;
+                    cumulativeResult.cumulative_grade = calculateAverageGrade(cumulativeResult.cumulative_average);
+                }
+                cumulativeResult.is_complete = termsCount === sessionTerms.length;
+            });
+
+            // Convert to array and sort by cumulative average
+            const results = Array.from(cumulativeMap.values())
+                .filter(r => r.terms_with_results > 0) // Only include students with at least one term result
+                .sort((a, b) => b.cumulative_average - a.cumulative_average);
+
+            // Assign positions
+            results.forEach((result, index) => {
+                if (index > 0 && Math.abs(result.cumulative_average - results[index - 1].cumulative_average) < 0.01) {
+                    // Same position as previous (tie)
+                    result.cumulative_position = results[index - 1].cumulative_position;
+                } else {
+                    result.cumulative_position = index + 1;
+                }
+            });
+
+            setCumulativeResults(results);
+        } catch (error) {
+            console.error("Error fetching cumulative results:", error);
+            toast.error("Failed to fetch cumulative results");
+        }
+    }
+
     const filteredResults = useMemo(() => {
         return studentResults.filter((result) => {
             if (
@@ -269,6 +415,32 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
             return true;
         });
     }, [studentResults, search, genderFilter, performanceFilter]);
+
+    const filteredCumulativeResults = useMemo(() => {
+        return cumulativeResults.filter((result) => {
+            if (
+                search &&
+                !result.student_name.toLowerCase().includes(search.toLowerCase()) &&
+                !result.student_number.toLowerCase().includes(search.toLowerCase())
+            ) {
+                return false;
+            }
+
+            if (genderFilter !== "all" && result.gender !== genderFilter) {
+                return false;
+            }
+
+            if (performanceFilter !== "all") {
+                const avg = result.cumulative_average;
+                if (performanceFilter === "excellent" && avg < 70) return false;
+                if (performanceFilter === "good" && (avg < 60 || avg >= 70)) return false;
+                if (performanceFilter === "average" && (avg < 50 || avg >= 60)) return false;
+                if (performanceFilter === "poor" && avg >= 50) return false;
+            }
+
+            return true;
+        });
+    }, [cumulativeResults, search, genderFilter, performanceFilter]);
 
     function calculateAverageGrade(averageScore: number): string {
         if (averageScore >= 75) return "A1";
@@ -310,29 +482,58 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
     }
 
     async function handleExportResults() {
-        const exportData = filteredResults.map((result, i) => ({
-            "#": i + 1,
-            "Student ID": result.student_number,
-            "Student Name": result.student_name,
-            Gender: result.gender,
-            "Total Subjects": result.total_subjects,
-            "Total Score": result.total_score.toFixed(2),
-            "Average Score": result.average_score.toFixed(2),
-            "Highest Score": result.highest_score.toFixed(2),
-            "Lowest Score": result.lowest_score.toFixed(2),
-            "Average Grade": result.average_grade || "N/A",
-            Position: result.class_position || "N/A",
-        }));
+        if (showCumulative && isLastTerm) {
+            // Export cumulative results
+            const exportData = filteredCumulativeResults.map((result, i) => ({
+                "Rank": result.cumulative_position || i + 1,
+                "Student ID": result.student_number,
+                "Student Name": result.student_name,
+                "Gender": result.gender,
+                "Terms Completed": `${result.terms_with_results}/3`,
+                ...Object.fromEntries(
+                    result.term_averages.map((term, idx) => [
+                        `${term.term_name} Avg`,
+                        term.average > 0 ? term.average.toFixed(2) : "N/A"
+                    ])
+                ),
+                "Cumulative Average": result.cumulative_average.toFixed(2),
+                "Cumulative Grade": result.cumulative_grade,
+                "Status": result.is_complete ? "Complete" : "Partial",
+            }));
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Results");
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Cumulative Results");
 
-        const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
-        const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
+            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
+            XLSX.writeFile(wb, `${className}-${sessionName}-Cumulative-Results.xlsx`);
+            toast.success("Cumulative results exported successfully");
+        } else {
+            // Export single term results
+            const exportData = filteredResults.map((result, i) => ({
+                "#": i + 1,
+                "Student ID": result.student_number,
+                "Student Name": result.student_name,
+                Gender: result.gender,
+                "Total Subjects": result.total_subjects,
+                "Total Score": result.total_score.toFixed(2),
+                "Average Score": result.average_score.toFixed(2),
+                "Highest Score": result.highest_score.toFixed(2),
+                "Lowest Score": result.lowest_score.toFixed(2),
+                "Average Grade": result.average_grade || "N/A",
+                Position: result.class_position || "N/A",
+            }));
 
-        XLSX.writeFile(wb, `${className}-${sessionName}-${termName}-results.xlsx`);
-        toast.success("Results exported successfully");
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Results");
+
+            const sessionName = sessions.find((s) => s.id === selectedSessionId)?.name || "Session";
+            const termName = terms.find((t) => t.id === selectedTermId)?.name || "Term";
+
+            XLSX.writeFile(wb, `${className}-${sessionName}-${termName}-results.xlsx`);
+            toast.success("Results exported successfully");
+        }
     }
 
     function handleViewStudentReport(studentId: string) {
@@ -454,7 +655,17 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             View and manage student results for {className}
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                        {isLastTerm && (
+                            <Button
+                                size="sm"
+                                variant={showCumulative ? "default" : "outline"}
+                                onClick={() => setShowCumulative(!showCumulative)}
+                            >
+                                <Calculator className="h-4 w-4 mr-1" />
+                                {showCumulative ? "Single Term View" : "Cumulative Results"}
+                            </Button>
+                        )}
                         <Button
                             size="sm"
                             onClick={() => setIsPublicationDialogOpen(true)}
@@ -467,7 +678,7 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                             size="sm"
                             variant="outline"
                             onClick={handleExportResults}
-                            disabled={loading || filteredResults.length === 0}
+                            disabled={loading || (showCumulative ? filteredCumulativeResults.length === 0 : filteredResults.length === 0)}
                         >
                             <Download className="h-4 w-4 mr-1" />
                             Export
@@ -549,6 +760,34 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     </select>
                 </div>
 
+                {/* Cumulative Results Available Banner */}
+                {isLastTerm && !showCumulative && (
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-300 rounded-lg p-4">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-100 rounded-lg">
+                                    <Calculator className="h-5 w-5 text-purple-600" />
+                                </div>
+                                <div>
+                                    <h4 className="font-semibold text-purple-900">
+                                        Cumulative Results Available
+                                    </h4>
+                                    <p className="text-sm text-purple-700 mt-0.5">
+                                        View student rankings across all terms in this session
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                size="sm"
+                                onClick={() => setShowCumulative(true)}
+                                className="bg-purple-600 hover:bg-purple-700"
+                            >
+                                View Cumulative Results
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Summary Stats */}
                 {!loading && filteredResults.length > 0 && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -588,7 +827,161 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     <div className="text-center py-8 text-muted-foreground">
                         Please select a session and term to view results
                     </div>
+                ) : showCumulative ? (
+                    /* Cumulative Results View */
+                    <div className="space-y-4">
+                        {/* Info Banner */}
+                        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+                            <div className="flex items-start gap-3">
+                                <Calculator className="h-5 w-5 text-purple-600 mt-0.5" />
+                                <div>
+                                    <h3 className="font-semibold text-purple-900">
+                                        Cumulative Results Across All Terms
+                                    </h3>
+                                    <p className="text-sm text-purple-700 mt-1">
+                                        This view shows each student's average performance across all terms in this session.
+                                        Students are ranked based on their cumulative average.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Cumulative Stats */}
+                        {filteredCumulativeResults.length > 0 && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                                    <p className="text-sm text-purple-600 font-medium">Total Ranked</p>
+                                    <p className="text-2xl font-bold text-purple-900">{filteredCumulativeResults.length}</p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+                                    <p className="text-sm text-green-600 font-medium">Complete (3 Terms)</p>
+                                    <p className="text-2xl font-bold text-green-900">
+                                        {filteredCumulativeResults.filter((r) => r.is_complete).length}
+                                    </p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg border border-amber-200">
+                                    <p className="text-sm text-amber-600 font-medium">Partial Results</p>
+                                    <p className="text-2xl font-bold text-amber-900">
+                                        {filteredCumulativeResults.filter((r) => !r.is_complete).length}
+                                    </p>
+                                </div>
+                                <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                                    <p className="text-sm text-blue-600 font-medium">Average Score</p>
+                                    <p className="text-2xl font-bold text-blue-900">
+                                        {(
+                                            filteredCumulativeResults.reduce((sum, r) => sum + r.cumulative_average, 0) /
+                                            filteredCumulativeResults.length || 0
+                                        ).toFixed(1)}%
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Cumulative Results Table */}
+                        <div className="border rounded-lg overflow-hidden shadow-sm">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gradient-to-r from-purple-100 to-blue-100">
+                                    <tr>
+                                        <th className="p-3 text-left">Rank</th>
+                                        <th className="p-3 text-left">Student</th>
+                                        <th className="p-3 text-center">Terms</th>
+                                        <th className="p-3 text-center">1st Term</th>
+                                        <th className="p-3 text-center">2nd Term</th>
+                                        <th className="p-3 text-center">3rd Term</th>
+                                        <th className="p-3 text-center">Cumulative Avg</th>
+                                        <th className="p-3 text-center">Grade</th>
+                                        <th className="p-3 text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredCumulativeResults.map((result) => (
+                                        <tr key={result.student_id} className="border-t hover:bg-purple-50/50 transition-colors">
+                                            <td className="p-3">
+                                                <div className="flex items-center justify-center">
+                                                    {getPositionDisplay(result.cumulative_position)}
+                                                </div>
+                                            </td>
+                                            <td className="p-3">
+                                                <div>
+                                                    <p className="font-medium">{result.student_name}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {result.student_number}
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                <Badge 
+                                                    variant="outline" 
+                                                    className={result.is_complete ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200"}
+                                                >
+                                                    {result.terms_with_results}/3
+                                                </Badge>
+                                            </td>
+                                            {result.term_averages.map((term, idx) => (
+                                                <td key={idx} className="p-3 text-center">
+                                                    {term.average > 0 ? (
+                                                        <span className="font-semibold text-gray-700">
+                                                            {term.average.toFixed(1)}%
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground text-xs">N/A</span>
+                                                    )}
+                                                </td>
+                                            ))}
+                                            <td className="p-3 text-center">
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <span className="text-lg font-bold text-purple-700">
+                                                        {result.cumulative_average.toFixed(1)}%
+                                                    </span>
+                                                    {(() => {
+                                                        const perf = getPerformanceIndicator(result.cumulative_average);
+                                                        const Icon = perf.icon;
+                                                        return (
+                                                            <div className="flex items-center gap-1">
+                                                                <Icon className={`h-3 w-3 ${perf.color}`} />
+                                                                <span className={`text-xs ${perf.color}`}>
+                                                                    {perf.label}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`text-sm font-bold ${getGradeColor(result.cumulative_grade)}`}
+                                                >
+                                                    {result.cumulative_grade}
+                                                </Badge>
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                {result.is_complete ? (
+                                                    <Badge className="bg-green-100 text-green-800 border-green-300">
+                                                        Complete
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge className="bg-amber-100 text-amber-800 border-amber-300">
+                                                        Partial
+                                                    </Badge>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {filteredCumulativeResults.length === 0 && (
+                                <div className="p-8 text-center text-muted-foreground">
+                                    {search || genderFilter !== "all" || performanceFilter !== "all"
+                                        ? "No cumulative results match your filters."
+                                        : "No cumulative results available."}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 ) : (
+                    /* Single Term Results View */
                     <div className="border rounded-md overflow-hidden">
                         <table className="w-full text-sm">
                             <thead className="bg-muted">

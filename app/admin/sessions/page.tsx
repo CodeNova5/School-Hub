@@ -30,6 +30,8 @@ export default function SessionsPage() {
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -92,250 +94,288 @@ export default function SessionsPage() {
 
   async function handleCreateSession(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    setError(null);
+    try {
+      setIsLoading(true);
+      const formData = new FormData(e.currentTarget);
 
-    const name = formData.get("name") as string;
+      const name = formData.get("name") as string;
 
-    // Prevent duplicate session names
-    const { data: existing } = await supabase
-      .from('sessions')
-      .select('id')
-      .eq('name', name)
-      .limit(1);
+      // Prevent duplicate session names
+      const { data: existing } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('name', name)
+        .limit(1);
 
-    if (existing && existing.length > 0) {
-      alert('A session with this name already exists.');
-      return;
-    }
+      if (existing && existing.length > 0) {
+        setError('A session with this name already exists.');
+        return;
+      }
 
-    const t1Start = formData.get("t1_start") as string;
-    const t1End = formData.get("t1_end") as string;
-    const t2Start = formData.get("t2_start") as string;
-    const t2End = formData.get("t2_end") as string;
-    const t3Start = formData.get("t3_start") as string;
-    const t3End = formData.get("t3_end") as string;
+      const t1Start = formData.get("t1_start") as string;
+      const t1End = formData.get("t1_end") as string;
+      const t2Start = formData.get("t2_start") as string;
+      const t2End = formData.get("t2_end") as string;
+      const t3Start = formData.get("t3_start") as string;
+      const t3End = formData.get("t3_end") as string;
 
-    // Validate all dates
-    if (new Date(t1Start) >= new Date(t1End)) {
-      alert('First Term: Start date must be before end date');
-      return;
-    }
-    if (new Date(t2Start) >= new Date(t2End)) {
-      alert('Second Term: Start date must be before end date');
-      return;
-    }
-    if (new Date(t3Start) >= new Date(t3End)) {
-      alert('Third Term: Start date must be before end date');
-      return;
-    }
+      // Validate all dates
+      if (new Date(t1Start) >= new Date(t1End)) {
+        setError('First Term: Start date must be before end date');
+        return;
+      }
+      if (new Date(t2Start) >= new Date(t2End)) {
+        setError('Second Term: Start date must be before end date');
+        return;
+      }
+      if (new Date(t3Start) >= new Date(t3End)) {
+        setError('Third Term: Start date must be before end date');
+        return;
+      }
 
-    // Validate terms don't overlap with each other
-    const termDates = [
-      { name: 'First Term', start: t1Start, end: t1End },
-      { name: 'Second Term', start: t2Start, end: t2End },
-      { name: 'Third Term', start: t3Start, end: t3End }
-    ];
+      // Validate terms don't overlap with each other
+      const termDates = [
+        { name: 'First Term', start: t1Start, end: t1End },
+        { name: 'Second Term', start: t2Start, end: t2End },
+        { name: 'Third Term', start: t3Start, end: t3End }
+      ];
 
-    // Validate terms are in chronological order
-    if (new Date(t1End) >= new Date(t2Start)) {
-      alert('First Term must end before Second Term starts');
-      return;
-    }
-    if (new Date(t2End) >= new Date(t3Start)) {
-      alert('Second Term must end before Third Term starts');
-      return;
-    }
+      // Validate terms are in chronological order
+      if (new Date(t1End) >= new Date(t2Start)) {
+        setError('First Term must end before Second Term starts');
+        return;
+      }
+      if (new Date(t2End) >= new Date(t3Start)) {
+        setError('Second Term must end before Third Term starts');
+        return;
+      }
 
-    for (let i = 0; i < termDates.length; i++) {
-      for (let j = i + 1; j < termDates.length; j++) {
-        const term1 = termDates[i];
-        const term2 = termDates[j];
-        // Check if terms overlap
-        if (
-          (new Date(term1.start) <= new Date(term2.end) && new Date(term1.end) >= new Date(term2.start))
-        ) {
-          alert(`${term1.name} and ${term2.name} have overlapping dates. Please adjust the dates.`);
-          return;
+      for (let i = 0; i < termDates.length; i++) {
+        for (let j = i + 1; j < termDates.length; j++) {
+          const term1 = termDates[i];
+          const term2 = termDates[j];
+          // Check if terms overlap
+          if (
+            (new Date(term1.start) <= new Date(term2.end) && new Date(term1.end) >= new Date(term2.start))
+          ) {
+            setError(`${term1.name} and ${term2.name} have overlapping dates. Please adjust the dates.`);
+            return;
+          }
         }
       }
+
+      // Validate session doesn't overlap with existing sessions
+      const sessionOverlap = await isSessionOverlapping(t1Start, t3End);
+      if (sessionOverlap) {
+        setError('This session overlaps with an existing session. Please adjust the dates.');
+        return;
+      }
+
+      const { data: sessionResult, error: sessionError } = await supabase
+        .from('sessions')
+        .insert({
+          name,
+          start_date: t1Start,
+          end_date: t3End,
+          is_current: false,
+        })
+        .select();
+
+
+      if (sessionError || !sessionResult || sessionResult.length === 0) {
+        setError('Failed to create session');
+        return;
+      }
+      const session = sessionResult[0];
+
+      // Create 3 terms
+      const terms = [
+        {
+          session_id: session.id,
+          name: "First Term",
+          start_date: t1Start,
+          end_date: t1End,
+        },
+        {
+          session_id: session.id,
+          name: "Second Term",
+          start_date: t2Start,
+          end_date: t2End,
+        },
+        {
+          session_id: session.id,
+          name: "Third Term",
+          start_date: t3Start,
+          end_date: t3End,
+        },
+      ];
+
+      const { error: insertError } = await supabase.from('terms').insert(terms);
+
+      if (insertError) {
+        setError('Failed to create terms');
+        return;
+      }
+
+      setIsSessionDialogOpen(false);
+      await fetchSessions();
+      await fetchTerms();
+    } finally {
+      setIsLoading(false);
     }
-
-    // Validate session doesn't overlap with existing sessions
-    const sessionOverlap = await isSessionOverlapping(t1Start, t3End);
-    if (sessionOverlap) {
-      alert('This session overlaps with an existing session. Please adjust the dates.');
-      return;
-    }
-
-    const { data: sessionResult, error: sessionError } = await supabase
-      .from('sessions')
-      .insert({
-        name,
-        start_date: t1Start,
-        end_date: t3End,
-        is_current: false,
-      })
-      .select();
-
-
-    if (sessionError || !sessionResult || sessionResult.length === 0) {
-      alert('Failed to create session');
-      return;
-    }
-    const session = sessionResult[0];
-
-    // Create 3 terms
-    const terms = [
-      {
-        session_id: session.id,
-        name: "First Term",
-        start_date: t1Start,
-        end_date: t1End,
-      },
-      {
-        session_id: session.id,
-        name: "Second Term",
-        start_date: t2Start,
-        end_date: t2End,
-      },
-      {
-        session_id: session.id,
-        name: "Third Term",
-        start_date: t3Start,
-        end_date: t3End,
-      },
-    ];
-
-    await supabase.from('terms').insert(terms);
-
-    setIsSessionDialogOpen(false);
-    await fetchSessions();
-    await fetchTerms();
   }
 
 
   async function handleCreateTerm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    setError(null);
+    try {
+      setIsLoading(true);
+      const formData = new FormData(e.currentTarget);
 
-    if (!selectedSession) {
-      alert('Please select a session');
-      return;
+      if (!selectedSession) {
+        setError('Please select a session');
+        return;
+      }
+
+      const startDate = formData.get('start_date') as string;
+      const endDate = formData.get('end_date') as string;
+
+      // Validate dates
+      if (new Date(startDate) >= new Date(endDate)) {
+        setError('Start date must be before end date');
+        return;
+      }
+
+      // Check for overlapping terms in the same session
+      const overlap = await isTermOverlapping(selectedSession, startDate, endDate);
+      if (overlap) {
+        setError('This term overlaps with an existing term in the selected session. Please adjust the dates.');
+        return;
+      }
+
+      const { error } = await supabase.from('terms').insert({
+        session_id: selectedSession,
+        name: formData.get('name') as string,
+        start_date: startDate,
+        end_date: endDate,
+        is_current: false,
+      });
+
+      if (error) {
+        setError('Failed to create term: ' + error.message);
+        return;
+      }
+
+      setIsTermDialogOpen(false);
+      setSelectedSession('');
+      await fetchTerms();
+    } finally {
+      setIsLoading(false);
     }
-
-    const startDate = formData.get('start_date') as string;
-    const endDate = formData.get('end_date') as string;
-
-    // Validate dates
-    if (new Date(startDate) >= new Date(endDate)) {
-      alert('Start date must be before end date');
-      return;
-    }
-
-    // Check for overlapping terms in the same session
-    const overlap = await isTermOverlapping(selectedSession, startDate, endDate);
-    if (overlap) {
-      alert('This term overlaps with an existing term in the selected session. Please adjust the dates.');
-      return;
-    }
-
-    const { error } = await supabase.from('terms').insert({
-      session_id: selectedSession,
-      name: formData.get('name') as string,
-      start_date: startDate,
-      end_date: endDate,
-      is_current: false,
-    });
-
-    if (error) {
-      alert('Failed to create term: ' + error.message);
-      return;
-    }
-
-    setIsTermDialogOpen(false);
-    setSelectedSession('');
-    await fetchTerms();
   }
 
   async function handleUpdateSession(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     if (!editingSession) return;
 
-    const formData = new FormData(e.currentTarget);
+    try {
+      setIsLoading(true);
+      const formData = new FormData(e.currentTarget);
 
-    const { error } = await supabase
-      .from('sessions')
-      .update({
-        name: formData.get("name"),
-      })
-      .eq('id', editingSession.id);
+      const { error } = await supabase
+        .from('sessions')
+        .update({
+          name: formData.get("name"),
+        })
+        .eq('id', editingSession.id);
 
-    if (error) {
-      alert('Failed to update session');
-      return;
+      if (error) {
+        setError('Failed to update session');
+        return;
+      }
+
+      setIsEditSessionDialogOpen(false);
+      setEditingSession(null);
+      await fetchSessions();
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsEditSessionDialogOpen(false);
-    setEditingSession(null);
-    await fetchSessions();
   }
 
   async function handleDeleteSession(id: string) {
     const session = sessions.find(s => s.id === id);
 
     if (session?.is_current) {
-      alert("You cannot delete the current active session");
+      setError("You cannot delete the current active session");
       return;
     }
 
     if (!confirm("Delete this session and all its terms?")) return;
 
-    await supabase.from('terms').delete().eq('session_id', id);
-    await supabase.from('sessions').delete().eq('id', id);
+    try {
+      setIsLoading(true);
+      setError(null);
+      await supabase.from('terms').delete().eq('session_id', id);
+      await supabase.from('sessions').delete().eq('id', id);
 
-    fetchSessions();
-    fetchTerms();
+      await fetchSessions();
+      await fetchTerms();
+    } catch (err) {
+      setError('Failed to delete session');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   async function handleUpdateTerm(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError(null);
     if (!editingTerm) return;
 
-    const formData = new FormData(e.currentTarget);
+    try {
+      setIsLoading(true);
+      const formData = new FormData(e.currentTarget);
 
-    const startDate = formData.get("start_date") as string;
-    const endDate = formData.get("end_date") as string;
+      const startDate = formData.get("start_date") as string;
+      const endDate = formData.get("end_date") as string;
 
-    // Validate dates
-    if (new Date(startDate) >= new Date(endDate)) {
-      alert('Start date must be before end date');
-      return;
+      // Validate dates
+      if (new Date(startDate) >= new Date(endDate)) {
+        setError('Start date must be before end date');
+        return;
+      }
+
+      // Check for overlapping terms (excluding the current term being edited)
+      const overlap = await isTermOverlapping(editingTerm.session_id, startDate, endDate, editingTerm.id);
+      if (overlap) {
+        setError('This term overlaps with another term in the session. Please adjust the dates.');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('terms')
+        .update({
+          name: formData.get("name"),
+          start_date: startDate,
+          end_date: endDate,
+        })
+        .eq('id', editingTerm.id);
+
+      if (error) {
+        setError('Failed to update term: ' + error.message);
+        return;
+      }
+
+      setIsEditTermDialogOpen(false);
+      setEditingTerm(null);
+      await fetchTerms();
+    } finally {
+      setIsLoading(false);
     }
-
-    // Check for overlapping terms (excluding the current term being edited)
-    const overlap = await isTermOverlapping(editingTerm.session_id, startDate, endDate, editingTerm.id);
-    if (overlap) {
-      alert('This term overlaps with another term in the session. Please adjust the dates.');
-      return;
-    }
-
-    const { error } = await supabase
-      .from('terms')
-      .update({
-        name: formData.get("name"),
-        start_date: startDate,
-        end_date: endDate,
-      })
-      .eq('id', editingTerm.id);
-
-    if (error) {
-      alert('Failed to update term: ' + error.message);
-      return;
-    }
-
-    setIsEditTermDialogOpen(false);
-    setEditingTerm(null);
-    await fetchTerms();
   }
 
 
@@ -343,14 +383,23 @@ export default function SessionsPage() {
     const term = terms.find(t => t.id === id);
 
     if (term?.is_current) {
-      alert("You cannot delete the current active term");
+      setError("You cannot delete the current active term");
       return;
     }
 
     if (!confirm("Delete this term?")) return;
 
-    await supabase.from('terms').delete().eq('id', id);
-    fetchTerms();
+    try {
+      setIsLoading(true);
+      setError(null);
+      await supabase.from('terms').delete().eq('id', id);
+      await fetchTerms();
+    } catch (err) {
+      setError('Failed to delete term');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function isPast(date: string) {
@@ -359,11 +408,39 @@ export default function SessionsPage() {
 
   // Set current session
   async function handleSetCurrentSession(sessionId: string) {
-    await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
-    await supabase.from('sessions').update({ is_current: true }).eq('id', sessionId);
-    setCurrentSessionId(sessionId);
-    await updateCurrentSessionAndTerm(sessionId);
-    await fetchSessions();
+    try {
+      setIsLoading(true);
+      setError(null);
+      await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
+      await supabase.from('sessions').update({ is_current: true }).eq('id', sessionId);
+      setCurrentSessionId(sessionId);
+      await updateCurrentSessionAndTerm(sessionId);
+      await fetchSessions();
+    } catch (err) {
+      setError('Failed to update current session');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  // Set current term manually
+  async function handleSetCurrentTerm(termId: string) {
+    try {
+      setIsLoading(true);
+      setError(null);
+      // Clear all terms' is_current flag
+      await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
+      // Set the selected term as current
+      await supabase.from('terms').update({ is_current: true }).eq('id', termId);
+      // Refresh terms to reflect changes
+      await fetchTerms();
+    } catch (err) {
+      setError('Failed to update current term');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   async function isSessionOverlapping(start: string, end: string, excludeId?: string) {
@@ -439,6 +516,17 @@ export default function SessionsPage() {
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            {error}
+            <button 
+              onClick={() => setError(null)} 
+              className="ml-4 text-sm underline hover:no-underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Sessions & Terms</h1>
@@ -450,6 +538,7 @@ export default function SessionsPage() {
               className="border rounded px-2 py-1"
               value={currentSessionId}
               onChange={e => handleSetCurrentSession(e.target.value)}
+              disabled={isLoading}
             >
               <option value="">Select session</option>
               {Array.from({ length: 2050 - 2026 + 1 }, (_, i) => {
@@ -464,7 +553,7 @@ export default function SessionsPage() {
             </select>
             <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button disabled={isLoading}>
                   <Plus className="mr-2 h-4 w-4" />
                   New Session
                 </Button>
@@ -516,7 +605,9 @@ export default function SessionsPage() {
                     <Label>End Date</Label>
                     <Input name="t3_end" type="date" required />
                   </div>
-                  <Button type="submit" className="w-full">Create Session</Button>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? 'Creating...' : 'Create Session'}
+                  </Button>
                 </form>
               </DialogContent>
             </Dialog>
@@ -569,6 +660,7 @@ export default function SessionsPage() {
                     className="border rounded px-3 py-1.5 text-sm min-w-[150px]"
                     value={viewingSessionId}
                     onChange={e => setViewingSessionId(e.target.value)}
+                    disabled={isLoading}
                   >
                     <option value="">Select a session</option>
                     {sessions.map((session) => (
@@ -602,6 +694,7 @@ export default function SessionsPage() {
                           setEditingSession(viewingSession);
                           setIsEditSessionDialogOpen(true);
                         }}
+                        disabled={isLoading}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -609,7 +702,7 @@ export default function SessionsPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleDeleteSession(viewingSession.id)}
-                        disabled={viewingSession.is_current}
+                        disabled={viewingSession.is_current || isLoading}
                       >
                         <Trash2 className="h-4 w-4 text-red-500" />
                       </Button>
@@ -622,7 +715,7 @@ export default function SessionsPage() {
                       <h3 className="font-semibold text-lg">Terms in {viewingSession.name}</h3>
                       <Dialog open={isTermDialogOpen} onOpenChange={setIsTermDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline">
+                          <Button size="sm" variant="outline" disabled={isLoading}>
                             <Plus className="mr-2 h-4 w-4" />
                             Add Term
                           </Button>
@@ -649,9 +742,10 @@ export default function SessionsPage() {
                             <Button 
                               type="submit" 
                               className="w-full"
+                              disabled={isLoading}
                               onClick={() => setSelectedSession(viewingSession.id)}
                             >
-                              Create Term
+                              {isLoading ? 'Creating...' : 'Create Term'}
                             </Button>
                           </form>
                         </DialogContent>
@@ -677,6 +771,16 @@ export default function SessionsPage() {
                               )}
                             </div>
                             <div className="flex items-center gap-2">
+                              {!term.is_current && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleSetCurrentTerm(term.id)}
+                                  disabled={isLoading}
+                                >
+                                  Set as Current
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -684,6 +788,7 @@ export default function SessionsPage() {
                                   setEditingTerm(term);
                                   setIsEditTermDialogOpen(true);
                                 }}
+                                disabled={isLoading}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
@@ -691,7 +796,7 @@ export default function SessionsPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleDeleteTerm(term.id)}
-                                disabled={term.is_current}
+                                disabled={term.is_current || isLoading}
                               >
                                 <Trash2 className="h-4 w-4 text-red-500" />
                               </Button>
@@ -733,7 +838,9 @@ export default function SessionsPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">Update Session</Button>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Updating...' : 'Update Session'}
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -771,7 +878,9 @@ export default function SessionsPage() {
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">Update Term</Button>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? 'Updating...' : 'Update Term'}
+              </Button>
             </form>
           </DialogContent>
         </Dialog>

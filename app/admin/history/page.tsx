@@ -241,28 +241,41 @@ export default function HistoryPage() {
     return true;
   });
 
-  // Calculate stats based on query mode
-  const stats = {
-    total_records: filteredHistory.length,
-    unique_students: new Set(filteredHistory.map((h) => h.student_id)).size,
-    unique_classes: new Set(filteredHistory.map((h) => h.class_id)).size,
-    promoted_count: filteredHistory.filter((h) => h.promotion_status === "promoted")
-      .length,
-    graduated_count: filteredHistory.filter((h) => h.promotion_status === "graduated")
-      .length,
-    repeated_count: filteredHistory.filter((h) => h.promotion_status === "repeated")
-      .length,
-    average_performance:
-      filteredHistory.reduce((sum, h) => sum + h.average_score, 0) /
-        filteredHistory.length || 0,
-  };
-
   // Get unique education levels for filter
   const educationLevels = Array.from(
     new Set(classes.map((c) => c.education_level))
   ).filter(Boolean);
 
   const currentMode = QUERY_MODES.find((m) => m.type === queryMode);
+
+  // Auto-filter based on query mode
+  const modeFilteredHistory = (() => {
+    let result = filteredHistory;
+    
+    if (queryMode === "graduates") {
+      result = result.filter((h) => h.promotion_status === "graduated");
+    } else if (queryMode === "repeaters") {
+      result = result.filter((h) => h.promotion_status === "repeated");
+    }
+    
+    return result;
+  })();
+
+  // Get relevant stats based on mode
+  const relevantStats = {
+    total_records: modeFilteredHistory.length,
+    unique_students: new Set(modeFilteredHistory.map((h) => h.student_id)).size,
+    unique_classes: new Set(modeFilteredHistory.map((h) => h.class_id)).size,
+    promoted_count: modeFilteredHistory.filter((h) => h.promotion_status === "promoted")
+      .length,
+    graduated_count: modeFilteredHistory.filter((h) => h.promotion_status === "graduated")
+      .length,
+    repeated_count: modeFilteredHistory.filter((h) => h.promotion_status === "repeated")
+      .length,
+    average_performance:
+      modeFilteredHistory.reduce((sum, h) => sum + h.average_score, 0) /
+        modeFilteredHistory.length || 0,
+  };
 
   return (
     <DashboardLayout role="admin">
@@ -272,78 +285,45 @@ export default function HistoryPage() {
           <div>
             <h1 className="text-3xl font-bold">Class History</h1>
             <p className="text-muted-foreground mt-1">
-              Track student class memberships and academic progression
+              {currentMode?.description}
             </p>
           </div>
-          <Button onClick={handleExport} disabled={filteredHistory.length === 0}>
+          <Button onClick={handleExport} disabled={modeFilteredHistory.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
         </div>
 
-        {/* Query Mode Selection */}
+        {/* Query Mode Selection - Now as horizontal tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {QUERY_MODES.map((mode) => {
+            const Icon = mode.icon;
+            const isSelected = queryMode === mode.type;
+
+            return (
+              <button
+                key={mode.type}
+                onClick={() => setQueryMode(mode.type)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-all ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="text-sm font-medium">{mode.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Contextual Filters */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              What do you want to know?
-            </CardTitle>
-            <CardDescription>
-              Choose a query type to explore class history data
-            </CardDescription>
+            <CardTitle className="text-base">Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-3">
-              {QUERY_MODES.map((mode) => {
-                const Icon = mode.icon;
-                const isSelected = queryMode === mode.type;
-
-                return (
-                  <button
-                    key={mode.type}
-                    onClick={() => setQueryMode(mode.type)}
-                    className={`p-4 rounded-lg border-2 text-left transition-all ${
-                      isSelected
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <Icon
-                        className={`h-5 w-5 mt-0.5 ${
-                          isSelected ? "text-primary" : "text-muted-foreground"
-                        }`}
-                      />
-                      <div className="flex-1">
-                        <p
-                          className={`font-semibold ${
-                            isSelected ? "text-primary" : ""
-                          }`}
-                        >
-                          {mode.label}
-                        </p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {mode.description}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-            <CardDescription>
-              Narrow down the results using filters
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Session</label>
                 <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
@@ -361,69 +341,79 @@ export default function HistoryPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Class</label>
-                <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All classes" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Classes</SelectItem>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls.id} value={cls.id}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {queryMode !== "student_history" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Class</label>
+                  <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All classes" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Classes</SelectItem>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Education Level</label>
-                <Select
-                  value={educationLevelFilter}
-                  onValueChange={setEducationLevelFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    {educationLevels.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {level}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {queryMode !== "graduates" && queryMode !== "repeaters" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Education Level</label>
+                  <Select
+                    value={educationLevelFilter}
+                    onValueChange={setEducationLevelFilter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Levels</SelectItem>
+                      {educationLevels.map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {level}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
-                <Select
-                  value={promotionStatusFilter}
-                  onValueChange={setPromotionStatusFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="promoted">Promoted</SelectItem>
-                    <SelectItem value="graduated">Graduated</SelectItem>
-                    <SelectItem value="repeated">Repeated</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {queryMode === "class_roster" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Promotion Status</label>
+                  <Select
+                    value={promotionStatusFilter}
+                    onValueChange={setPromotionStatusFilter}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="promoted">Promoted</SelectItem>
+                      <SelectItem value="graduated">Graduated</SelectItem>
+                      <SelectItem value="repeated">Repeated</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="mt-4">
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
                 <Input
-                  placeholder="Search by student name, ID, or class..."
+                  placeholder={
+                    queryMode === "student_history"
+                      ? "Search by student name or ID..."
+                      : "Search by student, ID, or class..."
+                  }
                   className="pl-9"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -433,54 +423,62 @@ export default function HistoryPage() {
           </CardContent>
         </Card>
 
-        {/* Statistics */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Records</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total_records}</div>
-            </CardContent>
-          </Card>
+        {/* Context-Aware Statistics */}
+        {queryMode !== "performance" && queryMode !== "class_stats" && (
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  {queryMode === "graduates"
+                    ? "Graduates"
+                    : queryMode === "repeaters"
+                    ? "Repeaters"
+                    : "Total Students"}
+                </CardTitle>
+                {queryMode === "graduates" && (
+                  <GraduationCap className="h-4 w-4 text-purple-600" />
+                )}
+                {queryMode === "repeaters" && (
+                  <History className="h-4 w-4 text-orange-600" />
+                )}
+                {queryMode !== "graduates" && queryMode !== "repeaters" && (
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {queryMode === "graduates"
+                    ? relevantStats.graduated_count
+                    : queryMode === "repeaters"
+                    ? relevantStats.repeated_count
+                    : relevantStats.unique_students}
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unique Students</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.unique_students}</div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Records</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{relevantStats.total_records}</div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Promoted</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {stats.promoted_count}
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Unique Classes</CardTitle>
+                <Award className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{relevantStats.unique_classes}</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Graduated</CardTitle>
-              <GraduationCap className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {stats.graduated_count}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Results */}
+        {/* Results Section */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -489,12 +487,9 @@ export default function HistoryPage() {
                   {currentMode && <currentMode.icon className="h-5 w-5" />}
                   {currentMode?.label || "Results"}
                 </CardTitle>
-                <CardDescription className="mt-1">
-                  {currentMode?.description}
-                </CardDescription>
               </div>
               <Badge variant="outline">
-                {filteredHistory.length} record{filteredHistory.length !== 1 ? "s" : ""}
+                {modeFilteredHistory.length} result{modeFilteredHistory.length !== 1 ? "s" : ""}
               </Badge>
             </div>
           </CardHeader>
@@ -503,12 +498,16 @@ export default function HistoryPage() {
               <div className="text-center py-12 text-muted-foreground">
                 Loading history...
               </div>
-            ) : filteredHistory.length === 0 ? (
+            ) : modeFilteredHistory.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No class history records found</p>
+                <p>No results found for "{currentMode?.label}"</p>
                 <p className="text-sm mt-2">
-                  Try adjusting your filters or process promotions first
+                  {queryMode === "graduates" && "Process promotions to mark students as graduated"}
+                  {queryMode === "repeaters" && "Only students who have repeated a class will appear here"}
+                  {queryMode !== "graduates" &&
+                    queryMode !== "repeaters" &&
+                    "Try adjusting your filters"}
                 </p>
               </div>
             ) : (
@@ -521,13 +520,13 @@ export default function HistoryPage() {
                       <TableHead>Class</TableHead>
                       <TableHead className="text-center">Terms</TableHead>
                       <TableHead className="text-center">Average</TableHead>
-                      <TableHead className="text-center">Position</TableHead>
+                      {queryMode !== "repeaters" && <TableHead className="text-center">Position</TableHead>}
                       <TableHead className="text-center">Status</TableHead>
-                      <TableHead>Notes</TableHead>
+                      {queryMode !== "graduates" && queryMode !== "repeaters" && <TableHead>Notes</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredHistory.map((record) => (
+                    {modeFilteredHistory.map((record) => (
                       <TableRow key={record.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -566,15 +565,17 @@ export default function HistoryPage() {
                             </Badge>
                           </div>
                         </TableCell>
-                        <TableCell className="text-center">
-                          {record.position ? (
-                            <span className="font-semibold">
-                              {record.position}/{record.total_students}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
+                        {queryMode !== "repeaters" && (
+                          <TableCell className="text-center">
+                            {record.position ? (
+                              <span className="font-semibold">
+                                {record.position}/{record.total_students}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                        )}
                         <TableCell className="text-center">
                           {record.promotion_status === "promoted" && (
                             <Badge className="bg-green-100 text-green-700 border-green-300">
@@ -601,11 +602,13 @@ export default function HistoryPage() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell>
-                          <p className="text-sm text-muted-foreground max-w-xs truncate">
-                            {record.promotion_notes || "—"}
-                          </p>
-                        </TableCell>
+                        {queryMode !== "graduates" && queryMode !== "repeaters" && (
+                          <TableCell>
+                            <p className="text-sm text-muted-foreground max-w-xs truncate">
+                              {record.promotion_notes || "—"}
+                            </p>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -616,50 +619,73 @@ export default function HistoryPage() {
         </Card>
 
         {/* Additional Insights Based on Query Mode */}
-        {filteredHistory.length > 0 && queryMode === "class_stats" && (
+        {modeFilteredHistory.length > 0 && queryMode === "class_stats" && (
           <Card>
             <CardHeader>
               <CardTitle>Class Size Breakdown</CardTitle>
               <CardDescription>
-                Number of students per class in the selected session
+                Number of students per class
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {Object.entries(
-                  filteredHistory.reduce((acc, record) => {
+                  modeFilteredHistory.reduce((acc, record) => {
                     const key = record.class_name;
                     acc[key] = (acc[key] || 0) + 1;
                     return acc;
                   }, {} as Record<string, number>)
                 )
                   .sort((a, b) => b[1] - a[1])
-                  .map(([className, count]) => (
-                    <div
-                      key={className}
-                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                    >
-                      <span className="font-medium">{className}</span>
-                      <Badge>{count} students</Badge>
-                    </div>
-                  ))}
+                  .map(([className, count]) => {
+                    const totalInClass = modeFilteredHistory.filter(
+                      (h) => h.class_name === className
+                    ).length;
+                    return (
+                      <div
+                        key={className}
+                        className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                      >
+                        <div>
+                          <p className="font-semibold">{className}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Set(
+                              modeFilteredHistory
+                                .filter((h) => h.class_name === className)
+                                .map((h) => h.student_id)
+                            ).size}{" "}
+                            unique student{
+                              new Set(
+                                modeFilteredHistory
+                                  .filter((h) => h.class_name === className)
+                                  .map((h) => h.student_id)
+                              ).size !== 1
+                                ? "s"
+                                : ""
+                            }
+                          </p>
+                        </div>
+                        <Badge className="text-base px-3 py-1">{count} records</Badge>
+                      </div>
+                    );
+                  })}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {filteredHistory.length > 0 && queryMode === "performance" && (
+        {modeFilteredHistory.length > 0 && queryMode === "performance" && (
           <Card>
             <CardHeader>
               <CardTitle>Performance Overview</CardTitle>
               <CardDescription>
-                Average performance across classes
+                Average performance by class
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {Object.entries(
-                  filteredHistory.reduce((acc, record) => {
+                  modeFilteredHistory.reduce((acc, record) => {
                     const key = record.class_name;
                     if (!acc[key]) {
                       acc[key] = { total: 0, count: 0 };
@@ -677,24 +703,25 @@ export default function HistoryPage() {
                   .map(({ className, average }) => (
                     <div
                       key={className}
-                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                      className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
                     >
                       <span className="font-medium">{className}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          {average >= 60 ? (
-                            <TrendingUp className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <TrendingUp className="h-4 w-4 text-orange-600" />
-                          )}
-                          <span
-                            className={`font-bold ${
-                              average >= 60 ? "text-green-600" : "text-orange-600"
+                      <div className="flex items-center gap-3">
+                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full transition-all ${
+                              average >= 70
+                                ? "bg-green-600"
+                                : average >= 60
+                                ? "bg-yellow-600"
+                                : "bg-red-600"
                             }`}
-                          >
-                            {average.toFixed(1)}%
-                          </span>
+                            style={{ width: `${Math.min(average, 100)}%` }}
+                          />
                         </div>
+                        <span className="font-bold w-12 text-right">
+                          {average.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   ))}

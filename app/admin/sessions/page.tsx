@@ -3,7 +3,7 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session, Term } from '@/lib/types';
@@ -52,6 +52,19 @@ export default function SessionsPage() {
       }
     }
   }, [currentSessionId]);
+
+  // Auto-check on page load for session/term transitions
+  useEffect(() => {
+    if (sessions.length > 0) {
+      const checkAutoTransition = async () => {
+        const currentSession = sessions.find(s => s.is_current);
+        if (currentSession) {
+          await updateCurrentSessionAndTerm(currentSession.id);
+        }
+      };
+      checkAutoTransition();
+    }
+  }, []);
 
   // Computed values for filtered display
   const viewingSession = sessions.find(s => s.id === viewingSessionId);
@@ -429,6 +442,31 @@ export default function SessionsPage() {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Check if today's date falls within the term's dates
+      const term = terms.find(t => t.id === termId);
+      if (term) {
+        const today = new Date().toISOString().split('T')[0];
+        const startDate = term.start_date;
+        const endDate = term.end_date;
+        
+        if (today < startDate || today > endDate) {
+          // Show warning confirmation
+          const confirmed = confirm(
+            `⚠️ WARNING: Today (${new Date().toLocaleDateString()}) does not fall within this term.\n\n` +
+            `Term: ${term.name}\n` +
+            `Start Date: ${new Date(startDate).toLocaleDateString()}\n` +
+            `End Date: ${new Date(endDate).toLocaleDateString()}\n\n` +
+            `Do you want to set this as the current term anyway?`
+          );
+          
+          if (!confirmed) {
+            setIsLoading(false);
+            return;
+          }
+        }
+      }
+      
       // Clear all terms' is_current flag
       await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
       // Set the selected term as current
@@ -441,6 +479,18 @@ export default function SessionsPage() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  // Check if today's date is within a term's dates
+  function isDateInTerm(term: Term): boolean {
+    const today = new Date().toISOString().split('T')[0];
+    return today >= term.start_date && today <= term.end_date;
+  }
+
+  // Check if today's date is within a session's dates
+  function isDateInSession(session: Session): boolean {
+    const today = new Date().toISOString().split('T')[0];
+    return today >= session.start_date && today <= session.end_date;
   }
 
   async function isSessionOverlapping(start: string, end: string, excludeId?: string) {
@@ -472,12 +522,57 @@ export default function SessionsPage() {
   async function updateCurrentSessionAndTerm(sessionId?: string) {
     try {
       const targetSessionId = sessionId || currentSessionId;
+      const today = new Date().toISOString().split('T')[0];
+
+      // Check if the current session has ended
+      if (targetSessionId) {
+        const { data: sessionData } = await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', targetSessionId)
+          .single();
+
+        if (sessionData && today > sessionData.end_date) {
+          // Current session has ended, find the next session
+          const { data: nextSessions } = await supabase
+            .from('sessions')
+            .select('*')
+            .gt('start_date', sessionData.end_date)
+            .order('start_date', { ascending: true })
+            .limit(1);
+
+          if (nextSessions && nextSessions.length > 0) {
+            const nextSession = nextSessions[0];
+            // Set the next session as current
+            await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
+            await supabase.from('sessions').update({ is_current: true }).eq('id', nextSession.id);
+            
+            // Set all terms to inactive
+            await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
+            
+            // Get the first term of the next session
+            const { data: firstTerms } = await supabase
+              .from('terms')
+              .select('*')
+              .eq('session_id', nextSession.id)
+              .order('start_date', { ascending: true })
+              .limit(1);
+
+            if (firstTerms && firstTerms.length > 0) {
+              await supabase.from('terms').update({ is_current: true }).eq('id', firstTerms[0].id);
+            }
+
+            await fetchSessions();
+            await fetchTerms();
+            return;
+          }
+        }
+      }
+
       // Set all terms is_current = false
       await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
       // Set current term for current session based on today's date
       if (targetSessionId) {
-        const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
-
         const { data: termsData } = await supabase
           .from('terms')
           .select('*')
@@ -624,20 +719,44 @@ export default function SessionsPage() {
               <div className="space-y-4">
                 {terms.filter(term => term.is_current).map((term) => {
                   const session = sessions.find(s => s.id === term.session_id);
+                  const isTermActive = isDateInTerm(term);
+                  const isSessionActive = session ? isDateInSession(session) : false;
+                  
                   return (
-                    <div
-                      key={term.id}
-                      className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200"
-                    >
-                      <div>
-                        <p className="font-medium text-lg">{term.name}</p>
-                        <p className="text-sm text-gray-600">{session?.name}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(term.start_date).toLocaleDateString()} - {new Date(term.end_date).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-600 text-white">Active</Badge>
+                    <div key={term.id}>
+                      {/* Warning if the date doesn't fall within the term */}
+                      {!isTermActive && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3 flex items-start gap-3">
+                          <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm text-yellow-800 font-medium">
+                            Date Mismatch: Today ({new Date().toLocaleDateString()}) is not within this term's dates
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Warning if session has ended */}
+                      {!isSessionActive && session && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3 flex items-start gap-3">
+                          <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm text-orange-800 font-medium">
+                            Session Ended: The session ({session.name}) ended on {new Date(session.end_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
+                        <div>
+                          <p className="font-medium text-lg">{term.name}</p>
+                          <p className="text-sm text-gray-600">{session?.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(term.start_date).toLocaleDateString()} - {new Date(term.end_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={isTermActive ? "bg-green-600 text-white" : "bg-yellow-600 text-white"}>
+                            {isTermActive ? "Active" : "Out of Date Range"}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                   );

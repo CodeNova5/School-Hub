@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 
 const supabase = createRouteHandlerClient({ cookies });
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+);
 
 // Middleware to check if user is admin
 async function checkIsAdmin() {
@@ -42,7 +48,8 @@ export async function GET(request: NextRequest) {
     const promotionStatus = searchParams.get("promotionStatus");
     const educationLevel = searchParams.get("educationLevel");
 
-    let query = supabase
+
+    let query = supabaseAdmin
       .from("class_history")
       .select("*")
       .order("recorded_at", { ascending: false });
@@ -79,7 +86,7 @@ export async function GET(request: NextRequest) {
 
     // Get related data for enrichment
     const sessionIds = Array.from(new Set(data?.map((h) => h.session_id) || [])).filter(Boolean);
-    const { data: sessions, error: sessionsError } = await supabase
+    const { data: sessions, error: sessionsError } = await supabaseAdmin
       .from("sessions")
       .select("*")
       .in("id", sessionIds);

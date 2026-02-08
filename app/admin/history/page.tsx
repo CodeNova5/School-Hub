@@ -183,10 +183,13 @@ export default function HistoryPage() {
         params.append("educationLevel", educationLevelFilter);
 
       const response = await fetch(`/api/admin/history?${params.toString()}`);
+      console.log("Fetch URL:", `/api/admin/history?${params.toString()}`);
+      console.log("Response status:", response.status);
 
       if (!response.ok) throw new Error("Failed to fetch history");
 
       const data = await response.json();
+      console.log("Fetched history data:", data);
       setHistory(data.history);
     } catch (error: any) {
       console.error("Error fetching history:", error);

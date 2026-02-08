@@ -1,18 +1,50 @@
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createRouteHandlerClient({ cookies });
+
+// Middleware to check if user is admin
+async function checkIsAdmin() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { authorized: false, error: "Unauthorized", status: 401 };
+  }
+
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+
+  if (!isAdmin) {
+    return { authorized: false, error: "Forbidden", status: 403 };
+  }
+
+  return { authorized: true };
+}
+
+async function requireAdmin() {
+  const check = await checkIsAdmin();
+  if (!check.authorized) {
+    throw new Error(check.error || "Unauthorized");
+  }
+}
+
 
 // GET - Get promotion eligibility for a session
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const sessionId = searchParams.get("sessionId");
-
-    if (!sessionId) {
+    // Check if user is admin  
+    const authCheck = await checkIsAdmin();
+    if (!authCheck.authorized) {
       return NextResponse.json(
-        { error: "Session ID is required" },
-        { status: 400 }
+        { error: authCheck.error || "Unauthorized" },
+        { status: authCheck.status || 401 }
       );
     }
+    const searchParams = request.nextUrl.searchParams;
+    const sessionId = searchParams.get("sessionId");
 
     // Get promotion settings for this session
     const { data: settings, error: settingsError } = await supabase
@@ -51,7 +83,7 @@ export async function GET(request: NextRequest) {
         )
       `
       )
-      .eq("status", "active");
+      .in("status", ["active", "pending", "graduated", "withdrawn"]);
 
     if (studentsError) throw studentsError;
 
@@ -166,6 +198,8 @@ export async function GET(request: NextRequest) {
 // POST - Process promotions
 export async function POST(request: NextRequest) {
   try {
+    await requireAdmin();
+
     const body = await request.json();
     const { sessionId, promotions } = body;
 
@@ -175,6 +209,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const results = {
       promoted: 0,
@@ -228,7 +267,7 @@ export async function POST(request: NextRequest) {
 
         // Update student record
         if (action === "promote") {
-          await supabase
+          await supabaseAdmin
             .from("students")
             .update({
               class_id: next_class_id,
@@ -237,7 +276,7 @@ export async function POST(request: NextRequest) {
             .eq("id", student_id);
           results.promoted++;
         } else if (action === "graduate") {
-          await supabase
+          await supabaseAdmin
             .from("students")
             .update({
               status: "graduated",
@@ -275,6 +314,8 @@ export async function POST(request: NextRequest) {
 // PUT - Update promotion settings
 export async function PUT(request: NextRequest) {
   try {
+    await requireAdmin();
+
     const body = await request.json();
     const { sessionId, minimum_pass_percentage, require_all_terms, auto_promote } = body;
 
@@ -285,7 +326,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data, error } = await supabaseAdmin
       .from("promotion_settings")
       .upsert({
         session_id: sessionId,

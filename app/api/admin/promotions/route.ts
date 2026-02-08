@@ -331,23 +331,48 @@ export async function PUT(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { data, error } = await supabaseAdmin
+    // Check if settings already exist for this session
+    const { data: existing, error: checkError } = await supabaseAdmin
       .from("promotion_settings")
-      .upsert({
-        session_id: sessionId,
-        minimum_pass_percentage,
-        require_all_terms,
-        auto_promote,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
+      .select("id")
+      .eq("session_id", sessionId)
       .single();
 
-    if (error) throw error;
+    let result: any;
+
+    if (existing) {
+      // Update existing settings
+      result = await supabaseAdmin
+        .from("promotion_settings")
+        .update({
+          minimum_pass_percentage,
+          require_all_terms,
+          auto_promote,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("session_id", sessionId)
+        .select()
+        .single();
+    } else {
+      // Insert new settings
+      result = await supabaseAdmin
+        .from("promotion_settings")
+        .insert({
+          session_id: sessionId,
+          minimum_pass_percentage,
+          require_all_terms,
+          auto_promote,
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+    }
+
+    if (result.error) throw result.error;
 
     return NextResponse.json({
       success: true,
-      settings: data,
+      settings: result.data,
     });
   } catch (error: any) {
     console.error("Error updating promotion settings:", error);

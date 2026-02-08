@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Record in class history
-        const { error: historyError } = await supabase.from("class_history").upsert({
+        const { error: historyError } = await supabaseAdmin.from("class_history").upsert({
           student_id,
           class_id: current_class_id,
           session_id: sessionId,

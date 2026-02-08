@@ -313,9 +313,23 @@ export default function PromotionsPage() {
     if (!nextClassName) return undefined;
 
     return allClasses.find(
-      (c) =>
-        c.name === nextClassName &&
-        (nextClassName.startsWith("SSS") ? c.department === department : true)
+      (c) => {
+        // First check if name matches
+        if (c.name !== nextClassName) return false;
+        
+        // For SSS classes, check department (handle null departments)
+        if (nextClassName.startsWith("SSS")) {
+          // If both are null, it's a match
+          if (department === null && c.department === null) return true;
+          // If one is null and the other isn't, no match
+          if (department === null || c.department === null) return false;
+          // Otherwise, compare the values
+          return c.department === department;
+        }
+        
+        // For non-SSS classes, name match is enough
+        return true;
+      }
     );
   }
 

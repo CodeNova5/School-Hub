@@ -102,6 +102,11 @@ export default function PromotionsPage() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
+  
+  // Promotion actions override
+  const [promotionActions, setPromotionActions] = useState<
+    Record<string, "promote" | "graduate" | "repeat">
+  >({});
 
   // Stats
   const [stats, setStats] = useState({
@@ -170,6 +175,26 @@ export default function PromotionsPage() {
     }
   }
 
+  function determineAction(
+    student: StudentPromotion
+  ): "promote" | "graduate" | "repeat" {
+    // Only graduate if in SSS 3 AND meets pass percentage
+    if (
+      student.current_class_name === "SSS 3" &&
+      student.cumulative_average >= settings.minimum_pass_percentage
+    ) {
+      return "graduate";
+    }
+    
+    // Promote if eligible
+    if (student.is_eligible) {
+      return "promote";
+    }
+    
+    // Otherwise repeat
+    return "repeat";
+  }
+
   async function handleUpdateSettings() {
     try {
       const response = await fetch("/api/admin/promotions", {
@@ -207,7 +232,11 @@ export default function PromotionsPage() {
       const promotions = students
         .filter((s) => selectedStudents.has(s.student_id))
         .map((student) => {
-          const isGraduating = student.is_graduating;
+          // Use override action if available, otherwise determine based on eligibility
+          const overrideAction = promotionActions[student.student_id];
+          const action = overrideAction || determineAction(student);
+          
+          const isGraduating = action === "graduate";
           let nextClass: NextClass | undefined;
 
           if (!isGraduating) {
@@ -222,7 +251,7 @@ export default function PromotionsPage() {
             console.log(`Next class for ${student.student_name} (${student.current_class_name}):`, nextClass);
 
             // Warn if next class not found for students who should be promoted
-            if (!nextClass && student.is_eligible && !isGraduating) {
+            if (!nextClass && action === "promote") {
               console.warn(`No next class found for ${student.student_name} in ${student.current_class_name}`);
             }
           }
@@ -238,11 +267,11 @@ export default function PromotionsPage() {
             terms_completed: student.terms_completed,
             cumulative_average: student.cumulative_average,
             cumulative_grade: calculateGrade(student.cumulative_average),
-            action: isGraduating ? "graduate" : student.is_eligible ? "promote" : "repeat",
-            next_class_id: nextClass?.id,
+            action: action,
+            next_class_id: isGraduating ? null : nextClass?.id,
             notes: isGraduating
               ? "Graduated from SSS 3"
-              : student.is_eligible
+              : action === "promote"
               ? `Promoted with ${student.cumulative_average.toFixed(1)}% average`
               : `Repeated due to ${student.cumulative_average.toFixed(1)}% average (below ${settings.minimum_pass_percentage}%)`,
           };
@@ -275,6 +304,7 @@ export default function PromotionsPage() {
 
       setShowConfirmDialog(false);
       setSelectedStudents(new Set());
+      setPromotionActions({});
       fetchPromotionData();
     } catch (error: any) {
       console.error("Error processing promotions:", error);
@@ -476,7 +506,10 @@ export default function PromotionsPage() {
                       Refresh
                     </Button>
                     <Button
-                      onClick={() => setShowConfirmDialog(true)}
+                      onClick={() => {
+                        setPromotionActions({});
+                        setShowConfirmDialog(true);
+                      }}
                       disabled={selectedStudents.size === 0 || processing}
                       size="sm"
                     >
@@ -759,28 +792,154 @@ export default function PromotionsPage() {
         </Dialog>
 
         {/* Confirmation Dialog */}
-        <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-          <AlertDialogContent>
+        <AlertDialog
+          open={showConfirmDialog}
+          onOpenChange={(open) => {
+            setShowConfirmDialog(open);
+            if (!open) {
+              setPromotionActions({});
+            }
+          }}
+        >
+          <AlertDialogContent className="max-w-2xl">
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Promotions</AlertDialogTitle>
               <AlertDialogDescription>
-                You are about to process promotions for {selectedStudents.size} student
-                {selectedStudents.size !== 1 ? "s" : ""}. This action will:
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Record class history for the selected students</li>
-                  <li>Promote eligible students to the next class</li>
-                  <li>Mark SSS 3 students as graduated</li>
-                  <li>Keep failed students in their current class</li>
-                </ul>
-                <p className="mt-3 font-semibold text-foreground">
-                  This action is permanent. Continue?
-                </p>
+                Review and confirm the promotion actions for {selectedStudents.size} student
+                {selectedStudents.size !== 1 ? "s" : ""}
               </AlertDialogDescription>
             </AlertDialogHeader>
+
+            {/* Student Actions Summary */}
+            <div className="space-y-3">
+              {students
+                .filter((s) => selectedStudents.has(s.student_id))
+                .map((student) => {
+                  const defaultAction = determineAction(student);
+                  const currentAction = promotionActions[student.student_id] || defaultAction;
+
+                  return (
+                    <div
+                      key={student.student_id}
+                      className="border rounded-lg p-3 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{student.student_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {student.student_number} • {student.current_class_name}
+                            {student.department && ` • ${student.department}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Average: {student.cumulative_average.toFixed(1)}% • Grade:{" "}
+                            {calculateGrade(student.cumulative_average)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Action Selector */}
+                      <div className="flex gap-2 flex-wrap">
+                        {["promote", "graduate", "repeat"].map((action) => {
+                          const isSelected = currentAction === action;
+                          const isDefault = defaultAction === action;
+
+                          let label = "";
+                          let description = "";
+
+                          if (action === "promote") {
+                            label = "Promote";
+                            description = "Move to next class";
+                          } else if (action === "graduate") {
+                            label = "Graduate";
+                            description = "Complete schooling";
+                          } else {
+                            label = "Repeat";
+                            description = "Stay in current class";
+                          }
+
+                          return (
+                            <button
+                              key={action}
+                              onClick={() =>
+                                setPromotionActions({
+                                  ...promotionActions,
+                                  [student.student_id]: action as any,
+                                })
+                              }
+                              className={`flex-1 min-w-[100px] px-3 py-2 text-sm rounded-lg border-2 transition-all ${
+                                isSelected
+                                  ? "border-blue-500 bg-blue-50"
+                                  : "border-gray-200 hover:border-gray-300"
+                              } ${isDefault ? "ring-1 ring-green-500" : ""}`}
+                            >
+                              <div className="font-medium text-xs">{label}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {description}
+                              </div>
+                              {isDefault && (
+                                <div className="text-xs mt-1 text-green-600 font-semibold">
+                                  (default)
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Summary */}
+            <div className="bg-muted p-3 rounded-lg space-y-1 text-sm">
+              <div className="font-medium text-foreground">Summary of actions:</div>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>
+                  • Promoted:{" "}
+                  {
+                    students
+                      .filter((s) => selectedStudents.has(s.student_id))
+                      .filter(
+                        (s) =>
+                          (promotionActions[s.student_id] || determineAction(s)) ===
+                          "promote"
+                      ).length
+                  }{" "}
+                  student(s)
+                </li>
+                <li>
+                  • Graduated:{" "}
+                  {
+                    students
+                      .filter((s) => selectedStudents.has(s.student_id))
+                      .filter(
+                        (s) =>
+                          (promotionActions[s.student_id] || determineAction(s)) ===
+                          "graduate"
+                      ).length
+                  }{" "}
+                  student(s)
+                </li>
+                <li>
+                  • Repeating:{" "}
+                  {
+                    students
+                      .filter((s) => selectedStudents.has(s.student_id))
+                      .filter(
+                        (s) =>
+                          (promotionActions[s.student_id] || determineAction(s)) ===
+                          "repeat"
+                      ).length
+                  }{" "}
+                  student(s)
+                </li>
+              </ul>
+            </div>
+
             <AlertDialogFooter>
               <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handlePromote} disabled={processing}>
-                {processing ? "Processing..." : "Yes, Promote Students"}
+                {processing ? "Processing..." : "Confirm & Process"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

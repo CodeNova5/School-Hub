@@ -179,6 +179,15 @@ export async function GET(request: NextRequest) {
       };
     }) || [];
 
+    // Check if promotions have already been completed for this session
+    const { data: classHistory, error: historyError } = await supabase
+      .from("class_history")
+      .select("id")
+      .eq("session_id", sessionId)
+      .limit(1);
+
+    const isCompleted = !historyError && classHistory && classHistory.length > 0;
+
     return NextResponse.json({
       settings: promotionSettings,
       students: eligibilityData,
@@ -189,6 +198,7 @@ export async function GET(request: NextRequest) {
       ).length,
       needs_review_count: eligibilityData.filter((s) => s.needs_manual_review)
         .length,
+      is_completed: isCompleted,
     });
   } catch (error: any) {
     console.error("Error fetching promotion data:", error);

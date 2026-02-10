@@ -120,11 +120,20 @@ export async function POST(req: NextRequest) {
         .delete()
         .eq("student_id", studentId);
 
-      // 2. Delete results
-      const { error: resultsError } = await supabaseAdmin
-        .from("results")
-        .delete()
-        .eq("student_id", studentId);
+      // 2. Delete results for current term only
+      const { data: currentTerm } = await supabaseAdmin
+        .from("terms")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+
+      const { error: resultsError } = currentTerm
+        ? await supabaseAdmin
+            .from("results")
+            .delete()
+            .eq("student_id", studentId)
+            .eq("term_id", currentTerm.id)
+        : { error: null };
 
       // 5. Delete student_subjects
       const { error: studentSubjectsError } = await supabaseAdmin
@@ -297,11 +306,20 @@ export async function POST(req: NextRequest) {
               throw new Error("Student not found");
             }
 
-            // 2. Delete old results
-            await supabaseAdmin
-              .from("results")
-              .delete()
-              .eq("student_id", studentId);
+            // 2. Delete old results for current term only
+            const { data: currentTerm } = await supabaseAdmin
+              .from("terms")
+              .select("id")
+              .eq("is_current", true)
+              .single();
+
+            if (currentTerm) {
+              await supabaseAdmin
+                .from("results")
+                .delete()
+                .eq("student_id", studentId)
+                .eq("term_id", currentTerm.id);
+            }
 
             // 3. Delete old student_subjects
             await supabaseAdmin

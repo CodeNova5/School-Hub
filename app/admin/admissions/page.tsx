@@ -591,7 +591,7 @@ export default function AdminAdmissionsPage() {
                   <SelectContent>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>
-                        {cls.name} - {cls.level} {cls.education_level ? `(${cls.education_level})` : ""}
+                        {cls.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

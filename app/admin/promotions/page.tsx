@@ -65,6 +65,8 @@ interface StudentPromotion {
   student_name: string;
   current_class_id: string;
   current_class_name: string;
+  current_class_level: string;
+  current_class_stream?: string;
   education_level: string;
   department?: string;
   terms_completed: number;
@@ -207,7 +209,7 @@ export default function PromotionsPage() {
   ): "promote" | "graduate" | "repeat" {
     // Only graduate if in SSS 3 AND meets pass percentage
     if (
-      student.current_class_name === "SSS 3" &&
+      student.current_class_level === "SSS 3" &&
       student.cumulative_average >= settings.minimum_pass_percentage
     ) {
       return "graduate";
@@ -311,13 +313,14 @@ export default function PromotionsPage() {
           if (!isGraduating) {
             // Find next class based on progression
             nextClass = getNextClass(
-              student.current_class_name,
+              student.current_class_level, // Use level instead of name
+              student.current_class_stream, // Pass stream
               student.education_level,
               student.department,
               allClasses || []
             );
             
-            console.log(`Next class for ${student.student_name} (${student.current_class_name}):`, nextClass);
+            console.log(`Next class for ${student.student_name} (${student.current_class_level} ${student.current_class_stream || ''}):`, nextClass);
 
             // Warn if next class not found for students who should be promoted
             if (!nextClass && action === "promote") {
@@ -384,7 +387,8 @@ export default function PromotionsPage() {
   }
 
   function getNextClass(
-    currentClassName: string,
+    currentClassLevel: string,
+    stream: string | undefined,
     educationLevel: string,
     department: string | undefined,
     allClasses: any[]
@@ -408,20 +412,26 @@ export default function PromotionsPage() {
       "SSS 2": "SSS 3",
     };
 
-    const nextClassName = progressionMap[currentClassName];
-    if (!nextClassName) return undefined;
+    const nextClassLevel = progressionMap[currentClassLevel];
+    if (!nextClassLevel) return undefined;
 
-    // Find next class - match by name and optionally by department if both are set
+    // Find next class - match by level and optionally by stream/department
     return allClasses.find(
       (c) => {
-        if (c.name !== nextClassName) return false;
+        // level must match (e.g., JSS 1 -> JSS 2)
+        if (c.level !== nextClassLevel) return false;
         
+        // If the current student is in a stream, prioritize matching the same stream
+        // Otherwise, first class in that level is fine
+        if (stream && c.stream && c.stream !== stream) {
+          return false;
+        }
+
         // If this is SSS and both student and class have departments, they must match
-        if (nextClassName.startsWith("SSS") && department && c.department) {
+        if (nextClassLevel.startsWith("SSS") && department && c.department) {
           return c.department === department;
         }
         
-        // Otherwise, name match is sufficient
         return true;
       }
     );

@@ -88,6 +88,8 @@ export async function GET(request: NextRequest) {
         classes:class_id (
           id,
           name,
+          level,
+          stream,
           education_level,
           department
         )
@@ -164,15 +166,17 @@ export async function GET(request: NextRequest) {
       const isEligible = hasRequiredTerms && meetsPassMark;
 
       // Check if SSS 3 (graduating class)
-      const className = (student.classes as any)?.name || "";
-      const isGraduating = className === "SSS 3";
+      const classLevel = (student.classes as any)?.level || "";
+      const isGraduating = classLevel === "SSS 3";
 
       return {
         student_id: student.id,
         student_number: student.student_id,
         student_name: `${student.first_name} ${student.last_name}`,
         current_class_id: student.class_id,
-        current_class_name: className,
+        current_class_name: (student.classes as any)?.name || "",
+        current_class_level: classLevel,
+        current_class_stream: (student.classes as any)?.stream || "",
         education_level: (student.classes as any)?.education_level || "",
         department: student.department,
         terms_completed: termsWithResults,

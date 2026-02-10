@@ -116,6 +116,11 @@ export default function PromotionsPage() {
     needs_review_count: 0,
   });
 
+  // Calculate needs_review_count based on repeating students
+  const needsReviewCount = students.filter(
+    (s) => (promotionActions[s.student_id] || determineAction(s)) === "repeat"
+  ).length;
+
   useEffect(() => {
     fetchSessions();
   }, []);
@@ -477,7 +482,7 @@ export default function PromotionsPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-orange-600">
-                    {stats.needs_review_count}
+                    {needsReviewCount}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Below pass mark

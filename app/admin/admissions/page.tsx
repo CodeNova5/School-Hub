@@ -52,6 +52,7 @@ import {
   UserCheck,
   UserX,
 } from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 interface Application {
   id: string;
@@ -80,7 +81,7 @@ interface Class {
   level_id: string;
   levels: {
     name: string;
-  };
+  }[];
 }
 
 export default function AdminAdmissionsPage() {
@@ -104,6 +105,8 @@ export default function AdminAdmissionsPage() {
 
   // Rejection reason
   const [rejectionReason, setRejectionReason] = useState("");
+
+  const supabase = createClientComponentClient();
 
   useEffect(() => {
     fetchApplications();
@@ -132,12 +135,12 @@ export default function AdminAdmissionsPage() {
 
   const fetchClasses = async () => {
     try {
-      const response = await fetch("/api/admin/classes");
-      const data = await response.json();
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, name, level_id, levels(name)");
 
-      if (response.ok) {
-        setClasses(data.classes || []);
-      }
+      if (error) throw error;
+      setClasses(data || []);
     } catch (error) {
       console.error("Error fetching classes:", error);
     }
@@ -589,7 +592,7 @@ export default function AdminAdmissionsPage() {
                   <SelectContent>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>
-                        {cls.name} - {cls.levels?.name || ""}
+                        {cls.name} - {cls.levels?.[0]?.name || ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

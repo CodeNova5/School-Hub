@@ -96,7 +96,7 @@ export default function PromotionsPage() {
   const [students, setStudents] = useState<StudentPromotion[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
+  const [promotionsCompleted, setPromotionsCompleted] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -161,6 +161,28 @@ export default function PromotionsPage() {
   async function fetchPromotionData() {
     setLoading(true);
     try {
+      // Check if promotions have already been processed for this session
+      const { data: historyRecords, error: historyError } = await supabase
+        .from("class_history")
+        .select("id")
+        .eq("session_id", selectedSessionId)
+        .limit(1);
+
+      if (historyRecords && historyRecords.length > 0) {
+        setPromotionsCompleted(true);
+        setStudents([]);
+        setStats({
+          total_students: 0,
+          eligible_count: 0,
+          graduating_count: 0,
+          needs_review_count: 0,
+        });
+        setLoading(false);
+        return;
+      }
+
+      setPromotionsCompleted(false);
+
       const response = await fetch(
         `/api/admin/promotions?sessionId=${selectedSessionId}`
       );
@@ -171,7 +193,6 @@ export default function PromotionsPage() {
 
       setSettings(data.settings);
       setStudents(data.students);
-      setIsCompleted(data.is_completed || false);
       setStats({
         total_students: data.total_students,
         eligible_count: data.eligible_count,
@@ -426,6 +447,32 @@ export default function PromotionsPage() {
           </Button>
         </div>
 
+        {/* Promotions Completed Message */}
+        {promotionsCompleted ? (
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader>
+              <CardTitle className="text-green-900 flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5" />
+                Promotions Completed
+              </CardTitle>
+              <CardDescription className="text-green-800">
+                Promotions for this session have already been processed
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm">
+                No further actions can be taken for this session. View the complete promotion history and details in the History page.
+              </p>
+              <Button asChild>
+                <a href="/admin/history">
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  View Promotion History
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
         {/* Session Selection */}
         <Card>
           <CardHeader>
@@ -536,7 +583,7 @@ export default function PromotionsPage() {
                         setPromotionActions({});
                         setShowConfirmDialog(true);
                       }}
-                      disabled={selectedStudents.size === 0 || processing || isCompleted}
+                      disabled={selectedStudents.size === 0 || processing}
                       size="sm"
                     >
                       <ArrowRight className="h-4 w-4 mr-2" />
@@ -546,246 +593,223 @@ export default function PromotionsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isCompleted && (
-                  <div className="bg-green-50 border border-green-300 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-green-900">Promotions Completed</h4>
-                        <p className="text-sm text-green-700 mt-1">
-                          Promotions have already been processed for this session. No further changes can be made.
-                        </p>
-                        <a
-                          href="/admin/history"
-                          className="text-sm text-green-600 hover:text-green-700 font-medium mt-2 inline-block underline"
-                        >
-                          View promotion history →
-                        </a>
-                      </div>
-                    </div>
+                {/* Filters */}
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by name or student ID..."
+                      className="pl-9"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
                   </div>
-                )}
-                {!isCompleted && (
-                  <>
-                    {/* Filters */}
-                    <div className="flex flex-col md:flex-row gap-3">
-                      <div className="relative flex-1">
-                        <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
-                        <Input
-                          placeholder="Search by name or student ID..."
-                          className="pl-9"
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                        />
-                      </div>
 
-                      <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-                        <SelectTrigger className="w-full md:w-[200px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="eligible">Eligible</SelectItem>
-                          <SelectItem value="needs_review">Needs Review</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                    <SelectTrigger className="w-full md:w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="eligible">Eligible</SelectItem>
+                      <SelectItem value="needs_review">Needs Review</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                      <Select value={classFilter} onValueChange={setClassFilter}>
-                        <SelectTrigger className="w-full md:w-[200px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Classes</SelectItem>
-                          {uniqueClasses.map((className) => (
-                            <SelectItem key={className} value={className}>
-                              {className}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <Select value={classFilter} onValueChange={setClassFilter}>
+                    <SelectTrigger className="w-full md:w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Classes</SelectItem>
+                      {uniqueClasses.map((className) => (
+                        <SelectItem key={className} value={className}>
+                          {className}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                    {/* Bulk Select */}
-                    <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-                      <Checkbox
-                        checked={
-                          filteredStudents.length > 0 &&
-                          filteredStudents.every((s) => selectedStudents.has(s.student_id))
-                        }
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedStudents(
-                              new Set(filteredStudents.map((s) => s.student_id))
-                            );
-                          } else {
-                            setSelectedStudents(new Set());
-                          }
-                        }}
-                      />
-                      <Label className="text-sm font-medium">
-                        Select All ({filteredStudents.length} students)
-                      </Label>
-                    </div>
+                {/* Bulk Select */}
+                <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                  <Checkbox
+                    checked={
+                      filteredStudents.length > 0 &&
+                      filteredStudents.every((s) => selectedStudents.has(s.student_id))
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedStudents(
+                          new Set(filteredStudents.map((s) => s.student_id))
+                        );
+                      } else {
+                        setSelectedStudents(new Set());
+                      }
+                    }}
+                  />
+                  <Label className="text-sm font-medium">
+                    Select All ({filteredStudents.length} students)
+                  </Label>
+                </div>
 
-                    {/* Students Table */}
-                    {loading ? (
-                      <div className="text-center py-12 text-muted-foreground">
-                        Loading students...
-                      </div>
-                    ) : filteredStudents.length === 0 ? (
-                      <div className="text-center py-12 text-muted-foreground">
-                        No students found
-                      </div>
-                    ) : (
-                      <div className="border rounded-lg overflow-hidden">
-                        <table className="w-full text-sm">
-                          <thead className="bg-muted">
-                            <tr>
-                              <th className="p-3 text-left w-12"></th>
-                              <th className="p-3 text-left">Student</th>
-                              <th className="p-3 text-left">Current Class</th>
-                              <th className="p-3 text-center">Terms</th>
-                              <th className="p-3 text-center">Average</th>
-                              <th className="p-3 text-center">Status</th>
-                              <th className="p-3 text-center">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredStudents.map((student) => {
-                              const isSelected = selectedStudents.has(student.student_id);
-                              const StatusIcon = student.is_eligible
-                                ? TrendingUp
-                                : TrendingDown;
+                {/* Students Table */}
+                {loading ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    Loading students...
+                  </div>
+                ) : filteredStudents.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    No students found
+                  </div>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="p-3 text-left w-12"></th>
+                          <th className="p-3 text-left">Student</th>
+                          <th className="p-3 text-left">Current Class</th>
+                          <th className="p-3 text-center">Terms</th>
+                          <th className="p-3 text-center">Average</th>
+                          <th className="p-3 text-center">Status</th>
+                          <th className="p-3 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredStudents.map((student) => {
+                          const isSelected = selectedStudents.has(student.student_id);
+                          const StatusIcon = student.is_eligible
+                            ? TrendingUp
+                            : TrendingDown;
 
-                              return (
-                                <tr
-                                  key={student.student_id}
-                                  className={`border-t transition-colors ${
-                                    isSelected ? "bg-blue-50" : "hover:bg-muted/50"
-                                  }`}
-                                >
-                                  <td className="p-3">
-                                    <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={(checked) => {
-                                        const newSelected = new Set(selectedStudents);
-                                        if (checked) {
-                                          newSelected.add(student.student_id);
-                                        } else {
-                                          newSelected.delete(student.student_id);
-                                        }
-                                        setSelectedStudents(newSelected);
-                                      }}
-                                    />
-                                  </td>
-                                  <td className="p-3">
-                                    <div>
-                                      <p className="font-medium">{student.student_name}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {student.student_number}
-                                      </p>
-                                    </div>
-                                  </td>
-                                  <td className="p-3">
-                                    <div>
-                                      <p className="font-medium">{student.current_class_name}</p>
-                                      {student.department && (
-                                        <p className="text-xs text-muted-foreground">
-                                          {student.department}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <Badge variant="outline">
-                                      {student.terms_completed}/{student.total_terms}
-                                    </Badge>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <div className="flex flex-col items-center gap-1">
-                                      <span
-                                        className={`font-bold text-lg ${
-                                          student.is_eligible
-                                            ? "text-green-600"
-                                            : "text-red-600"
-                                        }`}
-                                      >
-                                        {student.cumulative_average.toFixed(1)}%
-                                      </span>
-                                      <Badge
-                                        variant="outline"
-                                        className={
-                                          student.is_eligible
-                                            ? "bg-green-100 text-green-700 border-green-300"
-                                            : "bg-red-100 text-red-700 border-red-300"
-                                        }
-                                      >
-                                        {calculateGrade(student.cumulative_average)}
+                          return (
+                            <tr
+                              key={student.student_id}
+                              className={`border-t transition-colors ${
+                                isSelected ? "bg-blue-50" : "hover:bg-muted/50"
+                              }`}
+                            >
+                              <td className="p-3">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    const newSelected = new Set(selectedStudents);
+                                    if (checked) {
+                                      newSelected.add(student.student_id);
+                                    } else {
+                                      newSelected.delete(student.student_id);
+                                    }
+                                    setSelectedStudents(newSelected);
+                                  }}
+                                />
+                              </td>
+                              <td className="p-3">
+                                <div>
+                                  <p className="font-medium">{student.student_name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {student.student_number}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <div>
+                                  <p className="font-medium">{student.current_class_name}</p>
+                                  {student.department && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {student.department}
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-3 text-center">
+                                <Badge variant="outline">
+                                  {student.terms_completed}/{student.total_terms}
+                                </Badge>
+                              </td>
+                              <td className="p-3 text-center">
+                                <div className="flex flex-col items-center gap-1">
+                                  <span
+                                    className={`font-bold text-lg ${
+                                      student.is_eligible
+                                        ? "text-green-600"
+                                        : "text-red-600"
+                                    }`}
+                                  >
+                                    {student.cumulative_average.toFixed(1)}%
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      student.is_eligible
+                                        ? "bg-green-100 text-green-700 border-green-300"
+                                        : "bg-red-100 text-red-700 border-red-300"
+                                    }
+                                  >
+                                    {calculateGrade(student.cumulative_average)}
+                                  </Badge>
+                                </div>
+                              </td>
+                              <td className="p-3 text-center">
+                                {(() => {
+                                  const action = determineAction(student);
+                                  if (action === "graduate") {
+                                    return (
+                                      <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                        <GraduationCap className="h-3 w-3 mr-1" />
+                                        Graduating
                                       </Badge>
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    {(() => {
-                                      const action = determineAction(student);
-                                      if (action === "graduate") {
-                                        return (
-                                          <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                                            <GraduationCap className="h-3 w-3 mr-1" />
-                                            Graduating
-                                          </Badge>
-                                        );
-                                      } else if (action === "promote") {
-                                        return (
-                                          <Badge className="bg-green-100 text-green-700 border-green-300">
-                                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                                            Eligible
-                                          </Badge>
-                                        );
-                                      } else {
-                                        return (
-                                          <Badge className="bg-orange-100 text-orange-700 border-orange-300">
-                                            <AlertTriangle className="h-3 w-3 mr-1" />
-                                            Review
-                                          </Badge>
-                                        );
-                                      }
-                                    })()}
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    {(() => {
-                                      const action = determineAction(student);
-                                      if (action === "graduate") {
-                                        return (
-                                          <Badge variant="outline" className="bg-purple-50">
-                                            <Award className="h-3 w-3 mr-1" />
-                                            Graduate
-                                          </Badge>
-                                        );
-                                      } else if (action === "promote") {
-                                        return (
-                                          <Badge variant="outline" className="bg-green-50">
-                                            <ArrowRight className="h-3 w-3 mr-1" />
-                                            Promote
-                                          </Badge>
-                                        );
-                                      } else {
-                                        return (
-                                          <Badge variant="outline" className="bg-orange-50">
-                                            <RefreshCw className="h-3 w-3 mr-1" />
-                                            Repeat
-                                          </Badge>
-                                        );
-                                      }
-                                    })()}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
+                                    );
+                                  } else if (action === "promote") {
+                                    return (
+                                      <Badge className="bg-green-100 text-green-700 border-green-300">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        Eligible
+                                      </Badge>
+                                    );
+                                  } else {
+                                    return (
+                                      <Badge className="bg-orange-100 text-orange-700 border-orange-300">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Review
+                                      </Badge>
+                                    );
+                                  }
+                                })()}
+                              </td>
+                              <td className="p-3 text-center">
+                                {(() => {
+                                  const action = determineAction(student);
+                                  if (action === "graduate") {
+                                    return (
+                                      <Badge variant="outline" className="bg-purple-50">
+                                        <Award className="h-3 w-3 mr-1" />
+                                        Graduate
+                                      </Badge>
+                                    );
+                                  } else if (action === "promote") {
+                                    return (
+                                      <Badge variant="outline" className="bg-green-50">
+                                        <ArrowRight className="h-3 w-3 mr-1" />
+                                        Promote
+                                      </Badge>
+                                    );
+                                  } else {
+                                    return (
+                                      <Badge variant="outline" className="bg-orange-50">
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        Repeat
+                                      </Badge>
+                                    );
+                                  }
+                                })()}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -1011,6 +1035,8 @@ export default function PromotionsPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

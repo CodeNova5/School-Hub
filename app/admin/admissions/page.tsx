@@ -78,10 +78,9 @@ interface Application {
 interface Class {
   id: string;
   name: string;
-  level_id: string;
-  levels: {
-    name: string;
-  }[];
+  level: string;
+  education_level: string;
+  department: string | null;
 }
 
 export default function AdminAdmissionsPage() {
@@ -137,7 +136,7 @@ export default function AdminAdmissionsPage() {
     try {
       const { data, error } = await supabase
         .from("classes")
-        .select("id, name, level_id, levels(name)");
+        .select("id, name, level, education_level, department");
 
       if (error) throw error;
       setClasses(data || []);
@@ -592,7 +591,7 @@ export default function AdminAdmissionsPage() {
                   <SelectContent>
                     {classes.map((cls) => (
                       <SelectItem key={cls.id} value={cls.id}>
-                        {cls.name} - {cls.levels?.[0]?.name || ""}
+                        {cls.name} - {cls.level} {cls.education_level ? `(${cls.education_level})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -96,10 +96,6 @@ export default function PromotionsPage() {
   const [students, setStudents] = useState<StudentPromotion[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [undoing, setUndoing] = useState(false);
-  const [canUndo, setCanUndo] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
-  const [lastProcessedAt, setLastProcessedAt] = useState<string | null>(null);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -180,22 +176,6 @@ export default function PromotionsPage() {
         graduating_count: data.graduating_count,
         needs_review_count: data.needs_review_count,
       });
-      
-      // Check if promotions have been processed and if we can undo
-      const lastProcessed = data.settings?.last_processed_at;
-      setLastProcessedAt(lastProcessed || null);
-      
-      if (lastProcessed) {
-        const processedTime = new Date(lastProcessed).getTime();
-        const now = new Date().getTime();
-        const hoursSince = (now - processedTime) / (1000 * 60 * 60);
-        
-        setCanUndo(hoursSince < 24);
-        setIsLocked(hoursSince >= 24);
-      } else {
-        setCanUndo(false);
-        setIsLocked(false);
-      }
     } catch (error: any) {
       console.error("Error fetching promotion data:", error);
       toast.error("Failed to load promotion data");
@@ -246,47 +226,7 @@ export default function PromotionsPage() {
     }
   }
 
-  async function handleUndoPromotions() {
-    if (!confirm(
-      "Are you sure you want to undo all promotions for this session? This will:\n\n" +
-      "• Restore all students to their previous classes\n" +
-      "• Remove promotion history records\n" +
-      "• Allow you to re-process promotions\n\n" +
-      "This action cannot be undone!"
-    )) {
-      return;
-    }
 
-    setUndoing(true);
-    try {
-      const response = await fetch(
-        `/api/admin/promotions?sessionId=${selectedSessionId}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to undo promotions");
-
-      const result = await response.json();
-      toast.success(result.message);
-      
-      // Reset state
-      setSelectedStudents(new Set());
-      setPromotionActions({});
-      setCanUndo(false);
-      setIsLocked(false);
-      setLastProcessedAt(null);
-      
-      // Refresh data
-      fetchPromotionData();
-    } catch (error: any) {
-      console.error("Error undoing promotions:", error);
-      toast.error("Failed to undo promotions");
-    } finally {
-      setUndoing(false);
-    }
-  }
 
   async function handlePromote() {
     setProcessing(true);
@@ -589,23 +529,12 @@ export default function PromotionsPage() {
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Refresh
                     </Button>
-                    {canUndo && lastProcessedAt && (
-                      <Button
-                        onClick={handleUndoPromotions}
-                        variant="destructive"
-                        size="sm"
-                        disabled={undoing}
-                      >
-                        <AlertTriangle className="h-4 w-4 mr-2" />
-                        {undoing ? "Undoing..." : "Undo Promotions"}
-                      </Button>
-                    )}
                     <Button
                       onClick={() => {
                         setPromotionActions({});
                         setShowConfirmDialog(true);
                       }}
-                      disabled={selectedStudents.size === 0 || processing || isLocked}
+                      disabled={selectedStudents.size === 0 || processing}
                       size="sm"
                     >
                       <ArrowRight className="h-4 w-4 mr-2" />
@@ -615,43 +544,6 @@ export default function PromotionsPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Status Messages */}
-                {isLocked && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-semibold text-red-900">Session Locked</h4>
-                        <p className="text-sm text-red-700 mt-1">
-                          Promotions were processed more than 24 hours ago. No further actions can be taken for this session.
-                        </p>
-                        {lastProcessedAt && (
-                          <p className="text-xs text-red-600 mt-2">
-                            Processed on: {new Date(lastProcessedAt).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {canUndo && lastProcessedAt && (
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-orange-900">Promotions Processed</h4>
-                        <p className="text-sm text-orange-700 mt-1">
-                          You have {Math.ceil(24 - (new Date().getTime() - new Date(lastProcessedAt).getTime()) / (1000 * 60 * 60))} hours remaining to undo these promotions.
-                        </p>
-                        <p className="text-xs text-orange-600 mt-2">
-                          Processed on: {new Date(lastProcessedAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
                 {/* Filters */}
                 <div className="flex flex-col md:flex-row gap-3">
                   <div className="relative flex-1">

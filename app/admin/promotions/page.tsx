@@ -162,13 +162,19 @@ export default function PromotionsPage() {
     setLoading(true);
     try {
       // Check if promotions have already been processed for this session
-      const { data: historyRecords, error: historyError } = await supabase
-        .from("class_history")
-        .select("id")
-        .eq("session_id", selectedSessionId)
-        .limit(1);
+      const historyResponse = await fetch(
+        `/api/admin/history?sessionId=${encodeURIComponent(selectedSessionId)}`
+      );
 
-      if (historyRecords && historyRecords.length > 0) {
+      const historyData = await historyResponse.json();
+
+      if (!historyResponse.ok) {
+        throw new Error(
+          historyData.error || "Failed to verify promotion history"
+        );
+      }
+
+      if (historyData.history && historyData.history.length > 0) {
         setPromotionsCompleted(true);
         setStudents([]);
         setStats({
@@ -177,7 +183,6 @@ export default function PromotionsPage() {
           graduating_count: 0,
           needs_review_count: 0,
         });
-        setLoading(false);
         return;
       }
 

@@ -1,10 +1,27 @@
 # Promotion System - Quick Reference
 
+## ⚠️ Important Rules
+
+### Session Restrictions
+- ✅ **Current session only** - can only process promotions for the active session
+- ⏰ **24-hour undo window** - can reverse all changes within 24 hours
+- 🔒 **Auto-lock after 24 hours** - session becomes permanently locked
+
+### Timeline
+```
+Process Promotions → [24 hours to undo] → Session Locked Forever
+                            ↓
+                    Can click "Undo Promotions"
+                    to reverse everything
+```
+
+---
+
 ## 🚀 Quick Start
 
 ### Step 1: Process Promotions
 1. Navigate to **Admin → Promotions**
-2. Select the **session** (current session auto-selected)
+2. **Current session** is auto-selected (only option available)
 3. Review the **4 stat cards**:
    - Total Students
    - Eligible for Promotion (≥40% average)
@@ -34,6 +51,23 @@
    - Session, Class, Education Level, Status
 4. **Search** for specific students/classes
 5. **Export to Excel** if needed
+
+### Step 3: Undo Promotions (if needed)
+
+**Only available within 24 hours of processing!**
+
+1. Go to **Admin → Promotions**
+2. Current session shows **orange warning banner** with countdown
+3. Click **"Undo Promotions"** (red button)
+4. Confirm the action
+5. ✅ All students restored to original classes
+6. Promotion history removed
+7. Can re-process promotions with corrections
+
+**After 24 hours:**
+- ❌ Undo button disappears
+- 🔒 **Red "Session Locked"** banner appears
+- Cannot make any further changes
 
 ---
 
@@ -91,6 +125,22 @@ Admin decides:
 4. Check their checkbox
 5. Click "Promote 1 Student"
 6. Confirm (note will say "repeated" but you can still promote)
+
+### Task: Undo promotions (within 24 hours)
+1. Go to Promotions page
+2. Look for **orange warning banner** with countdown
+3. Click **"Undo Promotions"** (red button)
+4. Confirm when prompted
+5. ✅ All changes reversed
+6. Make corrections and re-process if needed
+
+### Task: Check if session is locked
+1. Go to Promotions page
+2. Select the session
+3. Look for status indicator:
+   - 🟢 No banner = Not processed yet
+   - 🟠 Orange banner = Within 24 hours (can undo)
+   - 🔴 Red banner = Locked (>24 hours, cannot change)
 
 ---
 

@@ -61,7 +61,17 @@ export async function GET(request: NextRequest) {
       minimum_pass_percentage: 40,
       require_all_terms: false,
       auto_promote: true,
+      last_processed_at: null,
+      is_locked: false,
     };
+
+    // Check if session is locked (24 hours after processing)
+    if (promotionSettings.last_processed_at) {
+      const processedTime = new Date(promotionSettings.last_processed_at).getTime();
+      const now = new Date().getTime();
+      const hoursSince = (now - processedTime) / (1000 * 60 * 60);
+      promotionSettings.is_locked = hoursSince >= 24;
+    }
 
     // Get all students with their current class info
     const { data: students, error: studentsError } = await supabase
@@ -210,6 +220,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if session is current
+    const { data: session, error: sessionError } = await supabase
+      .from("sessions")
+      .select("is_current")
+      .eq("id", sessionId)
+      .single();
+
+    if (sessionError || !session?.is_current) {
+      return NextResponse.json(
+        { error: "Can only process promotions for the current session" },
+        { status: 400 }
+      );
+    }
+
+    // Check if session is locked
+    const { data: settings } = await supabase
+      .from("promotion_settings")
+      .select("last_processed_at")
+      .eq("session_id", sessionId)
+      .single();
+
+    if (settings?.last_processed_at) {
+      const processedTime = new Date(settings.last_processed_at).getTime();
+      const now = new Date().getTime();
+      const hoursSince = (now - processedTime) / (1000 * 60 * 60);
+
+      if (hoursSince >= 24) {
+        return NextResponse.json(
+          { error: "This session is locked. Promotions were processed more than 24 hours ago." },
+          { status: 400 }
+        );
+      }
+    }
+
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -325,6 +369,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update promotion settings with timestamp
+    await supabaseAdmin
+      .from("promotion_settings")
+      .upsert({
+        session_id: sessionId,
+        last_processed_at: new Date().toISOString(),
+      });
+
     return NextResponse.json({
       success: true,
       results,
@@ -334,6 +386,165 @@ export async function POST(request: NextRequest) {
     console.error("Error processing promotions:", error);
     return NextResponse.json(
       { error: error.message || "Failed to process promotions" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Undo promotions (only within 24 hours)
+export async function DELETE(request: NextRequest) {
+  try {
+    await requireAdmin();
+
+    const searchParams = request.nextUrl.searchParams;
+    const sessionId = searchParams.get("sessionId");
+
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "Session ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if session is current
+    const { data: session, error: sessionError } = await supabase
+      .from("sessions")
+      .select("is_current")
+      .eq("id", sessionId)
+      .single();
+
+    if (sessionError || !session?.is_current) {
+      return NextResponse.json(
+        { error: "Can only undo promotions for the current session" },
+        { status: 400 }
+      );
+    }
+
+    // Check if within 24-hour window
+    const { data: settings } = await supabase
+      .from("promotion_settings")
+      .select("last_processed_at")
+      .eq("session_id", sessionId)
+      .single();
+
+    if (!settings?.last_processed_at) {
+      return NextResponse.json(
+        { error: "No promotions have been processed for this session" },
+        { status: 400 }
+      );
+    }
+
+    const processedTime = new Date(settings.last_processed_at).getTime();
+    const now = new Date().getTime();
+    const hoursSince = (now - processedTime) / (1000 * 60 * 60);
+
+    if (hoursSince >= 24) {
+      return NextResponse.json(
+        { error: "Cannot undo promotions after 24 hours" },
+        { status: 400 }
+      );
+    }
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Get all class history records for this session
+    const { data: historyRecords, error: historyError } = await supabaseAdmin
+      .from("class_history")
+      .select("*")
+      .eq("session_id", sessionId)
+      .not("promoted_at", "is", null);
+
+    if (historyError) {
+      throw new Error(`Failed to fetch class history: ${historyError.message}`);
+    }
+
+    if (!historyRecords || historyRecords.length === 0) {
+      return NextResponse.json(
+        { error: "No promotion records found for this session" },
+        { status: 400 }
+      );
+    }
+
+    let restored = 0;
+    let errors = [];
+
+    // Restore each student to their previous class
+    for (const record of historyRecords) {
+      try {
+        const { promotion_status, student_id, class_id } = record;
+
+        if (promotion_status === "promoted") {
+          // Restore student to original class
+          const { error: updateError } = await supabaseAdmin
+            .from("students")
+            .update({
+              class_id: class_id,
+              status: "active",
+            })
+            .eq("id", student_id);
+
+          if (updateError) {
+            throw new Error(`Failed to restore student: ${updateError.message}`);
+          }
+        } else if (promotion_status === "graduated") {
+          // Restore student to active status in their original class
+          const { error: updateError } = await supabaseAdmin
+            .from("students")
+            .update({
+              class_id: class_id,
+              status: "active",
+            })
+            .eq("id", student_id);
+
+          if (updateError) {
+            throw new Error(`Failed to restore graduated student: ${updateError.message}`);
+          }
+        }
+        // For "repeated" status, no action needed as they stayed in same class
+
+        restored++;
+      } catch (error: any) {
+        console.error(`Error restoring student ${record.student_id}:`, error);
+        errors.push({
+          student_id: record.student_id,
+          student_name: record.student_name,
+          error: error.message,
+        });
+      }
+    }
+
+    // Delete all class history records for this session's promotions
+    const { error: deleteError } = await supabaseAdmin
+      .from("class_history")
+      .delete()
+      .eq("session_id", sessionId)
+      .not("promoted_at", "is", null);
+
+    if (deleteError) {
+      console.error("Error deleting class history:", deleteError);
+    }
+
+    // Reset promotion settings timestamp
+    await supabaseAdmin
+      .from("promotion_settings")
+      .update({
+        last_processed_at: null,
+      })
+      .eq("session_id", sessionId);
+
+    return NextResponse.json({
+      success: true,
+      restored,
+      errors,
+      message: `Successfully undone promotions for ${restored} student(s)${errors.length > 0 ? ` with ${errors.length} error(s)` : ''}`,
+    });
+  } catch (error: any) {
+    console.error("Error undoing promotions:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to undo promotions" },
       { status: 500 }
     );
   }

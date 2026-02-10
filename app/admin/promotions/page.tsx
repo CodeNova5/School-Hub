@@ -678,40 +678,58 @@ export default function PromotionsPage() {
                                 </div>
                               </td>
                               <td className="p-3 text-center">
-                                {student.is_graduating ? (
-                                  <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                                    <GraduationCap className="h-3 w-3 mr-1" />
-                                    Graduating
-                                  </Badge>
-                                ) : student.is_eligible ? (
-                                  <Badge className="bg-green-100 text-green-700 border-green-300">
-                                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                                    Eligible
-                                  </Badge>
-                                ) : (
-                                  <Badge className="bg-orange-100 text-orange-700 border-orange-300">
-                                    <AlertTriangle className="h-3 w-3 mr-1" />
-                                    Review
-                                  </Badge>
-                                )}
+                                {(() => {
+                                  const action = determineAction(student);
+                                  if (action === "graduate") {
+                                    return (
+                                      <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                        <GraduationCap className="h-3 w-3 mr-1" />
+                                        Graduating
+                                      </Badge>
+                                    );
+                                  } else if (action === "promote") {
+                                    return (
+                                      <Badge className="bg-green-100 text-green-700 border-green-300">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        Eligible
+                                      </Badge>
+                                    );
+                                  } else {
+                                    return (
+                                      <Badge className="bg-orange-100 text-orange-700 border-orange-300">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Review
+                                      </Badge>
+                                    );
+                                  }
+                                })()}
                               </td>
                               <td className="p-3 text-center">
-                                {student.is_graduating ? (
-                                  <Badge variant="outline" className="bg-purple-50">
-                                    <Award className="h-3 w-3 mr-1" />
-                                    Graduate
-                                  </Badge>
-                                ) : student.is_eligible ? (
-                                  <Badge variant="outline" className="bg-green-50">
-                                    <ArrowRight className="h-3 w-3 mr-1" />
-                                    Promote
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="bg-orange-50">
-                                    <RefreshCw className="h-3 w-3 mr-1" />
-                                    Repeat
-                                  </Badge>
-                                )}
+                                {(() => {
+                                  const action = determineAction(student);
+                                  if (action === "graduate") {
+                                    return (
+                                      <Badge variant="outline" className="bg-purple-50">
+                                        <Award className="h-3 w-3 mr-1" />
+                                        Graduate
+                                      </Badge>
+                                    );
+                                  } else if (action === "promote") {
+                                    return (
+                                      <Badge variant="outline" className="bg-green-50">
+                                        <ArrowRight className="h-3 w-3 mr-1" />
+                                        Promote
+                                      </Badge>
+                                    );
+                                  } else {
+                                    return (
+                                      <Badge variant="outline" className="bg-orange-50">
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        Repeat
+                                      </Badge>
+                                    );
+                                  }
+                                })()}
                               </td>
                             </tr>
                           );
@@ -805,8 +823,7 @@ export default function PromotionsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Promotions</AlertDialogTitle>
               <AlertDialogDescription>
-                Review and confirm the promotion actions for {selectedStudents.size} student
-                {selectedStudents.size !== 1 ? "s" : ""}
+                Review students requiring attention (repeating students shown below)
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -814,6 +831,7 @@ export default function PromotionsPage() {
             <div className="space-y-3">
               {students
                 .filter((s) => selectedStudents.has(s.student_id))
+                .filter((s) => (promotionActions[s.student_id] || determineAction(s)) === "repeat")
                 .map((student) => {
                   const defaultAction = determineAction(student);
                   const currentAction = promotionActions[student.student_id] || defaultAction;

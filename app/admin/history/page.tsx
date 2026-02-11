@@ -478,28 +478,19 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* Results Section */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  {currentMode && <currentMode.icon className="h-5 w-5" />}
-                  {currentMode?.label || "Results"}
-                </CardTitle>
-              </div>
-              <Badge variant="outline">
-                {modeFilteredHistory.length} result{modeFilteredHistory.length !== 1 ? "s" : ""}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-12 text-muted-foreground">
+        {/* Results Section - Mode-Specific UI */}
+        {loading ? (
+          <Card>
+            <CardContent className="py-12">
+              <div className="text-center text-muted-foreground">
                 Loading history...
               </div>
-            ) : modeFilteredHistory.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+            </CardContent>
+          </Card>
+        ) : modeFilteredHistory.length === 0 ? (
+          <Card>
+            <CardContent className="py-12">
+              <div className="text-center text-muted-foreground">
                 <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>No results found for "{currentMode?.label}"</p>
                 <p className="text-sm mt-2">
@@ -510,224 +501,507 @@ export default function HistoryPage() {
                     "Try adjusting your filters"}
                 </p>
               </div>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Session</TableHead>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead className="text-center">Terms</TableHead>
-                      <TableHead className="text-center">Average</TableHead>
-                      {queryMode !== "repeaters" && <TableHead className="text-center">Position</TableHead>}
-                      <TableHead className="text-center">Status</TableHead>
-                      {queryMode !== "graduates" && queryMode !== "repeaters" && <TableHead>Notes</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {modeFilteredHistory.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {/* CLASS ROSTER VIEW - Card Grid */}
+            {queryMode === "class_roster" && (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {modeFilteredHistory.map((record) => (
+                  <Card key={record.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg">{record.student_name}</CardTitle>
+                          <CardDescription className="flex items-center gap-1 mt-1">
+                            <Users className="h-3 w-3" />
+                            {record.student_number}
+                          </CardDescription>
+                        </div>
+                        {record.promotion_status === "promoted" && (
+                          <Badge className="bg-green-100 text-green-700 border-green-300">
+                            Promoted
+                          </Badge>
+                        )}
+                        {record.promotion_status === "graduated" && (
+                          <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                            <GraduationCap className="h-3 w-3 mr-1" />
+                            Graduated
+                          </Badge>
+                        )}
+                        {record.promotion_status === "repeated" && (
+                          <Badge className="bg-orange-100 text-orange-700 border-orange-300">
+                            Repeated
+                          </Badge>
+                        )}
+                        {record.promotion_status === "pending" && (
+                          <Badge variant="outline">Pending</Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Class</span>
+                          <span className="font-medium">{record.class_name}</span>
+                        </div>
+                        {record.department && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Department</span>
+                            <span className="font-medium">{record.department}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Performance</span>
                           <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">{record.session_name}</span>
+                            <Badge variant="outline">{record.cumulative_grade}</Badge>
+                            <span className="font-bold">{record.average_score.toFixed(1)}%</span>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{record.student_name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {record.student_number}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{record.class_name}</p>
-                            {record.department && (
-                              <p className="text-xs text-muted-foreground">
-                                {record.department}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Position</span>
+                          <span className="font-semibold">
+                            {record.position || "—"}/{record.total_students || "—"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Terms</span>
                           <Badge variant="outline">{record.terms_completed}/3</Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="font-semibold">
-                              {record.average_score.toFixed(1)}%
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              {record.cumulative_grade}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        {queryMode !== "repeaters" && (
-                          <TableCell className="text-center">
-                            {record.position ? (
-                              <span className="font-semibold">
-                                {record.position}/{record.total_students}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                        )}
-                        <TableCell className="text-center">
-                          {record.promotion_status === "promoted" && (
-                            <Badge className="bg-green-100 text-green-700 border-green-300">
-                              Promoted
-                            </Badge>
-                          )}
-                          {record.promotion_status === "graduated" && (
-                            <Badge className="bg-purple-100 text-purple-700 border-purple-300">
-                              <GraduationCap className="h-3 w-3 mr-1" />
-                              Graduated
-                            </Badge>
-                          )}
-                          {record.promotion_status === "repeated" && (
-                            <Badge className="bg-orange-100 text-orange-700 border-orange-300">
-                              Repeated
-                            </Badge>
-                          )}
-                          {record.promotion_status === "pending" && (
-                            <Badge variant="outline">Pending</Badge>
-                          )}
-                          {record.promotion_status === "withdrawn" && (
-                            <Badge className="bg-gray-100 text-gray-700 border-gray-300">
-                              Withdrawn
-                            </Badge>
-                          )}
-                        </TableCell>
-                        {queryMode !== "graduates" && queryMode !== "repeaters" && (
-                          <TableCell>
-                            <p className="text-sm text-muted-foreground max-w-xs truncate">
-                              {record.promotion_notes || "—"}
-                            </p>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Additional Insights Based on Query Mode */}
-        {modeFilteredHistory.length > 0 && queryMode === "class_stats" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Class Size Breakdown</CardTitle>
-              <CardDescription>
-                Number of students per class
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {Object.entries(
-                  modeFilteredHistory.reduce((acc, record) => {
-                    const key = record.class_name;
-                    acc[key] = (acc[key] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>)
-                )
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([className, count]) => {
-                    const totalInClass = modeFilteredHistory.filter(
-                      (h) => h.class_name === className
-                    ).length;
-                    return (
-                      <div
-                        key={className}
-                        className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
-                      >
-                        <div>
-                          <p className="font-semibold">{className}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Set(
-                              modeFilteredHistory
-                                .filter((h) => h.class_name === className)
-                                .map((h) => h.student_id)
-                            ).size}{" "}
-                            unique student{
-                              new Set(
-                                modeFilteredHistory
-                                  .filter((h) => h.class_name === className)
-                                  .map((h) => h.student_id)
-                              ).size !== 1
-                                ? "s"
-                                : ""
-                            }
+                        </div>
+                      </div>
+                      {record.promotion_notes && (
+                        <div className="pt-2 border-t">
+                          <p className="text-xs text-muted-foreground italic">
+                            "{record.promotion_notes}"
                           </p>
                         </div>
-                        <Badge className="text-base px-3 py-1">{count} records</Badge>
-                      </div>
-                    );
-                  })}
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            )}
 
-        {modeFilteredHistory.length > 0 && queryMode === "performance" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance Overview</CardTitle>
-              <CardDescription>
-                Average performance by class
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {Object.entries(
-                  modeFilteredHistory.reduce((acc, record) => {
-                    const key = record.class_name;
-                    if (!acc[key]) {
-                      acc[key] = { total: 0, count: 0 };
-                    }
-                    acc[key].total += record.average_score;
-                    acc[key].count += 1;
-                    return acc;
-                  }, {} as Record<string, { total: number; count: number }>)
-                )
-                  .map(([className, data]) => ({
-                    className,
-                    average: data.total / data.count,
-                  }))
-                  .sort((a, b) => b.average - a.average)
-                  .map(({ className, average }) => (
-                    <div
-                      key={className}
-                      className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
-                    >
-                      <span className="font-medium">{className}</span>
-                      <div className="flex items-center gap-3">
-                        <div className="w-24 bg-gray-200 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full transition-all ${
-                              average >= 70
-                                ? "bg-green-600"
-                                : average >= 60
-                                ? "bg-yellow-600"
-                                : "bg-red-600"
-                            }`}
-                            style={{ width: `${Math.min(average, 100)}%` }}
-                          />
+            {/* STUDENT HISTORY VIEW - Timeline */}
+            {queryMode === "student_history" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Academic Journey</CardTitle>
+                  <CardDescription>
+                    {modeFilteredHistory.length} record{modeFilteredHistory.length !== 1 ? "s" : ""} found
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {modeFilteredHistory.map((record, index) => (
+                      <div key={record.id} className="relative pl-8 pb-4">
+                        {/* Timeline line */}
+                        {index !== modeFilteredHistory.length - 1 && (
+                          <div className="absolute left-[11px] top-8 bottom-0 w-0.5 bg-border" />
+                        )}
+                        
+                        {/* Timeline dot */}
+                        <div className="absolute left-0 top-2 w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                          <div className="w-2 h-2 rounded-full bg-white" />
                         </div>
-                        <span className="font-bold w-12 text-right">
-                          {average.toFixed(1)}%
-                        </span>
+
+                        <div className="bg-muted/50 rounded-lg p-4 hover:bg-muted transition-colors">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h4 className="font-semibold text-lg flex items-center gap-2">
+                                {record.class_name}
+                                {record.department && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {record.department}
+                                  </Badge>
+                                )}
+                              </h4>
+                              <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                                <Calendar className="h-3 w-3" />
+                                {record.session_name}
+                              </p>
+                            </div>
+                            {record.promotion_status === "promoted" && (
+                              <Badge className="bg-green-100 text-green-700 border-green-300">
+                                Promoted
+                              </Badge>
+                            )}
+                            {record.promotion_status === "graduated" && (
+                              <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                <GraduationCap className="h-3 w-3 mr-1" />
+                                Graduated
+                              </Badge>
+                            )}
+                            {record.promotion_status === "repeated" && (
+                              <Badge className="bg-orange-100 text-orange-700 border-orange-300">
+                                Repeated
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Average Score</p>
+                              <p className="text-xl font-bold">{record.average_score.toFixed(1)}%</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Grade</p>
+                              <Badge className="mt-1">{record.cumulative_grade}</Badge>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Position</p>
+                              <p className="text-lg font-semibold mt-1">
+                                {record.position || "—"}/{record.total_students || "—"}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Terms Completed</p>
+                              <Badge variant="outline" className="mt-1">
+                                {record.terms_completed}/3
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {record.promotion_notes && (
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-sm text-muted-foreground italic">
+                                "{record.promotion_notes}"
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* GRADUATES VIEW - Certificate Style Cards */}
+            {queryMode === "graduates" && (
+              <div className="grid gap-6 md:grid-cols-2">
+                {modeFilteredHistory.map((record) => (
+                  <Card 
+                    key={record.id} 
+                    className="border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-white hover:shadow-xl transition-shadow"
+                  >
+                    <CardHeader className="text-center pb-2">
+                      <div className="mx-auto w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center mb-3">
+                        <GraduationCap className="h-8 w-8 text-purple-600" />
+                      </div>
+                      <CardTitle className="text-2xl">{record.student_name}</CardTitle>
+                      <CardDescription className="text-base">
+                        {record.student_number}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-center space-y-4">
+                      <div className="py-3 px-4 bg-white rounded-lg border border-purple-100">
+                        <p className="text-sm text-muted-foreground">Graduated From</p>
+                        <p className="text-xl font-bold text-purple-900">{record.class_name}</p>
+                        {record.department && (
+                          <p className="text-sm text-purple-600 font-medium">{record.department}</p>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white rounded-lg p-3 border border-purple-100">
+                          <p className="text-xs text-muted-foreground mb-1">Final Grade</p>
+                          <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                            {record.cumulative_grade}
+                          </Badge>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-purple-100">
+                          <p className="text-xs text-muted-foreground mb-1">Average</p>
+                          <p className="font-bold text-purple-900">{record.average_score.toFixed(1)}%</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 border border-100">
+                          <p className="text-xs text-muted-foreground mb-1">Rank</p>
+                          <p className="font-bold text-purple-900">
+                            {record.position || "—"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-purple-200">
+                        <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {record.session_name}
+                        </p>
+                        {record.promoted_at && (
+                          <p className="text-xs text-purple-600 mt-1">
+                            Graduated: {new Date(record.promoted_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardContent>
-          </Card>
+            )}
+
+            {/* REPEATERS VIEW - Warning Style List */}
+            {queryMode === "repeaters" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <History className="h-5 w-5 text-orange-600" />
+                    Students Who Repeated
+                  </CardTitle>
+                  <CardDescription>
+                    {modeFilteredHistory.length} student{modeFilteredHistory.length !== 1 ? "s" : ""} repeated a class
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {modeFilteredHistory.map((record) => (
+                      <div 
+                        key={record.id}
+                        className="flex items-center gap-4 p-4 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <History className="h-6 w-6 text-orange-600" />
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold text-lg">{record.student_name}</h4>
+                            <Badge variant="outline" className="text-xs">
+                              {record.student_number}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Repeated <span className="font-medium text-orange-900">{record.class_name}</span>
+                            {record.department && (
+                              <span> ({record.department})</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <Calendar className="h-3 w-3" />
+                            {record.session_name}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">Performance</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline">{record.cumulative_grade}</Badge>
+                              <span className="font-bold text-orange-900">
+                                {record.average_score.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {record.terms_completed}/3 terms
+                          </Badge>
+                        </div>
+
+                        {record.promotion_notes && (
+                          <div className="flex-shrink-0 max-w-xs">
+                            <p className="text-xs text-orange-800 italic bg-orange-100 px-3 py-2 rounded">
+                              "{record.promotion_notes}"
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* PERFORMANCE VIEW handled below in separate section */}
+            {queryMode === "performance" && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Performance Comparison</CardTitle>
+                  <CardDescription>
+                    Ranked by average performance
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {Object.entries(
+                      modeFilteredHistory.reduce((acc, record) => {
+                        const key = record.class_name;
+                        if (!acc[key]) {
+                          acc[key] = { total: 0, count: 0, records: [] };
+                        }
+                        acc[key].total += record.average_score;
+                        acc[key].count += 1;
+                        acc[key].records.push(record);
+                        return acc;
+                      }, {} as Record<string, { total: number; count: number; records: typeof modeFilteredHistory }>)
+                    )
+                      .map(([className, data]) => ({
+                        className,
+                        average: data.total / data.count,
+                        count: data.count,
+                        topScore: Math.max(...data.records.map(r => r.average_score)),
+                        lowestScore: Math.min(...data.records.map(r => r.average_score)),
+                      }))
+                      .sort((a, b) => b.average - a.average)
+                      .map(({ className, average, count, topScore, lowestScore }, index) => (
+                        <div
+                          key={className}
+                          className="p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors border-l-4"
+                          style={{
+                            borderLeftColor: average >= 70 ? '#16a34a' : average >= 60 ? '#ca8a04' : '#dc2626'
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm">
+                                {index + 1}
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-lg">{className}</h4>
+                                <p className="text-xs text-muted-foreground">
+                                  {count} student{count !== 1 ? 's' : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-2xl font-bold">{average.toFixed(1)}%</p>
+                              <Badge 
+                                className={
+                                  average >= 70 
+                                    ? 'bg-green-100 text-green-700 border-green-300'
+                                    : average >= 60 
+                                    ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                                    : 'bg-red-100 text-red-700 border-red-300'
+                                }
+                              >
+                                {average >= 70 ? 'Excellent' : average >= 60 ? 'Good' : 'Needs Improvement'}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-gray-200 rounded-full h-3">
+                                <div
+                                  className={`h-3 rounded-full transition-all ${
+                                    average >= 70
+                                      ? 'bg-green-600'
+                                      : average >= 60
+                                      ? 'bg-yellow-600'
+                                      : 'bg-red-600'
+                                  }`}
+                                  style={{ width: `${Math.min(average, 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-muted-foreground w-12 text-right">100%</span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span>Range: {lowestScore.toFixed(1)}% - {topScore.toFixed(1)}%</span>
+                              <span>Spread: {(topScore - lowestScore).toFixed(1)}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* CLASS STATS VIEW */}
+            {queryMode === "class_stats" && (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Class Enrollment Statistics</CardTitle>
+                    <CardDescription>
+                      Student distribution across classes
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {Object.entries(
+                        modeFilteredHistory.reduce((acc, record) => {
+                          const key = record.class_name;
+                          if (!acc[key]) {
+                            acc[key] = {
+                              count: 0,
+                              students: new Set(),
+                              education_level: record.education_level,
+                              department: record.department,
+                            };
+                          }
+                          acc[key].count += 1;
+                          acc[key].students.add(record.student_id);
+                          return acc;
+                        }, {} as Record<string, { count: number; students: Set<string>; education_level: string; department?: string }>)
+                      )
+                        .sort((a, b) => b[1].count - a[1].count)
+                        .map(([className, data]) => {
+                          const uniqueStudents = data.students.size;
+                          const totalRecords = data.count;
+                          const maxRecords = Math.max(
+                            ...Object.values(
+                              modeFilteredHistory.reduce((acc, r) => {
+                                acc[r.class_name] = (acc[r.class_name] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>)
+                            )
+                          );
+
+                          return (
+                            <div
+                              key={className}
+                              className="p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <div>
+                                  <h4 className="font-semibold text-lg">{className}</h4>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {data.education_level}
+                                    </Badge>
+                                    {data.department && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {data.department}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-3xl font-bold text-primary">{uniqueStudents}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    student{uniqueStudents !== 1 ? 's' : ''}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="h-2 rounded-full bg-primary transition-all"
+                                      style={{ width: `${(totalRecords / maxRecords) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-sm font-medium w-16 text-right">
+                                    {totalRecords} records
+                                  </span>
+                                </div>
+                                {totalRecords !== uniqueStudents && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {totalRecords - uniqueStudents} duplicate record{totalRecords - uniqueStudents !== 1 ? 's' : ''}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </>
         )}
       </div>
     </DashboardLayout>

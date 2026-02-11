@@ -35,6 +35,7 @@ export function EditStudentModal({
     date_of_birth: student?.date_of_birth || "",
     gender: student?.gender || "",
     address: student?.address || "",
+    status: student?.status || "active",
     parent_name: student?.parent_name || "",
     parent_email: student?.parent_email || "",
     parent_phone: student?.parent_phone || "",
@@ -51,6 +52,7 @@ export function EditStudentModal({
         date_of_birth: student.date_of_birth || "",
         gender: student.gender || "",
         address: student.address || "",
+        status: student.status || "active",
         parent_name: student.parent_name || "",
         parent_email: student.parent_email || "",
         parent_phone: student.parent_phone || "",
@@ -105,6 +107,7 @@ export function EditStudentModal({
             date_of_birth: formData.date_of_birth || null,
             gender: formData.gender || null,
             address: formData.address || null,
+            status: formData.status,
             parent_name: formData.parent_name,
             parent_email: formData.parent_email,
             parent_phone: formData.parent_phone || null,
@@ -223,6 +226,25 @@ export function EditStudentModal({
                   <option value="">Select gender</option>
                   <option value="male">Male</option>
                   <option value="female">Female</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="status" className="text-xs">Status</Label>
+                <select
+                  id="status"
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  disabled={isLoading}
+                  className="border rounded-md p-2 w-full"
+                >
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="graduated">Graduated</option>
+                  <option value="withdrawn">Withdrawn</option>
                 </select>
               </div>
             </div>

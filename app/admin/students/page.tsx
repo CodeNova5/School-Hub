@@ -256,8 +256,70 @@ export default function AdminStudentsPage() {
     setIsTransferStudentOpen(true);
   }
 
-  function handleRemoveStudent(student: Student) {
-    toast.info('Remove from class functionality - implement in your backend');
+  async function handleTransferStudentToClass(targetClassId: string) {
+    if (!selectedStudent || !targetClassId) {
+      toast.error("Please select a valid student and target class");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "transfer-students",
+          studentIds: [selectedStudent.id],
+          targetClassId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Failed to transfer student");
+        return;
+      }
+
+      toast.success(`Successfully transferred ${selectedStudent.first_name} ${selectedStudent.last_name} to another class`);
+      setIsTransferStudentOpen(false);
+      setTransferTargetClassId("");
+      setSelectedStudent(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error("Failed to transfer student: " + (error.message || error));
+    }
+  }
+
+  async function handleRemoveStudent(student: Student) {
+    if (!student) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete-student",
+          studentId: student.id,
+          userId: student.user_id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Failed to delete student");
+        return;
+      }
+
+      toast.success("Student and all related data deleted.");
+      setIsDeleteDialogOpen(false);
+      setStudentToDelete(null);
+      router.refresh();
+    } catch (error: any) {
+      toast.error("Failed to delete student: " + (error.message || error));
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   function handleDeleteStudent(student: Student) {
@@ -804,9 +866,7 @@ export default function AdminStudentsPage() {
                 </Button>
                 <Button
                   onClick={() => {
-                    toast.info('Transfer functionality - implement in your backend');
-                    setIsTransferStudentOpen(false);
-                    setTransferTargetClassId("");
+                    handleTransferStudentToClass(transferTargetClassId);
                   }}
                   disabled={!transferTargetClassId}
                 >

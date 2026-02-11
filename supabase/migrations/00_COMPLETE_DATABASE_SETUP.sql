@@ -222,7 +222,6 @@ CREATE TABLE IF NOT EXISTS classes (
   department text CHECK (
     department IS NULL OR department = ANY (ARRAY['Science', 'Arts', 'Commercial'])
   ),
-  capacity integer DEFAULT 30,
   room_number text,
   stream text,
   class_teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,

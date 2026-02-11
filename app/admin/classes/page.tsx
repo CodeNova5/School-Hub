@@ -424,7 +424,7 @@ export default function ClassesPage() {
 
                             <div className="flex items-center gap-2">
                               <Users className="h-4 w-4" />
-                              {cls.studentCount}/{cls.capacity} students
+                              {cls.studentCount} students
                             </div>
 
                             <div className="flex items-center gap-2">
@@ -453,18 +453,7 @@ export default function ClassesPage() {
                         </div>
                       </div>
 
-                      {/* Progress Bar */}
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-4">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{
-                            width: `${Math.min(
-                              ((cls.studentCount ?? 0) / (cls.capacity ?? 30)) * 100,
-                              100
-                            )}%`,
-                          }}
-                        />
-                      </div>
+
                     </CardContent>
                   </Card>
                 ))}

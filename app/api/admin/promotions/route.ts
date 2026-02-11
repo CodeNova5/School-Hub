@@ -100,6 +100,14 @@ export async function GET(request: NextRequest) {
 
     // Get all results for this session
     const studentIds = students?.map((s) => s.id) || [];
+    
+    // Get all subject_classes to map results to classes
+    const { data: subjectClasses, error: subjectError } = await supabase
+      .from("subject_classes")
+      .select("*");
+    
+    if (subjectError) throw subjectError;
+
     const { data: results, error: resultsError } = await supabase
       .from("results")
       .select("*")
@@ -110,8 +118,15 @@ export async function GET(request: NextRequest) {
 
     // Calculate eligibility for each student
     const eligibilityData = students?.map((student) => {
+      // Only include results from the student's current class
+      const currentClassSubjects = subjectClasses?.filter(
+        (sc) => sc.class_id === student.class_id
+      ) || [];
+      
+      const currentClassSubjectIds = currentClassSubjects.map((sc) => sc.id);
+      
       const studentResults = results?.filter(
-        (r) => r.student_id === student.id
+        (r) => r.student_id === student.id && currentClassSubjectIds.includes(r.subject_class_id)
       ) || [];
 
       // Group by term

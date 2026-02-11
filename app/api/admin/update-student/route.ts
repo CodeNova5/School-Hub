@@ -62,10 +62,11 @@ export async function POST(req: Request) {
 
     // Update student record
     const studentUpdateData: any = { ...updates };
+    let rawToken: string | null = null;
     
     // If email changed, mark as inactive and generate activation token
     if (emailChanged) {
-      const rawToken = crypto.randomBytes(32).toString("hex");
+      rawToken = crypto.randomBytes(32).toString("hex");
       const tokenHash = crypto
         .createHash("sha256")
         .update(rawToken)
@@ -75,9 +76,6 @@ export async function POST(req: Request) {
       studentUpdateData.activation_token_hash = tokenHash;
       studentUpdateData.activation_expires_at = new Date(Date.now() + 86400000); // 24 hours
       studentUpdateData.activation_used = false;
-
-      // Store the token to send in email
-      studentUpdateData._activationToken = rawToken;
     }
 
     const { data: updatedStudent, error: updateError } = await supabase
@@ -95,7 +93,7 @@ export async function POST(req: Request) {
     }
 
     // If email changed, update auth user and send verification email
-    if (emailChanged && currentStudent.user_id) {
+    if (emailChanged && currentStudent.user_id && rawToken) {
       // Update auth user email
       await supabase.auth.admin.updateUserById(currentStudent.user_id, {
         email: updates.email,
@@ -111,7 +109,7 @@ export async function POST(req: Request) {
         },
       });
 
-      const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${studentUpdateData._activationToken}`;
+      const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${rawToken}`;
 
       await transporter.sendMail({
         from: `"School Hub" <${process.env.EMAIL_USER}>`,
@@ -132,15 +130,13 @@ export async function POST(req: Request) {
       });
     }
 
-    // Remove the temporary token from response
-    const { activationToken, ...responseData } = updatedStudent;
 
     return NextResponse.json({
       success: true,
       message: emailChanged
         ? "Student updated. Verification email sent to new email address."
         : "Student updated successfully.",
-      student: responseData,
+      student: updatedStudent,
     });
 
   } catch (e: any) {

@@ -291,12 +291,28 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 return;
             }
 
-            // Fetch results for all terms in this session
+            // Get subject_classes for this class to filter results
+            const { data: subjectClasses, error: scError } = await supabase
+                .from("subject_classes")
+                .select("id")
+                .eq("class_id", classId);
+
+            if (scError) throw scError;
+
+            const subjectClassIds = subjectClasses?.map(sc => sc.id) || [];
+
+            if (subjectClassIds.length === 0) {
+                setCumulativeResults([]);
+                return;
+            }
+
+            // Fetch results for all terms in this session for this class only
             const { data: allSessionResults, error } = await supabase
                 .from("results")
                 .select("*")
                 .eq("session_id", selectedSessionId)
-                .in("student_id", currentStudentIds);
+                .in("student_id", currentStudentIds)
+                .in("subject_class_id", subjectClassIds);
 
             if (error) throw error;
 

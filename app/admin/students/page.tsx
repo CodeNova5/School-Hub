@@ -9,7 +9,8 @@ import { supabase } from '@/lib/supabase';
 import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
-import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon, Plus } from 'lucide-react';
+import { EditStudentModal } from '@/components/edit-student-modal';
+import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon, Plus, ArrowRightLeft, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
 import {
@@ -29,6 +30,12 @@ export default function AdminStudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
+  const [isEditStudentOpen, setIsEditStudentOpen] = useState(false);
+  const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [transferTargetClassId, setTransferTargetClassId] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -40,7 +47,7 @@ export default function AdminStudentsPage() {
   const [filterStatus, setFilterStatus] = useState('');
 
   // Form fields for creating student
-  const [ formData, setFormData] = useState({
+  const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
     email: '',
@@ -207,6 +214,61 @@ export default function AdminStudentsPage() {
   function handleManageSubjects(student: Student) {
     setSelectedStudent(student);
     setIsSubjectsModalOpen(true);
+  }
+
+  function handleEditStudent(student: Student) {
+    setSelectedStudent(student);
+    setIsEditStudentOpen(true);
+  }
+
+  function handleTransferStudent(student: Student) {
+    setSelectedStudent(student);
+    setIsTransferStudentOpen(true);
+  }
+
+  function handleRemoveStudent(student: Student) {
+    toast.info('Remove from class functionality - implement in your backend');
+  }
+
+  function handleDeleteStudent(student: Student) {
+    setStudentToDelete(student);
+    setIsDeleteDialogOpen(true);
+  }
+
+  async function handleDeleteStudentCompletely() {
+    if (!studentToDelete) return;
+    setIsDeleting(true);
+    try {
+      const response = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete-student",
+          studentId: studentToDelete.id,
+          userId: studentToDelete.user_id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Failed to delete student");
+        return;
+      }
+
+      toast.success("Student and all related data deleted.");
+      setIsDeleteDialogOpen(false);
+      setStudentToDelete(null);
+      await loadData();
+    } catch (error: any) {
+      toast.error("Failed to delete student: " + (error.message || error));
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  function handleEditStudentSuccess(updatedStudent: Student) {
+    loadData();
   }
 
   async function handleCreateStudent(e: React.FormEvent) {
@@ -645,11 +707,16 @@ export default function AdminStudentsPage() {
             <StudentTable
               students={filteredStudents}
               onViewDetails={handleViewDetails}
+              onEditStudent={handleEditStudent}
               onManageSubjects={handleManageSubjects}
+              onTransferStudent={handleTransferStudent}
+              onRemoveStudent={handleRemoveStudent}
+              onDeleteStudent={handleDeleteStudent}
             />
           </CardContent>
         </Card>
 
+        {/* Student Details Modal */}
         <StudentDetailsModal
           student={selectedStudent}
           sessions={sessions}
@@ -657,6 +724,112 @@ export default function AdminStudentsPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
         />
+
+        {/* Edit Student Modal */}
+        <EditStudentModal
+          student={selectedStudent}
+          isOpen={isEditStudentOpen}
+          onClose={() => {
+            setIsEditStudentOpen(false);
+            setSelectedStudent(null);
+          }}
+          onSuccess={handleEditStudentSuccess}
+        />
+
+        {/* Transfer Student Dialog */}
+        <Dialog open={isTransferStudentOpen} onOpenChange={setIsTransferStudentOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Transfer Student</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Transfer {selectedStudent?.first_name} {selectedStudent?.last_name} to another class:
+              </p>
+
+              <select
+                className="w-full border rounded-md p-2"
+                value={transferTargetClassId}
+                onChange={(e) => setTransferTargetClassId(e.target.value)}
+              >
+                <option value="">Select target class</option>
+                {classes
+                  .filter((c) => c.id !== selectedStudent?.class_id)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsTransferStudentOpen(false);
+                    setTransferTargetClassId("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    toast.info('Transfer functionality - implement in your backend');
+                    setIsTransferStudentOpen(false);
+                    setTransferTargetClassId("");
+                  }}
+                  disabled={!transferTargetClassId}
+                >
+                  Transfer
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Student Dialog */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                <span className="flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="h-5 w-5" />
+                  Delete Student Completely
+                </span>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-red-700 font-semibold">
+                This will permanently delete <b>{studentToDelete?.first_name} {studentToDelete?.last_name}</b> and all related data:
+              </p>
+              <ul className="list-disc pl-6 text-sm text-red-600">
+                <li>Student record</li>
+                <li>Attendance, results, class assignments</li>
+                <li>Session/term links</li>
+                <li>Auth user account (cannot be undone)</li>
+              </ul>
+              <p className="text-sm text-muted-foreground">
+                This action cannot be undone. Are you sure you want to proceed?
+              </p>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDeleteDialogOpen(false)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteStudentCompletely}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Deleting..." : "Delete Permanently"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

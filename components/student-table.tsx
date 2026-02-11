@@ -20,16 +20,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Eye, Edit, Calendar, ClipboardList, BookOpen } from 'lucide-react';
+import { MoreHorizontal, Eye, Edit, Calendar, ClipboardList, BookOpen, ArrowRightLeft, UserMinus, AlertTriangle } from 'lucide-react';
 
 interface StudentTableProps {
   students: Student[];
   onViewDetails: (student: Student) => void;
   onEditStudent?: (student: Student) => void;
   onManageSubjects?: (student: Student) => void;
+  onTransferStudent?: (student: Student) => void;
+  onRemoveStudent?: (student: Student) => void;
+  onDeleteStudent?: (student: Student) => void;
 }
 
-export function StudentTable({ students, onViewDetails, onEditStudent, onManageSubjects }: StudentTableProps) {
+export function StudentTable({ 
+  students, 
+  onViewDetails, 
+  onEditStudent, 
+  onManageSubjects,
+  onTransferStudent,
+  onRemoveStudent,
+  onDeleteStudent 
+}: StudentTableProps) {
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'active':
@@ -130,16 +141,40 @@ export function StudentTable({ students, onViewDetails, onEditStudent, onManageS
                         <Eye className="mr-2 h-4 w-4" />
                         View Details
                       </DropdownMenuItem>
+                      {onEditStudent && (
+                        <DropdownMenuItem onClick={() => onEditStudent(student)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Student
+                        </DropdownMenuItem>
+                      )}
                       {onManageSubjects && (
                         <DropdownMenuItem onClick={() => onManageSubjects(student)}>
                           <BookOpen className="mr-2 h-4 w-4" />
                           Manage Subjects
                         </DropdownMenuItem>
                       )}
-                      {onEditStudent && (
-                        <DropdownMenuItem onClick={() => onEditStudent(student)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Student
+                      {onTransferStudent && (
+                        <DropdownMenuItem onClick={() => onTransferStudent(student)}>
+                          <ArrowRightLeft className="mr-2 h-4 w-4" />
+                          Transfer Student
+                        </DropdownMenuItem>
+                      )}
+                      {onRemoveStudent && (
+                        <DropdownMenuItem 
+                          className="text-red-600 focus:text-red-600"
+                          onClick={() => onRemoveStudent(student)}
+                        >
+                          <UserMinus className="mr-2 h-4 w-4" />
+                          Remove from Class
+                        </DropdownMenuItem>
+                      )}
+                      {onDeleteStudent && (
+                        <DropdownMenuItem
+                          className="text-red-700 focus:text-red-700"
+                          onClick={() => onDeleteStudent(student)}
+                        >
+                          <AlertTriangle className="mr-2 h-4 w-4 text-red-700" />
+                          Delete Completely
                         </DropdownMenuItem>
                       )}
                     </DropdownMenuContent>

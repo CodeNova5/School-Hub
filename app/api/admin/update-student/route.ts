@@ -133,7 +133,7 @@ export async function POST(req: Request) {
     }
 
     // Remove the temporary token from response
-    const { _activationToken, ...responseData } = updatedStudent;
+    const { activationToken, ...responseData } = updatedStudent;
 
     return NextResponse.json({
       success: true,

@@ -80,6 +80,20 @@ export default function ClassesPage() {
 
       const classesWithStats = await Promise.all(
         (data || []).map(async (cls: any) => {
+          let teacherName: string | undefined = undefined;
+
+          if (cls.class_teacher_id) {
+            const { data: teacher } = await supabase
+              .from("teachers")
+              .select("first_name, last_name")
+              .eq("id", cls.class_teacher_id)
+              .single();
+
+            if (teacher) {
+              teacherName = `${teacher.first_name} ${teacher.last_name}`;
+            }
+          }
+
           const [studentsRes, subjectsRes] = await Promise.all([
             supabase.from("students").select("id", { count: "exact" }).eq("class_id", cls.id),
             supabase.from("subject_classes").select("id", { count: "exact" }).eq("class_id", cls.id),
@@ -89,7 +103,7 @@ export default function ClassesPage() {
             ...cls,
             studentCount: studentsRes.count || 0,
             subjectCount: subjectsRes.count || 0,
-            teacherName: undefined,
+            teacherName,
           };
         })
       );

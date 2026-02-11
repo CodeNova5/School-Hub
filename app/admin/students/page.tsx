@@ -21,6 +21,8 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { useRouter } from 'next/navigation';
+
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -76,6 +78,8 @@ export default function AdminStudentsPage() {
     const previousIndex = (currentIndex - 1 + filteredStudents.length) % filteredStudents.length;
     setSelectedStudent(filteredStudents[previousIndex]);
   }, [filteredStudents, selectedStudent]);
+
+  const router = useRouter();
 
   useEffect(() => {
     loadData();
@@ -212,8 +216,8 @@ export default function AdminStudentsPage() {
   }
 
   function handleManageSubjects(student: Student) {
-    setSelectedStudent(student);
-    setIsSubjectsModalOpen(true);
+    // This would navigate to a page to manage subjects
+    router.push(`/admin/students/${student.id}/subjects`);
   }
 
   function handleEditStudent(student: Student) {

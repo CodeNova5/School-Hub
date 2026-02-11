@@ -26,10 +26,12 @@ import {
   User,
   UserMinus,
   ArrowRightLeft,
+  Edit,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Student, Session, Term } from "@/lib/types";
 import { StudentDetailsModal } from "@/components/student-details-modal";
+import { EditStudentModal } from "@/components/edit-student-modal";
 import * as XLSX from "xlsx-js-style";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; // Make sure this import exists
@@ -73,6 +75,7 @@ export function StudentsTab({
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isStudentDetailsOpen, setIsStudentDetailsOpen] = useState(false);
+  const [isEditStudentOpen, setIsEditStudentOpen] = useState(false);
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
   const [transferTargetClassId, setTransferTargetClassId] = useState("");
@@ -148,6 +151,16 @@ export function StudentsTab({
       setSelectedStudent(student);
     }
     setIsStudentDetailsOpen(true);
+  }
+
+  function handleEditStudent(student: Student) {
+    setSelectedStudent(student);
+    setIsEditStudentOpen(true);
+  }
+
+  function handleEditStudentSuccess(updatedStudent: Student) {
+    // Update the student in the list
+    router.refresh();
   }
 
   async function handleDeleteStudentCompletely() {
@@ -386,6 +399,10 @@ export function StudentsTab({
                             <User className="mr-2 h-4 w-4" />
                             View Details
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEditStudent(student)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Details
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleStudentSubjects(student)}>
                             <User className="mr-2 h-4 w-4" />
                             Manage Subjects
@@ -616,6 +633,17 @@ export function StudentsTab({
           setIsStudentDetailsOpen(false);
           setSelectedStudent(null);
         }}
+      />
+
+      {/* Edit Student Modal */}
+      <EditStudentModal
+        student={selectedStudent}
+        isOpen={isEditStudentOpen}
+        onClose={() => {
+          setIsEditStudentOpen(false);
+          setSelectedStudent(null);
+        }}
+        onSuccess={handleEditStudentSuccess}
       />
     </>
   );

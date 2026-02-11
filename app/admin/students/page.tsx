@@ -210,8 +210,34 @@ export default function AdminStudentsPage() {
     }
   }
 
-  function handleViewDetails(student: Student) {
-    setSelectedStudent(student);
+  async function handleViewDetails(student: Student) {
+    try {
+      // Fetch attendance data for this student
+      const { data: attendance, error } = await supabase
+        .from('attendance')
+        .select('*')
+        .eq('student_id', student.id);
+
+      if (error) throw error;
+
+      const total = attendance?.length || 0;
+      const present = attendance?.filter(
+        (r: any) => r.status === 'present' || r.status === 'late' || r.status === 'excused'
+      ).length || 0;
+
+      const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
+
+      const enrichedStudent = {
+        ...student,
+        average_attendance: averageAttendance,
+        total_attendance: total,
+      };
+
+      setSelectedStudent(enrichedStudent);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+      setSelectedStudent(student);
+    }
     setIsModalOpen(true);
   }
 
@@ -263,7 +289,7 @@ export default function AdminStudentsPage() {
       toast.success("Student and all related data deleted.");
       setIsDeleteDialogOpen(false);
       setStudentToDelete(null);
-      await loadData();
+      router.refresh();
     } catch (error: any) {
       toast.error("Failed to delete student: " + (error.message || error));
     } finally {
@@ -272,7 +298,7 @@ export default function AdminStudentsPage() {
   }
 
   function handleEditStudentSuccess(updatedStudent: Student) {
-    loadData();
+    router.refresh();
   }
 
   async function handleCreateStudent(e: React.FormEvent) {
@@ -330,7 +356,7 @@ export default function AdminStudentsPage() {
       });
 
       setIsCreateDialogOpen(false);
-      await loadData();
+      router.refresh();
     } catch (error: any) {
       toast.error(error.message || 'Failed to create student');
     } finally {

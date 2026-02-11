@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -40,11 +40,9 @@ export function EditStudentModal({
     parent_phone: student?.parent_phone || "",
   });
 
-  const [emailChanged, setEmailChanged] = useState(false);
-
-  // Update form data when student changes
-  if (student && !isLoading) {
-    if (formData.first_name !== student.first_name) {
+  // Only update formData when the student changes
+  useEffect(() => {
+    if (student) {
       setFormData({
         first_name: student.first_name || "",
         last_name: student.last_name || "",
@@ -58,7 +56,10 @@ export function EditStudentModal({
         parent_phone: student.parent_phone || "",
       });
     }
-  }
+  }, [student]);
+
+  const [emailChanged, setEmailChanged] = useState(false);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

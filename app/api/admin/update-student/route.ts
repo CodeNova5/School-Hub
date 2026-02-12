@@ -92,15 +92,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // If email changed, send verification email and update auth user if one exists
+    // If email changed, send verification email and create/update auth user
     if (emailChanged && rawToken) {
       try {
-        // Update auth user email if user exists
+        // Update or create auth user
         if (currentStudent.user_id) {
+          // Update existing auth user email
           await supabase.auth.admin.updateUserById(currentStudent.user_id, {
             email: updates.email,
             email_confirm: false,
           });
+        } else {
+          // Create new auth user if one doesn't exist
+          const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+            email: updates.email,
+            email_confirm: false,
+            password: crypto.randomBytes(32).toString("hex"), // Temporary password
+          });
+
+          if (createError) {
+            console.error("Error creating auth user:", createError);
+          } else if (newUser) {
+            // Update student with new user_id
+            await supabase
+              .from("students")
+              .update({ user_id: newUser.user.id })
+              .eq("id", studentId);
+          }
         }
 
         // Send verification email

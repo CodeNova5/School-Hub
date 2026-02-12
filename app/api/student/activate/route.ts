@@ -57,15 +57,26 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = users.users.find(
+    let user = users.users.find(
       (u) => u.email === student.email
     );
 
+    // If user doesn't exist, create them during activation
     if (!user) {
-      return NextResponse.json(
-        { error: "Auth user not found" },
-        { status: 404 }
-      );
+      const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
+        email: student.email,
+        email_confirm: false,
+        password: password,
+      });
+
+      if (createError) {
+        return NextResponse.json(
+          { error: "Failed to create user: " + createError.message },
+          { status: 400 }
+        );
+      }
+
+      user = newUser.user;
     }
 
     // 4️⃣ Set password and confirm email

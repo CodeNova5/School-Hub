@@ -182,13 +182,30 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 return;
             }
 
-            // Fetch results for each student
+            // Get subject_class_ids for this class to filter results correctly
+            const { data: subjectClasses, error: scError } = await supabase
+                .from("subject_classes")
+                .select("id")
+                .eq("class_id", classId);
+
+            if (scError) throw scError;
+
+            const subjectClassIds = subjectClasses?.map(sc => sc.id) || [];
+
+            if (subjectClassIds.length === 0) {
+                setStudentResults([]);
+                setLoading(false);
+                return;
+            }
+
+            // Fetch results for each student - filtered by this class's subject_classes
             const { data: resultsData, error: resultsError } = await supabase
                 .from("results")
                 .select("*")
                 .eq("term_id", selectedTermId)
                 .eq("session_id", selectedSessionId)
-                .in("student_id", currentStudentIds);
+                .in("student_id", currentStudentIds)
+                .in("subject_class_id", subjectClassIds);
 
             if (resultsError) {
                 console.error("Error fetching results:", resultsError);
@@ -603,9 +620,25 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                 }
             }
 
-            // Update all results for each student with their position
+            // Get subject_class_ids for this class to update positions for this class only
+            const { data: classSubjectClasses, error: classScError } = await supabase
+                .from("subject_classes")
+                .select("id")
+                .eq("class_id", classId);
+
+            if (classScError) throw classScError;
+
+            const classSubjectClassIds = classSubjectClasses?.map(sc => sc.id) || [];
+
+            if (classSubjectClassIds.length === 0) {
+                toast.error("No subject classes found for this class");
+                setLoading(false);
+                return;
+            }
+
+            // Update all results for each student with their position - ONLY for this class
             const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
-                // Update all results for this student in this term and session
+                // Update all results for this student in this term and session for THIS CLASS ONLY
                 await supabase
                     .from("results")
                     .update({
@@ -615,7 +648,8 @@ export function ResultsTab({ classId, className, students }: ResultsTabProps) {
                     })
                     .eq("student_id", studentId)
                     .eq("term_id", selectedTermId)
-                    .eq("session_id", selectedSessionId);
+                    .eq("session_id", selectedSessionId)
+                    .in("subject_class_id", classSubjectClassIds);
             });
 
             await Promise.all(updatePromises);

@@ -280,19 +280,28 @@ export default function ResultEntry({
 
       setNextTermDate(nextTermDateValue || "");
 
-      // 7. Load existing results
+      // 7. Load existing results - filtered by this student's enrolled class
+      // Get subject_class_ids for the student's enrolled class
+      const { data: enrolledClassSubjects } = await supabase
+        .from("subject_classes")
+        .select("id")
+        .eq("class_id", studentData.class_id);
+
+      const enrolledSubjectClassIds = enrolledClassSubjects?.map(sc => sc.id) || [];
+
       const { data: existingResults } = await supabase
         .from("results")
         .select("*")
         .eq("student_id", studentId)
         .eq("session_id", sessionData.id)
-        .eq("term_id", termData!.id);
+        .eq("term_id", termData!.id)
+        .in("subject_class_id", enrolledSubjectClassIds);
 
       if (existingResults && existingResults.length > 0) {
         const first = existingResults[0];
         setClassTeacherRemark(first.class_teacher_remark || "");
         setPrincipalRemark(first.principal_remark || "");
-        // Only set position if it exists for THIS specific term
+        // Only set position for THIS student's enrolled class in this term
         setClassPosition(first.class_position ?? null);
         setTotalStudents(first.total_students ?? null);
         setClassAverage(first.class_average ?? null);

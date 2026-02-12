@@ -149,7 +149,7 @@ export default function TeacherDashboard() {
             title,
             due_date,
             subject_class_id,
-            subject_classes(subjects(name)),
+            subjects(name),
             assignment_submissions(id, grade)
           `);
 
@@ -254,23 +254,35 @@ export default function TeacherDashboard() {
         let recentAssignments: any[] = [];
         if (subjectClasses && subjectClasses.length > 0) {
           const subjectClassIds = subjectClasses.map(sc => sc.id);
-          const { data: assignmentsData, error: recentError } = await supabase
+          
+          let recentQuery = supabase
             .from('assignments')
             .select(`
               id,
               title,
               created_at,
               subject_class_id,
-              subject_classes(subjects(name)),
+              subjects(name),
               assignment_submissions(id)
             `)
             .order('created_at', { ascending: false })
             .limit(8);
 
+          // Filter by session/term
+          if (currentSession) {
+            recentQuery = recentQuery.eq('session_id', currentSession.id);
+          }
+          if (currentTerm) {
+            recentQuery = recentQuery.eq('term_id', currentTerm.id);
+          }
+
+          const { data: assignmentsDataRecent, error: recentError } = await recentQuery;
           if (recentError) throw recentError;
           
-          // Filter assignments for this teacher's subject classes
-          recentAssignments = assignmentsData?.filter(a => subjectClassIds.includes(a.subject_class_id)).slice(0, 4) || [];
+          // Filter assignments for this teacher's subject classes (client-side)
+          recentAssignments = assignmentsDataRecent
+            ?.filter((a: any) => subjectClassIds.includes(a.subject_class_id))
+            .slice(0, 4) || [];
         }
 
         const activities: RecentActivity[] = [];
@@ -283,7 +295,7 @@ export default function TeacherDashboard() {
             id: assignment.id,
             type: 'assignment',
             title: 'Assignment Created',
-            description: `"${assignment.title}" for ${assignment.subject_classes?.subjects?.name || 'Unknown Subject'}`,
+            description: `"${assignment.title}" for ${assignment.subjects?.name || 'Unknown Subject'}`,
             timestamp: timeAgo,
           });
 

@@ -95,22 +95,22 @@ export function Sidebar({ role }: SidebarProps) {
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out",
-          "bg-gradient-to-b from-slate-900 to-slate-800",
-          "border-r border-slate-700/50 shadow-lg",
+          "bg-white",
+          "border-r border-slate-200 shadow-lg",
           collapsed ? "w-20" : "w-64"
         )}
       >
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="flex h-16 items-center justify-between border-b border-slate-700/50 px-4">
+          <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
             {!collapsed && (
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-md">
                   <School className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <span className="block font-bold text-white text-sm">School MS</span>
-                  <span className="block text-xs text-slate-400">Management</span>
+                  <span className="block font-bold text-slate-900 text-sm">School MS</span>
+                  <span className="block text-xs text-slate-500">Management</span>
                 </div>
               </div>
             )}
@@ -122,7 +122,7 @@ export function Sidebar({ role }: SidebarProps) {
                   onClick={() => setCollapsed(!collapsed)}
                   className={cn(
                     "ml-auto h-9 w-9 rounded-lg transition-all duration-200",
-                    "hover:bg-slate-700/50 text-slate-300 hover:text-white"
+                    "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
                   )}
                 >
                   {collapsed ? (
@@ -154,7 +154,7 @@ export function Sidebar({ role }: SidebarProps) {
                             "relative overflow-hidden",
                             isActive
                               ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30"
-                              : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+                              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
                           )}
                         >
                           {isActive && (
@@ -186,9 +186,9 @@ export function Sidebar({ role }: SidebarProps) {
           </nav>
 
           {/* Footer spacer */}
-          <div className="border-t border-slate-700/50 p-4">
+          <div className="border-t border-slate-200 p-4">
             {!collapsed && (
-              <p className="text-xs text-slate-400 text-center">School Hub v1.0</p>
+              <p className="text-xs text-slate-500 text-center">School Hub v1.0</p>
             )}
           </div>
         </div>

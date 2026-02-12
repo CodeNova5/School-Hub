@@ -69,17 +69,19 @@ export default function TeacherSettingsPage() {
   async function handleResetPassword() {
     try {
       setResettingPassword(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (!user) {
-        toast.error('User not found');
+      if (!session) {
+        toast.error('Session not found');
         return;
       }
 
       const response = await fetch('/api/teacher/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
       });
 
       const data = await response.json();
@@ -98,6 +100,17 @@ export default function TeacherSettingsPage() {
       toast.error('Failed to send reset email');
     } finally {
       setResettingPassword(false);
+    }
+  }
+
+  async function handleSignOut() {
+    try {
+      await supabase.auth.signOut();
+      toast.success('Signed out successfully');
+      router.push('/teacher/login');
+    } catch (error: any) {
+      console.error('Error signing out:', error);
+      toast.error('Failed to sign out');
     }
   }
 
@@ -169,24 +182,33 @@ export default function TeacherSettingsPage() {
             <p className="text-sm text-gray-700">
               Reset your password to create a new one. A verification email will be sent to {teacher?.email}, and all active sessions will be terminated.
             </p>
-            <Button 
-              onClick={handleResetPassword}
-              disabled={resettingPassword}
-              variant="default"
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {resettingPassword ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Sending Email...
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4 mr-2" />
-                  Reset Password
-                </>
-              )}
-            </Button>
+            <div className="flex gap-3">
+              <Button 
+                onClick={handleResetPassword}
+                disabled={resettingPassword}
+                variant="default"
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                {resettingPassword ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending Email...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 mr-2" />
+                    Reset Password
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={handleSignOut}
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50"
+              >
+                Sign Out
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

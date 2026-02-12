@@ -89,7 +89,7 @@ export default function AdminAdmissionsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("pending");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -104,6 +104,11 @@ export default function AdminAdmissionsPage() {
 
   // Rejection reason
   const [rejectionReason, setRejectionReason] = useState("");
+
+  // Filter options
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [desiredClassFilter, setDesiredClassFilter] = useState("all");
 
   const supabase = createClientComponentClient();
 
@@ -120,7 +125,13 @@ export default function AdminAdmissionsPage() {
 
       if (!response.ok) throw new Error(data.error);
 
-      setApplications(data.applications || []);
+      const fetchedApps = data.applications || [];
+      setApplications(fetchedApps);
+
+      // Auto-fallback to "all" if pending is selected but empty
+      if (statusFilter === "pending" && fetchedApps.length === 0) {
+        setStatusFilter("all");
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -245,13 +256,38 @@ export default function AdminAdmissionsPage() {
 
   const filteredApplications = applications.filter((app) => {
     const searchLower = searchQuery.toLowerCase();
-    return (
+    
+    // Search filter
+    const matchesSearch =
       app.application_number.toLowerCase().includes(searchLower) ||
       app.first_name.toLowerCase().includes(searchLower) ||
       app.last_name.toLowerCase().includes(searchLower) ||
       app.parent_name.toLowerCase().includes(searchLower) ||
-      app.parent_email.toLowerCase().includes(searchLower)
-    );
+      app.parent_email.toLowerCase().includes(searchLower);
+
+    if (!matchesSearch) return false;
+
+    // Desired class filter
+    if (desiredClassFilter !== "all" && app.desired_class !== desiredClassFilter) {
+      return false;
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      const appDate = new Date(app.submitted_at).setHours(0, 0, 0, 0);
+      
+      if (startDate) {
+        const start = new Date(startDate).setHours(0, 0, 0, 0);
+        if (appDate < start) return false;
+      }
+      
+      if (endDate) {
+        const end = new Date(endDate).setHours(23, 59, 59, 999);
+        if (appDate > end) return false;
+      }
+    }
+
+    return true;
   });
 
   const stats = {
@@ -320,8 +356,10 @@ export default function AdminAdmissionsPage() {
             <CardDescription>Filter and search through applications</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
+            <div className="space-y-4">
+              {/* Search Bar */}
+              <div>
+                <Label className="text-sm mb-2 block">Search</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -332,20 +370,91 @@ export default function AdminAdmissionsPage() {
                   />
                 </div>
               </div>
-              <div className="w-full md:w-48">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <Filter className="h-4 w-4 mr-2" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
+
+              {/* Filter Row 1: Status and Desired Class */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm mb-2 block">Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <Filter className="h-4 w-4 mr-2" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-sm mb-2 block">Desired Class</Label>
+                  <Select value={desiredClassFilter} onValueChange={setDesiredClassFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Classes</SelectItem>
+                      {Array.from(new Set(applications.map((app) => app.desired_class))).map(
+                        (desiredClass) => (
+                          <SelectItem key={desiredClass} value={desiredClass}>
+                            {desiredClass}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              {/* Filter Row 2: Date Range */}
+              <div>
+                <Label className="text-sm mb-2 block">Date Range</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="start_date" className="text-xs text-gray-600">
+                      From
+                    </Label>
+                    <Input
+                      id="start_date"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="end_date" className="text-xs text-gray-600">
+                      To
+                    </Label>
+                    <Input
+                      id="end_date"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Clear Filters Button */}
+              {(searchQuery || startDate || endDate || desiredClassFilter !== "all") && (
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setStartDate("");
+                      setEndDate("");
+                      setDesiredClassFilter("all");
+                    }}
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

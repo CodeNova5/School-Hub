@@ -75,6 +75,7 @@ export default function TeachersPage() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectClasses, setSubjectClasses] = useState<SubjectClass[]>([]);
+  const [selectedClassForSubject, setSelectedClassForSubject] = useState<string>('');
 
   useEffect(() => {
     fetchTeachers();
@@ -345,10 +346,21 @@ export default function TeachersPage() {
     if (!assigningTeacher) return;
 
     const formData = new FormData(e.currentTarget);
-    const subjectClassId = formData.get('subject_class_id') as string;
+    const classId = formData.get('class_id') as string;
+    const subjectId = formData.get('subject_id') as string;
 
-    if (!subjectClassId) {
-      toast.error('Please select a subject class');
+    if (!classId || !subjectId) {
+      toast.error('Please select both a class and a subject');
+      return;
+    }
+
+    // Find the subject_class that matches the selected class and subject
+    const subjectClass = subjectClasses.find(
+      sc => sc.class_id === classId && sc.subject_id === subjectId
+    );
+
+    if (!subjectClass) {
+      toast.error('Selected subject is not available for this class');
       return;
     }
 
@@ -356,7 +368,7 @@ export default function TeachersPage() {
     const { error } = await supabase
       .from('subject_classes')
       .update({ teacher_id: assigningTeacher.id })
-      .eq('id', subjectClassId);
+      .eq('id', subjectClass.id);
 
     if (error) {
       toast.error('Failed to assign subject class');
@@ -364,6 +376,7 @@ export default function TeachersPage() {
       toast.success('Subject class assigned successfully!');
       setIsAssignSubjectDialogOpen(false);
       setAssigningTeacher(null);
+      setSelectedClassForSubject('');
       fetchTeachers();
       fetchSubjectClasses();
     }
@@ -376,6 +389,7 @@ export default function TeachersPage() {
 
   function openAssignSubjectDialog(teacher: Teacher) {
     setAssigningTeacher(teacher);
+    setSelectedClassForSubject('');
     setIsAssignSubjectDialogOpen(true);
   }
 
@@ -845,32 +859,64 @@ export default function TeachersPage() {
                   <p className="text-sm text-gray-600 mb-4">
                     Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> to a subject class
                   </p>
-                  <Label htmlFor="subject_class_id">Select Subject Class</Label>
-                  <select
-                    id="subject_class_id"
-                    name="subject_class_id"
-                    className="w-full h-10 px-3 border rounded-md mt-1"
-                    required
-                  >
-                    <option value="">Choose a subject class...</option>
-                    {subjectClasses.map((sc) => (
-                      <option key={sc.id} value={sc.id}>
-                        {sc.subjects?.name} - {sc.classes?.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-2">
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="class_id">Select Class</Label>
+                      <select
+                        id="class_id"
+                        name="class_id"
+                        className="w-full h-10 px-3 border rounded-md mt-1"
+                        value={selectedClassForSubject}
+                        onChange={(e) => setSelectedClassForSubject(e.target.value)}
+                        required
+                      >
+                        <option value="">Choose a class...</option>
+                        {classes.map((cls) => (
+                          <option key={cls.id} value={cls.id}>
+                            {cls.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedClassForSubject && (
+                      <div>
+                        <Label htmlFor="subject_id">Select Subject</Label>
+                        <select
+                          id="subject_id"
+                          name="subject_id"
+                          className="w-full h-10 px-3 border rounded-md mt-1"
+                          required
+                        >
+                          <option value="">Choose a subject...</option>
+                          {subjectClasses
+                            .filter(sc => sc.class_id === selectedClassForSubject)
+                            .map((sc) => (
+                              <option key={sc.id} value={sc.subject_id}>
+                                {sc.subjects?.name}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <p className="text-xs text-gray-500 mt-3">
                     Note: This will replace any existing teacher assignment for this subject class.
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
+                  <Button type="submit" className="flex-1" disabled={!selectedClassForSubject}>
                     Assign Subject
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setIsAssignSubjectDialogOpen(false)}
+                    onClick={() => {
+                      setIsAssignSubjectDialogOpen(false);
+                      setSelectedClassForSubject('');
+                    }}
                   >
                     Cancel
                   </Button>

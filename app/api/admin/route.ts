@@ -468,7 +468,6 @@ export async function POST(req: NextRequest) {
           // Reset activation when email changes
           updateData.activation_used = false;
           updateData.is_active = false;
-          updateData.status = "inactive";
         }
 
         const { error: updateError } = await supabaseAdmin

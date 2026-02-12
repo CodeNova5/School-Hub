@@ -26,11 +26,21 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
+type SubjectAssignment = {
+  classId: string;
+  className: string;
+  subjects: Array<{
+    id: string;
+    name: string;
+  }>;
+};
+
 type TeacherWithDetails = Teacher & {
   assignedClass?: string;
   assignedClassId?: string;
   assignedSubjects?: string[];
   subjectCount?: number;
+  subjectAssignmentsByClass?: SubjectAssignment[];
 };
 
 type Class = {
@@ -87,23 +97,43 @@ export default function TeachersPage() {
         .from('classes')
         .select('id, name, class_teacher_id');
 
-      // Fetch all subject_classes (for assignments)
+      // Fetch all subject_classes with related data (for assignments)
       const { data: allSubjectClasses } = await supabase
         .from('subject_classes')
-        .select('id, subject_id, class_id, teacher_id');
+        .select('id, subject_id, class_id, teacher_id, subjects(id, name), classes(id, name)');
 
       // Build teacher details
       const teachersWithDetails = (teachersData || []).map((teacher: any) => {
         // Assigned class
         const assignedClassObj = (allClasses || []).find(c => c.class_teacher_id === teacher.id);
-        // Assigned subject_classes
-        const assignedSubjectClasses = (allSubjectClasses || []).filter(sc => sc.teacher_id === teacher.id);
+        // Assigned subject_classes with full details
+        const assignedSubjectClasses = (allSubjectClasses || []).filter(sc => sc.teacher_id === teacher.id) as any[];
+        
+        // Group subjects by class
+        const subjectsByClass: { [key: string]: SubjectAssignment } = {};
+        assignedSubjectClasses.forEach(sc => {
+          if (sc.classes && sc.subjects) {
+            if (!subjectsByClass[sc.class_id]) {
+              subjectsByClass[sc.class_id] = {
+                classId: sc.class_id,
+                className: sc.classes.name,
+                subjects: [],
+              };
+            }
+            subjectsByClass[sc.class_id].subjects.push({
+              id: sc.subjects.id,
+              name: sc.subjects.name,
+            });
+          }
+        });
+        
         return {
           ...teacher,
           assignedClass: assignedClassObj?.name,
           assignedClassId: assignedClassObj?.id,
           assignedSubjects: assignedSubjectClasses.map(sc => `subject-${sc.subject_id}-class-${sc.class_id}`),
           subjectCount: assignedSubjectClasses.length,
+          subjectAssignmentsByClass: Object.values(subjectsByClass),
         };
       });
       setTeachers(teachersWithDetails);
@@ -590,77 +620,106 @@ export default function TeachersPage() {
 
         {/* View Teacher Details Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Teacher Details</DialogTitle>
             </DialogHeader>
             {viewingTeacher && (
               <div className="space-y-6">
-                <div className="flex items-center gap-4">
+                {/* Header with Avatar */}
+                <div className="flex items-center gap-4 pb-4 border-b">
                   <Avatar className="h-20 w-20">
-                    <AvatarFallback className="bg-green-100 text-green-700 text-2xl font-semibold">
+                    <AvatarFallback className="bg-gradient-to-br from-green-100 to-green-200 text-green-700 text-2xl font-semibold">
                       {getInitials(viewingTeacher.first_name, viewingTeacher.last_name)}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <h3 className="text-2xl font-bold">
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-gray-900">
                       {viewingTeacher.first_name} {viewingTeacher.last_name}
                     </h3>
-                    <p className="text-gray-600">{viewingTeacher.qualification || 'N/A'}</p>
-                    <Badge variant={viewingTeacher.status === 'active' ? 'default' : 'secondary'}>
-                      {viewingTeacher.status}
-                    </Badge>
+                    <p className="text-sm text-gray-600 mt-1">{viewingTeacher.qualification || 'N/A'}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge variant={viewingTeacher.status === 'active' ? 'default' : 'secondary'}>
+                        {viewingTeacher.status}
+                      </Badge>
+                      {viewingTeacher.specialization && (
+                        <Badge variant="outline" className="text-xs">
+                          {viewingTeacher.specialization}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-gray-600">Staff ID</Label>
-                    <p className="font-semibold">{viewingTeacher.staff_id}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Specialization</Label>
-                    <p className="font-semibold">{viewingTeacher.specialization || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Email</Label>
-                    <p className="font-semibold">{viewingTeacher.email}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-600">Phone</Label>
-                    <p className="font-semibold">{viewingTeacher.phone || 'N/A'}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <Label className="text-gray-600">Address</Label>
-                    <p className="font-semibold">{viewingTeacher.address || 'N/A'}</p>
-                  </div>
-                </div>
-
+                {/* Basic Information */}
                 <div>
-                  <Label className="text-gray-600">Class Teacher Assignment</Label>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Basic Information</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Staff ID</Label>
+                      <p className="font-mono font-semibold text-gray-900 mt-1">{viewingTeacher.staff_id}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Email</Label>
+                      <p className="font-semibold text-gray-900 mt-1 text-sm break-all">{viewingTeacher.email}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Phone</Label>
+                      <p className="font-semibold text-gray-900 mt-1">{viewingTeacher.phone || 'N/A'}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Specialization</Label>
+                      <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.specialization || 'N/A'}</p>
+                    </div>
+                  </div>
+                  {viewingTeacher.address && (
+                    <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Address</Label>
+                      <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.address}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Class Teacher Assignment */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Class Assignment</h4>
                   {viewingTeacher.assignedClass ? (
-                    <div className="mt-2">
-                      <Badge variant="outline" className="text-base px-3 py-1">
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                      <Badge variant="outline" className="text-base px-3 py-1.5 bg-white border-blue-300">
                         {viewingTeacher.assignedClass}
                       </Badge>
                     </div>
                   ) : (
-                    <p className="text-gray-500 mt-2">Not assigned to any class</p>
+                    <div className="bg-gray-50 rounded-lg p-4 text-center">
+                      <p className="text-gray-500 text-sm">Not assigned to any class</p>
+                    </div>
                   )}
                 </div>
 
+                {/* Subject Assignments */}
                 <div>
-                  <Label className="text-gray-600">Subject Assignments</Label>
-                  {viewingTeacher.assignedSubjects && viewingTeacher.assignedSubjects.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {viewingTeacher.assignedSubjects.map((subject, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-sm">
-                          {subject}
-                        </Badge>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Subject Teaching</h4>
+                  {viewingTeacher.subjectAssignmentsByClass && viewingTeacher.subjectAssignmentsByClass.length > 0 ? (
+                    <div className="space-y-3">
+                      {viewingTeacher.subjectAssignmentsByClass.map((assignment, classIdx) => (
+                        <div key={classIdx} className="bg-amber-50 rounded-lg border border-amber-200 overflow-hidden">
+                          <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
+                            <h5 className="font-semibold text-amber-900 text-sm">{assignment.className}</h5>
+                          </div>
+                          <div className="p-3 flex flex-wrap gap-2">
+                            {assignment.subjects.map((subject, subjIdx) => (
+                              <Badge key={subjIdx} variant="secondary" className="bg-amber-200 text-amber-900 font-medium">
+                                {subject.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 mt-2">Not assigned to any subjects</p>
+                    <div className="bg-gray-50 rounded-lg p-4 text-center">
+                      <p className="text-gray-500 text-sm">Not assigned to any subjects</p>
+                    </div>
                   )}
                 </div>
               </div>

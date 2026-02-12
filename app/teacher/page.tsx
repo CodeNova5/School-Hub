@@ -148,7 +148,6 @@ export default function TeacherDashboard() {
             id,
             title,
             due_date,
-            subject_class_id,
             subjects(name),
             assignment_submissions(id, grade)
           `);

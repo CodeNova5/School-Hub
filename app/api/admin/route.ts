@@ -2,6 +2,8 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 
 const supabase = createRouteHandlerClient({ cookies });
 
@@ -439,8 +441,6 @@ export async function POST(req: NextRequest) {
 
       try {
         const { first_name, last_name, qualification, specialization, address, status, phone, email } = teacherData;
-        const crypto = require("crypto");
-        const nodemailer = require("nodemailer");
 
         // Get current teacher record
         const { data: currentTeacher } = await supabaseAdmin
@@ -451,7 +451,6 @@ export async function POST(req: NextRequest) {
 
         // Check if email is being changed
         const emailChanged = email && oldEmail && email !== oldEmail;
-        let needsActivation = false;
 
         // Update teacher record
         const updateData: any = {
@@ -466,7 +465,10 @@ export async function POST(req: NextRequest) {
 
         if (emailChanged) {
           updateData.email = email;
-          needsActivation = true;
+          // Reset activation when email changes
+          updateData.activation_used = false;
+          updateData.is_active = false;
+          updateData.status = "inactive";
         }
 
         const { error: updateError } = await supabaseAdmin

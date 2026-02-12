@@ -94,40 +94,59 @@ export async function POST(req: Request) {
 
     // If email changed, update auth user and send verification email
     if (emailChanged && currentStudent.user_id && rawToken) {
-      // Update auth user email
-      await supabase.auth.admin.updateUserById(currentStudent.user_id, {
-        email: updates.email,
-        email_confirm: false,
-      });
+      try {
+        // Update auth user email
+        await supabase.auth.admin.updateUserById(currentStudent.user_id, {
+          email: updates.email,
+          email_confirm: false,
+        });
 
-      // Send verification email
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
+        // Send verification email
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+          console.warn("Email credentials not configured");
+          return NextResponse.json({
+            success: true,
+            message: "Student updated but email configuration is missing. Please configure EMAIL_USER and EMAIL_PASS environment variables.",
+            student: updatedStudent,
+          });
+        }
 
-      const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${rawToken}`;
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+        });
 
-      await transporter.sendMail({
-        from: `"School Hub" <${process.env.EMAIL_USER}>`,
-        to: updates.email,
-        subject: "Verify Your New Email Address",
-        html: `
-          <p>Hello ${currentStudent.first_name},</p>
-          <p>Your email address has been updated in the School Hub system.</p>
-          <p>Click the link below to verify your new email address:</p>
-          <p>
-            <a href="${activationLink}" style="color:#2563eb; text-decoration:none;">
-              Verify Email Address
-            </a>
-          </p>
-          <p>This link expires in 24 hours.</p>
-          <p>If you did not request this change, please contact your administrator.</p>
-        `,
-      });
+        const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${rawToken}`;
+
+        await transporter.sendMail({
+          from: `"School Hub" <${process.env.EMAIL_USER}>`,
+          to: updates.email,
+          subject: "Verify Your New Email Address",
+          html: `
+            <p>Hello ${currentStudent.first_name},</p>
+            <p>Your email address has been updated in the School Hub system.</p>
+            <p>Click the link below to verify your new email address:</p>
+            <p>
+              <a href="${activationLink}" style="color:#2563eb; text-decoration:none;">
+                Verify Email Address
+              </a>
+            </p>
+            <p>This link expires in 24 hours.</p>
+            <p>If you did not request this change, please contact your administrator.</p>
+          `,
+        });
+      } catch (emailError: any) {
+        console.error("Error sending verification email:", emailError);
+        return NextResponse.json({
+          success: true,
+          message: "Student updated successfully, but verification email could not be sent. Error: " + emailError.message,
+          student: updatedStudent,
+          emailError: emailError.message,
+        });
+      }
     }
 
 

@@ -439,58 +439,113 @@ export async function POST(req: NextRequest) {
 
       try {
         const { first_name, last_name, qualification, specialization, address, status, phone, email } = teacherData;
+        const crypto = require("crypto");
+        const nodemailer = require("nodemailer");
+
+        // Get current teacher record
+        const { data: currentTeacher } = await supabaseAdmin
+          .from("teachers")
+          .select("user_id, email")
+          .eq("id", teacherId)
+          .single();
 
         // Check if email is being changed
         const emailChanged = email && oldEmail && email !== oldEmail;
+        let needsActivation = false;
 
         // Update teacher record
+        const updateData: any = {
+          first_name,
+          last_name,
+          qualification,
+          specialization,
+          address,
+          status,
+          phone,
+        };
+
+        if (emailChanged) {
+          updateData.email = email;
+          needsActivation = true;
+        }
+
         const { error: updateError } = await supabaseAdmin
           .from("teachers")
-          .update({
-            first_name,
-            last_name,
-            qualification,
-            specialization,
-            address,
-            status,
-            phone,
-            ...(emailChanged && { email }),
-          })
+          .update(updateData)
           .eq("id", teacherId);
 
         if (updateError) throw updateError;
 
-        // If email changed, send verification link to new email
+        // If email changed, handle auth and send activation email
         if (emailChanged) {
           try {
-            // Get the teacher's auth user_id
-            const { data: teacherRecord } = await supabaseAdmin
-              .from("teachers")
-              .select("user_id")
-              .eq("id", teacherId)
-              .single();
-
-            if (teacherRecord?.user_id) {
-              // Update the auth user email and set email_confirmed to false
+            // Case 1: Teacher already has an auth account
+            if (currentTeacher?.user_id) {
+              // Update the auth user email
               const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(
-                teacherRecord.user_id,
-                { email, email_confirm: false }
+                currentTeacher.user_id,
+                { email }
               );
 
               if (updateAuthError) {
                 console.error("Error updating auth user email:", updateAuthError);
               }
-
-              // Send verification email
-              const { error: sendEmailError } = await supabaseAdmin.auth.resend({
-                type: "signup",
+            } else {
+              // Case 2: Teacher doesn't have an auth account, create one
+              const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
                 email,
+                password: crypto.randomUUID(),
+                email_confirm: true,
+                user_metadata: { role: "teacher" },
               });
 
-              if (sendEmailError) {
-                console.error("Error sending verification email:", sendEmailError);
+              if (authError) {
+                console.error("Error creating auth user:", authError);
+              } else if (authData?.user?.id) {
+                // Update teacher record with the new user_id
+                await supabaseAdmin
+                  .from("teachers")
+                  .update({ user_id: authData.user.id })
+                  .eq("id", teacherId);
               }
             }
+
+            // Generate activation token
+            const rawToken = crypto.randomBytes(32).toString("hex");
+            const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+            // Update activation token
+            await supabaseAdmin
+              .from("teachers")
+              .update({
+                activation_token_hash: tokenHash,
+                activation_expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 hours
+              })
+              .eq("id", teacherId);
+
+            // Send activation email via nodemailer
+            const transporter = nodemailer.createTransport({
+              service: "gmail",
+              auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+              },
+            });
+
+            const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/teacher/activate?token=${rawToken}`;
+
+            await transporter.sendMail({
+              from: `"School Hub" <${process.env.EMAIL_USER}>`,
+              to: email,
+              subject: "Activate Your Updated Teacher Account",
+              html: `
+                <p>Hello ${first_name},</p>
+                <p>Your email address has been updated.</p>
+                <p>Click the link below to activate your account with the new email:</p>
+                <p><a href="${activationLink}">Activate Account</a></p>
+                <p>This link expires in 24 hours.</p>
+              `,
+            });
           } catch (emailError: any) {
             console.error("Error handling email change:", emailError);
             // Continue anyway - teacher record was updated

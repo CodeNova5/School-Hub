@@ -571,7 +571,7 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
 
     function handleViewStudentReport(studentId: string) {
         // Navigate to student report page
-        window.open(`/admin/students/${studentId}/report?term=${selectedTermId}`, "_blank");
+        window.open(`/teacher/students/${studentId}/report?term=${selectedTermId}`, "_blank");
     }
 
     async function handleCalculatePositions() {

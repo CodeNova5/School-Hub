@@ -21,7 +21,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 interface NavItem {
   href: string;
@@ -36,6 +37,40 @@ interface SidebarProps {
 export function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [hasAssignedClasses, setHasAssignedClasses] = useState(false);
+
+  useEffect(() => {
+    if (role === 'teacher') {
+      checkTeacherClasses();
+    }
+  }, [role]);
+
+  async function checkTeacherClasses() {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) return;
+
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (teacherError || !teacherData?.id) return;
+
+      const { data: classes, error: classesError } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('class_teacher_id', teacherData.id)
+        .limit(1);
+
+      if (!classesError && classes && classes.length > 0) {
+        setHasAssignedClasses(true);
+      }
+    } catch (error) {
+      console.error("Error checking teacher classes:", error);
+    }
+  }
 
   const adminNav: NavItem[] = [
     { href: '/admin', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
@@ -56,7 +91,7 @@ export function Sidebar({ role }: SidebarProps) {
 
   const teacherNav: NavItem[] = [
     { href: '/teacher', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: '/teacher/classes', label: 'Class', icon: <School className="h-5 w-5" /> },
+    ...(hasAssignedClasses ? [{ href: '/teacher/classes', label: 'Class', icon: <School className="h-5 w-5" /> }] : []),
     { href: '/teacher/students', label: 'Students', icon: <Users className="h-5 w-5" /> },
     { href: '/teacher/subjects', label: 'Subjects', icon: <BookOpen className="h-5 w-5" /> },
     { href: '/teacher/results', label: 'Results', icon: <GraduationCap className="h-5 w-5" /> },

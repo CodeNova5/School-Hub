@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { ChevronRight, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 type ClassData = {
   id: string;
@@ -16,23 +16,6 @@ type ClassData = {
   education_level: string;
   class_teacher_id: string | null;
   class_code: string | null;
-};
-
-type SubjectClass = {
-  id: string;
-  subject_code: string;
-  subject: {
-    id: string;
-    name: string;
-    is_optional: boolean;
-    religion?: string | null;
-    department?: string | null;
-  };
-  teacher: {
-    id: string;
-    first_name: string;
-    last_name: string;
-  } | null;
 };
 
 // Skeleton loader component

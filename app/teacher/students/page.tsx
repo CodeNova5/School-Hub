@@ -9,7 +9,6 @@ import { supabase } from '@/lib/supabase';
 import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
-import { StudentSubjectsModal } from '@/components/student-subjects-modal';
 import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';

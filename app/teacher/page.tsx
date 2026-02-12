@@ -129,19 +129,22 @@ export default function TeacherDashboard() {
         // Fetch assignments for this teacher
         let assignments: any[] = [];
         if (subjectClasses && subjectClasses.length > 0) {
+          const subjectClassIds = subjectClasses.map(sc => sc.id);
           const { data: assignmentsData, error: assignmentError } = await supabase
             .from('assignments')
             .select(`
               id,
               title,
               due_date,
+              subject_class_id,
               subject_classes(subjects(name)),
               assignment_submissions(id, grade)
-            `)
-            .in('subject_class_id', subjectClasses.map(sc => sc.id));
+            `);
 
           if (assignmentError) throw assignmentError;
-          assignments = assignmentsData || [];
+          
+          // Filter assignments for this teacher's subject classes
+          assignments = assignmentsData?.filter(a => subjectClassIds.includes(a.subject_class_id)) || [];
         }
 
         const pendingAssignments = assignments?.filter(
@@ -225,21 +228,24 @@ export default function TeacherDashboard() {
         // Fetch recent activities (recent assignments)
         let recentAssignments: any[] = [];
         if (subjectClasses && subjectClasses.length > 0) {
+          const subjectClassIds = subjectClasses.map(sc => sc.id);
           const { data: assignmentsData, error: recentError } = await supabase
             .from('assignments')
             .select(`
               id,
               title,
               created_at,
+              subject_class_id,
               subject_classes(subjects(name)),
               assignment_submissions(id)
             `)
-            .in('subject_class_id', subjectClasses.map(sc => sc.id))
             .order('created_at', { ascending: false })
-            .limit(4);
+            .limit(8);
 
           if (recentError) throw recentError;
-          recentAssignments = assignmentsData || [];
+          
+          // Filter assignments for this teacher's subject classes
+          recentAssignments = assignmentsData?.filter(a => subjectClassIds.includes(a.subject_class_id)).slice(0, 4) || [];
         }
 
         const activities: RecentActivity[] = [];
@@ -271,18 +277,23 @@ export default function TeacherDashboard() {
 
         // Calculate class performance from results
         if (subjectClasses && subjectClasses.length > 0) {
+          const subjectClassIds = subjectClasses.map(sc => sc.id);
           const { data: results, error: resultsError } = await supabase
             .from('results')
             .select(`
-              students(class_id),
-              exam
-            `)
-            .in('subject_class_id', subjectClasses.map(sc => sc.id));
+              id,
+              subject_class_id,
+              student_id,
+              exam,
+              students(class_id)
+            `);
 
           if (!resultsError && results) {
+            // Filter results for this teacher's subject classes
+            const filteredResults = results.filter(r => subjectClassIds.includes(r.subject_class_id));
             const performanceMap: { [key: string]: { total: number; count: number } } = {};
 
-            results.forEach((result: any) => {
+            filteredResults.forEach((result: any) => {
               const classId = result.students?.class_id;
               if (classId && result.exam !== null) {
                 if (!performanceMap[classId]) {

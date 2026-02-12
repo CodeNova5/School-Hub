@@ -126,25 +126,50 @@ export default function TeacherDashboard() {
 
         if (subjectError) throw subjectError;
 
-        // Fetch assignments for this teacher
+        // Fetch assignments for this teacher (using direct teacher_id query)
         let assignments: any[] = [];
-        if (subjectClasses && subjectClasses.length > 0) {
-          const subjectClassIds = subjectClasses.map(sc => sc.id);
-          const { data: assignmentsData, error: assignmentError } = await supabase
-            .from('assignments')
-            .select(`
-              id,
-              title,
-              due_date,
-              subject_class_id,
-              subject_classes(subjects(name)),
-              assignment_submissions(id, grade)
-            `);
+        
+        // Get current session and term
+        const { data: currentSession } = await supabase
+          .from("sessions")
+          .select("id")
+          .eq("is_current", true)
+          .single();
 
-          if (assignmentError) throw assignmentError;
-          
-          // Filter assignments for this teacher's subject classes
-          assignments = assignmentsData?.filter(a => subjectClassIds.includes(a.subject_class_id)) || [];
+        const { data: currentTerm } = await supabase
+          .from("terms")
+          .select("id")
+          .eq("is_current", true)
+          .single();
+
+        let assignmentQuery = supabase
+          .from('assignments')
+          .select(`
+            id,
+            title,
+            due_date,
+            subject_class_id,
+            subject_classes(subjects(name)),
+            assignment_submissions(id, grade)
+          `);
+
+        // Filter by teacher
+        if (currentSession) {
+          assignmentQuery = assignmentQuery.eq('session_id', currentSession.id);
+        }
+        if (currentTerm) {
+          assignmentQuery = assignmentQuery.eq('term_id', currentTerm.id);
+        }
+        
+        const { data: assignmentsData, error: assignmentError } = await assignmentQuery;
+        if (assignmentError) throw assignmentError;
+        
+        // Filter assignments for this teacher's subject classes (client-side)
+        if (assignmentsData && subjectClasses && subjectClasses.length > 0) {
+          const subjectClassIds = subjectClasses.map(sc => sc.id);
+          assignments = assignmentsData.filter((a: any) => 
+            subjectClassIds.includes(a.subject_class_id)
+          );
         }
 
         const pendingAssignments = assignments?.filter(
@@ -278,7 +303,8 @@ export default function TeacherDashboard() {
         // Calculate class performance from results
         if (subjectClasses && subjectClasses.length > 0) {
           const subjectClassIds = subjectClasses.map(sc => sc.id);
-          const { data: results, error: resultsError } = await supabase
+          
+          let resultsQuery = supabase
             .from('results')
             .select(`
               id,
@@ -287,6 +313,16 @@ export default function TeacherDashboard() {
               exam,
               students(class_id)
             `);
+
+          // Filter by session/term
+          if (currentSession) {
+            resultsQuery = resultsQuery.eq('session_id', currentSession.id);
+          }
+          if (currentTerm) {
+            resultsQuery = resultsQuery.eq('term_id', currentTerm.id);
+          }
+
+          const { data: results, error: resultsError } = await resultsQuery;
 
           if (!resultsError && results) {
             // Filter results for this teacher's subject classes

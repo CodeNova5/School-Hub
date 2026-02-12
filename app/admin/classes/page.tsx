@@ -268,37 +268,37 @@ export default function ClassesPage() {
         {/* HEADER */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Classes</h1>
-            <p className="text-gray-600">Manage all classes in the school</p>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Classes</h1>
+            <p className="text-gray-500 mt-2">Manage and organize all classes efficiently</p>
           </div>
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingClass(null)}>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button onClick={() => setEditingClass(null)} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300">
+                <Plus className="mr-2 h-5 w-5" />
                 Add Class
               </Button>
             </DialogTrigger>
 
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] overflow-y-auto border-0 shadow-2xl">
               <DialogHeader>
-                <DialogTitle>{editingClass ? "Edit Class" : "Add Class"}</DialogTitle>
+                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{editingClass ? "Edit Class" : "Create New Class"}</DialogTitle>
               </DialogHeader>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-6">
                 {/* EDUCATION LEVEL */}
                 <div>
-                  <Label>Education Level</Label>
+                  <Label className="text-sm font-semibold text-gray-700">Education Level</Label>
                   <select
                     value={selectedEducationLevel}
                     onChange={(e) => {
                       setSelectedEducationLevel(e.target.value);
                       setSelectedLevel("");
                     }}
-                    className="w-full px-3 py-2 border rounded-md"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     required
                   >
-                    <option value="">Select</option>
+                    <option value="">Select an education level</option>
                     {Object.keys(EDUCATION_LEVELS).map((lvl) => (
                       <option key={lvl}>{lvl}</option>
                     ))}
@@ -308,14 +308,14 @@ export default function ClassesPage() {
                 {/* CLASS LEVEL */}
                 {selectedEducationLevel && (
                   <div>
-                    <Label>Class Level</Label>
+                    <Label className="text-sm font-semibold text-gray-700">Class Level</Label>
                     <select
                       value={selectedLevel}
                       onChange={(e) => setSelectedLevel(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md"
+                      className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                       required
                     >
-                      <option value="">Select Level</option>
+                      <option value="">Select a level</option>
                       {EDUCATION_LEVELS[
                         selectedEducationLevel as keyof typeof EDUCATION_LEVELS
                       ].map((level) => (
@@ -326,24 +326,24 @@ export default function ClassesPage() {
                 )}
 
                 <div>
-                  <Label>Stream (optional)</Label>
+                  <Label className="text-sm font-semibold text-gray-700">Stream (Optional)</Label>
                   <Input
-                    placeholder="A, B, C"
+                    placeholder="e.g., A, B, C"
                     value={stream}
                     onChange={(e) => setStream(e.target.value.toUpperCase())}
+                    className="px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   />
                 </div>
 
-
                 {/* CLASS TEACHER */}
                 <div>
-                  <Label>Class Teacher</Label>
+                  <Label className="text-sm font-semibold text-gray-700">Class Teacher</Label>
                   <select
                     name="class_teacher_id"
-                    className="w-full px-3 py-2 border rounded-md"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     defaultValue={editingClass?.class_teacher_id || ""}
                   >
-                    <option value="">None</option>
+                    <option value="">Select a teacher</option>
                     {teachers.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.first_name} {t.last_name}
@@ -352,11 +352,11 @@ export default function ClassesPage() {
                   </select>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
-                    {editingClass ? "Update" : "Create"}
+                <div className="flex gap-3 pt-4">
+                  <Button type="submit" className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-2 rounded-lg font-semibold transition-all duration-300">
+                    {editingClass ? "Update Class" : "Create Class"}
                   </Button>
-                  <Button variant="outline" type="button" onClick={closeDialog}>
+                  <Button variant="outline" type="button" onClick={closeDialog} className="flex-1 border-gray-300 hover:bg-gray-50">
                     Cancel
                   </Button>
                 </div>
@@ -366,26 +366,26 @@ export default function ClassesPage() {
         </div>
 
         {/* SEARCH & FILTER */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Search & Filters</CardTitle>
+        <Card className="border-0 shadow-md bg-white">
+          <CardHeader className="pb-4 border-b border-gray-100">
+            <CardTitle className="text-lg font-semibold text-gray-800">Search & Filter</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-4 top-3.5 h-5 w-5 text-blue-400" />
                 <Input
-                  placeholder="Search classes..."
+                  placeholder="Search by class name or level..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-12 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               <select
                 value={filterLevel}
                 onChange={(e) => setFilterLevel(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                className="px-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               >
                 <option value="">All Levels</option>
                 {Object.entries(EDUCATION_LEVELS).map(([group, levels]) => (
@@ -403,78 +403,93 @@ export default function ClassesPage() {
         </Card>
 
         {/* CLASS LIST */}
-        {Object.keys(groupedClasses).map((group) => (
-          <Card key={group}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {group}
-                <Badge variant="outline">
-                  {groupedClasses[group].length} classes
-                </Badge>
-              </CardTitle>
-            </CardHeader>
+        {Object.keys(groupedClasses).length > 0 ? (
+          Object.keys(groupedClasses).map((group) => (
+            <div key={group}>
+              <div className="mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="h-1 w-1 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+                  <h2 className="text-2xl font-bold text-gray-800">{group}</h2>
+                  <Badge className="bg-blue-100 text-blue-700 font-semibold">
+                    {groupedClasses[group].length} class{groupedClasses[group].length !== 1 ? 'es' : ''}
+                  </Badge>
+                </div>
+              </div>
 
-            <CardContent>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {groupedClasses[group].map((cls) => (
-                  <Card key={cls.id} className="hover:shadow-lg transition">
-                    <CardContent className="p-6">
+                  <div key={cls.id} className="group relative bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-500 overflow-hidden border border-gray-100">
+                    {/* Gradient Background */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-blue-50 to-indigo-50 rounded-full -mr-8 -mt-8 group-hover:scale-150 transition-transform duration-500"></div>
+                    
+                    <div className="relative p-6 z-10">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                          <h3 className="font-semibold text-lg">{cls.name}</h3>
-
-                          <div className="flex gap-2 mt-2">
-                            <Badge>{cls.level}</Badge>
-                            {cls.stream && <Badge variant="secondary">{cls.stream}</Badge>}
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm">
+                              {cls.level.split(' ')[1]?.[0] || cls.level[0]}
+                            </div>
+                            <h3 className="font-bold text-lg text-gray-800">{cls.name}</h3>
                           </div>
 
-                          <div className="text-sm mt-3 space-y-1 text-gray-600">
-                            {cls.teacherName && (
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4" />
-                                {cls.teacherName}
-                              </div>
-                            )}
-
-                            <div className="flex items-center gap-2">
-                              <Users className="h-4 w-4" />
-                              {cls.studentCount} students
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <BookOpen className="h-4 w-4" />
-                              {cls.subjectCount} subjects
-                            </div>
+                          <div className="flex gap-2 mt-3 flex-wrap">
+                            <Badge className="bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 font-semibold">{cls.level}</Badge>
+                            {cls.stream && <Badge className="bg-purple-100 text-purple-700 font-semibold">{cls.stream}</Badge>}
                           </div>
                         </div>
-                        <Link href={`/admin/classes/${cls.id}`}>
-                          <Button size="sm" variant="outline">
-                            Manage
-                          </Button>
-                        </Link>
 
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(cls)}>
-                            <Edit className="h-4 w-4" />
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(cls)} className="hover:bg-blue-50">
+                            <Edit className="h-4 w-4 text-blue-600" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(cls.id)}
-                          >
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(cls.id)} className="hover:bg-red-50">
                             <Trash2 className="h-4 w-4 text-red-600" />
                           </Button>
                         </div>
                       </div>
 
+                      <div className="space-y-3 mb-4 pt-4 border-t border-gray-100">
+                        {cls.teacherName && (
+                          <div className="flex items-center gap-3 text-gray-700">
+                            <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                              <User className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <span className="text-sm font-medium">{cls.teacherName}</span>
+                          </div>
+                        )}
 
-                    </CardContent>
-                  </Card>
+                        <div className="flex items-center gap-3 text-gray-700">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                            <Users className="h-4 w-4 text-indigo-600" />
+                          </div>
+                          <span className="text-sm font-medium">{cls.studentCount} student{cls.studentCount !== 1 ? 's' : ''}</span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-gray-700">
+                          <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                            <BookOpen className="h-4 w-4 text-purple-600" />
+                          </div>
+                          <span className="text-sm font-medium">{cls.subjectCount} subject{cls.subjectCount !== 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+
+                      <Link href={`/admin/classes/${cls.id}`} className="w-full block">
+                        <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-2 rounded-lg transition-all duration-300">
+                          Manage Class
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          ))
+        ) : (
+          <div className="text-center py-12">
+            <BookOpen className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 text-lg">No classes found</p>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

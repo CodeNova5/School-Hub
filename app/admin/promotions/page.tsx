@@ -383,19 +383,64 @@ export default function PromotionsPage() {
     const nextClassLevel = progressionMap[currentClassLevel];
     if (!nextClassLevel) return undefined;
 
-    // Find next class - match by level and optionally by stream/department
+    // If current student has a stream, check if next level has complete stream setup
+    if (stream) {
+      // Get all streams at current level
+      const currentLevelStreams = new Set(
+        allClasses
+          .filter((c) => c.level === currentClassLevel && c.stream)
+          .map((c) => c.stream)
+      );
+
+      // Get all streams at next level
+      const nextLevelStreams = new Set(
+        allClasses
+          .filter((c) => c.level === nextClassLevel && c.stream)
+          .map((c) => c.stream)
+      );
+
+      // Check if stream setup is complete (all current streams have next level equivalents)
+      const isComplete = 
+        currentLevelStreams.size > 0 &&
+        Array.from(currentLevelStreams).every((s) => nextLevelStreams.has(s));
+
+      if (isComplete) {
+        // Promote to same stream (e.g., SSS 1 A -> SSS 2 A)
+        const nextClassWithStream = allClasses.find(
+          (c) =>
+            c.level === nextClassLevel &&
+            c.stream === stream &&
+            (!department || !c.department || c.department === department)
+        );
+        
+        if (nextClassWithStream) {
+          console.log(`Complete stream setup found. Promoting ${currentClassLevel} ${stream} -> ${nextClassLevel} ${stream}`);
+          return nextClassWithStream;
+        }
+      } else {
+        console.log(`Incomplete stream setup. Current level has streams ${Array.from(currentLevelStreams).join(', ')}, next level has ${Array.from(nextLevelStreams).join(', ') || 'none'}`);
+      }
+
+      // If not complete or stream class not found, fall back to non-stream class
+      const nextClassWithoutStream = allClasses.find(
+        (c) =>
+          c.level === nextClassLevel &&
+          !c.stream &&
+          (!department || !c.department || c.department === department)
+      );
+      
+      if (nextClassWithoutStream) {
+        console.log(`Combining streams. Promoting ${currentClassLevel} ${stream} -> ${nextClassLevel} (no stream)`);
+        return nextClassWithoutStream;
+      }
+    }
+
+    // If student doesn't have a stream or no suitable class found yet
     return allClasses.find(
       (c) => {
-        // level must match (e.g., JSS 1 -> JSS 2)
         if (c.level !== nextClassLevel) return false;
         
-        // If the current student is in a stream, prioritize matching the same stream
-        // Otherwise, first class in that level is fine
-        if (stream && c.stream && c.stream !== stream) {
-          return false;
-        }
-
-        // If this is SSS and both student and class have departments, they must match
+        // For SSS, match department if specified
         if (nextClassLevel.startsWith("SSS") && department && c.department) {
           return c.department === department;
         }

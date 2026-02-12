@@ -150,9 +150,10 @@ export default function TeacherDashboard() {
             due_date,
             subjects(name),
             assignment_submissions(id, grade)
-          `);
+          `)
+          .eq('teacher_id', teacher.id);
 
-        // Filter by teacher
+        // Filter by session/term
         if (currentSession) {
           assignmentQuery = assignmentQuery.eq('session_id', currentSession.id);
         }
@@ -163,13 +164,8 @@ export default function TeacherDashboard() {
         const { data: assignmentsData, error: assignmentError } = await assignmentQuery;
         if (assignmentError) throw assignmentError;
         
-        // Filter assignments for this teacher's subject classes (client-side)
-        if (assignmentsData && subjectClasses && subjectClasses.length > 0) {
-          const subjectClassIds = subjectClasses.map(sc => sc.id);
-          assignments = assignmentsData.filter((a: any) => 
-            subjectClassIds.includes(a.subject_class_id)
-          );
-        }
+        // Use assignments directly (already filtered by teacher_id)
+        assignments = assignmentsData || [];
 
         const pendingAssignments = assignments?.filter(
           a => new Date(a.due_date) > new Date()
@@ -251,38 +247,33 @@ export default function TeacherDashboard() {
 
         // Fetch recent activities (recent assignments)
         let recentAssignments: any[] = [];
-        if (subjectClasses && subjectClasses.length > 0) {
-          const subjectClassIds = subjectClasses.map(sc => sc.id);
-          
-          let recentQuery = supabase
-            .from('assignments')
-            .select(`
-              id,
-              title,
-              created_at,
-              subject_class_id,
-              subjects(name),
-              assignment_submissions(id)
-            `)
-            .order('created_at', { ascending: false })
-            .limit(8);
+        
+        let recentQuery = supabase
+          .from('assignments')
+          .select(`
+            id,
+            title,
+            created_at,
+            subjects(name),
+            assignment_submissions(id)
+          `)
+          .eq('teacher_id', teacher.id)
+          .order('created_at', { ascending: false })
+          .limit(4);
 
-          // Filter by session/term
-          if (currentSession) {
-            recentQuery = recentQuery.eq('session_id', currentSession.id);
-          }
-          if (currentTerm) {
-            recentQuery = recentQuery.eq('term_id', currentTerm.id);
-          }
-
-          const { data: assignmentsDataRecent, error: recentError } = await recentQuery;
-          if (recentError) throw recentError;
-          
-          // Filter assignments for this teacher's subject classes (client-side)
-          recentAssignments = assignmentsDataRecent
-            ?.filter((a: any) => subjectClassIds.includes(a.subject_class_id))
-            .slice(0, 4) || [];
+        // Filter by session/term
+        if (currentSession) {
+          recentQuery = recentQuery.eq('session_id', currentSession.id);
         }
+        if (currentTerm) {
+          recentQuery = recentQuery.eq('term_id', currentTerm.id);
+        }
+
+        const { data: assignmentsDataRecent, error: recentError } = await recentQuery;
+        if (recentError) throw recentError;
+        
+        // Use assignments directly (already filtered by teacher_id)
+        recentAssignments = assignmentsDataRecent || [];
 
         const activities: RecentActivity[] = [];
         recentAssignments?.forEach((assignment: any) => {
@@ -323,7 +314,8 @@ export default function TeacherDashboard() {
               student_id,
               exam,
               students(class_id)
-            `);
+            `)
+            .in('subject_class_id', subjectClassIds);
 
           // Filter by session/term
           if (currentSession) {
@@ -336,8 +328,8 @@ export default function TeacherDashboard() {
           const { data: results, error: resultsError } = await resultsQuery;
 
           if (!resultsError && results) {
-            // Filter results for this teacher's subject classes
-            const filteredResults = results.filter(r => subjectClassIds.includes(r.subject_class_id));
+            // Use results directly (already filtered by subject_class_id)
+            const filteredResults = results;
             const performanceMap: { [key: string]: { total: number; count: number } } = {};
 
             filteredResults.forEach((result: any) => {

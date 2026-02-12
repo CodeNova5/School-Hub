@@ -13,11 +13,14 @@ import {
   Calendar,
   MessageSquare,
   Award,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 interface TeacherStats {
   totalStudents: number;
@@ -33,6 +36,7 @@ interface UpcomingClass {
   time: string;
   students: number;
   subject: string;
+  classId: string;
 }
 
 interface RecentActivity {
@@ -41,6 +45,11 @@ interface RecentActivity {
   title: string;
   description: string;
   timestamp: string;
+}
+
+interface ClassPerformance {
+  name: string;
+  score: number;
 }
 
 export default function TeacherDashboard() {
@@ -54,102 +63,265 @@ export default function TeacherDashboard() {
 
   const [upcomingClasses, setUpcomingClasses] = useState<UpcomingClass[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [classPerformance, setClassPerformance] = useState<ClassPerformance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [teacherName, setTeacherName] = useState('');
 
   useEffect(() => {
     async function fetchTeacherData() {
       try {
-        // Fetch teacher's students count
-        const { count: studentCount } = await supabase
+        setLoading(true);
+
+        // Get current user
+        const user = await getCurrentUser();
+        if (!user) {
+          toast.error('Please log in to continue');
+          return;
+        }
+
+        // Get teacher info
+        const teacher = await getTeacherByUserId(user.id);
+        if (!teacher) {
+          toast.error('Teacher profile not found');
+          return;
+        }
+
+        setTeacherName(`${teacher.first_name} ${teacher.last_name}`);
+
+        // Fetch classes assigned to this teacher
+        const { data: classes, error: classError } = await supabase
+          .from('classes')
+          .select('id, name')
+          .eq('class_teacher_id', teacher.id);
+
+        if (classError) throw classError;
+        const classIds = classes?.map(c => c.id) || [];
+        const totalClasses = classIds.length;
+
+        // Fetch students in all teacher's classes
+        const { data: students, error: studentError } = await supabase
           .from('students')
-          .select('id', { count: 'exact', head: true });
+          .select('id, class_id')
+          .in('class_id', classIds.length > 0 ? classIds : ['null'])
+          .eq('status', 'active');
 
-        // Fetch teacher's classes count
-        const { count: classCount } = await supabase
+        if (studentError) throw studentError;
+        const totalStudents = students?.length || 0;
+
+        // Fetch subject classes for this teacher
+        const { data: subjectClasses, error: subjectError } = await supabase
           .from('subject_classes')
-          .select('id', { count: 'exact', head: true });
+          .select(`
+            id,
+            subject_id,
+            class_id,
+            subjects(name),
+            classes(name)
+          `)
+          .eq('teacher_id', teacher.id);
 
-        // Fetch pending assignments
-        const { count: assignmentCount } = await supabase
+        if (subjectError) throw subjectError;
+
+        // Fetch assignments for this teacher
+        const { data: assignments, error: assignmentError } = await supabase
           .from('assignments')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pending');
+          .select(`
+            id,
+            title,
+            due_date,
+            subject_classes(subjects(name)),
+            assignment_submissions(id, grade)
+          `)
+          .in('subject_class_id', subjectClasses?.map(sc => sc.id) || ['null']);
 
-        // Set mock data for demo (you can replace with actual API calls)
+        if (assignmentError) throw assignmentError;
+
+        const pendingAssignments = assignments?.filter(
+          a => new Date(a.due_date) > new Date()
+        ).length || 0;
+
+        const completedSubmissions = assignments?.reduce(
+          (sum, a) => sum + (a.assignment_submissions?.length || 0),
+          0
+        ) || 0;
+
+        // Calculate average score
+        let totalScore = 0;
+        let scoreCount = 0;
+        assignments?.forEach(a => {
+          a.assignment_submissions?.forEach((sub: any) => {
+            if (sub.grade !== null) {
+              totalScore += sub.grade;
+              scoreCount++;
+            }
+          });
+        });
+        const averageScore = scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0;
+
         setStats({
-          totalStudents: studentCount || 0,
-          totalClasses: classCount || 0,
-          pendingAssignments: assignmentCount || 0,
-          completedSubmissions: 24,
-          averageScore: 78,
+          totalStudents,
+          totalClasses,
+          pendingAssignments,
+          completedSubmissions,
+          averageScore,
         });
 
-        // Mock upcoming classes
-        setUpcomingClasses([
-          {
-            id: '1',
-            name: 'Mathematics 101',
-            time: '09:00 AM - 10:30 AM',
-            students: 35,
-            subject: 'Mathematics',
-          },
-          {
-            id: '2',
-            name: 'English Literature',
-            time: '11:00 AM - 12:30 PM',
-            students: 28,
-            subject: 'English',
-          },
-          {
-            id: '3',
-            name: 'Physics Lab',
-            time: '02:00 PM - 03:30 PM',
-            students: 22,
-            subject: 'Physics',
-          },
-        ]);
+        // Fetch today's timetable
+        const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        const { data: timetableData, error: timetableError } = await supabase
+          .from('timetable_entries')
+          .select(`
+            *,
+            classes(id, name),
+            subject_classes(
+              subjects(name),
+              teachers(id)
+            ),
+            period_slots(start_time, end_time)
+          `)
+          .eq('period_slots.day_of_week', today);
 
-        // Mock recent activities
-        setRecentActivities([
-          {
-            id: '1',
-            type: 'submission',
-            title: 'New Assignment Submission',
-            description: 'Student submitted "Math Problem Set 5"',
-            timestamp: '2 hours ago',
-          },
-          {
-            id: '2',
-            type: 'grade',
-            title: 'Grades Published',
-            description: '28 students received their midterm evaluations',
-            timestamp: '5 hours ago',
-          },
-          {
-            id: '3',
+        if (timetableError) throw timetableError;
+
+        // Filter timetable for this teacher and get students count
+        const todayClasses: UpcomingClass[] = [];
+        if (timetableData) {
+          for (const entry of timetableData) {
+            const subjectClass = Array.isArray(entry.subject_classes)
+              ? entry.subject_classes[0]
+              : entry.subject_classes;
+
+            if (subjectClass?.teachers?.id === teacher.id) {
+              const classData = entry.classes;
+              const studentCount = students?.filter(
+                s => s.class_id === classData.id
+              ).length || 0;
+
+              const startTime = entry.period_slots?.start_time || '';
+              const endTime = entry.period_slots?.end_time || '';
+
+              todayClasses.push({
+                id: entry.id,
+                name: classData.name,
+                time: `${startTime} - ${endTime}`,
+                students: studentCount,
+                subject: subjectClass?.subjects?.name || 'Unknown',
+                classId: classData.id,
+              });
+            }
+          }
+        }
+
+        setUpcomingClasses(todayClasses);
+
+        // Fetch recent activities (recent assignments)
+        const { data: recentAssignments, error: recentError } = await supabase
+          .from('assignments')
+          .select(`
+            id,
+            title,
+            created_at,
+            subject_classes(subjects(name)),
+            assignment_submissions(id)
+          `)
+          .in('subject_class_id', subjectClasses?.map(sc => sc.id) || ['null'])
+          .order('created_at', { ascending: false })
+          .limit(4);
+
+        if (recentError) throw recentError;
+
+        const activities: RecentActivity[] = [];
+        recentAssignments?.forEach((assignment: any) => {
+          const submissionCount = assignment.assignment_submissions?.length || 0;
+          const createdDate = new Date(assignment.created_at);
+          const timeAgo = getTimeAgo(createdDate);
+
+          activities.push({
+            id: assignment.id,
             type: 'assignment',
-            title: 'New Assignment Created',
-            description: 'Physics Assignment: Chapter 5 Exercises',
-            timestamp: '1 day ago',
-          },
-          {
-            id: '4',
-            type: 'attendance',
-            title: 'Attendance Recorded',
-            description: 'Morning attendance for Class 2B completed',
-            timestamp: '1 day ago',
-          },
-        ]);
+            title: 'Assignment Created',
+            description: `"${assignment.title}" for ${assignment.subject_classes?.subjects?.name || 'Unknown Subject'}`,
+            timestamp: timeAgo,
+          });
+
+          if (submissionCount > 0) {
+            activities.push({
+              id: `sub-${assignment.id}`,
+              type: 'submission',
+              title: `${submissionCount} Submission${submissionCount > 1 ? 's' : ''}`,
+              description: `Students submitted responses to "${assignment.title}"`,
+              timestamp: timeAgo,
+            });
+          }
+        });
+
+        setRecentActivities(activities.slice(0, 4));
+
+        // Calculate class performance from results
+        const { data: results, error: resultsError } = await supabase
+          .from('results')
+          .select(`
+            students(class_id),
+            exam
+          `)
+          .in('subject_class_id', subjectClasses?.map(sc => sc.id) || ['null']);
+
+        if (!resultsError && results) {
+          const performanceMap: { [key: string]: { total: number; count: number } } = {};
+
+          results.forEach((result: any) => {
+            const classId = result.students?.class_id;
+            if (classId && result.exam !== null) {
+              if (!performanceMap[classId]) {
+                performanceMap[classId] = { total: 0, count: 0 };
+              }
+              performanceMap[classId].total += result.exam;
+              performanceMap[classId].count += 1;
+            }
+          });
+
+          const performance = classes
+            ?.filter(c => performanceMap[c.id])
+            .map(c => ({
+              name: c.name,
+              score: Math.round(
+                performanceMap[c.id].total / performanceMap[c.id].count
+              ),
+            })) || [];
+
+          setClassPerformance(performance);
+        }
 
         setLoading(false);
       } catch (error) {
         console.error('Error fetching teacher data:', error);
+        toast.error('Failed to load dashboard data');
         setLoading(false);
       }
     }
 
     fetchTeacherData();
   }, []);
+
+  const getTimeAgo = (date: Date): string => {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    const intervals: { [key: string]: number } = {
+      year: 31536000,
+      month: 2592000,
+      week: 604800,
+      day: 86400,
+      hour: 3600,
+      minute: 60,
+    };
+
+    for (const [key, value] of Object.entries(intervals)) {
+      const interval = Math.floor(seconds / value);
+      if (interval >= 1) {
+        return interval === 1 ? `${interval} ${key} ago` : `${interval} ${key}s ago`;
+      }
+    }
+    return 'just now';
+  };
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -181,6 +353,19 @@ export default function TeacherDashboard() {
     }
   };
 
+  if (loading) {
+    return (
+      <DashboardLayout role="teacher">
+        <div className="space-y-8">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="ml-2 text-lg text-gray-600">Loading your dashboard...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout role="teacher">
       <div className="space-y-8">
@@ -191,7 +376,7 @@ export default function TeacherDashboard() {
             <div className="absolute top-0 right-0 w-40 h-40 bg-white opacity-5 rounded-full -mr-20 -mt-20" />
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-white opacity-5 rounded-full -ml-16 -mb-16" />
             <div className="relative z-10">
-              <h1 className="text-4xl font-bold mb-2">Welcome Back!</h1>
+              <h1 className="text-4xl font-bold mb-2">Welcome Back, {teacherName}!</h1>
               <p className="text-blue-100 text-lg">You're doing great! Keep engaging with your students.</p>
             </div>
           </div>
@@ -379,17 +564,21 @@ export default function TeacherDashboard() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {['Mathematics 101', 'Physics Lab', 'English Literature'].map((subject) => (
-                  <div key={subject}>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">{subject}</span>
-                      <span className="text-sm font-bold text-blue-600">85%</span>
+                {classPerformance.length > 0 ? (
+                  classPerformance.map((subject) => (
+                    <div key={subject.name}>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">{subject.name}</span>
+                        <span className="text-sm font-bold text-blue-600">{subject.score}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style={{ width: `${subject.score}%` }} />
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style={{ width: '85%' }} />
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No performance data available</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -406,10 +595,17 @@ export default function TeacherDashboard() {
                 <div>
                   <div className="flex justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700">Assignment Completion</span>
-                    <span className="text-sm font-bold text-orange-600">92%</span>
+                    <span className="text-sm font-bold text-orange-600">
+                      {stats.completedSubmissions > 0 
+                        ? Math.round((stats.completedSubmissions / (stats.totalStudents * 2)) * 100) || 0
+                        : 0}%
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full" style={{ width: '92%' }} />
+                    <div 
+                      className="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full" 
+                      style={{ width: `${Math.min(stats.completedSubmissions > 0 ? Math.round((stats.completedSubmissions / (stats.totalStudents * 2)) * 100) : 0, 100)}%` }} 
+                    />
                   </div>
                 </div>
                 <div>
@@ -424,10 +620,10 @@ export default function TeacherDashboard() {
                 <div>
                   <div className="flex justify-between mb-2">
                     <span className="text-sm font-medium text-gray-700">Assessment Scores</span>
-                    <span className="text-sm font-bold text-purple-600">78%</span>
+                    <span className="text-sm font-bold text-purple-600">{stats.averageScore}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" style={{ width: '78%' }} />
+                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" style={{ width: `${stats.averageScore}%` }} />
                   </div>
                 </div>
               </div>

@@ -191,19 +191,50 @@ export default function TeachersPage() {
       specialization: formData.get('specialization') as string,
       address: formData.get('address') as string,
       status: formData.get('status') as string,
+      phone: formData.get('phone') as string,
     };
 
     if (editingTeacher) {
-      const { error } = await supabase
-        .from('teachers')
-        .update(teacherData)
-        .eq('id', editingTeacher.id);
+      const email = formData.get('email') as string;
 
-      if (error) toast.error('Failed to update teacher');
-      else {
-        toast.success('Teacher updated successfully!');
+      try {
+        const response = await fetch('/api/admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update-teacher',
+            teacherId: editingTeacher.id,
+            teacherData: {
+              first_name: teacherData.first_name,
+              last_name: teacherData.last_name,
+              qualification: teacherData.qualification,
+              specialization: teacherData.specialization,
+              address: teacherData.address,
+              status: teacherData.status,
+              phone: teacherData.phone,
+              email,
+            },
+            oldEmail: editingTeacher.email,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          toast.error(result.error || 'Failed to update teacher');
+          return;
+        }
+
+        if (result.emailChanged) {
+          toast.success('Teacher updated! A verification link has been sent to the new email.');
+        } else {
+          toast.success('Teacher updated successfully!');
+        }
         closeDialog();
         fetchTeachers();
+      } catch (error) {
+        console.error('Error updating teacher:', error);
+        toast.error('An error occurred while updating the teacher');
       }
     } else {
       // Creating a new teacher - use API endpoint
@@ -404,29 +435,57 @@ export default function TeachersPage() {
                   </div>
                 </div>
 
-                {!editingTeacher && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="teacher@school.com"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        placeholder="+1234567890"
-                      />
-                    </div>
-                  </div>
-                )}
+<div className="grid grid-cols-2 gap-4">
+                  {!editingTeacher && (
+                    <>
+                      <div>
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                          id="email"
+                          name="email"
+                          type="email"
+                          placeholder="teacher@school.com"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="phone">Phone Number</Label>
+                        <Input
+                          id="phone"
+                          name="phone"
+                          type="tel"
+                          placeholder="+1234567890"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {editingTeacher && (
+                    <>
+                      <div>
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                          id="email"
+                          name="email"
+                          type="email"
+                          placeholder="teacher@school.com"
+                          defaultValue={editingTeacher?.email}
+                          required
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Changing email will require account reactivation</p>
+                      </div>
+                      <div>
+                        <Label htmlFor="phone">Phone Number</Label>
+                        <Input
+                          id="phone"
+                          name="phone"
+                          type="tel"
+                          placeholder="+1234567890"
+                          defaultValue={editingTeacher?.phone || ''}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <div>
                   <Label htmlFor="qualification">Qualification</Label>

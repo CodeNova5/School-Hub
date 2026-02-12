@@ -412,6 +412,99 @@ export async function POST(req: NextRequest) {
         throw new Error(`Transfer failed: ${error.message}`);
       }
     }
+
+    // Update teacher details
+    if (action === "update-teacher") {
+      const permission = await checkIsAdmin();
+      if (!permission.authorized) {
+        return NextResponse.json(
+          { error: permission.error },
+          { status: permission.status }
+        );
+      }
+
+      const { teacherId, teacherData, oldEmail } = body;
+
+      if (!teacherId || !teacherData) {
+        return NextResponse.json(
+          { error: "Teacher ID and teacher data required" },
+          { status: 400 }
+        );
+      }
+
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      try {
+        const { first_name, last_name, qualification, specialization, address, status, phone, email } = teacherData;
+
+        // Check if email is being changed
+        const emailChanged = email && oldEmail && email !== oldEmail;
+
+        // Update teacher record
+        const { error: updateError } = await supabaseAdmin
+          .from("teachers")
+          .update({
+            first_name,
+            last_name,
+            qualification,
+            specialization,
+            address,
+            status,
+            phone,
+            ...(emailChanged && { email }),
+          })
+          .eq("id", teacherId);
+
+        if (updateError) throw updateError;
+
+        // If email changed, send verification link to new email
+        if (emailChanged) {
+          try {
+            // Get the teacher's auth user_id
+            const { data: teacherRecord } = await supabaseAdmin
+              .from("teachers")
+              .select("user_id")
+              .eq("id", teacherId)
+              .single();
+
+            if (teacherRecord?.user_id) {
+              // Update the auth user email and set email_confirmed to false
+              const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(
+                teacherRecord.user_id,
+                { email, email_confirm: false }
+              );
+
+              if (updateAuthError) {
+                console.error("Error updating auth user email:", updateAuthError);
+              }
+
+              // Send verification email
+              const { error: sendEmailError } = await supabaseAdmin.auth.resend({
+                type: "signup",
+                email,
+              });
+
+              if (sendEmailError) {
+                console.error("Error sending verification email:", sendEmailError);
+              }
+            }
+          } catch (emailError: any) {
+            console.error("Error handling email change:", emailError);
+            // Continue anyway - teacher record was updated
+          }
+        }
+
+        return NextResponse.json({ 
+          success: true,
+          emailChanged,
+        });
+      } catch (error: any) {
+        throw new Error(`Failed to update teacher: ${error.message}`);
+      }
+    }
     
     throw new Error("Invalid action");
   } catch (error: any) {

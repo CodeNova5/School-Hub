@@ -23,6 +23,12 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>('');
   const [signaturePreview, setSignaturePreview] = useState<string>('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
   const [formData, setFormData] = useState<SchoolSettings>({
     school_name: '',
     school_address: '',
@@ -160,6 +166,85 @@ export default function SettingsPage() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPasswordData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handlePasswordSave = async () => {
+    try {
+      // Validation
+      if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+        toast({
+          title: "Error",
+          description: "All password fields are required",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (passwordData.newPassword !== passwordData.confirmPassword) {
+        toast({
+          title: "Error",
+          description: "New passwords do not match",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (passwordData.newPassword.length < 8) {
+        toast({
+          title: "Error",
+          description: "Password must be at least 8 characters long",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setChangingPassword(true);
+
+      const response = await fetch("/api/admin/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to change password");
+      }
+
+      toast({
+        title: "Success",
+        description: "Password changed successfully",
+      });
+
+      // Clear form
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+    } catch (error) {
+      console.error("Error changing password:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to change password",
+        variant: "destructive",
+      });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -303,23 +388,55 @@ export default function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Notifications</CardTitle>
+              <CardTitle>Change Password</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Email Notifications</p>
-                  <p className="text-sm text-gray-500">Receive email updates</p>
-                </div>
-                <Button variant="outline">Configure</Button>
+              {/* Current Password */}
+              <div>
+                <Label htmlFor="currentPassword">Current Password</Label>
+                <Input
+                  id="currentPassword"
+                  name="currentPassword"
+                  type="password"
+                  placeholder="Enter current password"
+                  value={passwordData.currentPassword}
+                  onChange={handlePasswordChange}
+                />
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">SMS Notifications</p>
-                  <p className="text-sm text-gray-500">Receive SMS alerts</p>
-                </div>
-                <Button variant="outline">Configure</Button>
+
+              {/* New Password */}
+              <div>
+                <Label htmlFor="newPassword">New Password</Label>
+                <Input
+                  id="newPassword"
+                  name="newPassword"
+                  type="password"
+                  placeholder="Enter new password (min 8 characters)"
+                  value={passwordData.newPassword}
+                  onChange={handlePasswordChange}
+                />
               </div>
+
+              {/* Confirm Password */}
+              <div>
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={passwordData.confirmPassword}
+                  onChange={handlePasswordChange}
+                />
+              </div>
+
+              <Button
+                onClick={handlePasswordSave}
+                disabled={changingPassword}
+                className="w-full"
+              >
+                {changingPassword ? 'Changing...' : 'Change Password'}
+              </Button>
             </CardContent>
           </Card>
         </div>

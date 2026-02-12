@@ -20,6 +20,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState } from 'react';
 
 interface NavItem {
@@ -88,76 +89,110 @@ export function Sidebar({ role }: SidebarProps) {
     role === 'teacher' ? teacherNav : 
     role === 'parent' ? parentNav :
     studentNav;
+
   return (
-    <aside
-      className={cn(
-        "fixed left-0 top-0 z-40 h-screen border-r bg-white transition-all duration-300",
-        collapsed ? "w-16" : "w-64"
-      )}
-    >
-      <div className="flex h-full flex-col">
-        <div className="flex h-16 items-center justify-between border-b px-4">
-          {!collapsed && (
-            <div className="flex items-center gap-2">
-              <School className="h-6 w-6 text-blue-600" />
-              <span className="font-semibold text-lg">School MS</span>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setCollapsed(!collapsed)}
-            className="ml-auto"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto p-4">
-          <ul className="space-y-2">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "bg-blue-50 text-blue-700"
-                        : "text-gray-700 hover:bg-gray-100"
-                    )}
-                  >
-                    {item.icon}
-                    {!collapsed && <span>{item.label}</span>}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        <div className="border-t p-4">
-          <div className={cn(
-            "flex items-center gap-3",
-            collapsed && "justify-center"
-          )}>
-            <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-              <span className="text-xs font-medium">AD</span>
-            </div>
+    <TooltipProvider>
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out",
+          "bg-gradient-to-b from-slate-900 to-slate-800",
+          "border-r border-slate-700/50 shadow-lg",
+          collapsed ? "w-20" : "w-64"
+        )}
+      >
+        <div className="flex h-full flex-col">
+          {/* Header */}
+          <div className="flex h-16 items-center justify-between border-b border-slate-700/50 px-4">
             {!collapsed && (
-              <div className="flex-1">
-                <p className="text-sm font-medium">Admin User</p>
-                <p className="text-xs text-gray-500">{role}</p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-md">
+                  <School className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <span className="block font-bold text-white text-sm">School MS</span>
+                  <span className="block text-xs text-slate-400">Management</span>
+                </div>
               </div>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCollapsed(!collapsed)}
+                  className={cn(
+                    "ml-auto h-9 w-9 rounded-lg transition-all duration-200",
+                    "hover:bg-slate-700/50 text-slate-300 hover:text-white"
+                  )}
+                >
+                  {collapsed ? (
+                    <ChevronRight className="h-5 w-5" />
+                  ) : (
+                    <ChevronLeft className="h-5 w-5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">
+                {collapsed ? 'Expand' : 'Collapse'}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 overflow-y-auto px-3 py-6">
+            <ul className="space-y-1">
+              {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <li key={item.href}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link
+                          href={item.href}
+                          className={cn(
+                            "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                            "relative overflow-hidden",
+                            isActive
+                              ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30"
+                              : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+                          )}
+                        >
+                          {isActive && (
+                            <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-blue-300 to-blue-500" />
+                          )}
+                          <span className={cn(
+                            "flex h-5 w-5 items-center justify-center transition-transform duration-200",
+                            "group-hover:scale-110",
+                            isActive ? "scale-110" : ""
+                          )}>
+                            {item.icon}
+                          </span>
+                          {!collapsed && <span className="truncate">{item.label}</span>}
+                          {!collapsed && isActive && (
+                            <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white opacity-75" />
+                          )}
+                        </Link>
+                      </TooltipTrigger>
+                      {collapsed && (
+                        <TooltipContent side="right" className="text-xs font-medium">
+                          {item.label}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+
+          {/* Footer spacer */}
+          <div className="border-t border-slate-700/50 p-4">
+            {!collapsed && (
+              <p className="text-xs text-slate-400 text-center">School Hub v1.0</p>
             )}
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </TooltipProvider>
   );
 }

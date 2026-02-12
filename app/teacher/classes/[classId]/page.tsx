@@ -347,8 +347,6 @@ export default function TeacherClassManagement({ params }: PageProps) {
               classId={classId}
               className={classData.name}
               students={students}
-              sessions={sessions}
-              terms={terms}
             />
           </TabsContent>
         </Tabs>

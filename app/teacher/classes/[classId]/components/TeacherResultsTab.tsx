@@ -81,7 +81,7 @@ interface ResultsTabProps {
     students: Student[];
 }
 
-export function ResultsTab({ classId, className, students }: ResultsTabProps) {
+export default function ResultsTab({ classId, className, students }: ResultsTabProps) {
 
     const [sessions, setSessions] = useState<Session[]>([]);
     const [terms, setTerms] = useState<Term[]>([]);

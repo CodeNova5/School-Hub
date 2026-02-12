@@ -55,6 +55,7 @@ export async function POST(req: Request) {
         const { error: updateError } = await supabase
             .from("teachers")
             .update({
+                is_active: false, // Deactivate account until password is reset
                 activation_token_hash: tokenHash,
                 activation_expires_at: expirationTime.toISOString(),
                 activation_used: false,

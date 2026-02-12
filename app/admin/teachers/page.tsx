@@ -665,7 +665,7 @@ export default function TeachersPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openAssignSubjectDialog(teacher)}>
                               <BookOpen className="h-4 w-4 mr-2" />
-                              Assign Subject Class
+                              Assign Subject
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600"
@@ -851,13 +851,13 @@ export default function TeachersPage() {
         <Dialog open={isAssignSubjectDialogOpen} onOpenChange={setIsAssignSubjectDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Assign Subject Class</DialogTitle>
+              <DialogTitle>Assign Subject</DialogTitle>
             </DialogHeader>
             {assigningTeacher && (
               <form onSubmit={handleAssignSubject} className="space-y-4">
                 <div>
                   <p className="text-sm text-gray-600 mb-4">
-                    Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> to a subject class
+                    Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> to a subject
                   </p>
                   
                   <div className="space-y-4">
@@ -903,7 +903,7 @@ export default function TeachersPage() {
                   </div>
                   
                   <p className="text-xs text-gray-500 mt-3">
-                    Note: This will replace any existing teacher assignment for this subject class.
+                    Note: This will replace any existing teacher assignment for this subject.
                   </p>
                 </div>
                 <div className="flex gap-2">

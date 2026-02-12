@@ -42,7 +42,8 @@ export async function POST(req: Request) {
         }
 
         // 2️⃣ Invalidate all sessions - sign out the user
-        const { error: signOutError } = await supabase.auth.admin.signOut(userId, 'global');
+        const { error: signOutError } = await supabase.auth.signOut();
+
         if (signOutError) {
             console.error("Sign out error:", signOutError);
             // Don't fail the request for this

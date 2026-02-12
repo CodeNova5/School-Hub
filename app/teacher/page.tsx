@@ -99,14 +99,18 @@ export default function TeacherDashboard() {
         const totalClasses = classIds.length;
 
         // Fetch students in all teacher's classes
-        const { data: students, error: studentError } = await supabase
-          .from('students')
-          .select('id, class_id')
-          .in('class_id', classIds.length > 0 ? classIds : ['null'])
-          .eq('status', 'active');
+        let students: any[] = [];
+        if (classIds.length > 0) {
+          const { data: studentsData, error: studentError } = await supabase
+            .from('students')
+            .select('id, class_id')
+            .in('class_id', classIds)
+            .eq('status', 'active');
 
-        if (studentError) throw studentError;
-        const totalStudents = students?.length || 0;
+          if (studentError) throw studentError;
+          students = studentsData || [];
+        }
+        const totalStudents = students.length;
 
         // Fetch subject classes for this teacher
         const { data: subjectClasses, error: subjectError } = await supabase
@@ -123,18 +127,22 @@ export default function TeacherDashboard() {
         if (subjectError) throw subjectError;
 
         // Fetch assignments for this teacher
-        const { data: assignments, error: assignmentError } = await supabase
-          .from('assignments')
-          .select(`
-            id,
-            title,
-            due_date,
-            subject_classes(subjects(name)),
-            assignment_submissions(id, grade)
-          `)
-          .in('subject_class_id', subjectClasses?.map(sc => sc.id) || ['null']);
+        let assignments: any[] = [];
+        if (subjectClasses && subjectClasses.length > 0) {
+          const { data: assignmentsData, error: assignmentError } = await supabase
+            .from('assignments')
+            .select(`
+              id,
+              title,
+              due_date,
+              subject_classes(subjects(name)),
+              assignment_submissions(id, grade)
+            `)
+            .in('subject_class_id', subjectClasses.map(sc => sc.id));
 
-        if (assignmentError) throw assignmentError;
+          if (assignmentError) throw assignmentError;
+          assignments = assignmentsData || [];
+        }
 
         const pendingAssignments = assignments?.filter(
           a => new Date(a.due_date) > new Date()
@@ -215,20 +223,24 @@ export default function TeacherDashboard() {
         setUpcomingClasses(todayClasses);
 
         // Fetch recent activities (recent assignments)
-        const { data: recentAssignments, error: recentError } = await supabase
-          .from('assignments')
-          .select(`
-            id,
-            title,
-            created_at,
-            subject_classes(subjects(name)),
-            assignment_submissions(id)
-          `)
-          .in('subject_class_id', subjectClasses?.map(sc => sc.id) || ['null'])
-          .order('created_at', { ascending: false })
-          .limit(4);
+        let recentAssignments: any[] = [];
+        if (subjectClasses && subjectClasses.length > 0) {
+          const { data: assignmentsData, error: recentError } = await supabase
+            .from('assignments')
+            .select(`
+              id,
+              title,
+              created_at,
+              subject_classes(subjects(name)),
+              assignment_submissions(id)
+            `)
+            .in('subject_class_id', subjectClasses.map(sc => sc.id))
+            .order('created_at', { ascending: false })
+            .limit(4);
 
-        if (recentError) throw recentError;
+          if (recentError) throw recentError;
+          recentAssignments = assignmentsData || [];
+        }
 
         const activities: RecentActivity[] = [];
         recentAssignments?.forEach((assignment: any) => {
@@ -258,38 +270,40 @@ export default function TeacherDashboard() {
         setRecentActivities(activities.slice(0, 4));
 
         // Calculate class performance from results
-        const { data: results, error: resultsError } = await supabase
-          .from('results')
-          .select(`
-            students(class_id),
-            exam
-          `)
-          .in('subject_class_id', subjectClasses?.map(sc => sc.id) || ['null']);
+        if (subjectClasses && subjectClasses.length > 0) {
+          const { data: results, error: resultsError } = await supabase
+            .from('results')
+            .select(`
+              students(class_id),
+              exam
+            `)
+            .in('subject_class_id', subjectClasses.map(sc => sc.id));
 
-        if (!resultsError && results) {
-          const performanceMap: { [key: string]: { total: number; count: number } } = {};
+          if (!resultsError && results) {
+            const performanceMap: { [key: string]: { total: number; count: number } } = {};
 
-          results.forEach((result: any) => {
-            const classId = result.students?.class_id;
-            if (classId && result.exam !== null) {
-              if (!performanceMap[classId]) {
-                performanceMap[classId] = { total: 0, count: 0 };
+            results.forEach((result: any) => {
+              const classId = result.students?.class_id;
+              if (classId && result.exam !== null) {
+                if (!performanceMap[classId]) {
+                  performanceMap[classId] = { total: 0, count: 0 };
+                }
+                performanceMap[classId].total += result.exam;
+                performanceMap[classId].count += 1;
               }
-              performanceMap[classId].total += result.exam;
-              performanceMap[classId].count += 1;
-            }
-          });
+            });
 
-          const performance = classes
-            ?.filter(c => performanceMap[c.id])
-            .map(c => ({
-              name: c.name,
-              score: Math.round(
-                performanceMap[c.id].total / performanceMap[c.id].count
-              ),
-            })) || [];
+            const performance = classes
+              ?.filter(c => performanceMap[c.id])
+              .map(c => ({
+                name: c.name,
+                score: Math.round(
+                  performanceMap[c.id].total / performanceMap[c.id].count
+                ),
+              })) || [];
 
-          setClassPerformance(performance);
+            setClassPerformance(performance);
+          }
         }
 
         setLoading(false);

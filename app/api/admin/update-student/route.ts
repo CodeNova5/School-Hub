@@ -92,14 +92,16 @@ export async function POST(req: Request) {
       );
     }
 
-    // If email changed, update auth user and send verification email
-    if (emailChanged && currentStudent.user_id && rawToken) {
+    // If email changed, send verification email and update auth user if one exists
+    if (emailChanged && rawToken) {
       try {
-        // Update auth user email
-        await supabase.auth.admin.updateUserById(currentStudent.user_id, {
-          email: updates.email,
-          email_confirm: false,
-        });
+        // Update auth user email if user exists
+        if (currentStudent.user_id) {
+          await supabase.auth.admin.updateUserById(currentStudent.user_id, {
+            email: updates.email,
+            email_confirm: false,
+          });
+        }
 
         // Send verification email
         if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -91,6 +90,9 @@ export default function TeacherSettingsPage() {
       }
 
       toast.success('Password reset email sent! Check your inbox.');
+      // sign out the user after initiating password reset
+      await supabase.auth.signOut();
+      router.push('/teacher/login');
     } catch (error: any) {
       console.error('Error resetting password:', error);
       toast.error('Failed to send reset email');

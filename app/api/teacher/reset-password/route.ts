@@ -18,30 +18,16 @@ const transporter = nodemailer.createTransport({
 
 export async function POST(req: Request) {
     try {
-        // 1️⃣ Extract session token from Authorization header
-        const authHeader = req.headers.get("authorization");
-        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        const { userId } = await req.json();
+
+        if (!userId) {
             return NextResponse.json(
-                { error: "Authorization token required" },
-                { status: 401 }
+                { error: "User ID is required" },
+                { status: 400 }
             );
         }
 
-        const token = authHeader.substring(7); // Remove "Bearer " prefix
-
-        // 2️⃣ Get current user from session token
-        const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-        
-        if (userError || !user) {
-            return NextResponse.json(
-                { error: "Invalid or expired session token" },
-                { status: 401 }
-            );
-        }
-
-        const userId = user.id;
-
-        // 3️⃣ Get teacher by user_id
+        // 1️⃣ Get teacher by user_id
         const { data: teacher, error: teacherError } = await supabase
             .from("teachers")
             .select("id, email, first_name, last_name, user_id")
@@ -55,14 +41,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // 4️⃣ Invalidate all sessions - sign out the user
-        const { error: signOutError } = await supabase.auth.admin.signOut(token, 'global');
-        if (signOutError) {
-            console.error("Sign out error:", signOutError);
-            // Don't fail the request for this
-        }
-
-        // 5️⃣ Generate new activation token
+        // 3️⃣ Generate new activation token
         const activationToken = crypto.randomBytes(32).toString("hex");
         const tokenHash = crypto
             .createHash("sha256")
@@ -72,7 +51,7 @@ export async function POST(req: Request) {
         const expirationTime = new Date();
         expirationTime.setHours(expirationTime.getHours() + 24); // Token valid for 24 hours
 
-        // 6️⃣ Update teacher with new activation token
+        // 4️⃣ Update teacher with new activation token
         const { error: updateError } = await supabase
             .from("teachers")
             .update({
@@ -89,7 +68,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // 7️⃣ Send email with activation link
+        // 5️⃣ Send email with activation link
         const activationLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/teacher/activate?token=${activationToken}`;
 
         try {

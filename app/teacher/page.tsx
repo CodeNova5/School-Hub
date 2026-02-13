@@ -218,6 +218,48 @@ export default function TeacherDashboard() {
 
         // Fetch today's timetable
         const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+        const { data: allPeriodSlots, error: periodSlotsError } = await supabase
+          .from('period_slots')
+          .select('id, start_time, end_time, day_of_week')
+          .eq('day_of_week', today)
+          .order('start_time', { ascending: true });
+
+        if (periodSlotsError) throw periodSlotsError;
+
+        // Get current time
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const currentTimeInMinutes = currentHour * 60 + currentMinute;
+
+        // Find current period index
+        let currentPeriodIndex = 0;
+        if (allPeriodSlots) {
+          for (let i = 0; i < allPeriodSlots.length; i++) {
+            const slot = allPeriodSlots[i];
+            const [startHour, startMinute] = slot.start_time.split(':').map(Number);
+            const [endHour, endMinute] = slot.end_time.split(':').map(Number);
+            const startTimeInMinutes = startHour * 60 + startMinute;
+            const endTimeInMinutes = endHour * 60 + endMinute;
+
+            if (currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes < endTimeInMinutes) {
+              currentPeriodIndex = i;
+              break;
+            } else if (currentTimeInMinutes < startTimeInMinutes) {
+              currentPeriodIndex = i;
+              break;
+            }
+          }
+        }
+
+        // Get slots from current period to current + 5 periods
+        const maxPeriodIndex = Math.min(currentPeriodIndex + 6, allPeriodSlots?.length || 0);
+        const relevantPeriodIds = allPeriodSlots
+          ?.slice(currentPeriodIndex, maxPeriodIndex)
+          .map(slot => slot.id) || [];
+
+        console.log('Current time:', `${currentHour}:${currentMinute}`, 'Current period index:', currentPeriodIndex, 'Relevant period IDs:', relevantPeriodIds);
+
         const { data: timetableData, error: timetableError } = await supabase
           .from('timetable_entries')
           .select(`
@@ -229,7 +271,7 @@ export default function TeacherDashboard() {
             ),
             period_slots(start_time, end_time)
           `)
-          .eq('period_slots.day_of_week', today);
+          .in('period_slot_id', relevantPeriodIds);
 
         if (timetableError) throw timetableError;
         console.log('Today:', today, 'Timetable entries:', timetableData);
@@ -472,7 +514,6 @@ export default function TeacherDashboard() {
             title="Total Students"
             value={stats.totalStudents}
             icon={Users}
-            trend="+8 new this month"
             trendUp={true}
           />
           <StatCard
@@ -491,14 +532,12 @@ export default function TeacherDashboard() {
             title="Submissions"
             value={stats.completedSubmissions}
             icon={CheckCircle2}
-            trend="+5 this week"
             trendUp={true}
           />
           <StatCard
             title="Average Score"
             value={`${stats.averageScore}%`}
             icon={TrendingUp}
-            trend="+2% improvement"
             trendUp={true}
           />
         </div>

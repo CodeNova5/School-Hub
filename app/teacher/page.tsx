@@ -31,6 +31,7 @@ interface TeacherStats {
   pendingAssignments: number;
   completedSubmissions: number;
   averageScore: number;
+  averageAttendance?: number;
 }
 
 interface UpcomingClass {
@@ -453,6 +454,31 @@ export default function TeacherDashboard() {
           }
         }
 
+        // Fetch attendance data for the teacher's classes
+        let totalAttendance = 0;
+        let attendanceCount = 0;
+        if (classIds.length > 0) {
+          const { data: attendanceData, error: attendanceError } = await supabase
+            .from('attendance')
+            .select('student_id, is_present')
+            .in('class_id', classIds);
+
+          if (!attendanceError && attendanceData) {
+            attendanceData.forEach((record: any) => {
+              if (record.is_present) {
+                totalAttendance++;
+              }
+              attendanceCount++;
+            });
+          }
+        }
+        const averageClassAttendance = attendanceCount > 0 ? Math.round((totalAttendance / attendanceCount) * 100) : 0;
+        
+        setStats(prev => ({
+          ...prev,
+          averageAttendance: averageClassAttendance
+        }));
+
         setLoading(false);
       } catch (error) {
         console.error('Error fetching teacher data:', error);
@@ -753,83 +779,53 @@ export default function TeacherDashboard() {
           </CardContent>
         </Card>
 
-        {/* Performance Summary */}
-        <div className="grid gap-6 md:grid-cols-2">
+        {/* Performance Summary - Only show if teacher has classes assigned */}
+        {stats.totalClasses > 0 && (
           <Card className="border-0 shadow-lg">
             <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-cyan-50">
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-cyan-600" />
-                Class Performance
+                Class Performance & Attendance
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="space-y-4">
-                {classPerformance.length > 0 ? (
-                  classPerformance.map((subject) => (
-                    <div key={subject.name}>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">{subject.name}</span>
-                        <span className="text-sm font-bold text-blue-600">{subject.score}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style={{ width: `${subject.score}%` }} />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-gray-500">No performance data available</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              <div className="space-y-6">
+                {/* Class Performance */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800 mb-4">Published Results</h3>
+                  <div className="space-y-4">
+                    {classPerformance.length > 0 ? (
+                      classPerformance.map((subject) => (
+                        <div key={subject.name}>
+                          <div className="flex justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-700">{subject.name}</span>
+                            <span className="text-sm font-bold text-blue-600">{subject.score}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style={{ width: `${subject.score}%` }} />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No published results yet</p>
+                    )}
+                  </div>
+                </div>
 
-          <Card className="border-0 shadow-lg">
-            <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-orange-50">
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-orange-600" />
-                Student Engagement
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Assignment Completion</span>
-                    <span className="text-sm font-bold text-orange-600">
-                      {stats.completedSubmissions > 0 
-                        ? Math.round((stats.completedSubmissions / (stats.totalStudents * 2)) * 100) || 0
-                        : 0}%
-                    </span>
+                {/* Average Class Attendance */}
+                <div className="border-t pt-6">
+                  <div className="flex justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-800">Average Class Attendance</h3>
+                    <span className="text-lg font-bold text-green-600">{stats.averageAttendance || 0}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-orange-500 to-orange-600 h-2 rounded-full" 
-                      style={{ width: `${Math.min(stats.completedSubmissions > 0 ? Math.round((stats.completedSubmissions / (stats.totalStudents * 2)) * 100) : 0, 100)}%` }} 
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Class Attendance</span>
-                    <span className="text-sm font-bold text-green-600">88%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-green-500 to-green-600 h-2 rounded-full" style={{ width: '88%' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Assessment Scores</span>
-                    <span className="text-sm font-bold text-purple-600">{stats.averageScore}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 h-2 rounded-full" style={{ width: `${stats.averageScore}%` }} />
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full" style={{ width: `${stats.averageAttendance || 0}%` }} />
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
+        )}
       </div>
     </DashboardLayout>
   );

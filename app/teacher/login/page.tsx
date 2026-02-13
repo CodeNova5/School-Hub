@@ -77,13 +77,19 @@ export default function TeacherLoginPage() {
     try {
       setResettingPassword(true);
       
-      // Call Supabase password reset
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${window.location.origin}/teacher/reset-password`,
+      // Call the API to send reset email
+      const response = await fetch('/api/teacher/reset-password', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: resetEmail }),
       });
 
-      if (error) {
-        toast.error(error.message || "Failed to send reset email");
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.error || "Failed to send reset email");
         return;
       }
 

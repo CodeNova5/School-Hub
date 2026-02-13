@@ -69,10 +69,10 @@ export default function TeacherSettingsPage() {
   async function handleResetPassword() {
     try {
       setResettingPassword(true);
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
 
-      if (!session) {
-        toast.error('Session not found');
+      if (!user) {
+        toast.error('User session not found');
         return;
       }
 
@@ -80,8 +80,8 @@ export default function TeacherSettingsPage() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
         },
+        body: JSON.stringify({ userId: user.id }),
       });
 
       const data = await response.json();

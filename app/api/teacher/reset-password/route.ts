@@ -18,21 +18,28 @@ const transporter = nodemailer.createTransport({
 
 export async function POST(req: Request) {
     try {
-        const { userId } = await req.json();
+        const { email, userId } = await req.json();
 
-        if (!userId) {
+        if (!email && !userId) {
             return NextResponse.json(
-                { error: "User ID is required" },
+                { error: "Email or User ID is required" },
                 { status: 400 }
             );
         }
 
-        // 1️⃣ Get teacher by user_id
-        const { data: teacher, error: teacherError } = await supabase
+        // 1️⃣ Get teacher by email or user_id
+        let query = supabase
             .from("teachers")
-            .select("id, email, first_name, last_name, user_id")
-            .eq("user_id", userId)
-            .single();
+            .select("id, email, first_name, last_name, user_id");
+        
+        let result;
+        if (email) {
+            result = await query.eq("email", email).single();
+        } else {
+            result = await query.eq("user_id", userId).single();
+        }
+
+        const { data: teacher, error: teacherError } = result;
 
         if (teacherError || !teacher) {
             return NextResponse.json(
@@ -70,7 +77,7 @@ export async function POST(req: Request) {
         }
 
         // 5️⃣ Send email with activation link
-        const activationLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/teacher/activate?token=${activationToken}`;
+        const activationLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/teacher/reset-password?token=${activationToken}`;
 
         try {
             await transporter.sendMail({

@@ -4,45 +4,88 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Lock, Eye, EyeOff, CheckCircle, Loader2, ArrowLeft } from "lucide-react";
+import { Lock, Eye, EyeOff, CheckCircle, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
+import crypto from "crypto";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token");
+
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [sessionLoading, setSessionLoading] = useState(true);
-  const [hasValidSession, setHasValidSession] = useState(false);
+  const [tokenLoading, setTokenLoading] = useState(true);
+  const [isTokenValid, setIsTokenValid] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [teacherId, setTeacherId] = useState<string | null>(null);
 
   useEffect(() => {
-    checkSession();
+    validateToken();
   }, []);
 
-  async function checkSession() {
+  async function validateToken() {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        setHasValidSession(true);
-      } else {
-        toast.error("Invalid or expired reset link");
+      if (!token) {
+        toast.error("Invalid or missing reset token");
         setTimeout(() => router.push("/teacher/login"), 2000);
+        setTokenLoading(false);
+        return;
       }
+
+      // Hash the token to match what's stored in the database
+      const tokenHash = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+      // Verify token in database
+      const { data: teacher, error } = await supabase
+        .from("teachers")
+        .select("id, activation_token_hash, activation_expires_at, activation_used")
+        .eq("activation_token_hash", tokenHash)
+        .single();
+
+      if (error || !teacher) {
+        toast.error("Invalid or expired reset token");
+        setTimeout(() => router.push("/teacher/login"), 2000);
+        setTokenLoading(false);
+        return;
+      }
+
+      // Check if token has expired
+      const expirationTime = new Date(teacher.activation_expires_at);
+      if (new Date() > expirationTime) {
+        toast.error("Reset token has expired");
+        setTimeout(() => router.push("/teacher/login"), 2000);
+        setTokenLoading(false);
+        return;
+      }
+
+      // Check if token was already used
+      if (teacher.activation_used) {
+        toast.error("This reset token has already been used");
+        setTimeout(() => router.push("/teacher/login"), 2000);
+        setTokenLoading(false);
+        return;
+      }
+
+      setTeacherId(teacher.id);
+      setIsTokenValid(true);
     } catch (error) {
-      console.error("Error checking session:", error);
-      toast.error("Failed to verify reset link");
+      console.error("Error validating token:", error);
+      toast.error("Failed to validate reset token");
       setTimeout(() => router.push("/teacher/login"), 2000);
     } finally {
-      setSessionLoading(false);
+      setTokenLoading(false);
     }
   }
 
@@ -68,13 +111,33 @@ export default function ResetPasswordPage() {
     try {
       setLoading(true);
 
-      // Update password
-      const { error } = await supabase.auth.updateUser({
-        password: password,
+      // Get the teacher's user_id to reset their password
+      const { data: teacherData, error: fetchError } = await supabase
+        .from("teachers")
+        .select("user_id")
+        .eq("id", teacherId)
+        .single();
+
+      if (fetchError || !teacherData) {
+        toast.error("Failed to find teacher information");
+        return;
+      }
+
+      // Update password using admin API
+      const response = await fetch("/api/teacher/update-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: teacherData.user_id,
+          newPassword: password,
+          token: token,
+        }),
       });
 
-      if (error) {
-        toast.error(error.message || "Failed to update password");
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Failed to update password");
         return;
       }
 
@@ -93,7 +156,7 @@ export default function ResetPasswordPage() {
     }
   }
 
-  if (sessionLoading) {
+  if (tokenLoading) {
     return (
       <div className="relative min-h-screen overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 opacity-90" />
@@ -106,6 +169,28 @@ export default function ResetPasswordPage() {
             <p className="text-white text-lg font-medium">Verifying reset link...</p>
           </div>
         </div>
+
+        <style>{`
+          @keyframes blob {
+            0%, 100% {
+              transform: translate(0, 0) scale(1);
+            }
+            33% {
+              transform: translate(30px, -50px) scale(1.1);
+            }
+            66% {
+              transform: translate(-20px, 20px) scale(0.9);
+            }
+          }
+          
+          .animate-blob {
+            animation: blob 7s infinite;
+          }
+          
+          .animation-delay-2000 {
+            animation-delay: 2s;
+          }
+        `}</style>
       </div>
     );
   }
@@ -167,8 +252,36 @@ export default function ResetPasswordPage() {
     );
   }
 
-  if (!hasValidSession) {
-    return null;
+  if (!isTokenValid) {
+    return (
+      <div className="relative min-h-screen overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 opacity-90" />
+        <div className="relative flex items-center justify-center min-h-screen p-4">
+          <Card className="w-full max-w-md shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+            <CardContent className="pt-8 text-center">
+              <div className="mb-4 flex justify-center">
+                <div className="p-3 bg-gradient-to-br from-red-400 to-red-500 rounded-full">
+                  <AlertCircle className="w-12 h-12 text-white" />
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Invalid Reset Link
+              </h2>
+              <p className="text-gray-600 mb-6">
+                The reset link is invalid or has expired. Please request a new one.
+              </p>
+              <Button
+                onClick={() => router.push("/teacher/login")}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Login
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   return (

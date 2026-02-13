@@ -460,12 +460,12 @@ export default function TeacherDashboard() {
         if (classIds.length > 0) {
           const { data: attendanceData, error: attendanceError } = await supabase
             .from('attendance')
-            .select('student_id, is_present')
+            .select('student_id, status')
             .in('class_id', classIds);
 
           if (!attendanceError && attendanceData) {
             attendanceData.forEach((record: any) => {
-              if (record.is_present) {
+              if (record.status === 'present') {
                 totalAttendance++;
               }
               attendanceCount++;

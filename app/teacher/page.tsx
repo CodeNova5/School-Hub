@@ -76,15 +76,19 @@ export default function TeacherDashboard() {
         const user = await getCurrentUser();
         if (!user) {
           toast.error('Please log in to continue');
+          console.error('No user found');
           return;
         }
+        console.log('Current user:', user.id);
 
         // Get teacher info
         const teacher = await getTeacherByUserId(user.id);
         if (!teacher) {
           toast.error('Teacher profile not found');
+          console.error('No teacher profile found for user:', user.id);
           return;
         }
+        console.log('Teacher:', teacher);
 
         setTeacherName(`${teacher.first_name} ${teacher.last_name}`);
 
@@ -97,6 +101,7 @@ export default function TeacherDashboard() {
         if (classError) throw classError;
         const classIds = classes?.map(c => c.id) || [];
         const totalClasses = classIds.length;
+        console.log('Classes:', classes, 'Total:', totalClasses);
 
         // Fetch students in all teacher's classes
         let students: any[] = [];
@@ -109,6 +114,9 @@ export default function TeacherDashboard() {
 
           if (studentError) throw studentError;
           students = studentsData || [];
+          console.log('Students:', students);
+        } else {
+          console.log('No classes found for teacher, skipping student fetch');
         }
         const totalStudents = students.length;
 
@@ -142,6 +150,8 @@ export default function TeacherDashboard() {
           .eq("is_current", true)
           .single();
 
+        console.log('Current Session:', currentSession, 'Current Term:', currentTerm);
+
         let assignmentQuery = supabase
           .from('assignments')
           .select(`
@@ -166,6 +176,8 @@ export default function TeacherDashboard() {
         
         // Use assignments directly (already filtered by teacher_id)
         assignments = assignmentsData || [];
+        console.log('Assignments:', assignments, 'Current Session:', currentSession, 'Current Term:', currentTerm);
+
 
         const pendingAssignments = assignments?.filter(
           a => new Date(a.due_date) > new Date()
@@ -196,6 +208,13 @@ export default function TeacherDashboard() {
           completedSubmissions,
           averageScore,
         });
+        console.log('Final Stats:', {
+          totalStudents,
+          totalClasses,
+          pendingAssignments,
+          completedSubmissions,
+          averageScore,
+        });
 
         // Fetch today's timetable
         const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -213,6 +232,7 @@ export default function TeacherDashboard() {
           .eq('period_slots.day_of_week', today);
 
         if (timetableError) throw timetableError;
+        console.log('Today:', today, 'Timetable entries:', timetableData);
 
         // Filter timetable for this teacher and get students count
         const todayClasses: UpcomingClass[] = [];

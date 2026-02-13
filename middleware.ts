@@ -49,9 +49,10 @@ export async function middleware(req: NextRequest) {
 
   const isLoginRoute = pathname === config.login;
   const isActivateRoute = pathname === config.activate;
+  const isResetPasswordRoute = pathname === `${config.prefix}/reset-password`;
 
-  // Allow unauthenticated access to login and activate
-  if (isLoginRoute || isActivateRoute) {
+  // Allow unauthenticated access to login, activate, and reset-password
+  if (isLoginRoute || isActivateRoute || isResetPasswordRoute) {
     const {
       data: { session: loginSession },
     } = await supabase.auth.getSession();

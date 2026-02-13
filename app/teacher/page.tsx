@@ -5,12 +5,12 @@ import { StatCard } from '@/components/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Users, 
-  BookOpen, 
-  ClipboardList, 
-  CheckCircle2, 
-  TrendingUp, 
+import {
+  Users,
+  BookOpen,
+  ClipboardList,
+  CheckCircle2,
+  TrendingUp,
   Calendar,
   MessageSquare,
   Award,
@@ -75,7 +75,6 @@ export default function TeacherDashboard() {
 
   const [upcomingClasses, setUpcomingClasses] = useState<UpcomingClass[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [classPerformance, setClassPerformance] = useState<ClassPerformance[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [teacherName, setTeacherName] = useState('');
@@ -149,7 +148,7 @@ export default function TeacherDashboard() {
 
         // Fetch assignments for this teacher (using direct teacher_id query)
         let assignments: any[] = [];
-        
+
         // Get current session and term
         const { data: currentSession } = await supabase
           .from("sessions")
@@ -183,10 +182,10 @@ export default function TeacherDashboard() {
         if (currentTerm) {
           assignmentQuery = assignmentQuery.eq('term_id', currentTerm.id);
         }
-        
+
         const { data: assignmentsData, error: assignmentError } = await assignmentQuery;
         if (assignmentError) throw assignmentError;
-        
+
         // Use assignments directly (already filtered by teacher_id)
         assignments = assignmentsData || [];
         console.log('Assignments:', assignments, 'Current Session:', currentSession, 'Current Term:', currentTerm);
@@ -345,7 +344,7 @@ export default function TeacherDashboard() {
 
         // Fetch recent activities (recent assignments)
         let recentAssignments: any[] = [];
-        
+
         let recentQuery = supabase
           .from('assignments')
           .select(`
@@ -369,7 +368,7 @@ export default function TeacherDashboard() {
 
         const { data: assignmentsDataRecent, error: recentError } = await recentQuery;
         if (recentError) throw recentError;
-        
+
         // Use assignments directly (already filtered by teacher_id)
         recentAssignments = assignmentsDataRecent || [];
 
@@ -403,7 +402,7 @@ export default function TeacherDashboard() {
         // Calculate class performance from results
         if (subjectClasses && subjectClasses.length > 0) {
           const subjectClassIds = subjectClasses.map(sc => sc.id);
-          
+
           let resultsQuery = supabase
             .from('results')
             .select(`
@@ -423,37 +422,7 @@ export default function TeacherDashboard() {
             resultsQuery = resultsQuery.eq('term_id', currentTerm.id);
           }
 
-          const { data: results, error: resultsError } = await resultsQuery;
-
-          if (!resultsError && results) {
-            // Use results directly (already filtered by subject_class_id)
-            const filteredResults = results;
-            const performanceMap: { [key: string]: { total: number; count: number } } = {};
-
-            filteredResults.forEach((result: any) => {
-              const classId = result.students?.class_id;
-              if (classId && result.exam !== null) {
-                if (!performanceMap[classId]) {
-                  performanceMap[classId] = { total: 0, count: 0 };
-                }
-                performanceMap[classId].total += result.exam;
-                performanceMap[classId].count += 1;
-              }
-            });
-
-            const performance = classes
-              ?.filter(c => performanceMap[c.id])
-              .map(c => ({
-                name: c.name,
-                score: Math.round(
-                  performanceMap[c.id].total / performanceMap[c.id].count
-                ),
-              })) || [];
-
-            setClassPerformance(performance);
-          }
         }
-
         // Fetch attendance data for the teacher's classes
         let totalAttendance = 0;
         let attendanceCount = 0;
@@ -473,7 +442,7 @@ export default function TeacherDashboard() {
           }
         }
         const averageClassAttendance = attendanceCount > 0 ? Math.round((totalAttendance / attendanceCount) * 100) : 0;
-        
+
         setStats(prev => ({
           ...prev,
           averageAttendance: averageClassAttendance
@@ -570,13 +539,16 @@ export default function TeacherDashboard() {
         </div>
 
         {/* Key Metrics Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
-          <StatCard
-            title="Total Students"
-            value={stats.totalStudents}
-            icon={Users}
-            trendUp={true}
-          />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {stats.totalClasses > 0 && (
+            <StatCard
+              title="Total Students"
+              value={stats.totalStudents}
+              icon={Users}
+              trendUp={true}
+            />
+          )}
+
           <StatCard
             title="Pending Assignments"
             value={stats.pendingAssignments}
@@ -649,7 +621,6 @@ export default function TeacherDashboard() {
             </Card>
           </div>
 
-          {/* Quick Actions */}
           <div>
             <Card className="border-0 shadow-lg h-full">
               <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-purple-50">
@@ -671,12 +642,15 @@ export default function TeacherDashboard() {
                     Record Grades
                   </Button>
                 </Link>
-                <Link href="/teacher/classes" className="block">
-                  <Button className="w-full bg-gradient-to-r from-pink-600 to-pink-700 hover:from-pink-700 hover:to-pink-800 text-white shadow-md hover:shadow-lg transition-all">
-                    <Users className="h-4 w-4 mr-2" />
-                    Manage Classes
-                  </Button>
-                </Link>
+                {stats.totalClasses > 0 && (
+                  <Link href="/teacher/classes" className="block">
+                    <Button className="w-full bg-gradient-to-r from-pink-600 to-pink-700 hover:from-pink-700 hover:to-pink-800 text-white shadow-md hover:shadow-lg transition-all">
+                      <Users className="h-4 w-4 mr-2" />
+                      Manage Classes
+                    </Button>
+                  </Link>
+                )}
+
                 <Link href="/teacher/students" className="block">
                   <Button variant="outline" className="w-full border-gray-300 hover:bg-gray-50">
                     <BookOpen className="h-4 w-4 mr-2" />
@@ -720,13 +694,12 @@ export default function TeacherDashboard() {
                         )}
                       </div>
                     </div>
-                    <Badge className={`ml-2 capitalize ${
-                      event.type === 'exam' ? 'bg-red-500' :
+                    <Badge className={`ml-2 capitalize ${event.type === 'exam' ? 'bg-red-500' :
                       event.type === 'holiday' ? 'bg-green-500' :
-                      event.type === 'meeting' ? 'bg-blue-500' :
-                      event.type === 'sports' ? 'bg-orange-500' :
-                      'bg-purple-500'
-                    } text-white`}>
+                        event.type === 'meeting' ? 'bg-blue-500' :
+                          event.type === 'sports' ? 'bg-orange-500' :
+                            'bg-purple-500'
+                      } text-white`}>
                       {event.type}
                     </Badge>
                   </div>
@@ -785,33 +758,11 @@ export default function TeacherDashboard() {
             <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-cyan-50">
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-cyan-600" />
-                Class Performance & Attendance
+                Class Attendance
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-6">
-                {/* Class Performance */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800 mb-4">Published Results</h3>
-                  <div className="space-y-4">
-                    {classPerformance.length > 0 ? (
-                      classPerformance.map((subject) => (
-                        <div key={subject.name}>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-700">{subject.name}</span>
-                            <span className="text-sm font-bold text-blue-600">{subject.score}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div className="bg-gradient-to-r from-blue-500 to-blue-600 h-2 rounded-full" style={{ width: `${subject.score}%` }} />
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500">No published results yet</p>
-                    )}
-                  </div>
-                </div>
-
                 {/* Average Class Attendance */}
                 <div className="border-t pt-6">
                   <div className="flex justify-between mb-4">

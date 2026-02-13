@@ -52,6 +52,16 @@ interface ClassPerformance {
   score: number;
 }
 
+interface UpcomingEvent {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  time?: string;
+  type: 'assignment' | 'meeting' | 'deadline' | 'event';
+  priority: 'high' | 'medium' | 'low';
+}
+
 export default function TeacherDashboard() {
   const [stats, setStats] = useState<TeacherStats>({
     totalStudents: 0,
@@ -64,6 +74,7 @@ export default function TeacherDashboard() {
   const [upcomingClasses, setUpcomingClasses] = useState<UpcomingClass[]>([]);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [classPerformance, setClassPerformance] = useState<ClassPerformance[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [teacherName, setTeacherName] = useState('');
 
@@ -418,6 +429,77 @@ export default function TeacherDashboard() {
           }
         }
 
+        // Generate upcoming events
+        const eventsToSet: UpcomingEvent[] = [];
+
+        // Add assignment deadlines
+        assignments?.forEach((assignment: any) => {
+          const dueDate = new Date(assignment.due_date);
+          if (dueDate > new Date()) {
+            eventsToSet.push({
+              id: `assign-${assignment.id}`,
+              title: `Assignment Due: ${assignment.title}`,
+              description: `${assignment.subjects?.name || 'Subject'} assignment due`,
+              date: dueDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+              time: dueDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              type: 'assignment',
+              priority: dueDate.getTime() - new Date().getTime() < 24 * 60 * 60 * 1000 ? 'high' : 'medium',
+            });
+          }
+        });
+
+        // Add sample upcoming events
+        const currentDate = new Date();
+        eventsToSet.push({
+          id: 'event-1',
+          title: 'Parent-Teacher Conferences',
+          description: 'Schedule: 2:00 PM - 5:00 PM',
+          date: new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          type: 'meeting',
+          priority: 'high',
+        });
+
+        eventsToSet.push({
+          id: 'event-2',
+          title: 'Grade Entry Deadline',
+          description: 'Submit all grades for Term 1',
+          date: new Date(currentDate.getTime() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          type: 'deadline',
+          priority: 'high',
+        });
+
+        eventsToSet.push({
+          id: 'event-3',
+          title: 'Staff Development Workshop',
+          description: 'Professional development session',
+          date: new Date(currentDate.getTime() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          time: '3:30 PM',
+          type: 'event',
+          priority: 'medium',
+        });
+
+        eventsToSet.push({
+          id: 'event-4',
+          title: 'Class Assessment',
+          description: 'Midterm assessment for all classes',
+          date: new Date(currentDate.getTime() + 10 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          type: 'event',
+          priority: 'medium',
+        });
+
+        eventsToSet.push({
+          id: 'event-5',
+          title: 'Curriculum Review Meeting',
+          description: 'Department heads and teachers',
+          date: new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          time: '2:00 PM',
+          type: 'meeting',
+          priority: 'low',
+        });
+
+        // Sort by date and take top 6
+        setUpcomingEvents(eventsToSet.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(0, 6));
+
         setLoading(false);
       } catch (error) {
         console.error('Error fetching teacher data:', error);
@@ -479,6 +561,39 @@ export default function TeacherDashboard() {
     }
   };
 
+  const getEventIcon = (type: string) => {
+    switch (type) {
+      case 'assignment':
+        return <ClipboardList className="h-5 w-5 text-purple-600" />;
+      case 'meeting':
+        return <Users className="h-5 w-5 text-blue-600" />;
+      case 'deadline':
+        return <TrendingUp className="h-5 w-5 text-red-600" />;
+      case 'event':
+        return <Calendar className="h-5 w-5 text-emerald-600" />;
+      default:
+        return <MessageSquare className="h-5 w-5 text-gray-600" />;
+    }
+  };
+
+  const getEventColor = (type: string, priority: string) => {
+    if (priority === 'high') {
+      return 'bg-red-50 border-l-4 border-red-600';
+    }
+    switch (type) {
+      case 'assignment':
+        return 'bg-purple-50 border-l-4 border-purple-600';
+      case 'meeting':
+        return 'bg-blue-50 border-l-4 border-blue-600';
+      case 'deadline':
+        return 'bg-orange-50 border-l-4 border-orange-600';
+      case 'event':
+        return 'bg-emerald-50 border-l-4 border-emerald-600';
+      default:
+        return 'bg-gray-50 border-l-4 border-gray-600';
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout role="teacher">
@@ -517,11 +632,6 @@ export default function TeacherDashboard() {
             trendUp={true}
           />
           <StatCard
-            title="Classes"
-            value={stats.totalClasses}
-            icon={BookOpen}
-          />
-          <StatCard
             title="Pending Assignments"
             value={stats.pendingAssignments}
             icon={ClipboardList}
@@ -532,12 +642,6 @@ export default function TeacherDashboard() {
             title="Submissions"
             value={stats.completedSubmissions}
             icon={CheckCircle2}
-            trendUp={true}
-          />
-          <StatCard
-            title="Average Score"
-            value={`${stats.averageScore}%`}
-            icon={TrendingUp}
             trendUp={true}
           />
         </div>
@@ -608,26 +712,26 @@ export default function TeacherDashboard() {
                   Quick Actions
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6 space-y-3">
-                <Link href="/teacher/assignments">
+              <CardContent className="p-6 space-y-4">
+                <Link href="/teacher/assignments" className="block">
                   <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg transition-all">
                     <ClipboardList className="h-4 w-4 mr-2" />
                     New Assignment
                   </Button>
                 </Link>
-                <Link href="/teacher/results/entry">
+                <Link href="/teacher/results/entry" className="block">
                   <Button className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all">
                     <Award className="h-4 w-4 mr-2" />
                     Record Grades
                   </Button>
                 </Link>
-                <Link href="/teacher/classes">
+                <Link href="/teacher/classes" className="block">
                   <Button className="w-full bg-gradient-to-r from-pink-600 to-pink-700 hover:from-pink-700 hover:to-pink-800 text-white shadow-md hover:shadow-lg transition-all">
                     <Users className="h-4 w-4 mr-2" />
                     Manage Classes
                   </Button>
                 </Link>
-                <Link href="/teacher/students">
+                <Link href="/teacher/students" className="block">
                   <Button variant="outline" className="w-full border-gray-300 hover:bg-gray-50">
                     <BookOpen className="h-4 w-4 mr-2" />
                     View Students
@@ -637,6 +741,51 @@ export default function TeacherDashboard() {
             </Card>
           </div>
         </div>
+
+        {/* Upcoming Events */}
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+          <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-red-50">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-red-600" />
+              <CardTitle>Upcoming Events</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className={`p-4 rounded-lg ${getEventColor(event.type, event.priority)} transition-all hover:shadow-md`}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="mt-1">
+                        {getEventIcon(event.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900">{event.title}</p>
+                        <p className="text-sm text-gray-600 mt-1">{event.description}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-500">{event.date} {event.time && `· ${event.time}`}</span>
+                          {event.priority === 'high' && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full bg-red-200 text-red-800 text-xs font-medium">
+                              Urgent
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No upcoming events</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Recent Activities */}
         <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">

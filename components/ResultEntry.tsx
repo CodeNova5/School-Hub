@@ -393,6 +393,17 @@ export default function ResultEntry({
   }
 
   function calculateTotalScore(score: SubjectScore): number {
+    // For students/parents, only include published components
+    if ((role === 'student' || role === 'parent') && publicationSettings) {
+      let total = 0;
+      if (publicationSettings.welcome_test_published) total += score.welcome_test;
+      if (publicationSettings.mid_term_test_published) total += score.mid_term_test;
+      if (publicationSettings.vetting_published) total += score.vetting;
+      if (publicationSettings.exam_published) total += score.exam;
+      return total;
+    }
+
+    // For admins/teachers, use scoreCalculationMode
     switch (scoreCalculationMode) {
       case 'welcome_only':
         return score.welcome_test;
@@ -421,6 +432,17 @@ export default function ResultEntry({
   }
 
   function getMaxPossibleScore(): number {
+    // For students/parents, calculate based on published components
+    if ((role === 'student' || role === 'parent') && publicationSettings) {
+      let max = 0;
+      if (publicationSettings.welcome_test_published) max += 10;
+      if (publicationSettings.mid_term_test_published) max += 20;
+      if (publicationSettings.vetting_published) max += 10;
+      if (publicationSettings.exam_published) max += 60;
+      return max > 0 ? max : 100; // Fallback to 100 if nothing published yet
+    }
+
+    // For admins/teachers, use scoreCalculationMode
     switch (scoreCalculationMode) {
       case 'welcome_only':
         return 10;
@@ -508,7 +530,7 @@ export default function ResultEntry({
       setScores(updatedScores);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scoreCalculationMode]);
+  }, [scoreCalculationMode, publicationSettings, role]);
 
   // Calculate visible columns count for table alignment (columns before Total column)
   const visibleColumnsCount = (() => {
@@ -566,13 +588,13 @@ export default function ResultEntry({
 
     try {
       toast.info('Generating PDF...');
-      
+
       // Dynamically import jsPDF and html2canvas
       const { default: jsPDF } = await import('jspdf');
       const html2canvas = (await import('html2canvas')).default;
 
       const element = printRef.current;
-      
+
       // Capture the element as canvas with high quality
       const canvas = await html2canvas(element, {
         scale: 2,
@@ -620,46 +642,46 @@ export default function ResultEntry({
     if (!canEdit || isReadOnly || !student || !session || !term) return;
     setIsSaving(true);
     try {
-        // Save each subject's result separately using Supabase upsert
-        const saveDataArray = scores.map(score => ({
-            student_id: student.id,
-            session_id: session.id,
-            term_id: term.id,
-            subject_class_id: score.subject_class_id,
-            welcome_test: score.welcome_test,
-            mid_term_test: score.mid_term_test,
-            vetting: score.vetting,
-            exam: score.exam,
-            total: score.total,
-            grade: score.grade,
-            remark: score.remark,
-            attendance,
-            next_term_begins: nextTermDate,
-            class_teacher_remark: classTeacherRemark,
-            principal_remark: principalRemark,
-            class_position: classPosition,
-            total_students: totalStudents,
-            class_average: classAverage,
-        }));
+      // Save each subject's result separately using Supabase upsert
+      const saveDataArray = scores.map(score => ({
+        student_id: student.id,
+        session_id: session.id,
+        term_id: term.id,
+        subject_class_id: score.subject_class_id,
+        welcome_test: score.welcome_test,
+        mid_term_test: score.mid_term_test,
+        vetting: score.vetting,
+        exam: score.exam,
+        total: score.total,
+        grade: score.grade,
+        remark: score.remark,
+        attendance,
+        next_term_begins: nextTermDate,
+        class_teacher_remark: classTeacherRemark,
+        principal_remark: principalRemark,
+        class_position: classPosition,
+        total_students: totalStudents,
+        class_average: classAverage,
+      }));
 
-        // Upsert all results at once
-        const { error } = await supabase
-            .from("results")
-            .upsert(saveDataArray, {
-                onConflict: "student_id,session_id,term_id,subject_class_id",
-            });
+      // Upsert all results at once
+      const { error } = await supabase
+        .from("results")
+        .upsert(saveDataArray, {
+          onConflict: "student_id,session_id,term_id,subject_class_id",
+        });
 
-        if (error) {
-            console.error("Error saving results:", error);
-            toast.error(error.message || "Failed to save results");
-        } else {
-            toast.success("Results saved successfully");
-        }
+      if (error) {
+        console.error("Error saving results:", error);
+        toast.error(error.message || "Failed to save results");
+      } else {
+        toast.success("Results saved successfully");
+      }
     } catch (err) {
-        console.error("Error saving results:", err);
-        toast.error("An unexpected error occurred");
+      console.error("Error saving results:", err);
+      toast.error("An unexpected error occurred");
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
   }
 

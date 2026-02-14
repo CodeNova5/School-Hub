@@ -97,10 +97,7 @@ export default function StudentDashboardPage() {
         
       if (termError || !termData) {
         console.error("Failed to load current term:", termError);
-        // Continue without term data - set empty string to skip results fetch
-        setTermId("");
-      } else {
-        setTermId(termData.id);
+
       }
 
       // Fetch student details
@@ -129,6 +126,11 @@ export default function StudentDashboardPage() {
       setStudentName(`${studentData.first_name} ${studentData.last_name}`);
       const classData = studentData.classes as any;
       setStudentClass(classData?.name || "No class assigned");
+      
+      // Set termId for state
+      if (termData && termData.id) {
+        setTermId(termData.id);
+      }
 
       // Fetch attendance stats
       const { data: attendanceData } = await supabase
@@ -165,20 +167,52 @@ export default function StudentDashboardPage() {
         .select("*")
         .eq("student_id", studentData.id);
 
-      // Fetch results for average score - only if we have a valid termId
+      // Fetch results for average score - use termData.id directly, not state
       let averageScore = 0;
-      if (termId && termId.trim() !== "") {
+      if (termData && termData.id && classData && classData.id) {
+        // First, fetch publication settings to know which components are published
+        const { data: pubSettings } = await supabase
+          .from("results_publication")
+          .select("*")
+          .eq("class_id", classData.id)
+          .eq("term_id", termData.id)
+          .single();
+
         const { data: resultsData, error: resultsError } = await supabase
           .from("results")
-          .select("total")
+          .select("welcome_test, mid_term_test, vetting, exam")
           .eq("student_id", studentData.id)
-          .eq("term_id", termId);
+          .eq("term_id", termData.id);
         
         if (resultsError) {
           console.error("Error fetching results:", resultsError);
         } else if (resultsData && resultsData.length > 0) {
-          const total = resultsData.reduce((sum, r) => sum + (r.total || 0), 0);
-          averageScore = Math.round(total / resultsData.length);
+          // Calculate average based only on published components
+          let totalScore = 0;
+          let maxScore = 0;
+
+          resultsData.forEach((result: any) => {
+            if (pubSettings?.welcome_test_published) {
+              totalScore += result.welcome_test || 0;
+              maxScore += 10;
+            }
+            if (pubSettings?.mid_term_test_published) {
+              totalScore += result.mid_term_test || 0;
+              maxScore += 20;
+            }
+            if (pubSettings?.vetting_published) {
+              totalScore += result.vetting || 0;
+              maxScore += 10;
+            }
+            if (pubSettings?.exam_published) {
+              totalScore += result.exam || 0;
+              maxScore += 60;
+            }
+          });
+
+          if (maxScore > 0) {
+            averageScore = Math.round((totalScore / (resultsData.length * maxScore)) * 100);
+          }
         }
       }
 

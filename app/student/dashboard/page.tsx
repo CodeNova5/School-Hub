@@ -52,6 +52,7 @@ export default function StudentDashboardPage() {
   const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [termId, setTermId] = useState("");
   const [stats, setStats] = useState<StudentStats>({
     totalAttendance: 0,
     presentPercentage: 0,
@@ -86,6 +87,19 @@ export default function StudentDashboardPage() {
         window.location.href = "/student/login";
         return;
       }
+
+      // get current term ID (you can implement getCurrentTermId() based on your logic)
+      const { data: termData, error: termError } = await supabase
+        .from("terms")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+        
+      if (termError || !termData) {
+        toast.error("Failed to load current term");
+        return;
+      }
+      setTermId(termData.id);
 
       // Fetch student details
       const { data: studentData, error: studentError } = await supabase
@@ -152,12 +166,12 @@ export default function StudentDashboardPage() {
       // Fetch results for average score
       const { data: resultsData } = await supabase
         .from("results")
-        .select("score")
-        .eq("student_id", studentData.id);
-
+        .select("total")
+        .eq("student_id", studentData.id)
+        .eq("term_id", termId);
       let averageScore = 0;
       if (resultsData && resultsData.length > 0) {
-        const total = resultsData.reduce((sum, r) => sum + (r.score || 0), 0);
+        const total = resultsData.reduce((sum, r) => sum + (r.total || 0), 0);
         averageScore = Math.round(total / resultsData.length);
       }
 

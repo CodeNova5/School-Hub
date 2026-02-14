@@ -211,7 +211,7 @@ export default function StudentDashboardPage() {
           });
 
           if (maxScore > 0) {
-            averageScore = Math.round((totalScore / (resultsData.length * maxScore)) * 100);
+            averageScore = Math.round((totalScore / maxScore) * 100);
           }
         }
       }

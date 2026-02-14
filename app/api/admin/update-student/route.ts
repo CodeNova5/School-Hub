@@ -72,6 +72,8 @@ export async function POST(req: Request) {
         .update(rawToken)
         .digest("hex");
 
+      console.log("Generated token for student", studentId, "token hash:", tokenHash);
+
       studentUpdateData.is_active = false;
       studentUpdateData.activation_token_hash = tokenHash;
       studentUpdateData.activation_expires_at = new Date(Date.now() + 86400000); // 24 hours
@@ -86,10 +88,22 @@ export async function POST(req: Request) {
       .single();
 
     if (updateError) {
+      console.error("Error updating student:", updateError);
       return NextResponse.json(
         { error: updateError.message },
         { status: 500 }
       );
+    }
+
+    if (emailChanged) {
+      console.log("Successfully updated student with token. Updated data:", {
+        id: updatedStudent.id,
+        email: updatedStudent.email,
+        is_active: updatedStudent.is_active,
+        activation_used: updatedStudent.activation_used,
+        has_activation_token_hash: !!updatedStudent.activation_token_hash,
+        activation_expires_at: updatedStudent.activation_expires_at,
+      });
     }
 
     // If email changed, send verification email and create/update auth user

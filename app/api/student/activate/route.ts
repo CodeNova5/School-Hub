@@ -31,14 +31,34 @@ export async function POST(req: Request) {
       .eq("activation_token_hash", tokenHash)
       .single();
 
-    if (
-      error ||
-      !student ||
-      student.activation_used ||
-      new Date(student.activation_expires_at) < new Date()
-    ) {
+    if (error) {
+      console.error("Database query error:", error);
       return NextResponse.json(
-        { error: "Invalid or expired activation link" },
+        { error: "Student not found. Invalid activation link." },
+        { status: 400 }
+      );
+    }
+
+    if (!student) {
+      console.error("No student found with token hash:", tokenHash);
+      return NextResponse.json(
+        { error: "No student record found. Invalid activation link." },
+        { status: 400 }
+      );
+    }
+
+    if (student.activation_used) {
+      console.error("Token already used for student:", student.id);
+      return NextResponse.json(
+        { error: "This activation link has already been used." },
+        { status: 400 }
+      );
+    }
+
+    if (new Date(student.activation_expires_at) < new Date()) {
+      console.error("Token expired for student:", student.id);
+      return NextResponse.json(
+        { error: "Activation link has expired. Please request a new one." },
         { status: 400 }
       );
     }

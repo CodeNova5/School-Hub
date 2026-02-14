@@ -88,7 +88,7 @@ export default function StudentDashboardPage() {
         return;
       }
 
-      // get current term ID (you can implement getCurrentTermId() based on your logic)
+      // get current term ID
       const { data: termData, error: termError } = await supabase
         .from("terms")
         .select("id")
@@ -96,10 +96,12 @@ export default function StudentDashboardPage() {
         .single();
         
       if (termError || !termData) {
-        toast.error("Failed to load current term");
-        return;
+        console.error("Failed to load current term:", termError);
+        // Continue without term data - set empty string to skip results fetch
+        setTermId("");
+      } else {
+        setTermId(termData.id);
       }
-      setTermId(termData.id);
 
       // Fetch student details
       const { data: studentData, error: studentError } = await supabase
@@ -163,16 +165,21 @@ export default function StudentDashboardPage() {
         .select("*")
         .eq("student_id", studentData.id);
 
-      // Fetch results for average score
-      const { data: resultsData } = await supabase
-        .from("results")
-        .select("total")
-        .eq("student_id", studentData.id)
-        .eq("term_id", termId);
+      // Fetch results for average score - only if we have a valid termId
       let averageScore = 0;
-      if (resultsData && resultsData.length > 0) {
-        const total = resultsData.reduce((sum, r) => sum + (r.total || 0), 0);
-        averageScore = Math.round(total / resultsData.length);
+      if (termId && termId.trim() !== "") {
+        const { data: resultsData, error: resultsError } = await supabase
+          .from("results")
+          .select("total")
+          .eq("student_id", studentData.id)
+          .eq("term_id", termId);
+        
+        if (resultsError) {
+          console.error("Error fetching results:", resultsError);
+        } else if (resultsData && resultsData.length > 0) {
+          const total = resultsData.reduce((sum, r) => sum + (r.total || 0), 0);
+          averageScore = Math.round(total / resultsData.length);
+        }
       }
 
       // Update stats

@@ -57,7 +57,7 @@ export default function ActivateStudentAccount() {
       setSuccess(true);
 
       setTimeout(() => {
-        router.push("/login");
+        router.push("/student/login");
       }, 2000);
     } catch (err: any) {
       setError(err.message);

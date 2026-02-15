@@ -56,9 +56,9 @@ export default function StudentSubjectsPage() {
   const [student, setStudent] = useState<any>(null);
   const [subjects, setSubjects] = useState<SubjectWithResults[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
-  const [terms, setTerms] = useState<any[]>([]);
   const [selectedSession, setSelectedSession] = useState<string>("");
-  const [selectedTerm, setSelectedTerm] = useState<string>("");
+  const [currentTerm, setCurrentTerm] = useState<string>("");
+  const [publishSettings, setPublishSettings] = useState<any>(null);
 
   // Analytics state
   const [overallAverage, setOverallAverage] = useState<number>(0);
@@ -84,10 +84,10 @@ export default function StudentSubjectsPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedSession && selectedTerm) {
+    if (selectedSession && currentTerm) {
       loadSubjectsAndResults();
     }
-  }, [selectedSession, selectedTerm]);
+  }, [selectedSession, currentTerm]);
 
   async function loadData() {
     try {
@@ -140,14 +140,13 @@ export default function StudentSubjectsPage() {
         .order("name");
 
       setSessions(sessionData || []);
-      setTerms(termData || []);
 
-      // Set current session and term
+      // Set current session and term (locked to current)
       const currentSession = sessionData?.find((s) => s.is_current);
-      const currentTerm = termData?.find((t) => t.is_current);
+      const currentTermData = termData?.find((t) => t.is_current);
 
       if (currentSession) setSelectedSession(currentSession.id);
-      if (currentTerm) setSelectedTerm(currentTerm.id);
+      if (currentTermData) setCurrentTerm(currentTermData.id);
 
     } catch (error) {
       console.error("Error loading data:", error);
@@ -158,9 +157,19 @@ export default function StudentSubjectsPage() {
   }
 
   async function loadSubjectsAndResults() {
-    if (!student || !selectedSession || !selectedTerm) return;
+    if (!student || !selectedSession || !currentTerm) return;
 
     try {
+      // Get publication settings for this class and term
+      const classData = student.classes as any;
+      const { data: pubSettings } = await supabase
+        .from("results_publication")
+        .select("*")
+        .eq("class_id", classData.id)
+        .eq("term_id", currentTerm)
+        .single();
+
+      setPublishSettings(pubSettings);
       // Get student's enrolled subjects
       const { data: studentSubjects, error: subjectsError } = await supabase
         .from("student_subjects")
@@ -219,7 +228,7 @@ export default function StudentSubjectsPage() {
           .order("term_id");
 
         // Get current term result
-        const currentTermResult = results?.find(r => r.term_id === selectedTerm);
+        const currentTermResult = results?.find(r => r.term_id === currentTerm);
 
         // Calculate analytics
         const scores = results?.map(r => r.total || 0) || [];
@@ -271,11 +280,34 @@ export default function StudentSubjectsPage() {
   }
 
   function calculateOverallAnalytics(subjectsData: SubjectWithResults[]) {
-    if (subjectsData.length === 0) return;
+    if (subjectsData.length === 0 || !publishSettings) return;
 
-    // Overall average
+    // Overall average - only count published components
     const currentTermScores = subjectsData
-      .map(s => s.currentTermResult?.total || 0)
+      .map(s => {
+        if (!s.currentTermResult) return 0;
+        let total = 0;
+        let maxScore = 0;
+
+        if (publishSettings?.welcome_test_published) {
+          total += s.currentTermResult.welcome_test || 0;
+          maxScore += 10;
+        }
+        if (publishSettings?.mid_term_test_published) {
+          total += s.currentTermResult.mid_term_test || 0;
+          maxScore += 20;
+        }
+        if (publishSettings?.vetting_published) {
+          total += s.currentTermResult.vetting || 0;
+          maxScore += 10;
+        }
+        if (publishSettings?.exam_published) {
+          total += s.currentTermResult.exam || 0;
+          maxScore += 60;
+        }
+
+        return maxScore > 0 ? (total / maxScore) * 100 : 0;
+      })
       .filter(score => score > 0);
 
     const avg = currentTermScores.length > 0
@@ -310,10 +342,16 @@ export default function StudentSubjectsPage() {
 
     setGradeDistribution(distribution);
 
-    // Performance trend across terms
-    const termsInSession = Array.from(new Set(
+    // Performance trend across terms - only include data if published
+    let termsInSession = Array.from(new Set(
       subjectsData.flatMap(s => s.results.map(r => r.terms?.name))
-    )).filter(Boolean);
+    )).filter(Boolean) as string[];
+
+    // Filter out future terms that aren't published yet
+    termsInSession = termsInSession.filter(term => {
+      if (term === "Current") return publishSettings;
+      return true;
+    });
 
     const trend = termsInSession.map(termName => {
       const termResults = subjectsData.flatMap(s =>
@@ -361,7 +399,7 @@ export default function StudentSubjectsPage() {
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle>Select Session & Term</CardTitle>
+            <CardTitle>Select Session</CardTitle>
           </CardHeader>
           <CardContent className="grid md:grid-cols-2 gap-4">
             <Select
@@ -380,23 +418,14 @@ export default function StudentSubjectsPage() {
               </SelectContent>
             </Select>
 
-            <Select
-              value={selectedTerm}
-              onValueChange={setSelectedTerm}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Term" />
-              </SelectTrigger>
-              <SelectContent>
-                {terms
-                  .filter((t) => t.session_id === selectedSession)
-                  .map((t) => (
-                    <SelectItem value={t.id} key={t.id}>
-                      {t.name} {t.is_current && "(Current)"}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center">
+              <div className="text-sm">
+                <p className="text-gray-600 font-medium">Current Term</p>
+                <p className="text-lg font-semibold text-blue-600 mt-1">
+                  {currentTerm ? "Active" : "Loading..."}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -523,24 +552,32 @@ export default function StudentSubjectsPage() {
                                   </Badge>
                                 </div>
 
-                                {/* Score Breakdown */}
+                                {/* Score Breakdown - Only Published Components */}
                                 <div className="pt-2 border-t space-y-1">
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Welcome Test:</span>
-                                    <span>{subject.currentTermResult.welcome_test || 0}/10</span>
-                                  </div>
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Mid-Term:</span>
-                                    <span>{subject.currentTermResult.mid_term_test || 0}/20</span>
-                                  </div>
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Vetting:</span>
-                                    <span>{subject.currentTermResult.vetting || 0}/10</span>
-                                  </div>
-                                  <div className="flex justify-between text-xs">
-                                    <span className="text-gray-500">Exam:</span>
-                                    <span>{subject.currentTermResult.exam || 0}/60</span>
-                                  </div>
+                                  {publishSettings?.welcome_test_published && (
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-gray-500">Welcome Test:</span>
+                                      <span>{subject.currentTermResult.welcome_test || 0}/10</span>
+                                    </div>
+                                  )}
+                                  {publishSettings?.mid_term_test_published && (
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-gray-500">Mid-Term:</span>
+                                      <span>{subject.currentTermResult.mid_term_test || 0}/20</span>
+                                    </div>
+                                  )}
+                                  {publishSettings?.vetting_published && (
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-gray-500">Vetting:</span>
+                                      <span>{subject.currentTermResult.vetting || 0}/10</span>
+                                    </div>
+                                  )}
+                                  {publishSettings?.exam_published && (
+                                    <div className="flex justify-between text-xs">
+                                      <span className="text-gray-500">Exam:</span>
+                                      <span>{subject.currentTermResult.exam || 0}/60</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             ) : (
@@ -658,7 +695,7 @@ export default function StudentSubjectsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Assessment Breakdown */}
+                {/* Assessment Breakdown - Only Published Components */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Assessment Component Average</CardTitle>
@@ -670,38 +707,38 @@ export default function StudentSubjectsPage() {
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart
                         data={[
-                          {
+                          ...(publishSettings?.welcome_test_published ? [{
                             name: "Welcome Test",
                             avg: subjects
                               .filter(s => s.currentTermResult)
                               .reduce((sum, s) => sum + (s.currentTermResult?.welcome_test || 0), 0) /
                               subjects.filter(s => s.currentTermResult).length || 0,
                             max: 10,
-                          },
-                          {
+                          }] : []),
+                          ...(publishSettings?.mid_term_test_published ? [{
                             name: "Mid-Term",
                             avg: subjects
                               .filter(s => s.currentTermResult)
                               .reduce((sum, s) => sum + (s.currentTermResult?.mid_term_test || 0), 0) /
                               subjects.filter(s => s.currentTermResult).length || 0,
                             max: 20,
-                          },
-                          {
+                          }] : []),
+                          ...(publishSettings?.vetting_published ? [{
                             name: "Vetting",
                             avg: subjects
                               .filter(s => s.currentTermResult)
                               .reduce((sum, s) => sum + (s.currentTermResult?.vetting || 0), 0) /
                               subjects.filter(s => s.currentTermResult).length || 0,
                             max: 10,
-                          },
-                          {
+                          }] : []),
+                          ...(publishSettings?.exam_published ? [{
                             name: "Exam",
                             avg: subjects
                               .filter(s => s.currentTermResult)
                               .reduce((sum, s) => sum + (s.currentTermResult?.exam || 0), 0) /
                               subjects.filter(s => s.currentTermResult).length || 0,
                             max: 60,
-                          },
+                          }] : []),
                         ]}
                       >
                         <XAxis dataKey="name" />

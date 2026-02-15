@@ -102,7 +102,7 @@ export function Sidebar({ role }: SidebarProps) {
   ];
  
   const studentNav: NavItem[] = [
-    { href: '/student/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: '/student', label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: '/student/timetable', label: 'Timetable', icon: <Calendar className="h-5 w-5" /> },
     { href: '/student/subjects', label: 'Subjects', icon: <BookOpen className="h-5 w-5" /> },
     { href: '/student/results', label: 'Results', icon: <GraduationCap className="h-5 w-5" /> },

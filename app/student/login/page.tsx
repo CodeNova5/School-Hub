@@ -69,7 +69,7 @@ export default function StudentLoginPage() {
 
     // 4️⃣ Success
     toast.success("Login successful");
-    router.push("/student/dashboard");
+    router.push("/student/");
   }
 
   async function handleForgotPassword(e: React.FormEvent<HTMLFormElement>) {

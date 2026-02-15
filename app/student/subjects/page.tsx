@@ -30,6 +30,8 @@ export default function StudentSubjectsPage() {
   const [student, setStudent] = useState<any>(null);
   const [subjects, setSubjects] = useState<SubjectWithResults[]>([]);
   const [currentTerm, setCurrentTerm] = useState<string>("");
+  const [publishSettings, setPublishSettings] = useState<any>(null);
+  const [maxScore, setMaxScore] = useState(0);
 
   const GRADE_COLORS: Record<string, string> = {
     A1: "#16a34a",
@@ -103,6 +105,26 @@ export default function StudentSubjectsPage() {
         .single();
 
       if (sessionData && termData) {
+        // Load publication settings for this class
+        const classData = studentData.classes as any;
+        const { data: pubSettings } = await supabase
+          .from("results_publication")
+          .select("*")
+          .eq("class_id", classData.id)
+          .eq("session_id", sessionData.id)
+          .eq("term_id", termData.id)
+          .single();
+
+        setPublishSettings(pubSettings);
+
+        // Calculate max score based on published components
+        let max = 0;
+        if (pubSettings?.welcome_test_published) max += 10;
+        if (pubSettings?.mid_term_test_published) max += 20;
+        if (pubSettings?.vetting_published) max += 10;
+        if (pubSettings?.exam_published) max += 60;
+        setMaxScore(max || 100); // Default to 100 if no settings found
+
         loadSubjectsAndResults(studentData, sessionData.id, termData.id);
       }
 
@@ -171,8 +193,39 @@ export default function StudentSubjectsPage() {
           .eq("term_id", termId)
           .single();
 
-        // Calculate percentage (out of 100)
-        const percentage = results ? (results.total || 0) : 0;
+        // Calculate percentage based on published components
+        let calculatedPercentage = 0;
+        let calculatedMaxScore = 0;
+
+        if (results) {
+          let score = 0;
+          if (publishSettings?.welcome_test_published) {
+            score += results.welcome_test || 0;
+            calculatedMaxScore += 10;
+          }
+          if (publishSettings?.mid_term_test_published) {
+            score += results.mid_term_test || 0;
+            calculatedMaxScore += 20;
+          }
+          if (publishSettings?.vetting_published) {
+            score += results.vetting || 0;
+            calculatedMaxScore += 10;
+          }
+          if (publishSettings?.exam_published) {
+            score += results.exam || 0;
+            calculatedMaxScore += 60;
+          }
+
+          calculatedPercentage = calculatedMaxScore > 0
+            ? (score / calculatedMaxScore) * 100
+            : 0;
+        }
+
+        // Fallback to 100 if no published settings
+        if (calculatedMaxScore === 0) {
+          calculatedMaxScore = 100;
+          calculatedPercentage = results ? (results.total || 0) : 0;
+        }
 
         // Determine trend (compare with previous term)
         let trend: "up" | "down" | "stable" = "stable";
@@ -207,7 +260,7 @@ export default function StudentSubjectsPage() {
           class_name: subjectClass.classes?.name || "",
           currentTermResult: results,
           currentGrade: results?.grade,
-          percentage,
+          percentage: calculatedPercentage,
           trend,
         });
       }
@@ -272,7 +325,7 @@ export default function StudentSubjectsPage() {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {wellPerformingSubjects.map((subject) => (
-                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} />
+                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} />
                   ))}
                 </div>
               </div>
@@ -291,7 +344,7 @@ export default function StudentSubjectsPage() {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {needsImprovementSubjects.map((subject) => (
-                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} />
+                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} />
                   ))}
                 </div>
               </div>
@@ -307,9 +360,10 @@ export default function StudentSubjectsPage() {
 interface SubjectCardProps {
   subject: SubjectWithResults;
   gradeColors: Record<string, string>;
+  maxScore: number;
 }
 
-function SubjectCard({ subject, gradeColors }: SubjectCardProps) {
+function SubjectCard({ subject, gradeColors, maxScore }: SubjectCardProps) {
   const performanceColor = subject.percentage >= 70 ? "text-green-600" : "text-orange-600";
   const performanceBgColor = subject.percentage >= 70 ? "bg-green-50" : "bg-orange-50";
 
@@ -368,7 +422,7 @@ function SubjectCard({ subject, gradeColors }: SubjectCardProps) {
                 <span className={`text-4xl font-bold ${performanceColor}`}>
                   {subject.percentage.toFixed(0)}%
                 </span>
-                <span className="text-sm text-gray-500">out of 100</span>
+                <span className="text-sm text-gray-500">out of {maxScore}</span>
               </div>
             </div>
 

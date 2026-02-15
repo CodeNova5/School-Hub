@@ -34,14 +34,22 @@ export async function POST(req: Request) {
         
         let result;
         if (email) {
-            result = await query.eq("email", email).single();
+            result = await query.eq("email", email).maybeSingle();
         } else {
-            result = await query.eq("user_id", userId).single();
+            result = await query.eq("user_id", userId).maybeSingle();
         }
 
         const { data: teacher, error: teacherError } = result;
 
-        if (teacherError || !teacher) {
+        if (teacherError) {
+            console.error("Error fetching teacher:", teacherError);
+            return NextResponse.json(
+                { error: "Failed to fetch teacher information" },
+                { status: 500 }
+            );
+        }
+
+        if (!teacher) {
             return NextResponse.json(
                 { error: "Teacher not found" },
                 { status: 404 }

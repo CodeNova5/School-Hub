@@ -52,9 +52,18 @@ export default function ResetPasswordPage() {
         .from("teachers")
         .select("id, activation_token_hash, activation_expires_at, activation_used")
         .eq("activation_token_hash", tokenHash)
-        .single();
+        .maybeSingle();
 
-      if (error || !teacher) {
+      if (error) {
+        console.error("Token validation error:", error);
+        toast.error("Failed to validate reset token. Please try again.");
+        setTimeout(() => router.push("/teacher/login"), 2000);
+        setTokenLoading(false);
+        return;
+      }
+
+      if (!teacher) {
+        console.warn("No teacher found with token hash:", tokenHash.substring(0, 8) + "...");
         toast.error("Invalid or expired reset token");
         setTimeout(() => router.push("/teacher/login"), 2000);
         setTokenLoading(false);

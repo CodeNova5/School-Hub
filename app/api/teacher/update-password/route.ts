@@ -42,9 +42,18 @@ export async function POST(request: NextRequest) {
       .select("id, user_id")
       .eq("activation_token_hash", tokenHash)
       .eq("activation_used", false)
-      .single();
+      .maybeSingle();
 
-    if (teacherError || !teacher) {
+    if (teacherError) {
+      console.error("Token validation error:", teacherError);
+      return NextResponse.json(
+        { error: "Failed to validate reset token" },
+        { status: 500 }
+      );
+    }
+
+    if (!teacher) {
+      console.warn("No teacher found with valid token hash");
       return NextResponse.json(
         { error: "Invalid or already used reset token" },
         { status: 400 }
@@ -56,11 +65,19 @@ export async function POST(request: NextRequest) {
       .from("teachers")
       .select("activation_expires_at")
       .eq("id", teacher.id)
-      .single();
+      .maybeSingle();
 
-    if (checkError || !teacherData) {
+    if (checkError) {
+      console.error("Error checking token expiration:", checkError);
       return NextResponse.json(
         { error: "Failed to verify token" },
+        { status: 500 }
+      );
+    }
+
+    if (!teacherData) {
+      return NextResponse.json(
+        { error: "Teacher record not found" },
         { status: 400 }
       );
     }

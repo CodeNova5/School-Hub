@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Lock, Eye, EyeOff, CheckCircle, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
+import crypto from "crypto";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -40,11 +41,17 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      // Verify token in database (token from URL is already hashed)
+      // Hash the token to match what's stored in the database
+      const tokenHash = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+      // Verify token in database
       const { data: teacher, error } = await supabase
         .from("teachers")
         .select("id, activation_token_hash, activation_expires_at, activation_used")
-        .eq("activation_token_hash", token)
+        .eq("activation_token_hash", tokenHash)
         .single();
 
       if (error || !teacher) {

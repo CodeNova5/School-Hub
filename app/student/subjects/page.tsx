@@ -325,7 +325,7 @@ export default function StudentSubjectsPage() {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {wellPerformingSubjects.map((subject) => (
-                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} />
+                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} publishSettings={publishSettings} />
                   ))}
                 </div>
               </div>
@@ -344,7 +344,7 @@ export default function StudentSubjectsPage() {
 
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {needsImprovementSubjects.map((subject) => (
-                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} />
+                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} publishSettings={publishSettings} />
                   ))}
                 </div>
               </div>
@@ -361,11 +361,29 @@ interface SubjectCardProps {
   subject: SubjectWithResults;
   gradeColors: Record<string, string>;
   maxScore: number;
+  publishSettings: any;
 }
 
-function SubjectCard({ subject, gradeColors, maxScore }: SubjectCardProps) {
+function SubjectCard({ subject, gradeColors, maxScore, publishSettings }: SubjectCardProps) {
   const performanceColor = subject.percentage >= 70 ? "text-green-600" : "text-orange-600";
   const performanceBgColor = subject.percentage >= 70 ? "bg-green-50" : "bg-orange-50";
+
+  // Calculate score based on published components
+  let publishedScore = 0;
+  if (subject.currentTermResult) {
+    if (publishSettings?.welcome_test_published) {
+      publishedScore += subject.currentTermResult.welcome_test || 0;
+    }
+    if (publishSettings?.mid_term_test_published) {
+      publishedScore += subject.currentTermResult.mid_term_test || 0;
+    }
+    if (publishSettings?.vetting_published) {
+      publishedScore += subject.currentTermResult.vetting || 0;
+    }
+    if (publishSettings?.exam_published) {
+      publishedScore += subject.currentTermResult.exam || 0;
+    }
+  }
 
   return (
     <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100">
@@ -431,7 +449,7 @@ function SubjectCard({ subject, gradeColors, maxScore }: SubjectCardProps) {
               <div className="bg-blue-50 p-3 rounded-lg text-center">
                 <p className="text-xs text-gray-600 mb-1">Score</p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {subject.currentTermResult.total}
+                  {publishedScore}
                 </p>
               </div>
 

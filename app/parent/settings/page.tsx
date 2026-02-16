@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { User, Mail, Phone, Lock, LogOut } from "lucide-react";
+import { User, Mail, Phone, Lock, LogOut, AlertCircle } from "lucide-react";
 
 interface ParentInfo {
   id: string;
@@ -23,6 +23,8 @@ export default function ParentSettingsPage() {
   const [parent, setParent] = useState<ParentInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -150,6 +152,33 @@ export default function ParentSettingsPage() {
     }
   }
 
+  async function handleResetPasswordRequest() {
+    if (!parent) return;
+
+    setIsResettingPassword(true);
+    try {
+      const response = await fetch("/api/parent/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: parent.email }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || "Failed to send reset email");
+        return;
+      }
+
+      toast.success("Password reset email sent to " + parent.email);
+      setShowResetConfirm(false);
+    } catch (error: any) {
+      toast.error("Failed to send reset email: " + error.message);
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <DashboardLayout role="parent">
@@ -263,6 +292,40 @@ export default function ParentSettingsPage() {
             </form>
           </CardContent>
         </Card>
+        {/* Reset Confirmation Dialog */}
+        {showResetConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  Confirm Password Reset
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  We'll send a password reset link to <strong>{parent.email}</strong>. Please check your email for further instructions.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowResetConfirm(false)}
+                    disabled={isResettingPassword}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleResetPasswordRequest}
+                    disabled={isResettingPassword}
+                    className="bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    {isResettingPassword ? "Sending..." : "Send Reset Email"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <Card>
           <CardHeader>

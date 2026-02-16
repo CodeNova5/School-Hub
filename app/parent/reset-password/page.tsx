@@ -99,24 +99,11 @@ export default function ResetPasswordPage() {
     try {
       setLoading(true);
 
-      // Get the parent's user_id to reset their password
-      const { data: parentData, error: fetchError } = await supabase
-        .from("parents")
-        .select("user_id")
-        .eq("id", parentId)
-        .maybeSingle();
-
-      if (fetchError || !parentData) {
-        toast.error("Failed to find parent information");
-        return;
-      }
-
-      // Update password using admin API
+      // Update password using API endpoint (which validates token and updates password)
       const response = await fetch("/api/parent/update-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: parentData.user_id,
           newPassword: password,
           token: token,
         }),

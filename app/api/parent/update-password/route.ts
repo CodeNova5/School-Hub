@@ -11,9 +11,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, newPassword, token } = body;
+    const { newPassword, token } = body;
 
-    if (!userId || !newPassword || !token) {
+    if (!newPassword || !token) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -39,12 +39,21 @@ export async function POST(request: NextRequest) {
     // Verify the token exists and hasn't been used
     const { data: parent, error: parentError } = await supabase
       .from("parents")
-      .select("id, user_id")
+      .select("id, user_id, activation_expires_at")
       .eq("activation_token_hash", tokenHash)
       .eq("activation_used", false)
-      .single();
+      .maybeSingle();
 
-    if (parentError || !parent) {
+    if (parentError) {
+      console.error("Token validation error:", parentError);
+      return NextResponse.json(
+        { error: "Failed to validate reset token" },
+        { status: 500 }
+      );
+    }
+
+    if (!parent) {
+      console.warn("No parent found with valid token hash");
       return NextResponse.json(
         { error: "Invalid or already used reset token" },
         { status: 400 }
@@ -52,20 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check token expiration
-    const { data: parentData, error: checkError } = await supabase
-      .from("parents")
-      .select("activation_expires_at")
-      .eq("id", parent.id)
-      .single();
-
-    if (checkError || !parentData) {
-      return NextResponse.json(
-        { error: "Failed to verify token" },
-        { status: 400 }
-      );
-    }
-
-    const expirationTime = new Date(parentData.activation_expires_at);
+    const expirationTime = new Date(parent.activation_expires_at);
     if (new Date() > expirationTime) {
       return NextResponse.json(
         { error: "Reset token has expired" },
@@ -74,7 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the user's password in Auth
-    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+    const { error: updateError } = await supabase.auth.admin.updateUserById(parent.user_id, {
       password: newPassword,
     });
 

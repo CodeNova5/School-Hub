@@ -67,6 +67,14 @@ export default function TeacherSettingsPage() {
   }
 
   async function handleResetPassword() {
+    const confirmed = window.confirm(
+      'Are you sure you want to reset your password? A reset email will be sent to your inbox, and you will be signed out.'
+    );
+    
+    if (!confirmed) {
+      return;
+    }
+
     try {
       setResettingPassword(true);
       const { data: { user } } = await supabase.auth.getUser();

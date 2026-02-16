@@ -5,13 +5,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Lock, Eye, EyeOff, CheckCircle, Loader2, ArrowLeft, AlertCircle } from "lucide-react";
-import crypto from "crypto";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -41,53 +39,32 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      // Hash the token to match what's stored in the database
-      const tokenHash = crypto
-        .createHash("sha256")
-        .update(token)
-        .digest("hex");
+      // Validate token via API endpoint (uses service role to bypass RLS)
+      const response = await fetch("/api/teacher/validate-reset-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
 
-      // Verify token in database
-      const { data: teacher, error } = await supabase
-        .from("teachers")
-        .select("id, activation_token_hash, activation_expires_at, activation_used")
-        .eq("activation_token_hash", tokenHash)
-        .maybeSingle();
+      const result = await response.json();
 
-      if (error) {
-        console.error("Token validation error:", error);
-        toast.error("Failed to validate reset token. Please try again.");
+      if (!response.ok) {
+        console.error("Token validation error:", result.error);
+        toast.error(result.error || "Failed to validate reset token. Please try again.");
         setTimeout(() => router.push("/teacher/login"), 2000);
         setTokenLoading(false);
         return;
       }
 
-      if (!teacher) {
-        console.warn("No teacher found with token hash:", tokenHash.substring(0, 8) + "...");
-        toast.error("Invalid or expired reset token");
+      if (!result.valid) {
+        console.warn("Token validation failed:", result.error);
+        toast.error(result.error || "Invalid or expired reset token");
         setTimeout(() => router.push("/teacher/login"), 2000);
         setTokenLoading(false);
         return;
       }
 
-      // Check if token has expired
-      const expirationTime = new Date(teacher.activation_expires_at);
-      if (new Date() > expirationTime) {
-        toast.error("Reset token has expired");
-        setTimeout(() => router.push("/teacher/login"), 2000);
-        setTokenLoading(false);
-        return;
-      }
-
-      // Check if token was already used
-      if (teacher.activation_used) {
-        toast.error("This reset token has already been used");
-        setTimeout(() => router.push("/teacher/login"), 2000);
-        setTokenLoading(false);
-        return;
-      }
-
-      setTeacherId(teacher.id);
+      setTeacherId(result.teacherId);
       setIsTokenValid(true);
     } catch (error) {
       console.error("Error validating token:", error);
@@ -120,24 +97,12 @@ export default function ResetPasswordPage() {
     try {
       setLoading(true);
 
-      // Get the teacher's user_id to reset their password
-      const { data: teacherData, error: fetchError } = await supabase
-        .from("teachers")
-        .select("user_id")
-        .eq("id", teacherId)
-        .single();
-
-      if (fetchError || !teacherData) {
-        toast.error("Failed to find teacher information");
-        return;
-      }
-
-      // Update password using admin API
+      // Update password using API endpoint (which validates token and updates password)
       const response = await fetch("/api/teacher/update-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: teacherData.user_id,
+          userId: teacherId, // teacherId is retrieved from token validation
           newPassword: password,
           token: token,
         }),

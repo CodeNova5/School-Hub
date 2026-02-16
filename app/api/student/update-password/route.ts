@@ -11,9 +11,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, newPassword, token } = body;
+    const { newPassword, token } = body;
 
-    if (!userId || !newPassword || !token) {
+    if (!newPassword || !token) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the user's password in Auth
-    const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+    // Update the user's password in Auth using the user_id from student record
+    const { error: updateError } = await supabase.auth.admin.updateUserById(student.user_id, {
       password: newPassword,
     });
 

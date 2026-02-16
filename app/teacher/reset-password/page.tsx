@@ -102,7 +102,6 @@ export default function ResetPasswordPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: teacherId, // teacherId is retrieved from token validation
           newPassword: password,
           token: token,
         }),

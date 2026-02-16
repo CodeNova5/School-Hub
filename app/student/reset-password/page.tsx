@@ -97,24 +97,12 @@ export default function ResetPasswordPage() {
     try {
       setLoading(true);
 
-      // Get the student's user_id to reset their password
-      const { data: studentData, error: fetchError } = await supabase
-        .from("students")
-        .select("user_id")
-        .eq("id", studentId)
-        .single();
-
-      if (fetchError || !studentData) {
-        toast.error("Failed to find student information");
-        return;
-      }
-
-      // Update password using admin API
+      // Update password using API endpoint (which validates token and updates password)
       const response = await fetch("/api/student/update-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: studentData.user_id,
+          userId: studentId, // studentId is retrieved from token validation
           newPassword: password,
           token: token,
         }),

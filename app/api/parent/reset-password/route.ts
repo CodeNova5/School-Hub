@@ -28,18 +28,22 @@ export async function POST(req: Request) {
         }
 
         // 1️⃣ Get parent by email or user_id
-        let query = supabase
-            .from("parents")
-            .select("id, email, first_name, last_name, user_id");
-        
-        let result;
+        let parentQuery;
         if (email) {
-            result = await query.eq("email", email).single();
+            parentQuery = await supabase
+                .from("parents")
+                .select("id, email, name, user_id")
+                .eq("email", email)
+                .single();
         } else {
-            result = await query.eq("user_id", userId).single();
+            parentQuery = await supabase
+                .from("parents")
+                .select("id, email, name, user_id")
+                .eq("user_id", userId)
+                .single();
         }
 
-        const { data: parent, error: parentError } = result;
+        const { data: parent, error: parentError } = parentQuery;
 
         if (parentError || !parent) {
             return NextResponse.json(
@@ -87,7 +91,7 @@ export async function POST(req: Request) {
                 html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #333;">Password Reset Request</h2>
-            <p>Hello ${parent.first_name} ${parent.last_name},</p>
+            <p>Hello ${parent.name},</p>
             <p>We received a request to reset your password. Click the link below to set a new password:</p>
             <div style="margin: 20px 0;">
               <a href="${activationLink}" style="background-color: #6366f1; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>

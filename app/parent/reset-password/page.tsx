@@ -104,7 +104,7 @@ export default function ResetPasswordPage() {
         .from("parents")
         .select("user_id")
         .eq("id", parentId)
-        .single();
+        .maybeSingle();
 
       if (fetchError || !parentData) {
         toast.error("Failed to find parent information");

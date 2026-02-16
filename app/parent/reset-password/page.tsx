@@ -41,44 +41,32 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      // Hash the token to match what's stored in the database
-      const tokenHash = crypto
-        .createHash("sha256")
-        .update(token)
-        .digest("hex");
+      // Validate token via API endpoint (uses service role to bypass RLS)
+      const response = await fetch("/api/parent/validate-reset-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
 
-      // Verify token in database
-      const { data: parent, error } = await supabase
-        .from("parents")
-        .select("id, activation_token_hash, activation_expires_at, activation_used")
-        .eq("activation_token_hash", tokenHash)
-        .single();
+      const result = await response.json();
 
-      if (error || !parent) {
-        toast.error("Invalid or expired reset token");
+      if (!response.ok) {
+        console.error("Token validation error:", result.error);
+        toast.error(result.error || "Failed to validate reset token. Please try again.");
         setTimeout(() => router.push("/parent/login"), 2000);
         setTokenLoading(false);
         return;
       }
 
-      // Check if token has expired
-      const expirationTime = new Date(parent.activation_expires_at);
-      if (new Date() > expirationTime) {
-        toast.error("Reset token has expired");
+      if (!result.valid) {
+        console.warn("Token validation failed:", result.error);
+        toast.error(result.error || "Invalid or expired reset token");
         setTimeout(() => router.push("/parent/login"), 2000);
         setTokenLoading(false);
         return;
       }
 
-      // Check if token was already used
-      if (parent.activation_used) {
-        toast.error("This reset token has already been used");
-        setTimeout(() => router.push("/parent/login"), 2000);
-        setTokenLoading(false);
-        return;
-      }
-
-      setParentId(parent.id);
+      setParentId(result.parentId);
       setIsTokenValid(true);
     } catch (error) {
       console.error("Error validating token:", error);

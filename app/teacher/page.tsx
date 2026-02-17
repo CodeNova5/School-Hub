@@ -505,7 +505,7 @@ export default function TeacherDashboard() {
     <DashboardLayout role="teacher">
       <div className="space-y-6 md:space-y-8">
         {/* Header Section */}
-        <div className="relative pt-12 md:pt-0">
+        <div className="relative pt-20 md:pt-0">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl opacity-10 blur-xl" />
           <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg md:rounded-2xl p-4 md:p-8 text-white shadow-lg overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white opacity-5 rounded-full -mr-20 -mt-20 hidden sm:block" />

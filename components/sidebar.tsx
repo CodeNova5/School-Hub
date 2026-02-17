@@ -132,7 +132,7 @@ export function Sidebar({ role }: SidebarProps) {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="fixed top-4 left-4 z-50 md:hidden bg-white p-2 rounded-lg shadow-lg border border-slate-200"
+        className="fixed top-16 left-4 z-50 md:hidden bg-white p-2 rounded-lg shadow-lg border border-slate-200"
       >
         {isMobileOpen ? (
           <X className="h-6 w-6" />

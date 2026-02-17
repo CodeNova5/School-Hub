@@ -167,9 +167,16 @@ export default function ParentDashboardPage() {
     );
   }
 
+  const totalAttendance = children.length > 0 
+    ? Math.round(children.reduce((acc, c) => acc + (c.average_attendance || 0), 0) / children.length)
+    : 0;
+
+  const totalPendingAssignments = children.reduce((acc, c) => acc + (c.pending_assignments || 0), 0);
+
   return (
     <DashboardLayout role="parent">
       <div className="space-y-8">
+        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Welcome, {parentName}</h1>
           <p className="text-gray-600 mt-1">
@@ -177,6 +184,111 @@ export default function ParentDashboardPage() {
           </p>
         </div>
 
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Children</p>
+                  <p className="text-3xl font-bold text-blue-600 mt-2">{children.length}</p>
+                </div>
+                <Users className="w-10 h-10 text-blue-300" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Avg. Attendance</p>
+                  <p className="text-3xl font-bold text-purple-600 mt-2">{totalAttendance}%</p>
+                </div>
+                <CheckCircle className="w-10 h-10 text-purple-300" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Pending Tasks</p>
+                  <p className="text-3xl font-bold text-orange-600 mt-2">{totalPendingAssignments}</p>
+                </div>
+                <AlertCircle className="w-10 h-10 text-orange-300" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Children Cards */}
+        <div>
+          <h2 className="text-xl font-bold mb-4">Your Children</h2>
+          {children.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center py-12">
+                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No children added yet</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {children.map((child) => (
+                <Card key={child.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">
+                      {child.first_name} {child.last_name}
+                    </CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {child.classes?.name || child.class_id}
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {/* Attendance */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">Attendance</span>
+                        </div>
+                        <span className="text-sm font-semibold text-green-600">
+                          {child.average_attendance || 0}%
+                        </span>
+                      </div>
+
+
+                      {/* Latest Result */}
+                      {child.latest_result && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm text-gray-600">Latest Grade</span>
+                          </div>
+                          <span className="text-sm font-semibold text-blue-600">
+                            {child.latest_result.grade}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* View Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-3"
+                        onClick={() => router.push(`/parent/children/${child.id}`)}
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Details
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );

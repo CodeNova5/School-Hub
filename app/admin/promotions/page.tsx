@@ -1076,7 +1076,6 @@ export default function PromotionsPage() {
                 </li>
               </ul>
             </div>
-
             <AlertDialogFooter>
               <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handlePromote} disabled={processing}>

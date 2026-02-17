@@ -354,32 +354,32 @@ export default function AssignmentsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-3 md:gap-0 md:flex-row md:justify-between md:items-center">
           <div>
-            <h1 className="text-3xl font-bold">Assignments</h1>
-            <p className="text-gray-600">
+            <h1 className="text-2xl md:text-3xl font-bold">Assignments</h1>
+            <p className="text-sm md:text-base text-gray-600">
               Manage submissions and grading
             </p>
           </div>
-          <Button onClick={() => setOpenModal(true)}>
+          <Button onClick={() => setOpenModal(true)} className="w-full md:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Create Assignment
           </Button>
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Assignments
+              <CardTitle className="text-xs md:text-sm font-medium">
+                Total
               </CardTitle>
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-xl md:text-2xl font-bold">{stats.total}</div>
               <p className="text-xs text-muted-foreground">
                 All assignments
               </p>
@@ -388,13 +388,13 @@ export default function AssignmentsPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Pending Grading
+              <CardTitle className="text-xs md:text-sm font-medium">
+                Pending
               </CardTitle>
               <Clock className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats.ungraded}</div>
+              <div className="text-xl md:text-2xl font-bold text-yellow-600">{stats.ungraded}</div>
               <p className="text-xs text-muted-foreground">
                 Need grading
               </p>
@@ -403,13 +403,13 @@ export default function AssignmentsPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Fully Graded
+              <CardTitle className="text-xs md:text-sm font-medium">
+                Graded
               </CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.fullyGraded}</div>
+              <div className="text-xl md:text-2xl font-bold text-green-600">{stats.fullyGraded}</div>
               <p className="text-xs text-muted-foreground">
                 Complete
               </p>
@@ -418,13 +418,13 @@ export default function AssignmentsPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
+              <CardTitle className="text-xs md:text-sm font-medium">
                 Overdue
               </CardTitle>
               <AlertCircle className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.overdue}</div>
+              <div className="text-xl md:text-2xl font-bold text-red-600">{stats.overdue}</div>
               <p className="text-xs text-muted-foreground">
                 Past due date
               </p>
@@ -433,13 +433,13 @@ export default function AssignmentsPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                No Submissions
+              <CardTitle className="text-xs md:text-sm font-medium">
+                No Subs
               </CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.noSubmissions}</div>
+              <div className="text-xl md:text-2xl font-bold">{stats.noSubmissions}</div>
               <p className="text-xs text-muted-foreground">
                 Awaiting students
               </p>
@@ -450,16 +450,16 @@ export default function AssignmentsPage() {
         {/* Filters */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Filter Assignments</CardTitle>
+            <CardTitle className="text-base md:text-lg">Filter Assignments</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4">
               <div className="relative">
                 <Input
-                  placeholder="Search by title or description..."
+                  placeholder="Search assignments..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full"
+                  className="w-full text-sm"
                 />
               </div>
 
@@ -471,7 +471,7 @@ export default function AssignmentsPage() {
               )}
 
               <select
-                className="border rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="border rounded-md px-2 md:px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as any)}
               >
@@ -505,7 +505,7 @@ export default function AssignmentsPage() {
         {/* List */}
         <Card>
           <CardHeader>
-            <CardTitle>
+            <CardTitle className="text-base md:text-lg">
               {total} Assignment{total !== 1 && "s"}
             </CardTitle>
           </CardHeader>
@@ -515,87 +515,87 @@ export default function AssignmentsPage() {
             ) : filtered.length === 0 ? (
               <div className="text-center py-16 text-gray-500">
                 <FileText className="mx-auto h-12 w-12 mb-4" />
-                No assignments found
+                <p className="font-medium">No assignments found</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {filtered.map((a) => (
                   <div
                     key={a.id}
-                    className="border rounded-lg p-5 hover:shadow-lg transition-all bg-white"
+                    className="border rounded-lg p-3 md:p-5 hover:shadow-lg transition-all bg-white"
                   >
-                    <div className="flex justify-between gap-6">
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <h3 className="font-semibold text-lg text-gray-900">{a.title}</h3>
-                          <div className="flex gap-2">
+                    <div className="flex flex-col gap-3 md:gap-4 md:flex-row md:justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-2">
+                          <h3 className="font-semibold text-base md:text-lg text-gray-900 break-words">{a.title}</h3>
+                          <div className="flex flex-wrap gap-1 md:gap-2">
                             {a.isOverdue && (
-                              <Badge className="bg-red-500 text-white">
+                              <Badge className="bg-red-500 text-white text-xs md:text-sm">
                                 Overdue
                               </Badge>
                             )}
                             {!a.isOverdue && a.isFullyGraded && (
-                              <Badge className="bg-green-500 text-white">
-                                ✓ Fully graded
+                              <Badge className="bg-green-500 text-white text-xs md:text-sm">
+                                ✓ Graded
                               </Badge>
                             )}
                             {!a.isOverdue && a.hasPendingGrading && a.submissionCount > 0 && (
-                              <Badge className="bg-yellow-500 text-white">
-                                Pending grading
+                              <Badge className="bg-yellow-500 text-white text-xs md:text-sm">
+                                Pending
                               </Badge>
                             )}
                           </div>
                         </div>
                         
-                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                        <p className="text-xs md:text-sm text-gray-600 mb-3 line-clamp-2">
                           {a.description || "No description provided"}
                         </p>
 
-                        <div className="flex flex-wrap gap-2 items-center">
+                        <div className="flex flex-wrap gap-1 md:gap-2 items-center">
                           {a.classes && (
-                            <Badge variant="outline" className="font-medium">
+                            <Badge variant="outline" className="font-medium text-xs">
                               <span className="text-xs">📚</span> {a.classes.name}
                             </Badge>
                           )}
                           {a.subjects && (
-                            <Badge variant="secondary">
+                            <Badge variant="secondary" className="text-xs">
                               {a.subjects.name}
                             </Badge>
                           )}
                           <Badge variant="outline" className="text-xs">
                             <Calendar className="h-3 w-3 mr-1" />
-                            Due: {new Date(a.due_date).toLocaleDateString()}
+                            {new Date(a.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </Badge>
                           <Badge variant="outline" className="text-xs">
-                            {a.submissionCount} submission{a.submissionCount !== 1 ? 's' : ''}
+                            {a.submissionCount} sub
                           </Badge>
                           {a.submissionCount > 0 && (
                             <Badge variant="outline" className="text-xs">
-                              {a.gradedCount}/{a.submissionCount} graded
+                              {a.gradedCount}/{a.submissionCount} ✓
                             </Badge>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-2 flex-shrink-0">
-                        <Link href={`/teacher/assignments/${a.id}`}>
+                      <div className="flex flex-row md:flex-col gap-2 flex-shrink-0 w-full md:w-auto">
+                        <Link href={`/teacher/assignments/${a.id}`} className="flex-1 md:flex-none">
                           <Button size="sm" className="w-full">
-                            View Details
+                            View
                           </Button>
                         </Link>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="w-full"
+                          className="flex-1 md:flex-none md:w-full"
                           onClick={() => handleEdit(a)}
                         >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Edit
+                          <Edit className="h-4 w-4 md:mr-1" />
+                          <span className="hidden md:inline">Edit</span>
                         </Button>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700 flex-1 md:flex-none md:w-full"
                           onClick={() => handleDelete(a.id)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -609,16 +609,19 @@ export default function AssignmentsPage() {
 
             {/* Pagination */}
             {total > PAGE_SIZE && (
-              <div className="flex justify-between items-center pt-6">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4 pt-6 border-t">
                 <Button
                   variant="outline"
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}
+                  size="sm"
+                  className="w-full sm:w-auto"
                 >
                   <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline ml-1">Previous</span>
                 </Button>
 
-                <span className="text-sm text-gray-500">
+                <span className="text-xs sm:text-sm text-gray-500 order-first sm:order-none">
                   Page {page} of {Math.ceil(total / PAGE_SIZE)}
                 </span>
 
@@ -626,7 +629,10 @@ export default function AssignmentsPage() {
                   variant="outline"
                   disabled={page * PAGE_SIZE >= total}
                   onClick={() => setPage((p) => p + 1)}
+                  size="sm"
+                  className="w-full sm:w-auto"
                 >
+                  <span className="hidden sm:inline mr-1">Next</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

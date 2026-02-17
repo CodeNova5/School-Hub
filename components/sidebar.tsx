@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { X, Menu } from 'lucide-react';
 
 interface NavItem {
   href: string;
@@ -38,6 +39,7 @@ export function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [hasAssignedClasses, setHasAssignedClasses] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     if (role === 'teacher') {
@@ -127,25 +129,47 @@ export function Sidebar({ role }: SidebarProps) {
 
   return (
     <TooltipProvider>
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setIsMobileOpen(!isMobileOpen)}
+        className="fixed top-4 left-4 z-50 md:hidden bg-white p-2 rounded-lg shadow-lg border border-slate-200"
+      >
+        {isMobileOpen ? (
+          <X className="h-6 w-6" />
+        ) : (
+          <Menu className="h-6 w-6" />
+        )}
+      </button>
+
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black opacity-50 md:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out",
           "bg-white",
           "border-r border-slate-200 shadow-lg",
+          "md:translate-x-0",
+          isMobileOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "w-20" : "w-64"
         )}
       >
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
+          <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4 gap-2">
             {!collapsed && (
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-md">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-md flex-shrink-0">
                   <School className="h-6 w-6 text-white" />
                 </div>
-                <div>
-                  <span className="block font-bold text-slate-900 text-sm">School MS</span>
-                  <span className="block text-xs text-slate-500">Management</span>
+                <div className="hidden sm:block min-w-0">
+                  <span className="block font-bold text-slate-900 text-sm truncate">School MS</span>
+                  <span className="block text-xs text-slate-500 truncate">Management</span>
                 </div>
               </div>
             )}
@@ -156,7 +180,7 @@ export function Sidebar({ role }: SidebarProps) {
                   size="icon"
                   onClick={() => setCollapsed(!collapsed)}
                   className={cn(
-                    "ml-auto h-9 w-9 rounded-lg transition-all duration-200",
+                    "h-9 w-9 rounded-lg transition-all duration-200 hidden md:flex",
                     "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
                   )}
                 >
@@ -171,6 +195,17 @@ export function Sidebar({ role }: SidebarProps) {
                 {collapsed ? 'Expand' : 'Collapse'}
               </TooltipContent>
             </Tooltip>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsMobileOpen(false)}
+              className={cn(
+                "h-9 w-9 rounded-lg transition-all duration-200 md:hidden",
+                "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
+              )}
+            >
+              <X className="h-5 w-5" />
+            </Button>
           </div>
 
           {/* Navigation */}
@@ -184,6 +219,7 @@ export function Sidebar({ role }: SidebarProps) {
                       <TooltipTrigger asChild>
                         <Link
                           href={item.href}
+                          onClick={() => setIsMobileOpen(false)}
                           className={cn(
                             "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                             "relative overflow-hidden",
@@ -196,7 +232,7 @@ export function Sidebar({ role }: SidebarProps) {
                             <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-blue-300 to-blue-500" />
                           )}
                           <span className={cn(
-                            "flex h-5 w-5 items-center justify-center transition-transform duration-200",
+                            "flex h-5 w-5 items-center justify-center transition-transform duration-200 flex-shrink-0",
                             "group-hover:scale-110",
                             isActive ? "scale-110" : ""
                           )}>
@@ -204,7 +240,7 @@ export function Sidebar({ role }: SidebarProps) {
                           </span>
                           {!collapsed && <span className="truncate">{item.label}</span>}
                           {!collapsed && isActive && (
-                            <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white opacity-75" />
+                            <div className="ml-auto h-1.5 w-1.5 rounded-full bg-white opacity-75 flex-shrink-0" />
                           )}
                         </Link>
                       </TooltipTrigger>

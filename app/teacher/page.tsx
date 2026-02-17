@@ -503,22 +503,22 @@ export default function TeacherDashboard() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8 px-2 sm:px-4 md:px-8">
+      <div className="space-y-6 md:space-y-8">
         {/* Header Section */}
-        <div className="relative">
+        <div className="relative pt-12 md:pt-0">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl opacity-10 blur-xl" />
-          <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-5 sm:p-8 text-white shadow-lg overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 sm:w-40 sm:h-40 bg-white opacity-5 rounded-full -mr-10 -mt-10 sm:-mr-20 sm:-mt-20" />
-            <div className="absolute bottom-0 left-0 w-20 h-20 sm:w-32 sm:h-32 bg-white opacity-5 rounded-full -ml-8 -mb-8 sm:-ml-16 sm:-mb-16" />
+          <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg md:rounded-2xl p-4 md:p-8 text-white shadow-lg overflow-hidden">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-white opacity-5 rounded-full -mr-20 -mt-20 hidden sm:block" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-white opacity-5 rounded-full -ml-16 -mb-16 hidden sm:block" />
             <div className="relative z-10">
-              <h1 className="text-2xl sm:text-4xl font-bold mb-2">Welcome Back, {teacherName}!</h1>
-              <p className="text-blue-100 text-base sm:text-lg">You're doing great! Keep engaging with your students.</p>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">Welcome Back, {teacherName}!</h1>
+              <p className="text-blue-100 text-sm md:text-lg">You're doing great! Keep engaging with your students.</p>
             </div>
           </div>
         </div>
 
         {/* Key Metrics Grid */}
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {stats.totalClasses > 0 && (
             <StatCard
               title="Total Students"
@@ -544,46 +544,46 @@ export default function TeacherDashboard() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
           {/* Upcoming Classes */}
-          <div className="lg:col-span-2">
+          <div className="col-span-1 lg:col-span-2">
             <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-              <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50 p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-blue-600" />
-                    <CardTitle className="text-base sm:text-lg">Today's Classes</CardTitle>
+                    <Calendar className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                    <CardTitle className="text-lg md:text-xl">Today's Classes</CardTitle>
                   </div>
                   <Link href="/teacher/timetable">
-                    <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                    <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 text-xs md:text-sm">
                       View All <ArrowRight className="h-4 w-4 ml-1" />
                     </Button>
                   </Link>
                 </div>
               </CardHeader>
-              <CardContent className="p-4 sm:p-6">
-                <div className="space-y-4">
+              <CardContent className="p-4 md:p-6">
+                <div className="space-y-3 md:space-y-4">
                   {upcomingClasses.length > 0 ? (
                     upcomingClasses.map((classItem, index) => (
                       <div
                         key={classItem.id}
-                        className="group p-3 sm:p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-100 hover:border-blue-300 transition-all cursor-pointer"
+                        className="group p-3 md:p-4 rounded-lg md:rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 border border-blue-100 hover:border-blue-300 transition-all cursor-pointer"
                       >
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
-                          <div>
-                            <h3 className="font-semibold text-gray-900 text-base sm:text-lg">{classItem.name}</h3>
-                            <p className="text-xs sm:text-sm text-gray-600 mt-1">{classItem.time}</p>
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 md:mb-3 sm:gap-3">
+                          <div className="min-w-0">
+                            <h3 className="font-semibold text-sm md:text-base text-gray-900 truncate">{classItem.name}</h3>
+                            <p className="text-xs md:text-sm text-gray-600 mt-1">{classItem.time}</p>
                           </div>
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 px-2 md:px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-medium whitespace-nowrap flex-shrink-0">
                             <Users className="h-3 w-3" />
                             {classItem.students}
                           </span>
                         </div>
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-                          <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-1 rounded">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <span className="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-1 rounded whitespace-nowrap">
                             {classItem.subject}
                           </span>
-                          <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button size="sm" variant="ghost" className="text-blue-600 hover:text-blue-700 opacity-0 sm:group-hover:opacity-100 transition-opacity text-xs md:text-sm w-full sm:w-auto sm:justify-center">
                             Start Class
                           </Button>
                         </div>
@@ -592,7 +592,7 @@ export default function TeacherDashboard() {
                   ) : (
                     <div className="text-center text-gray-500 py-8">
                       <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No classes scheduled today</p>
+                      <p className="text-sm">No classes scheduled today</p>
                     </div>
                   )}
                 </div>
@@ -600,40 +600,40 @@ export default function TeacherDashboard() {
             </Card>
           </div>
 
-          <div>
+          <div className="col-span-1">
             <Card className="border-0 shadow-lg h-full">
-              <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-purple-50">
-                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                  <Award className="h-5 w-5 text-purple-600" />
-                  Quick Actions
+              <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-purple-50 p-4 md:p-6">
+                <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                  <Award className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                  <span className="truncate">Quick Actions</span>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 sm:p-6 space-y-2">
+              <CardContent className="p-3 md:p-6 space-y-2">
                 <Link href="/teacher/assignments" className="block">
-                  <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg transition-all text-sm sm:text-base">
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    New Assignment
+                  <Button className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg transition-all text-xs md:text-sm">
+                    <ClipboardList className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">New Assignment</span>
                   </Button>
                 </Link>
                 <Link href="/teacher/results/entry" className="block">
-                  <Button className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all text-sm sm:text-base">
-                    <Award className="h-4 w-4 mr-2" />
-                    Record Grades
+                  <Button className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-md hover:shadow-lg transition-all text-xs md:text-sm">
+                    <Award className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">Record Grades</span>
                   </Button>
                 </Link>
                 {stats.totalClasses > 0 && (
                   <Link href="/teacher/classes" className="block">
-                    <Button className="w-full bg-gradient-to-r from-pink-600 to-pink-700 hover:from-pink-700 hover:to-pink-800 text-white shadow-md hover:shadow-lg transition-all text-sm sm:text-base">
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Classes
+                    <Button className="w-full bg-gradient-to-r from-pink-600 to-pink-700 hover:from-pink-700 hover:to-pink-800 text-white shadow-md hover:shadow-lg transition-all text-xs md:text-sm">
+                      <Users className="h-4 w-4 mr-2 flex-shrink-0" />
+                      <span className="truncate">Manage Classes</span>
                     </Button>
                   </Link>
                 )}
 
                 <Link href="/teacher/students" className="block">
-                  <Button variant="outline" className="w-full border-gray-300 hover:bg-gray-50 text-sm sm:text-base">
-                    <BookOpen className="h-4 w-4 mr-2" />
-                    View Students
+                  <Button variant="outline" className="w-full border-gray-300 hover:bg-gray-50 text-xs md:text-sm">
+                    <BookOpen className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">View Students</span>
                   </Button>
                 </Link>
               </CardContent>
@@ -643,37 +643,37 @@ export default function TeacherDashboard() {
 
         {/* Upcoming Events */}
         <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-          <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-rose-50">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-rose-50 p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-rose-600" />
-                <CardTitle className="text-base sm:text-lg">Upcoming Events</CardTitle>
+                <Clock className="h-5 w-5 text-rose-600 flex-shrink-0" />
+                <CardTitle className="text-lg md:text-xl">Upcoming Events</CardTitle>
               </div>
               <Link href="/teacher/calendar">
-                <Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700">
+                <Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700 text-xs md:text-sm">
                   View All <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </Link>
             </div>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="space-y-3">
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.map((event) => (
                   <div
                     key={event.id}
-                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-100 hover:border-rose-300 transition-all gap-2"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 md:p-4 rounded-lg bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-100 hover:border-rose-300 transition-all"
                   >
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900 text-base sm:text-lg">{event.title}</p>
-                      <div className="flex items-center gap-2 sm:gap-4 mt-2">
-                        <span className="text-xs text-gray-500">{event.date}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm md:text-base text-gray-900 truncate">{event.title}</p>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs">
+                        <span className="text-gray-500">{event.date}</span>
                         {event.location && (
-                          <span className="text-xs text-gray-500">{event.location}</span>
+                          <span className="text-gray-500">{event.location}</span>
                         )}
                       </div>
                     </div>
-                    <Badge className={`ml-0 sm:ml-2 capitalize ${event.type === 'exam' ? 'bg-red-500' :
+                    <Badge className={`capitalize flex-shrink-0 ml-0 sm:ml-2 text-xs md:text-sm ${event.type === 'exam' ? 'bg-red-500' :
                       event.type === 'holiday' ? 'bg-green-500' :
                         event.type === 'meeting' ? 'bg-blue-500' :
                           event.type === 'sports' ? 'bg-orange-500' :
@@ -686,7 +686,7 @@ export default function TeacherDashboard() {
               ) : (
                 <div className="text-center text-gray-500 py-8">
                   <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No upcoming events</p>
+                  <p className="text-sm">No upcoming events</p>
                 </div>
               )}
             </div>
@@ -695,27 +695,27 @@ export default function TeacherDashboard() {
 
         {/* Recent Activities */}
         <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-          <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-emerald-50">
+          <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-emerald-50 p-4 md:p-6">
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-emerald-600" />
-              <CardTitle className="text-base sm:text-lg">Recent Activities</CardTitle>
+              <MessageSquare className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+              <CardTitle className="text-lg md:text-xl truncate">Recent Activities</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="space-y-3">
               {recentActivities.length > 0 ? (
                 recentActivities.map((activity) => (
                   <div
                     key={activity.id}
-                    className={`p-3 sm:p-4 rounded-lg ${getActivityColor(activity.type)} transition-all hover:shadow-md`}
+                    className={`p-3 md:p-4 rounded-lg ${getActivityColor(activity.type)} transition-all hover:shadow-md`}
                   >
-                    <div className="flex items-start gap-3 sm:gap-4">
-                      <div className="mt-1">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1 flex-shrink-0">
                         {getActivityIcon(activity.type)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 text-base sm:text-lg">{activity.title}</p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1">{activity.description}</p>
+                        <p className="font-medium text-sm md:text-base text-gray-900">{activity.title}</p>
+                        <p className="text-xs md:text-sm text-gray-600 mt-1 break-words">{activity.description}</p>
                         <p className="text-xs text-gray-500 mt-2">{activity.timestamp}</p>
                       </div>
                     </div>
@@ -724,7 +724,7 @@ export default function TeacherDashboard() {
               ) : (
                 <div className="text-center text-gray-500 py-8">
                   <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No recent activities</p>
+                  <p className="text-sm">No recent activities</p>
                 </div>
               )}
             </div>
@@ -734,22 +734,22 @@ export default function TeacherDashboard() {
         {/* Performance Summary - Only show if teacher has classes assigned */}
         {stats.totalClasses > 0 && (
           <Card className="border-0 shadow-lg">
-            <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-cyan-50">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <TrendingUp className="h-5 w-5 text-cyan-600" />
-                Class Attendance
+            <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-cyan-50 p-4 md:p-6">
+              <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
+                <TrendingUp className="h-5 w-5 text-cyan-600 flex-shrink-0" />
+                <span className="truncate">Class Attendance</span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 sm:p-6">
+            <CardContent className="p-4 md:p-6">
               <div className="space-y-6">
                 {/* Average Class Attendance */}
                 <div className="border-t pt-6">
-                  <div className="flex flex-col sm:flex-row justify-between mb-4 gap-2">
-                    <h3 className="text-xs sm:text-sm font-semibold text-gray-800">Average Class Attendance</h3>
-                    <span className="text-base sm:text-lg font-bold text-green-600">{stats.averageAttendance || 0}%</span>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                    <h3 className="text-sm font-semibold text-gray-800">Average Class Attendance</h3>
+                    <span className="text-lg font-bold text-green-600">{stats.averageAttendance || 0}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3">
-                    <div className="bg-gradient-to-r from-green-500 to-green-600 h-2 sm:h-3 rounded-full" style={{ width: `${stats.averageAttendance || 0}%` }} />
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full" style={{ width: `${stats.averageAttendance || 0}%` }} />
                   </div>
                 </div>
               </div>

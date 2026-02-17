@@ -258,7 +258,76 @@ export async function POST(req: NextRequest) {
           .insert({ user_id: authData.user.id, role_id: superAdminRole.id });
       }
 
-      return NextResponse.json({ success: true });
+      // Generate activation token for email verification
+      try {
+        const rawToken = crypto.randomBytes(32).toString("hex");
+        const tokenHash = crypto
+          .createHash("sha256")
+          .update(rawToken)
+          .digest("hex");
+
+        // Store token hash and expiration in admins table
+        await supabaseAdmin
+          .from("admins")
+          .update({
+            activation_token_hash: tokenHash,
+            activation_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+            activation_used: false,
+          })
+          .eq("user_id", authData.user.id);
+
+        // Send verification email with activation link
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+          console.warn("Email credentials not configured");
+          return NextResponse.json({
+            success: true,
+            message: "Admin created but email configuration is missing. Please configure EMAIL_USER and EMAIL_PASS environment variables.",
+            requiresPasswordSetup: true,
+          });
+        }
+
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+          },
+        });
+
+        const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/admin/activate?token=${rawToken}`;
+
+        await transporter.sendMail({
+          from: `"School Hub" <${process.env.EMAIL_USER}>`,
+          to: email,
+          subject: "Activate Your Admin Account",
+          html: `
+            <p>Hello ${name},</p>
+            <p>Your admin account has been created in School Hub.</p>
+            <p>Click the link below to activate your account and set your password:</p>
+            <p>
+              <a href="${activationLink}" style="color:#2563eb; text-decoration:none;">
+                Activate Admin Account
+              </a>
+            </p>
+            <p>This link expires in 24 hours.</p>
+            <p>If you did not expect this, please contact your administrator.</p>
+          `,
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: "Admin created successfully. Verification email sent to " + email,
+          requiresPasswordSetup: true,
+        });
+      } catch (emailError: any) {
+        console.error("Error sending admin verification email:", emailError);
+        return NextResponse.json({
+          success: true,
+          message: "Admin created but verification email could not be sent. Error: " + emailError.message,
+          requiresPasswordSetup: true,
+          emailError: emailError.message,
+        });
+      }
     }
 
     // Transfer students to another class with subject reassignment

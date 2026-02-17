@@ -5,6 +5,11 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 // Middleware to check if user is admin
 async function checkIsAdmin() {
   const supabase = createRouteHandlerClient({ cookies });
@@ -36,14 +41,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { data: adminsData, error: adminsError } = await supabase
+    const { data: adminsData, error: adminsError } = await supabaseAdmin
       .from("admins")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (adminsError) throw adminsError;
 
-    const { data: userRoleLinks, error: roleLinksError } = await supabase
+    const { data: userRoleLinks, error: roleLinksError } = await supabaseAdmin
       .from("user_role_links")
       .select(`
         user_id,
@@ -111,7 +116,7 @@ export async function POST(req: NextRequest) {
           .select("user_id")
           .eq("id", studentId)
           .single();
-        
+
         userIdToDelete = studentData?.user_id;
       }
 
@@ -130,10 +135,10 @@ export async function POST(req: NextRequest) {
 
       const { error: resultsError } = currentTerm
         ? await supabaseAdmin
-            .from("results")
-            .delete()
-            .eq("student_id", studentId)
-            .eq("term_id", currentTerm.id)
+          .from("results")
+          .delete()
+          .eq("student_id", studentId)
+          .eq("term_id", currentTerm.id)
         : { error: null };
 
       // 5. Delete student_subjects
@@ -176,8 +181,8 @@ export async function POST(req: NextRequest) {
 
       if (studentError || attendanceError || resultsError || studentSubjectsError) {
         throw new Error(
-          studentError?.message || 
-          attendanceError?.message || 
+          studentError?.message ||
+          attendanceError?.message ||
           resultsError?.message ||
           "Failed to delete some student data"
         );
@@ -361,7 +366,7 @@ export async function POST(req: NextRequest) {
             // 7. Filter subjects based on student's department and religion
             const filteredSubjects = (subjectClasses || []).filter((sc: any) => {
               const subject = sc.subjects;
-              
+
               // Filter by department if applicable
               if (subject.department && student.department) {
                 if (subject.department !== student.department) {
@@ -403,9 +408,9 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        return NextResponse.json({ 
-          success: true, 
-          transferred, 
+        return NextResponse.json({
+          success: true,
+          transferred,
           failed,
           message: `Transferred ${transferred} student(s) with automatic subject assignments.`
         });
@@ -552,7 +557,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        return NextResponse.json({ 
+        return NextResponse.json({
           success: true,
           emailChanged,
         });
@@ -560,7 +565,7 @@ export async function POST(req: NextRequest) {
         throw new Error(`Failed to update teacher: ${error.message}`);
       }
     }
-    
+
     throw new Error("Invalid action");
   } catch (error: any) {
     console.error("Error in POST:", error);

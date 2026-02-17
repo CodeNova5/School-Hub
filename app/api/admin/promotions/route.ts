@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
 // Middleware to check if user is admin
 async function checkIsAdmin() {
   const supabase = createRouteHandlerClient({ cookies });
@@ -46,7 +51,7 @@ export async function GET(request: NextRequest) {
     const sessionId = searchParams.get("sessionId");
 
     // Get promotion settings for this session
-    const { data: settings, error: settingsError } = await supabase
+    const { data: settings, error: settingsError } = await supabaseAdmin
       .from("promotion_settings")
       .select("*")
       .eq("session_id", sessionId)
@@ -63,7 +68,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Get all students with their current class info
-    const { data: students, error: studentsError } = await supabase
+    const { data: students, error: studentsError } = await supabaseAdmin
       .from("students")
       .select(
         `
@@ -89,7 +94,7 @@ export async function GET(request: NextRequest) {
     if (studentsError) throw studentsError;
 
     // Get all terms for this session
-    const { data: terms, error: termsError } = await supabase
+    const { data: terms, error: termsError } = await supabaseAdmin
       .from("terms")
       .select("*")
       .eq("session_id", sessionId)
@@ -99,15 +104,15 @@ export async function GET(request: NextRequest) {
 
     // Get all results for this session
     const studentIds = students?.map((s) => s.id) || [];
-    
+
     // Get all subject_classes to map results to classes
-    const { data: subjectClasses, error: subjectError } = await supabase
+    const { data: subjectClasses, error: subjectError } = await supabaseAdmin
       .from("subject_classes")
       .select("*");
-    
+
     if (subjectError) throw subjectError;
 
-    const { data: results, error: resultsError } = await supabase
+    const { data: results, error: resultsError } = await supabaseAdmin
       .from("results")
       .select("*")
       .eq("session_id", sessionId)
@@ -116,21 +121,21 @@ export async function GET(request: NextRequest) {
     if (resultsError) throw resultsError;
 
     // Calculate eligibility for each student
-    const eligibilityData = students?.map((student) => {
+    const eligibilityData = students?.map((student: any) => {
       // Only include results from the student's current class
       const currentClassSubjects = subjectClasses?.filter(
         (sc) => sc.class_id === student.class_id
       ) || [];
-      
+
       const currentClassSubjectIds = currentClassSubjects.map((sc) => sc.id);
-      
+
       const studentResults = results?.filter(
         (r) => r.student_id === student.id && currentClassSubjectIds.includes(r.subject_class_id)
       ) || [];
 
       // Group by term
       const termResults = new Map();
-      studentResults.forEach((result) => {
+      studentResults.forEach((result: any) => {
         if (!termResults.has(result.term_id)) {
           termResults.set(result.term_id, []);
         }
@@ -193,17 +198,62 @@ export async function GET(request: NextRequest) {
       };
     }) || [];
 
-    return NextResponse.json({
+    interface PromotionResponse {
+      settings: {
+        minimum_pass_percentage: number;
+        require_all_terms: boolean;
+        auto_promote: boolean;
+      };
+      students: typeof eligibilityData;
+      total_students: number;
+      eligible_count: number;
+      graduating_count: number;
+      needs_review_count: number;
+    }
+
+    interface TermAverage {
+      term_id: string;
+      average: number;
+    }
+
+    interface PromotionStudent {
+      student_id: string;
+      student_number: string;
+      student_name: string;
+      current_class_id: string;
+      current_class_name: string;
+      current_class_level: string;
+      current_class_stream: string;
+      education_level: string;
+      department: string;
+      terms_completed: number;
+      total_terms: number;
+      cumulative_average: number;
+      is_eligible: boolean;
+      is_graduating: boolean;
+      needs_manual_review: boolean;
+      term_averages: TermAverage[];
+    }
+
+    interface PromotionSettings {
+      minimum_pass_percentage: number;
+      require_all_terms: boolean;
+      auto_promote: boolean;
+    }
+
+    const response: PromotionResponse = {
       settings: promotionSettings,
       students: eligibilityData,
       total_students: eligibilityData.length,
-      eligible_count: eligibilityData.filter((s) => s.is_eligible).length,
+      eligible_count: eligibilityData.filter((s: PromotionStudent) => s.is_eligible).length,
       graduating_count: eligibilityData.filter(
-        (s) => s.is_graduating && s.is_eligible
+        (s: PromotionStudent) => s.is_graduating && s.is_eligible
       ).length,
-      needs_review_count: eligibilityData.filter((s) => s.needs_manual_review)
+      needs_review_count: eligibilityData.filter((s: PromotionStudent) => s.needs_manual_review)
         .length,
-    });
+    };
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error("Error fetching promotion data:", error);
     return NextResponse.json(
@@ -229,7 +279,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if session is current
-    const { data: session, error: sessionError } = await supabase
+    const { data: session, error: sessionError } = await supabaseAdmin
       .from("sessions")
       .select("is_current")
       .eq("id", sessionId)
@@ -241,11 +291,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
 
     const results = {
       promoted: 0,

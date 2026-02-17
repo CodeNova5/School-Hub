@@ -119,35 +119,21 @@ export default function TeacherStudentsPage() {
         return;
       }
 
-      // Get subjects assigned to this teacher
-      const { data: subjectAssignments, error: assignErr } = await supabase
-        .from("subject_assignments")
-        .select("subject_id, class_id")
+      // Get subject_classes where this teacher is assigned
+      const { data: subjectClasses, error: scErr } = await supabase
+        .from("subject_classes")
+        .select("id, class_id")
         .eq("teacher_id", teacher.id);
 
-      if (!subjectAssignments || subjectAssignments.length === 0) {
+      if (!subjectClasses || subjectClasses.length === 0) {
         toast.error("No subjects assigned to you");
         setIsLoading(false);
         return;
       }
 
-      const subjectIds = Array.from(new Set(subjectAssignments.map(sa => sa.subject_id)));
-      const classIds = Array.from(new Set(subjectAssignments.map(sa => sa.class_id)));
-      setTeacherClasses(classIds);
-
-      // Get subject_classes for the teacher's subjects
-      const { data: subjectClasses, error: scErr } = await supabase
-        .from("subject_classes")
-        .select("id")
-        .in("subject_id", subjectIds);
-
-      if (!subjectClasses || subjectClasses.length === 0) {
-        toast.error("No classes configured for your subjects");
-        setIsLoading(false);
-        return;
-      }
-
       const subjectClassIds = subjectClasses.map(sc => sc.id);
+      const classIds = Array.from(new Set(subjectClasses.map(sc => sc.class_id)));
+      setTeacherClasses(classIds);
 
       // Get students who are taking the teacher's subjects
       const { data: studentSubjects, error: ssErr } = await supabase

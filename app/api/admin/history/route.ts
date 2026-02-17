@@ -3,8 +3,6 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createRouteHandlerClient({ cookies });
-
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || ""
@@ -12,6 +10,7 @@ const supabaseAdmin = createClient(
 
 // Middleware to check if user is admin
 async function checkIsAdmin() {
+  const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
   } = await supabase.auth.getUser();

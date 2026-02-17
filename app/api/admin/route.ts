@@ -5,10 +5,9 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 
-const supabase = createRouteHandlerClient({ cookies });
-
 // Middleware to check if user is admin
 async function checkIsAdmin() {
+  const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -599,7 +598,7 @@ export async function DELETE(req: NextRequest) {
     );
 
     // Remove role links
-    await supabase
+    await supabaseAdmin
       .from("user_role_links")
       .delete()
       .eq("user_id", userId);

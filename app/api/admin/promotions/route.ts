@@ -3,10 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createRouteHandlerClient({ cookies });
-
 // Middleware to check if user is admin
 async function checkIsAdmin() {
+  const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
   } = await supabase.auth.getUser();

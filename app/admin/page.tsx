@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Users,
   BookOpen,
@@ -25,6 +26,8 @@ import {
   Settings,
   Download,
   Plus,
+  Loader2,
+  UserPlus,
 } from 'lucide-react';
 import {
   LineChart,
@@ -41,121 +44,191 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-
-// Mock data
-const studentEnrollmentData = [
-  { month: 'Jan', students: 240, capacity: 400 },
-  { month: 'Feb', students: 380, capacity: 400 },
-  { month: 'Mar', students: 350, capacity: 400 },
-  { month: 'Apr', students: 420, capacity: 450 },
-  { month: 'May', students: 480, capacity: 500 },
-  { month: 'Jun', students: 510, capacity: 500 },
-];
-
-const classDistributionData = [
-  { name: 'JSS 1', value: 45 },
-  { name: 'JSS 2', value: 48 },
-  { name: 'JSS 3', value: 52 },
-  { name: 'SSS 1', value: 50 },
-  { name: 'SSS 2', value: 48 },
-  { name: 'SSS 3', value: 45 },
-];
-
-const performanceData = [
-  { class: 'JSS 1', average: 72, target: 80 },
-  { class: 'JSS 2', average: 75, target: 80 },
-  { class: 'JSS 3', average: 78, target: 80 },
-  { class: 'SSS 1', average: 76, target: 85 },
-  { class: 'SSS 2', average: 79, target: 85 },
-  { class: 'SSS 3', average: 82, target: 85 },
-];
-
-const recentActivities = [
-  {
-    id: 1,
-    activity: 'New student enrolled',
-    details: 'Chioma Okoro - JSS 1A',
-    time: '2 hours ago',
-    icon: Users,
-    color: 'bg-blue-50',
-    iconColor: 'text-blue-600',
-  },
-  {
-    id: 2,
-    activity: 'Grade publication',
-    details: 'SSS 3 results published',
-    time: '5 hours ago',
-    icon: FileText,
-    color: 'bg-green-50',
-    iconColor: 'text-green-600',
-  },
-  {
-    id: 3,
-    activity: 'Teacher assignment',
-    details: 'Mr. Adebayo assigned to Chemistry',
-    time: '1 day ago',
-    icon: BookOpen,
-    color: 'bg-purple-50',
-    iconColor: 'text-purple-600',
-  },
-  {
-    id: 4,
-    activity: 'Holiday updated',
-    details: 'Mid-term break added',
-    time: '1 day ago',
-    icon: Calendar,
-    color: 'bg-orange-50',
-    iconColor: 'text-orange-600',
-  },
-];
-
-const quickStats = [
-  {
-    title: 'Total Students',
-    value: 2847,
-    trend: '+12.5%',
-    trendUp: true,
-    icon: GraduationCap,
-  },
-  {
-    title: 'Active Teachers',
-    value: 156,
-    trend: '+3.2%',
-    trendUp: true,
-    icon: Users,
-  },
-  {
-    title: 'Classes',
-    value: 24,
-    trend: '+2',
-    trendUp: true,
-    icon: BookOpen,
-  },
-  {
-    title: 'Subjects',
-    value: 89,
-    trend: '-1',
-    trendUp: false,
-    icon: BarChart3,
-  },
-];
+import { useRouter } from 'next/navigation';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
+interface DashboardData {
+  stats: {
+    totalStudents: number;
+    totalTeachers: number;
+    totalClasses: number;
+    totalSubjects: number;
+    attendanceRate: number;
+    averagePerformance: number;
+    passRate: number;
+    pendingAdmissions: number;
+  };
+  classDistribution: Array<{ name: string; value: number }>;
+  enrollmentTrend: Array<{ month: string; students: number; capacity: number }>;
+  performanceByClass: Array<{ class: string; average: number; target: number }>;
+  recentActivities: {
+    events: any[];
+    admissions: any[];
+    students: any[];
+  };
+  systemStatus: {
+    absentToday: number;
+    lateToday: number;
+    attendanceRate: number;
+  };
+  currentSession: any;
+  currentTerm: any;
+}
+
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({
-    totalStudents: 2847,
-    totalTeachers: 156,
-    totalClasses: 24,
-    totalSubjects: 89,
-    attendanceRate: 94.2,
-    averagePerformance: 76.8,
-  });
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch dashboard data
-    // This would be replaced with actual API calls
+    fetchDashboardData();
   }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('/api/admin/dashboard');
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch dashboard data');
+      }
+
+      setDashboardData(result.data);
+    } catch (err: any) {
+      console.error('Error fetching dashboard data:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Format time ago
+  const formatTimeAgo = (date: string) => {
+    const now = new Date();
+    const then = new Date(date);
+    const diffInSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return 'Just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    return then.toLocaleDateString();
+  };
+
+  // Build recent activities from different sources
+  const getRecentActivities = () => {
+    if (!dashboardData) return [];
+
+    const activities: any[] = [];
+
+    // Add recent students
+    dashboardData.recentActivities.students.slice(0, 3).forEach((student: any) => {
+      activities.push({
+        id: `student-${student.first_name}`,
+        activity: 'New student enrolled',
+        details: `${student.first_name} ${student.last_name} - ${student.classes?.name || 'No Class'}`,
+        time: formatTimeAgo(student.created_at),
+        icon: UserPlus,
+        color: 'bg-blue-50',
+        iconColor: 'text-blue-600',
+      });
+    });
+
+    // Add recent admissions
+    dashboardData.recentActivities.admissions.slice(0, 2).forEach((admission: any) => {
+      activities.push({
+        id: `admission-${admission.id}`,
+        activity: 'New admission application',
+        details: `${admission.first_name} ${admission.last_name} - ${admission.status}`,
+        time: formatTimeAgo(admission.created_at),
+        icon: FileText,
+        color: 'bg-green-50',
+        iconColor: 'text-green-600',
+      });
+    });
+
+    // Add recent events
+    dashboardData.recentActivities.events.slice(0, 2).forEach((event: any) => {
+      activities.push({
+        id: `event-${event.id}`,
+        activity: event.event_type === 'holiday' ? 'Holiday scheduled' : 'Event scheduled',
+        details: event.title,
+        time: formatTimeAgo(event.created_at),
+        icon: Calendar,
+        color: 'bg-orange-50',
+        iconColor: 'text-orange-600',
+      });
+    });
+
+    return activities.slice(0, 4);
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="space-y-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (error || !dashboardData) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="space-y-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load dashboard</h2>
+              <p className="text-gray-600 mb-4">{error || 'Unknown error'}</p>
+              <Button onClick={fetchDashboardData}>Try Again</Button>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const quickStats = [
+    {
+      title: 'Total Students',
+      value: dashboardData.stats.totalStudents,
+      trend: `${dashboardData.stats.totalStudents > 0 ? '+' : ''}${dashboardData.stats.totalStudents}`,
+      trendUp: true,
+      icon: GraduationCap,
+    },
+    {
+      title: 'Active Teachers',
+      value: dashboardData.stats.totalTeachers,
+      trend: `${dashboardData.stats.totalTeachers > 0 ? 'Active' : 'None'}`,
+      trendUp: true,
+      icon: Users,
+    },
+    {
+      title: 'Classes',
+      value: dashboardData.stats.totalClasses,
+      trend: `${dashboardData.stats.totalClasses} active`,
+      trendUp: true,
+      icon: BookOpen,
+    },
+    {
+      title: 'Subjects',
+      value: dashboardData.stats.totalSubjects,
+      trend: `${dashboardData.stats.totalSubjects} subjects`,
+      trendUp: true,
+      icon: BarChart3,
+    },
+  ];
+
+  const recentActivities = getRecentActivities();
 
   return (
     <DashboardLayout role="admin">
@@ -164,16 +237,19 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600 mt-1">Welcome back! Here's an overview of your school</p>
+            <p className="text-gray-600 mt-1">
+              Welcome back! Here's an overview of your school
+              {dashboardData.currentSession && ` - ${dashboardData.currentSession.name}`}
+            </p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" size="lg">
-              <Download className="h-4 w-4 mr-2" />
-              Export Report
+            <Button variant="outline" size="lg" onClick={() => router.push('/admin/students')}>
+              <GraduationCap className="h-4 w-4 mr-2" />
+              Manage Students
             </Button>
-            <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+            <Button size="lg" className="bg-blue-600 hover:bg-blue-700" onClick={() => router.push('/admin/admissions')}>
               <Plus className="h-4 w-4 mr-2" />
-              New Entry
+              View Admissions
             </Button>
           </div>
         </div>
@@ -206,36 +282,44 @@ export default function AdminDashboard() {
               </div>
             </CardHeader>
             <CardContent className="p-6">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={studentEnrollmentData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis stroke="#9ca3af" />
-                  <YAxis stroke="#9ca3af" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                    }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="students"
-                    stroke="#3B82F6"
-                    strokeWidth={3}
-                    dot={{ fill: '#3B82F6', r: 5 }}
-                    activeDot={{ r: 7 }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="capacity"
-                    stroke="#D1D5DB"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {dashboardData.enrollmentTrend.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={dashboardData.enrollmentTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="month" stroke="#9ca3af" />
+                    <YAxis stroke="#9ca3af" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="students"
+                      stroke="#3B82F6"
+                      strokeWidth={3}
+                      dot={{ fill: '#3B82F6', r: 5 }}
+                      activeDot={{ r: 7 }}
+                      name="Students"
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="capacity"
+                      stroke="#D1D5DB"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="Capacity"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-gray-500">
+                  No enrollment data available
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -248,60 +332,70 @@ export default function AdminDashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={classDistributionData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {classDistributionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {dashboardData.classDistribution.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={dashboardData.classDistribution}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value }) => `${name}: ${value}`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {dashboardData.classDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-gray-500">
+                  No class data available
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
         {/* Performance Analysis */}
-        <Card className="shadow-lg hover:shadow-xl transition-shadow">
-          <CardHeader className="border-b bg-gradient-to-r from-green-50 to-green-100 pb-6">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-green-600" />
-                Academic Performance by Class
-              </CardTitle>
-              <Badge variant="secondary">Current Term</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-6">
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={performanceData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis stroke="#9ca3af" />
-                <YAxis stroke="#9ca3af" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#fff',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="average" fill="#10B981" name="Class Average" radius={[8, 8, 0, 0]} />
-                <Bar dataKey="target" fill="#F59E0B" name="Target Score" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+        {dashboardData.performanceByClass.length > 0 && (
+          <Card className="shadow-lg hover:shadow-xl transition-shadow">
+            <CardHeader className="border-b bg-gradient-to-r from-green-50 to-green-100 pb-6">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-green-600" />
+                  Academic Performance by Class
+                </CardTitle>
+                <Badge variant="secondary">
+                  {dashboardData.currentTerm?.name || 'Current Term'}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={dashboardData.performanceByClass}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="class" stroke="#9ca3af" />
+                  <YAxis stroke="#9ca3af" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="average" fill="#10B981" name="Class Average" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="target" fill="#F59E0B" name="Target Score" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Two Column Layout - Activities and System Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -315,26 +409,32 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {recentActivities.map((activity) => {
-                  const IconComponent = activity.icon;
-                  return (
-                    <div
-                      key={activity.id}
-                      className="flex items-start gap-4 p-4 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
-                    >
+                {recentActivities.length > 0 ? (
+                  recentActivities.map((activity) => {
+                    const IconComponent = activity.icon;
+                    return (
                       <div
-                        className={`${activity.color} p-3 rounded-lg flex items-center justify-center flex-shrink-0`}
+                        key={activity.id}
+                        className="flex items-start gap-4 p-4 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-200"
                       >
-                        <IconComponent className={`h-5 w-5 ${activity.iconColor}`} />
+                        <div
+                          className={`${activity.color} p-3 rounded-lg flex items-center justify-center flex-shrink-0`}
+                        >
+                          <IconComponent className={`h-5 w-5 ${activity.iconColor}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900">{activity.activity}</p>
+                          <p className="text-sm text-gray-600 mt-1">{activity.details}</p>
+                          <p className="text-xs text-gray-500 mt-2">{activity.time}</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900">{activity.activity}</p>
-                        <p className="text-sm text-gray-600 mt-1">{activity.details}</p>
-                        <p className="text-xs text-gray-500 mt-2">{activity.time}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No recent activities
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -365,17 +465,12 @@ export default function AdminDashboard() {
                     <div className="h-3 w-3 bg-blue-500 rounded-full"></div>
                     <div>
                       <p className="font-medium text-gray-900">Attendance Rate</p>
-                      <p className="text-xs text-gray-600">94.2% - Excellent</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-200">
-                  <div className="flex items-center gap-3">
-                    <div className="h-3 w-3 bg-purple-500 rounded-full"></div>
-                    <div>
-                      <p className="font-medium text-gray-900">Data Backup</p>
-                      <p className="text-xs text-gray-600">Last run: 2 hours ago</p>
+                      <p className="text-xs text-gray-600">
+                        {dashboardData.systemStatus.attendanceRate}% - 
+                        {dashboardData.systemStatus.attendanceRate >= 90 ? ' Excellent' : 
+                         dashboardData.systemStatus.attendanceRate >= 80 ? ' Good' : 
+                         dashboardData.systemStatus.attendanceRate >= 70 ? ' Fair' : ' Needs Attention'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -384,11 +479,39 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-3">
                     <div className="h-3 w-3 bg-orange-500 rounded-full"></div>
                     <div>
-                      <p className="font-medium text-gray-900">Storage Used</p>
-                      <p className="text-xs text-gray-600">68% - Adequate</p>
+                      <p className="font-medium text-gray-900">Absent Today</p>
+                      <p className="text-xs text-gray-600">
+                        {dashboardData.systemStatus.absentToday} student{dashboardData.systemStatus.absentToday !== 1 ? 's' : ''}
+                      </p>
                     </div>
                   </div>
                 </div>
+
+                <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <div className="flex items-center gap-3">
+                    <div className="h-3 w-3 bg-yellow-500 rounded-full"></div>
+                    <div>
+                      <p className="font-medium text-gray-900">Late Arrivals</p>
+                      <p className="text-xs text-gray-600">
+                        {dashboardData.systemStatus.lateToday} student{dashboardData.systemStatus.lateToday !== 1 ? 's' : ''} today
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {dashboardData.stats.pendingAdmissions > 0 && (
+                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="flex items-center gap-3">
+                      <div className="h-3 w-3 bg-purple-500 rounded-full"></div>
+                      <div>
+                        <p className="font-medium text-gray-900">Pending Admissions</p>
+                        <p className="text-xs text-gray-600">
+                          {dashboardData.stats.pendingAdmissions} application{dashboardData.stats.pendingAdmissions !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -397,16 +520,17 @@ export default function AdminDashboard() {
         {/* Quick Access & Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
-            { title: 'Manage Students', icon: GraduationCap, color: 'bg-blue-50', textColor: 'text-blue-600', borderColor: 'border-blue-200' },
-            { title: 'Manage Teachers', icon: Users, color: 'bg-purple-50', textColor: 'text-purple-600', borderColor: 'border-purple-200' },
-            { title: 'Create Classes', icon: BookOpen, color: 'bg-green-50', textColor: 'text-green-600', borderColor: 'border-green-200' },
-            { title: 'Settings', icon: Settings, color: 'bg-orange-50', textColor: 'text-orange-600', borderColor: 'border-orange-200' },
+            { title: 'Manage Students', icon: GraduationCap, color: 'bg-blue-50', textColor: 'text-blue-600', borderColor: 'border-blue-200', path: '/admin/students' },
+            { title: 'Manage Teachers', icon: Users, color: 'bg-purple-50', textColor: 'text-purple-600', borderColor: 'border-purple-200', path: '/admin/teachers' },
+            { title: 'Manage Classes', icon: BookOpen, color: 'bg-green-50', textColor: 'text-green-600', borderColor: 'border-green-200', path: '/admin/classes' },
+            { title: 'Settings', icon: Settings, color: 'bg-orange-50', textColor: 'text-orange-600', borderColor: 'border-orange-200', path: '/admin/settings' },
           ].map((action, index) => {
             const IconComponent = action.icon;
             return (
               <Button
                 key={index}
                 variant="outline"
+                onClick={() => router.push(action.path)}
                 className={`h-auto py-6 flex flex-col items-center justify-center gap-3 ${action.borderColor} hover:shadow-lg transition-all`}
               >
                 <div className={`${action.color} p-3 rounded-lg`}>
@@ -435,18 +559,24 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <p className="text-sm text-gray-600">Total Enrollment</p>
-                    <p className="text-2xl font-bold text-blue-600 mt-2">2,847</p>
-                    <p className="text-xs text-gray-600 mt-2">↑ 12.5% from last term</p>
+                    <p className="text-2xl font-bold text-blue-600 mt-2">
+                      {dashboardData.stats.totalStudents.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">Active students</p>
                   </div>
                   <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                     <p className="text-sm text-gray-600">Pass Rate</p>
-                    <p className="text-2xl font-bold text-green-600 mt-2">87%</p>
-                    <p className="text-xs text-gray-600 mt-2">↑ 3.2% from last year</p>
+                    <p className="text-2xl font-bold text-green-600 mt-2">
+                      {dashboardData.stats.passRate}%
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">Current term</p>
                   </div>
                   <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                    <p className="text-sm text-gray-600">Teacher Efficiency</p>
-                    <p className="text-2xl font-bold text-purple-600 mt-2">92%</p>
-                    <p className="text-xs text-gray-600 mt-2">Excellent performance</p>
+                    <p className="text-sm text-gray-600">Active Teachers</p>
+                    <p className="text-2xl font-bold text-purple-600 mt-2">
+                      {dashboardData.stats.totalTeachers}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">Teaching staff</p>
                   </div>
                 </div>
               </TabsContent>
@@ -455,18 +585,27 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                     <p className="text-sm text-gray-600">Average Score</p>
-                    <p className="text-2xl font-bold text-indigo-600 mt-2">76.8%</p>
-                    <p className="text-xs text-gray-600 mt-2">Above target benchmark</p>
+                    <p className="text-2xl font-bold text-indigo-600 mt-2">
+                      {dashboardData.stats.averagePerformance}%
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">
+                      {dashboardData.stats.averagePerformance >= 75 ? 'Excellent' : 
+                       dashboardData.stats.averagePerformance >= 60 ? 'Good' : 'Needs improvement'}
+                    </p>
                   </div>
                   <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
-                    <p className="text-sm text-gray-600">Top Performer</p>
-                    <p className="text-2xl font-bold text-cyan-600 mt-2">SSS 3</p>
-                    <p className="text-xs text-gray-600 mt-2">Average: 82%</p>
+                    <p className="text-sm text-gray-600">Total Classes</p>
+                    <p className="text-2xl font-bold text-cyan-600 mt-2">
+                      {dashboardData.stats.totalClasses}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">Active classes</p>
                   </div>
                   <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                    <p className="text-sm text-gray-600">Need Attention</p>
-                    <p className="text-2xl font-bold text-amber-600 mt-2">JSS 1</p>
-                    <p className="text-xs text-gray-600 mt-2">Average: 72%</p>
+                    <p className="text-sm text-gray-600">Total Subjects</p>
+                    <p className="text-2xl font-bold text-amber-600 mt-2">
+                      {dashboardData.stats.totalSubjects}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">Available subjects</p>
                   </div>
                 </div>
               </TabsContent>
@@ -475,17 +614,30 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                     <p className="text-sm text-gray-600">Overall Attendance</p>
-                    <p className="text-2xl font-bold text-green-600 mt-2">94.2%</p>
-                    <p className="text-xs text-gray-600 mt-2">Excellent rate</p>
+                    <p className="text-2xl font-bold text-green-600 mt-2">
+                      {dashboardData.systemStatus.attendanceRate}%
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">
+                      {dashboardData.systemStatus.attendanceRate >= 90 ? 'Excellent rate' : 
+                       dashboardData.systemStatus.attendanceRate >= 80 ? 'Good rate' : 'Needs attention'}
+                    </p>
                   </div>
                   <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                     <p className="text-sm text-gray-600">Absent Today</p>
-                    <p className="text-2xl font-bold text-red-600 mt-2">23</p>
-                    <p className="text-xs text-gray-600 mt-2">0.8% of total</p>
+                    <p className="text-2xl font-bold text-red-600 mt-2">
+                      {dashboardData.systemStatus.absentToday}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">
+                      {dashboardData.stats.totalStudents > 0 
+                        ? `${((dashboardData.systemStatus.absentToday / dashboardData.stats.totalStudents) * 100).toFixed(1)}% of total`
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                     <p className="text-sm text-gray-600">Late Arrivals</p>
-                    <p className="text-2xl font-bold text-yellow-600 mt-2">12</p>
+                    <p className="text-2xl font-bold text-yellow-600 mt-2">
+                      {dashboardData.systemStatus.lateToday}
+                    </p>
                     <p className="text-xs text-gray-600 mt-2">Today</p>
                   </div>
                 </div>

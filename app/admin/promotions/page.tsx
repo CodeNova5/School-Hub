@@ -462,12 +462,7 @@ export default function PromotionsPage() {
   }
 
   const filteredStudents = students.filter((student) => {
-    // By default, only show students who won't be promoted (repeat/needs review)
-    const willRepeat =
-      (promotionActions[student.student_id] || determineAction(student)) === "repeat";
-    
-    if (!willRepeat) return false;
-
+    // Show all students so they can be processed (promoted, graduated, or repeated)
     if (
       search &&
       !student.student_name.toLowerCase().includes(search.toLowerCase()) &&
@@ -617,9 +612,9 @@ export default function PromotionsPage() {
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <CardTitle>Students Requiring Action</CardTitle>
+                    <CardTitle>All Students</CardTitle>
                     <CardDescription>
-                      Only showing students who will repeat or need manual review
+                      Select students and process them for promotion, graduation, or repetition
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -702,10 +697,10 @@ export default function PromotionsPage() {
                   </div>
                 ) : filteredStudents.length === 0 ? (
                   <div className="text-center py-12 space-y-2">
-                    <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto" />
-                    <p className="font-medium text-foreground">All Students Eligible!</p>
+                    <AlertTriangle className="h-12 w-12 text-orange-600 mx-auto" />
+                    <p className="font-medium text-foreground">No Students Found</p>
                     <p className="text-muted-foreground">
-                      No students need review. All can proceed with promotion/graduation.
+                      No students match the current filters or no students are enrolled in this session.
                     </p>
                   </div>
                 ) : (
@@ -874,7 +869,7 @@ export default function PromotionsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Promotions</AlertDialogTitle>
               <AlertDialogDescription>
-                Review students requiring attention (repeating students shown below)
+                Review the promotion actions for selected students below
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -882,7 +877,6 @@ export default function PromotionsPage() {
             <div className="space-y-3">
               {students
                 .filter((s) => selectedStudents.has(s.student_id))
-                .filter((s) => (promotionActions[s.student_id] || determineAction(s)) === "repeat")
                 .map((student) => {
                   const defaultAction = determineAction(student);
                   const currentAction = promotionActions[student.student_id] || defaultAction;

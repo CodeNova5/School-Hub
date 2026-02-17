@@ -55,9 +55,9 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
         {/* Page Content */}
         <main
           className={`
-    min-h-screen p-4 sm:p-6 md:p-8 transition-all duration-300
-    ${collapsed ? "md:ml-20" : "md:ml-64"}
-  `}
+             min-h-screen p-4 sm:p-6 md:p-8 transition-all duration-300
+               ${collapsed ? "md:ml-20" : "md:ml-64"}
+               `}
         >
           {children}
         </main>

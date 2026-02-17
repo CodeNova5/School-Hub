@@ -100,6 +100,7 @@ export default function PromotionsPage() {
 
   // Filters
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "eligible" | "needs_review">("all");
   const [classFilter, setClassFilter] = useState<string>("all");
 
   // Dialogs
@@ -462,7 +463,6 @@ export default function PromotionsPage() {
   }
 
   const filteredStudents = students.filter((student) => {
-    // Show all students so they can be processed (promoted, graduated, or repeated)
     if (
       search &&
       !student.student_name.toLowerCase().includes(search.toLowerCase()) &&
@@ -471,6 +471,8 @@ export default function PromotionsPage() {
       return false;
     }
 
+    if (statusFilter === "eligible" && !student.is_eligible) return false;
+    if (statusFilter === "needs_review" && !student.needs_manual_review) return false;
     if (classFilter !== "all" && student.current_class_name !== classFilter) return false;
 
     return true;
@@ -612,9 +614,9 @@ export default function PromotionsPage() {
               <CardHeader>
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <CardTitle>All Students</CardTitle>
+                    <CardTitle>Students</CardTitle>
                     <CardDescription>
-                      Select students and process them for promotion, graduation, or repetition
+                      Select students to promote or graduate
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -635,7 +637,7 @@ export default function PromotionsPage() {
                       size="sm"
                     >
                       <ArrowRight className="h-4 w-4 mr-2" />
-                      Process {selectedStudents.size} Student{selectedStudents.size !== 1 ? "s" : ""}
+                      Promote {selectedStudents.size} Student{selectedStudents.size !== 1 ? "s" : ""}
                     </Button>
                   </div>
                 </div>
@@ -652,6 +654,17 @@ export default function PromotionsPage() {
                       onChange={(e) => setSearch(e.target.value)}
                     />
                   </div>
+
+                  <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                    <SelectTrigger className="w-full md:w-[200px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="eligible">Eligible</SelectItem>
+                      <SelectItem value="needs_review">Needs Review</SelectItem>
+                    </SelectContent>
+                  </Select>
 
                   <Select value={classFilter} onValueChange={setClassFilter}>
                     <SelectTrigger className="w-full md:w-[200px]">
@@ -696,12 +709,8 @@ export default function PromotionsPage() {
                     Loading students...
                   </div>
                 ) : filteredStudents.length === 0 ? (
-                  <div className="text-center py-12 space-y-2">
-                    <AlertTriangle className="h-12 w-12 text-orange-600 mx-auto" />
-                    <p className="font-medium text-foreground">No Students Found</p>
-                    <p className="text-muted-foreground">
-                      No students match the current filters or no students are enrolled in this session.
-                    </p>
+                  <div className="text-center py-12 text-muted-foreground">
+                    No students found
                   </div>
                 ) : (
                   <div className="border rounded-lg overflow-hidden">
@@ -711,13 +720,18 @@ export default function PromotionsPage() {
                           <th className="p-3 text-left w-12"></th>
                           <th className="p-3 text-left">Student</th>
                           <th className="p-3 text-left">Current Class</th>
+                          <th className="p-3 text-center">Terms</th>
                           <th className="p-3 text-center">Average</th>
-                          <th className="p-3 text-center">Recommendation</th>
+                          <th className="p-3 text-center">Status</th>
+                          <th className="p-3 text-center">Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredStudents.map((student) => {
                           const isSelected = selectedStudents.has(student.student_id);
+                          const StatusIcon = student.is_eligible
+                            ? TrendingUp
+                            : TrendingDown;
 
                           return (
                             <tr
@@ -759,13 +773,28 @@ export default function PromotionsPage() {
                                 </div>
                               </td>
                               <td className="p-3 text-center">
+                                <Badge variant="outline">
+                                  {student.terms_completed}/{student.total_terms}
+                                </Badge>
+                              </td>
+                              <td className="p-3 text-center">
                                 <div className="flex flex-col items-center gap-1">
-                                  <span className="font-bold text-lg text-red-600">
+                                  <span
+                                    className={`font-bold text-lg ${
+                                      student.is_eligible
+                                        ? "text-green-600"
+                                        : "text-red-600"
+                                    }`}
+                                  >
                                     {student.cumulative_average.toFixed(1)}%
                                   </span>
                                   <Badge
                                     variant="outline"
-                                    className="bg-red-100 text-red-700 border-red-300"
+                                    className={
+                                      student.is_eligible
+                                        ? "bg-green-100 text-green-700 border-green-300"
+                                        : "bg-red-100 text-red-700 border-red-300"
+                                    }
                                   >
                                     {calculateGrade(student.cumulative_average)}
                                   </Badge>
@@ -774,27 +803,55 @@ export default function PromotionsPage() {
                               <td className="p-3 text-center">
                                 {(() => {
                                   const action = determineAction(student);
-                                  if (action === "promote") {
+                                  if (action === "graduate") {
+                                    return (
+                                      <Badge className="bg-purple-100 text-purple-700 border-purple-300">
+                                        <GraduationCap className="h-3 w-3 mr-1" />
+                                        Graduating
+                                      </Badge>
+                                    );
+                                  } else if (action === "promote") {
+                                    return (
+                                      <Badge className="bg-green-100 text-green-700 border-green-300">
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        Eligible
+                                      </Badge>
+                                    );
+                                  } else {
+                                    return (
+                                      <Badge className="bg-orange-100 text-orange-700 border-orange-300">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Review
+                                      </Badge>
+                                    );
+                                  }
+                                })()}
+                              </td>
+                              <td className="p-3 text-center">
+                                {(() => {
+                                  const action = determineAction(student);
+                                  if (action === "graduate") {
+                                    return (
+                                      <Badge variant="outline" className="bg-purple-50">
+                                        <Award className="h-3 w-3 mr-1" />
+                                        Graduate
+                                      </Badge>
+                                    );
+                                  } else if (action === "promote") {
                                     return (
                                       <Badge variant="outline" className="bg-green-50">
                                         <ArrowRight className="h-3 w-3 mr-1" />
                                         Promote
                                       </Badge>
                                     );
-                                  } else if (action === "graduate") {
+                                  } else {
                                     return (
-                                      <Badge variant="outline" className="bg-purple-50">
-                                        <GraduationCap className="h-3 w-3 mr-1" />
-                                        Graduate
+                                      <Badge variant="outline" className="bg-orange-50">
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        Repeat
                                       </Badge>
                                     );
                                   }
-                                  return (
-                                    <Badge variant="outline" className="bg-orange-50">
-                                      <RefreshCw className="h-3 w-3 mr-1" />
-                                      Repeat
-                                    </Badge>
-                                  );
                                 })()}
                               </td>
                             </tr>
@@ -889,7 +946,7 @@ export default function PromotionsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Promotions</AlertDialogTitle>
               <AlertDialogDescription>
-                Review the promotion actions for selected students below
+                Review students requiring attention (repeating students shown below)
               </AlertDialogDescription>
             </AlertDialogHeader>
 
@@ -897,6 +954,7 @@ export default function PromotionsPage() {
             <div className="space-y-3">
               {students
                 .filter((s) => selectedStudents.has(s.student_id))
+                .filter((s) => (promotionActions[s.student_id] || determineAction(s)) === "repeat")
                 .map((student) => {
                   const defaultAction = determineAction(student);
                   const currentAction = promotionActions[student.student_id] || defaultAction;

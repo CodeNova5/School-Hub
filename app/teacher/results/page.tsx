@@ -36,6 +36,8 @@ interface StudentScore {
 
 export default function SubjectResultEntryPage() {
   const [subjectClasses, setSubjectClasses] = useState<SubjectClass[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState<string>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
   const [selectedSubjectClassId, setSelectedSubjectClassId] = useState<string>('');
   const [students, setStudents] = useState<StudentScore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,6 +55,18 @@ export default function SubjectResultEntryPage() {
       setStudents([]);
     }
   }, [selectedSubjectClassId]);
+
+  useEffect(() => {
+    if (selectedClassId && selectedSubjectId) {
+      const sc = subjectClasses.find(
+        s => s.class_id === selectedClassId && s.subject_id === selectedSubjectId
+      );
+      setSelectedSubjectClassId(sc?.id || '');
+    } else {
+      setSelectedSubjectClassId('');
+    }
+  }, [selectedClassId, selectedSubjectId, subjectClasses]);
+
 
   async function loadTeacherSubjects() {
     setIsLoading(true);
@@ -184,6 +198,20 @@ export default function SubjectResultEntryPage() {
       setIsLoading(false);
     }
   }
+  
+  const uniqueClasses = Array.from(
+    new Map(
+      subjectClasses.map(sc => [sc.class_id, {
+        id: sc.class_id,
+        name: sc.class_name
+      }])
+    ).values()
+  );
+
+  const filteredSubjects = subjectClasses.filter(
+    sc => sc.class_id === selectedClassId
+  );
+
 
   function calculateGrade(total: number) {
     if (total >= 75) return { grade: 'A1', remark: 'Excellent' };
@@ -293,7 +321,7 @@ export default function SubjectResultEntryPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
@@ -334,23 +362,46 @@ export default function SubjectResultEntryPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-4">
+
+              {/* Class Select */}
               <div className="flex-1">
-                <Select value={selectedSubjectClassId} onValueChange={setSelectedSubjectClassId}>
+                <Select value={selectedClassId} onValueChange={(val) => {
+                  setSelectedClassId(val);
+                  setSelectedSubjectId('');
+                }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose a subject and class to begin" />
+                    <SelectValue placeholder="Select Class" />
                   </SelectTrigger>
                   <SelectContent>
-                    {subjectClasses.map((sc) => (
-                      <SelectItem key={sc.id} value={sc.id}>
+                    {uniqueClasses.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Subject Select */}
+              <div className="flex-1">
+                <Select
+                  value={selectedSubjectId}
+                  onValueChange={setSelectedSubjectId}
+                  disabled={!selectedClassId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredSubjects.map((sc) => (
+                      <SelectItem key={sc.subject_id} value={sc.subject_id}>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{sc.subject_name}</span>
-                          <span className="text-gray-500">-</span>
-                          <span className="text-gray-600">{sc.class_name}</span>
+                          <span>{sc.subject_name}</span>
                           {sc.is_optional && (
-                            <Badge variant="secondary" className="ml-2 text-xs">Optional</Badge>
+                            <Badge variant="secondary" className="text-xs">Optional</Badge>
                           )}
                           {sc.department && (
-                            <Badge variant="outline" className="ml-2 text-xs">{sc.department}</Badge>
+                            <Badge variant="outline" className="text-xs">{sc.department}</Badge>
                           )}
                         </div>
                       </SelectItem>
@@ -358,24 +409,17 @@ export default function SubjectResultEntryPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button 
-                onClick={handleSave} 
+
+              <Button
+                onClick={handleSave}
                 disabled={isSaving || !selectedSubjectClassId || students.length === 0}
                 size="lg"
               >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Results
-                  </>
-                )}
+                {isSaving ? 'Saving...' : 'Save Results'}
               </Button>
+
             </div>
+
           </CardContent>
         </Card>
 
@@ -507,7 +551,7 @@ export default function SubjectResultEntryPage() {
                             {student.total}
                           </td>
                           <td className="border border-gray-200 px-3 py-2 text-center font-bold bg-blue-50">
-                            <Badge 
+                            <Badge
                               variant={student.total >= 50 ? "default" : "destructive"}
                               className="font-mono"
                             >

@@ -165,21 +165,6 @@ export default function TeacherSubjectsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>My Classes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {myClasses.map((cls) => (
-                <Badge key={cls.id} variant="outline" className="text-sm">
-                  {cls.name}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Search & Filters</CardTitle>
           </CardHeader>
           <CardContent>
@@ -284,18 +269,6 @@ export default function TeacherSubjectsPage() {
                               </div>
                             </div>
                           </div>
-
-                          {teacher && (
-                            <div className="flex items-center gap-2 text-xs text-gray-600 mb-3 p-2 bg-gray-50 rounded">
-                              <UserIcon className="h-3 w-3 flex-shrink-0" />
-                              <div>
-                                <p className="font-medium">Subject Teacher</p>
-                                <p className="truncate">
-                                  {teacher.first_name} {teacher.last_name}
-                                </p>
-                              </div>
-                            </div>
-                          )}
 
                           <div className="border-t pt-3">
                             <a

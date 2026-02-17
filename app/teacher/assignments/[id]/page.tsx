@@ -177,26 +177,27 @@ export default function AssignmentDetailsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         {/* Header */}
         <div>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold">{assignment.title}</h1>
+          <div className="flex flex-col gap-3 md:gap-0 md:flex-row md:justify-between md:items-start">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl md:text-3xl font-bold break-words">{assignment.title}</h1>
 
-              <div className="flex gap-2 mt-4 flex-wrap">
-                <Badge variant="outline">{assignment.classes?.name}</Badge>
-                <Badge variant="secondary">{assignment.subjects?.name}</Badge>
-                <Badge className="bg-blue-100 text-blue-800">
-                  <Calendar className="w-4 h-4 mr-1" />
-                  Due {new Date(assignment.due_date).toLocaleDateString()}
+              <div className="flex flex-wrap gap-1 md:gap-2 mt-3 md:mt-4">
+                <Badge variant="outline" className="text-xs md:text-sm">{assignment.classes?.name}</Badge>
+                <Badge variant="secondary" className="text-xs md:text-sm">{assignment.subjects?.name}</Badge>
+                <Badge className="bg-blue-100 text-blue-800 text-xs md:text-sm">
+                  <Calendar className="w-3 md:w-4 h-3 md:h-4 mr-1" />
+                  Due {new Date(assignment.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </Badge>
               </div>
             </div>
 
-            <Button onClick={() => setOpenEditModal(true)}>
+            <Button onClick={() => setOpenEditModal(true)} className="w-full md:w-auto flex-shrink-0 mt-3 md:mt-0">
               <Edit className="h-4 w-4 mr-2" />
-              Edit Assignment
+              <span className="hidden md:inline">Edit Assignment</span>
+              <span className="md:hidden">Edit</span>
             </Button>
           </div>
         </div>
@@ -204,46 +205,46 @@ export default function AssignmentDetailsPage() {
         {/* Assignment Info */}
         <Card>
           <CardHeader>
-            <CardTitle>Assignment Info</CardTitle>
+            <CardTitle className="text-base md:text-lg">Assignment Info</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">
               {assignment.description || "No description"}
             </p>
 
             {assignment.file_url && (
               <div>
-                <p className="font-medium mb-2">Attached File</p>
-                <div className="border rounded-lg p-4">
+                <p className="font-medium text-sm md:text-base mb-2">Attached File</p>
+                <div className="border rounded-lg p-2 md:p-4 overflow-hidden">
                   {assignmentIsImage && (
                     <img
                       src={assignmentFileUrl}
-                      className="w-full max-h-96 object-contain rounded-lg border"
+                      className="w-full max-h-72 md:max-h-96 object-contain rounded-lg border"
                     />
                   )}
                   {assignmentIsPdf && (
                     <iframe
                       src={assignmentFileUrl}
-                      className="w-full h-[60vh] rounded-md border"
+                      className="w-full h-[40vh] md:h-[60vh] rounded-md border"
                     />
                   )}
                   {assignmentIsOffice && (
                     <iframe
                       src={assignmentGoogleViewerUrl}
-                      className="w-full h-[60vh] rounded-md border"
+                      className="w-full h-[40vh] md:h-[60vh] rounded-md border"
                     />
                   )}
                   {!assignmentIsImage && !assignmentIsPdf && !assignmentIsOffice && (
-                    <div className="flex items-center gap-4">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">
+                    <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4">
+                      <FileText className="h-6 md:h-8 w-6 md:w-8 text-muted-foreground flex-shrink-0" />
+                      <div className="min-w-0 text-center md:text-left">
+                        <p className="text-xs md:text-sm font-medium truncate">
                           {assignment.file_url.split("/").pop()}
                         </p>
                         <a
                           href={assignmentFileUrl}
                           target="_blank"
-                          className="text-sm text-primary hover:underline"
+                          className="text-xs md:text-sm text-primary hover:underline inline-block"
                         >
                           Download File
                         </a>
@@ -255,22 +256,22 @@ export default function AssignmentDetailsPage() {
             )}
 
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
+              <div className="bg-blue-50 rounded-lg p-3 md:p-4 border border-blue-200">
                 <div className="flex items-center gap-2 mb-1">
-                  <FileText className="h-5 w-5 text-blue-600" />
-                  <p className="font-medium text-blue-900">{getSubmissionLabel(assignment.submission_type)}</p>
+                  <FileText className="h-4 md:h-5 w-4 md:w-5 text-blue-600 flex-shrink-0" />
+                  <p className="font-medium text-xs md:text-sm text-blue-900 break-words">{getSubmissionLabel(assignment.submission_type)}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <p className="text-sm text-gray-600">Total Marks</p>
-                <p className="text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
+              <div className="bg-gray-50 rounded-lg p-3 md:p-4 border border-gray-200">
+                <p className="text-xs md:text-sm text-gray-600">Total Marks</p>
+                <p className="text-xl md:text-2xl font-bold text-gray-900">{assignment.total_marks}</p>
               </div>
 
               {!assignment.allow_late_submission && (
-                <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                  <p className="text-sm font-medium text-red-900">No Late Submissions Allowed</p>
+                <div className="bg-red-50 rounded-lg p-3 md:p-4 border border-red-200">
+                  <p className="text-xs md:text-sm font-medium text-red-900">No Late Submissions</p>
                 </div>
               )}
             </div>
@@ -279,30 +280,34 @@ export default function AssignmentDetailsPage() {
 
         {/* Filters */}
         <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex flex-wrap gap-4">
+          <CardContent className="pt-4 md:pt-6 space-y-3 md:space-y-4">
+            <div>
               <Input
                 placeholder="Search student..."
-                className="w-48"
+                className="w-full md:w-48 text-sm"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
               />
-
+            </div>
+            <div className="flex flex-wrap gap-2 md:gap-3">
               <Button
                 variant={statusFilter === "all" ? "default" : "outline"}
                 onClick={() => setStatusFilter("all")}
+                size="sm"
               >
                 All
               </Button>
               <Button
                 variant={statusFilter === "ungraded" ? "default" : "outline"}
                 onClick={() => setStatusFilter("ungraded")}
+                size="sm"
               >
                 Ungraded
               </Button>
               <Button
                 variant={statusFilter === "graded" ? "default" : "outline"}
                 onClick={() => setStatusFilter("graded")}
+                size="sm"
               >
                 Graded
               </Button>
@@ -310,6 +315,7 @@ export default function AssignmentDetailsPage() {
               <Button
                 variant={lateOnly ? "destructive" : "outline"}
                 onClick={() => setLateOnly(v => !v)}
+                size="sm"
               >
                 Late
               </Button>
@@ -319,6 +325,7 @@ export default function AssignmentDetailsPage() {
                 onClick={() =>
                   setDateOrder(o => (o === "newest" ? "oldest" : "newest"))
                 }
+                size="sm"
               >
                 {dateOrder === "newest" ? "Newest" : "Oldest"}
               </Button>
@@ -327,28 +334,28 @@ export default function AssignmentDetailsPage() {
         </Card>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 md:gap-4">
           <Card className="bg-white border border-gray-200">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6">
               <div className="text-center">
-                <p className="text-4xl font-bold text-gray-900">{submissions.length}</p>
-                <p className="text-sm text-gray-500 mt-1">Total Submissions</p>
+                <p className="text-2xl md:text-4xl font-bold text-gray-900">{submissions.length}</p>
+                <p className="text-xs md:text-sm text-gray-500 mt-1">Total</p>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-white border border-gray-200">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6">
               <div className="text-center">
-                <p className="text-4xl font-bold text-green-600">{gradedCount}</p>
-                <p className="text-sm text-gray-500 mt-1">Graded</p>
+                <p className="text-2xl md:text-4xl font-bold text-green-600">{gradedCount}</p>
+                <p className="text-xs md:text-sm text-gray-500 mt-1">Graded</p>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-white border border-gray-200">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 md:pt-6">
               <div className="text-center">
-                <p className="text-4xl font-bold text-red-600">{lateCount}</p>
-                <p className="text-sm text-gray-500 mt-1">Late Submissions</p>
+                <p className="text-2xl md:text-4xl font-bold text-red-600">{lateCount}</p>
+                <p className="text-xs md:text-sm text-gray-500 mt-1">Late</p>
               </div>
             </CardContent>
           </Card>
@@ -357,36 +364,36 @@ export default function AssignmentDetailsPage() {
         {/* Submissions List */}
         <Card>
           <CardHeader>
-            <CardTitle>Student Submissions</CardTitle>
+            <CardTitle className="text-base md:text-lg">Student Submissions</CardTitle>
           </CardHeader>
           <CardContent>
             {filteredSubmissions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
+              <div className="text-center py-8 text-gray-500 text-sm">
                 No submissions match this filter.
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-4">
                 {filteredSubmissions.map(sub => (
                   <div
                     key={sub.id}
-                    className="border rounded-lg p-4 hover:shadow-md transition cursor-pointer"
+                    className="border rounded-lg p-3 md:p-4 hover:shadow-md transition cursor-pointer bg-white"
                     onClick={() => setActiveSubmission(sub)}
                   >
-                    <div className="flex justify-between items-start gap-4">
-                      <div>
-                        <p className="font-semibold">
+                    <div className="flex flex-col gap-2 md:flex-row md:justify-between md:items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm md:text-base break-words">
                           {sub.students?.first_name} {sub.students?.last_name}
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(sub.submitted_at).toLocaleString()}
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          {new Date(sub.submitted_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
 
-                      <div className="flex gap-2">
+                      <div className="flex gap-1 md:gap-2 flex-shrink-0">
                         {!sub.submitted_on_time && (
-                          <Badge variant="destructive">Late</Badge>
+                          <Badge variant="destructive" className="text-xs">Late</Badge>
                         )}
-                        <Badge variant={sub.graded_at ? "success" : "warning"}>
+                        <Badge variant={sub.graded_at ? "success" : "warning"} className="text-xs">
                           {sub.graded_at ? "Graded" : "Ungraded"}
                         </Badge>
                       </div>

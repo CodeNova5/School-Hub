@@ -772,10 +772,30 @@ export default function PromotionsPage() {
                                 </div>
                               </td>
                               <td className="p-3 text-center">
-                                <Badge variant="outline" className="bg-orange-50">
-                                  <RefreshCw className="h-3 w-3 mr-1" />
-                                  Repeat
-                                </Badge>
+                                {(() => {
+                                  const action = determineAction(student);
+                                  if (action === "promote") {
+                                    return (
+                                      <Badge variant="outline" className="bg-green-50">
+                                        <ArrowRight className="h-3 w-3 mr-1" />
+                                        Promote
+                                      </Badge>
+                                    );
+                                  } else if (action === "graduate") {
+                                    return (
+                                      <Badge variant="outline" className="bg-purple-50">
+                                        <GraduationCap className="h-3 w-3 mr-1" />
+                                        Graduate
+                                      </Badge>
+                                    );
+                                  }
+                                  return (
+                                    <Badge variant="outline" className="bg-orange-50">
+                                      <RefreshCw className="h-3 w-3 mr-1" />
+                                      Repeat
+                                    </Badge>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           );

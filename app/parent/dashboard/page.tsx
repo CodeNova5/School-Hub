@@ -15,9 +15,12 @@ import {
   FileText,
   CheckCircle,
   AlertCircle,
-  Eye
+  Eye,
+  MapPin,
+  ArrowRight
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 
 interface Student {
   id: string;
@@ -39,14 +42,27 @@ interface Student {
   };
 }
 
+interface Event {
+  id: string;
+  title: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+  location?: string;
+  event_type: string;
+  is_all_day: boolean;
+}
+
 export default function ParentDashboardPage() {
   const router = useRouter();
   const [children, setChildren] = useState<Student[]>([]);
   const [parentName, setParentName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
 
   useEffect(() => {
     loadData();
+    fetchUpcomingEvents();
   }, []);
 
   async function loadData() {
@@ -157,6 +173,23 @@ export default function ParentDashboardPage() {
     }
   }
 
+  async function fetchUpcomingEvents() {
+    try {
+      const { data: events } = await supabase
+        .from("events")
+        .select("*")
+        .gte("start_date", new Date().toISOString())
+        .order("start_date", { ascending: true })
+        .limit(5);
+
+      if (events) {
+        setUpcomingEvents(events);
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch events:", error.message);
+    }
+  }
+
   if (isLoading) {
     return (
       <DashboardLayout role="parent">
@@ -221,6 +254,82 @@ export default function ParentDashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Upcoming Events */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Upcoming Events</h2>
+            <Button variant="ghost" size="sm" onClick={() => router.push("/parent/calendar")}>
+              View All <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+          {upcomingEvents.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6 text-center py-8">
+                <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No upcoming events</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {upcomingEvents.slice(0, 4).map((event) => (
+                <Card key={event.id} className="hover:shadow-md transition-shadow overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex gap-4">
+                      <div className="flex-shrink-0">
+                        <div className={`h-12 w-12 rounded-lg flex items-center justify-center ${
+                          event.event_type === "exam" ? "bg-red-100" :
+                          event.event_type === "holiday" ? "bg-green-100" :
+                          event.event_type === "meeting" ? "bg-blue-100" :
+                          event.event_type === "sports" ? "bg-orange-100" :
+                          "bg-purple-100"
+                        }`}>
+                          <Calendar className={`w-6 h-6 ${
+                            event.event_type === "exam" ? "text-red-600" :
+                            event.event_type === "holiday" ? "text-green-600" :
+                            event.event_type === "meeting" ? "text-blue-600" :
+                            event.event_type === "sports" ? "text-orange-600" :
+                            "text-purple-600"
+                          }`} />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 truncate">{event.title}</h3>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          <Badge className="text-xs capitalize">{event.event_type}</Badge>
+                          {event.is_all_day && (
+                            <Badge variant="outline" className="text-xs">All Day</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 mt-2 text-xs text-gray-600">
+                          <Clock className="w-3 h-3" />
+                          {event.is_all_day
+                            ? new Date(event.start_date).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric"
+                            })
+                            : new Date(event.start_date).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })}
+                        </div>
+                        {event.location && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
+                            <MapPin className="w-3 h-3" />
+                            {event.location}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Children Cards */}

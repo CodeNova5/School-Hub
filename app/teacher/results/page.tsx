@@ -198,7 +198,7 @@ export default function SubjectResultEntryPage() {
       setIsLoading(false);
     }
   }
-  
+
   const uniqueClasses = Array.from(
     new Map(
       subjectClasses.map(sc => [sc.class_id, {
@@ -297,54 +297,54 @@ export default function SubjectResultEntryPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 md:gap-0 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Subject Results Entry</h1>
-            <p className="text-gray-600 mt-1">Enter and manage student results for your subjects</p>
+            <h1 className="text-2xl md:text-3xl font-bold">Subject Results Entry</h1>
+            <p className="text-sm md:text-base text-gray-600 mt-1">Enter and manage student results for your subjects</p>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <BookOpen className="h-6 w-6 text-blue-600" />
+            <CardContent className="p-4 md:p-6">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <BookOpen className="h-5 w-5 md:h-6 md:w-6 text-blue-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Your Subjects</p>
-                  <p className="text-2xl font-bold">{subjectClasses.length}</p>
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-gray-600">Your Subjects</p>
+                  <p className="text-xl md:text-2xl font-bold">{subjectClasses.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                  <Users className="h-6 w-6 text-green-600" />
+            <CardContent className="p-4 md:p-6">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <Users className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Students</p>
-                  <p className="text-2xl font-bold">{students.length}</p>
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-gray-600">Students</p>
+                  <p className="text-xl md:text-2xl font-bold">{students.length}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
-                  <GraduationCap className="h-6 w-6 text-purple-600" />
+            <CardContent className="p-4 md:p-6">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="h-10 w-10 md:h-12 md:w-12 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
+                  <GraduationCap className="h-5 w-5 md:h-6 md:w-6 text-purple-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Average Score</p>
-                  <p className="text-2xl font-bold">
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm text-gray-600">Average Score</p>
+                  <p className="text-xl md:text-2xl font-bold">
                     {students.length > 0
                       ? (students.reduce((sum, s) => sum + s.total, 0) / students.length).toFixed(1)
                       : '0'}
@@ -361,7 +361,7 @@ export default function SubjectResultEntryPage() {
             <CardTitle>Select Subject & Class</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-4 md:flex-row md:gap-4">
 
               {/* Class Select */}
               <div className="flex-1">
@@ -414,6 +414,7 @@ export default function SubjectResultEntryPage() {
                 onClick={handleSave}
                 disabled={isSaving || !selectedSubjectClassId || students.length === 0}
                 size="lg"
+                className="w-full md:w-auto"
               >
                 {isSaving ? 'Saving...' : 'Save Results'}
               </Button>
@@ -426,31 +427,31 @@ export default function SubjectResultEntryPage() {
         {/* Results Table */}
         <Card>
           <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 border-b">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
+            <CardTitle className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                   <Users className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">Student Results</h3>
-                  <p className="text-sm text-gray-600 mt-0.5">Enter and manage student scores</p>
+                  <h3 className="text-lg md:text-xl font-bold text-gray-900">Student Results</h3>
+                  <p className="text-xs md:text-sm text-gray-600 mt-0.5">Enter and manage student scores</p>
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-col items-start md:items-end gap-2">
                 {students.length > 0 && (
-                  <Badge variant="outline" className="font-medium">
+                  <Badge variant="outline" className="font-medium text-xs md:text-sm">
                     {students.length} students
                   </Badge>
                 )}
                 {selectedSubjectClassId && (
-                  <div className="flex items-center gap-2 text-sm text-gray-700 font-semibold bg-white px-3 py-1.5 rounded-lg border">
-                    <BookOpen className="h-4 w-4 text-blue-600" />
-                    <span>
+                  <div className="flex items-center gap-2 text-xs md:text-sm text-gray-700 font-semibold bg-white px-2 md:px-3 py-1.5 rounded-lg border whitespace-nowrap overflow-hidden text-ellipsis">
+                    <BookOpen className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                    <span className="truncate">
                       {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.subject_name} -{' '}
                       {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.class_name}
                     </span>
                     {subjectClasses.find(sc => sc.id === selectedSubjectClassId)?.is_optional && (
-                      <Badge variant="secondary" className="text-xs">Only enrolled students shown</Badge>
+                      <Badge variant="secondary" className="text-xs">Only enrolled</Badge>
                     )}
                   </div>
                 )}
@@ -464,114 +465,223 @@ export default function SubjectResultEntryPage() {
               </div>
             ) : selectedSubjectClassId ? (
               students.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-200 text-sm">
-                    <thead>
-                      <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
-                        <th className="border border-gray-200 px-4 py-3 text-left font-semibold">#</th>
-                        <th className="border border-gray-200 px-4 py-3 text-left font-semibold">Student Name</th>
-                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                          Welcome<br />
-                          <span className="text-xs font-normal text-gray-600">(10)</span>
-                        </th>
-                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                          Mid-Term<br />
-                          <span className="text-xs font-normal text-gray-600">(20)</span>
-                        </th>
-                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                          Vetting<br />
-                          <span className="text-xs font-normal text-gray-600">(10)</span>
-                        </th>
-                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                          Exam<br />
-                          <span className="text-xs font-normal text-gray-600">(60)</span>
-                        </th>
-                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-20 bg-blue-50">
-                          Total<br />
-                          <span className="text-xs font-normal text-gray-600">(100)</span>
-                        </th>
-                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-16 bg-blue-50">Grade</th>
-                        <th className="border border-gray-200 px-4 py-3 text-center font-semibold min-w-[120px]">Remark</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {students.map((student, index) => (
-                        <tr key={student.student_id} className="hover:bg-gray-50">
-                          <td className="border border-gray-200 px-4 py-2 text-center text-gray-600">
-                            {index + 1}
-                          </td>
-                          <td className="border border-gray-200 px-4 py-2 font-medium">
-                            {student.student_name}
-                          </td>
-                          <td className="border border-gray-200 px-1 py-1 text-center">
+                <>
+                  {/* Desktop Table View */}
+                  <div className="hidden md:overflow-x-auto md:block">
+                    <table className="w-full border-collapse border border-gray-200 text-sm">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                          <th className="border border-gray-200 px-4 py-3 text-left font-semibold">#</th>
+                          <th className="border border-gray-200 px-4 py-3 text-left font-semibold">Student Name</th>
+                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                            Welcome<br />
+                            <span className="text-xs font-normal text-gray-600">(10)</span>
+                          </th>
+                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                            Mid-Term<br />
+                            <span className="text-xs font-normal text-gray-600">(20)</span>
+                          </th>
+                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                            Vetting<br />
+                            <span className="text-xs font-normal text-gray-600">(10)</span>
+                          </th>
+                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                            Exam<br />
+                            <span className="text-xs font-normal text-gray-600">(60)</span>
+                          </th>
+                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-20 bg-blue-50">
+                            Total<br />
+                            <span className="text-xs font-normal text-gray-600">(100)</span>
+                          </th>
+                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-16 bg-blue-50">Grade</th>
+                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold min-w-[120px]">Remark</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {students.map((student, index) => (
+                          <tr key={student.student_id} className="hover:bg-gray-50">
+                            <td className="border border-gray-200 px-4 py-2 text-center text-gray-600">
+                              {index + 1}
+                            </td>
+                            <td className="border border-gray-200 px-4 py-2 font-medium">
+                              {student.student_name}
+                            </td>
+                            <td className="border border-gray-200 px-1 py-1 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={student.welcome_test || ''}
+                                onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
+                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="border border-gray-200 px-1 py-1 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="20"
+                                value={student.mid_term_test || ''}
+                                onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
+                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="border border-gray-200 px-1 py-1 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={student.vetting || ''}
+                                onChange={(e) => updateScore(index, 'vetting', e.target.value)}
+                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="border border-gray-200 px-1 py-1 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="60"
+                                value={student.exam || ''}
+                                onChange={(e) => updateScore(index, 'exam', e.target.value)}
+                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="border border-gray-200 px-3 py-2 text-center font-bold text-lg bg-blue-50">
+                              {student.total}
+                            </td>
+                            <td className="border border-gray-200 px-3 py-2 text-center font-bold bg-blue-50">
+                              <Badge
+                                variant={student.total >= 50 ? "default" : "destructive"}
+                                className="font-mono"
+                              >
+                                {student.grade}
+                              </Badge>
+                            </td>
+                            <td className="border border-gray-200 px-2 py-1 text-center">
+                              <Textarea
+                                value={student.remark}
+                                onChange={(e) => updateScore(index, 'remark', e.target.value)}
+                                rows={1}
+                                className="resize-none text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Enter remark..."
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden space-y-4">
+                    {students.map((student, index) => (
+                      <div key={student.student_id} className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-lg border border-gray-200 p-4 space-y-4 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-600 font-semibold">Student {index + 1}</p>
+                            <p className="font-bold text-base text-gray-900">{student.student_name}</p>
+                          </div>
+                          <Badge
+                            variant={student.total >= 50 ? "default" : "destructive"}
+                            className="font-mono text-sm"
+                          >
+                            {student.grade}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white rounded border border-gray-200 p-3">
+                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
+                              Welcome<span className="text-gray-500">(10)</span>
+                            </label>
                             <input
                               type="number"
                               min="0"
                               max="10"
                               value={student.welcome_test || ''}
                               onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
                               placeholder="0"
                             />
-                          </td>
-                          <td className="border border-gray-200 px-1 py-1 text-center">
+                          </div>
+
+                          <div className="bg-white rounded border border-gray-200 p-3">
+                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
+                              Mid-Term<span className="text-gray-500">(20)</span>
+                            </label>
                             <input
                               type="number"
                               min="0"
                               max="20"
                               value={student.mid_term_test || ''}
                               onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
                               placeholder="0"
                             />
-                          </td>
-                          <td className="border border-gray-200 px-1 py-1 text-center">
+                          </div>
+
+                          <div className="bg-white rounded border border-gray-200 p-3">
+                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
+                              Vetting<span className="text-gray-500">(10)</span>
+                            </label>
                             <input
                               type="number"
                               min="0"
                               max="10"
                               value={student.vetting || ''}
                               onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
                               placeholder="0"
                             />
-                          </td>
-                          <td className="border border-gray-200 px-1 py-1 text-center">
+                          </div>
+
+                          <div className="bg-white rounded border border-gray-200 p-3">
+                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
+                              Exam<span className="text-gray-500">(60)</span>
+                            </label>
                             <input
                               type="number"
                               min="0"
                               max="60"
                               value={student.exam || ''}
                               onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
                               placeholder="0"
                             />
-                          </td>
-                          <td className="border border-gray-200 px-3 py-2 text-center font-bold text-lg bg-blue-50">
-                            {student.total}
-                          </td>
-                          <td className="border border-gray-200 px-3 py-2 text-center font-bold bg-blue-50">
-                            <Badge
-                              variant={student.total >= 50 ? "default" : "destructive"}
-                              className="font-mono"
-                            >
-                              {student.grade}
-                            </Badge>
-                          </td>
-                          <td className="border border-gray-200 px-2 py-1 text-center">
-                            <Textarea
-                              value={student.remark}
-                              onChange={(e) => updateScore(index, 'remark', e.target.value)}
-                              rows={1}
-                              className="resize-none text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="Enter remark..."
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-blue-50 rounded border border-blue-200 p-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-xs text-gray-600 font-semibold">Total Score</p>
+                            <p className="text-2xl font-bold text-blue-600">{student.total}/100</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-gray-600 font-semibold">Remark</p>
+                            <p className="font-bold text-base text-gray-900">{student.remark}</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-xs text-gray-600 font-semibold block mb-2">
+                            Additional Remarks
+                          </label>
+                          <Textarea
+                            value={student.remark}
+                            onChange={(e) => updateScore(index, 'remark', e.target.value)}
+                            rows={2}
+                            className="resize-none text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Enter any additional remarks..."
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className="text-center py-12 text-gray-500">
                   <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />

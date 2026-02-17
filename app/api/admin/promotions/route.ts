@@ -165,14 +165,18 @@ export async function GET(request: NextRequest) {
         termsWithResults > 0 ? totalAverage / termsWithResults : 0;
 
       // Determine eligibility
+      const meetsPassMark =
+        cumulativeAverage >= promotionSettings.minimum_pass_percentage;
+
       const hasRequiredTerms = promotionSettings.require_all_terms
         ? termsWithResults === terms?.length
         : termsWithResults > 0;
 
-      const meetsPassMark =
-        cumulativeAverage >= promotionSettings.minimum_pass_percentage;
-
-      const isEligible = hasRequiredTerms && meetsPassMark;
+      // If require_all_terms is false, only the pass mark matters
+      // If require_all_terms is true, both all terms AND pass mark are required
+      const isEligible = promotionSettings.require_all_terms
+        ? (hasRequiredTerms && meetsPassMark)
+        : meetsPassMark;
 
       // Check if SSS 3 (graduating class)
       const classLevel = (student.classes as any)?.level || "";

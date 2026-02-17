@@ -28,7 +28,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       {/* Main Section */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6">
+        <header className="md:hidden h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4">
           <div className="flex items-center gap-4">
             {/* Mobile Toggle */}
             <Button
@@ -54,12 +54,14 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
 
         {/* Page Content */}
         <main
-          className={`flex-1 p-4 sm:p-6 md:p-8 transition-all duration-300 ${
-            collapsed ? "md:ml-20" : "md:ml-64"
-          }`}
+          className={`
+    min-h-screen p-4 sm:p-6 md:p-8 transition-all duration-300
+    ${collapsed ? "md:ml-20" : "md:ml-64"}
+  `}
         >
           {children}
         </main>
+
       </div>
     </div>
   );

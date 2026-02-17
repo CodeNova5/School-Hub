@@ -23,7 +23,6 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Menu } from 'lucide-react';
 
 interface NavItem {
   href: string;
@@ -33,13 +32,14 @@ interface NavItem {
 
 interface SidebarProps {
   role: 'admin' | 'teacher' | 'student' | 'parent';
+  isMobileMenuOpen?: boolean;
+  onMobileMenuClose?: () => void;
 }
 
-export function Sidebar({ role }: SidebarProps) {
+export function Sidebar({ role, isMobileMenuOpen = false, onMobileMenuClose }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [hasAssignedClasses, setHasAssignedClasses] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     if (role === 'teacher') {
@@ -129,25 +129,11 @@ export function Sidebar({ role }: SidebarProps) {
 
   return (
     <TooltipProvider>
-      {/* Mobile Menu Button */}
-      {!isMobileOpen && (
-        <button
-          onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="fixed top-4 left-4 z-50 md:hidden bg-white p-2 rounded-lg shadow-lg border border-slate-200"
-        >
-          {isMobileOpen ? (
-            <X className="h-6 w-6" />
-          ) : (
-            <Menu className="h-6 w-6" />
-          )}
-        </button>
-      )}
-
       {/* Mobile Overlay */}
-      {isMobileOpen && (
+      {isMobileMenuOpen && (
         <div
           className="fixed inset-0 z-30 bg-black opacity-50 md:hidden"
-          onClick={() => setIsMobileOpen(false)}
+          onClick={onMobileMenuClose}
         />
       )}
 
@@ -156,14 +142,14 @@ export function Sidebar({ role }: SidebarProps) {
           "fixed left-0 top-0 z-40 h-screen transition-all duration-300 ease-in-out",
           "bg-white",
           "border-r border-slate-200 shadow-lg",
-          "md:translate-x-0",
-          isMobileOpen ? "translate-x-0" : "-translate-x-full",
+          "md:translate-x-0 md:mt-0 mt-16",
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full",
           collapsed ? "w-20" : "w-64"
         )}
       >
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4 gap-2">
+          <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4 gap-2 md:mt-0 mt-0">
             {!collapsed && (
               <div className="flex items-center gap-3 min-w-0">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-md flex-shrink-0">
@@ -197,17 +183,6 @@ export function Sidebar({ role }: SidebarProps) {
                 {collapsed ? 'Expand' : 'Collapse'}
               </TooltipContent>
             </Tooltip>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsMobileOpen(false)}
-              className={cn(
-                "h-9 w-9 rounded-lg transition-all duration-200 md:hidden",
-                "hover:bg-slate-100 text-slate-600 hover:text-slate-900"
-              )}
-            >
-              <X className="h-5 w-5" />
-            </Button>
           </div>
 
           {/* Navigation */}
@@ -221,7 +196,7 @@ export function Sidebar({ role }: SidebarProps) {
                       <TooltipTrigger asChild>
                         <Link
                           href={item.href}
-                          onClick={() => setIsMobileOpen(false)}
+                          onClick={onMobileMenuClose}
                           className={cn(
                             "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
                             "relative overflow-hidden",

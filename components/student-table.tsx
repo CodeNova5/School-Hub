@@ -20,8 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Eye, Edit, Calendar, ClipboardList, BookOpen, ArrowRightLeft, UserMinus, AlertTriangle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { MoreHorizontal, Eye, Edit, BookOpen, ArrowRightLeft, UserMinus, AlertTriangle } from 'lucide-react';
 
 interface StudentTableProps {
   students: Student[];
@@ -59,248 +58,190 @@ export function StudentTable({
     return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
   };
 
+  const actionsMenu = (student: Student) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => onViewDetails(student)}>
+          <Eye className="mr-2 h-4 w-4" />
+          View Details
+        </DropdownMenuItem>
+        {onEditStudent && (
+          <DropdownMenuItem onClick={() => onEditStudent(student)}>
+            <Edit className="mr-2 h-4 w-4" />
+            Edit Student
+          </DropdownMenuItem>
+        )}
+        {onManageSubjects && (
+          <DropdownMenuItem onClick={() => onManageSubjects(student)}>
+            <BookOpen className="mr-2 h-4 w-4" />
+            Manage Subjects
+          </DropdownMenuItem>
+        )}
+        {onTransferStudent && (
+          <DropdownMenuItem onClick={() => onTransferStudent(student)}>
+            <ArrowRightLeft className="mr-2 h-4 w-4" />
+            Transfer Student
+          </DropdownMenuItem>
+        )}
+        {onRemoveStudent && (
+          <DropdownMenuItem
+            className="text-red-600 focus:text-red-600"
+            onClick={() => onRemoveStudent(student)}
+          >
+            <UserMinus className="mr-2 h-4 w-4" />
+            Remove from Class
+          </DropdownMenuItem>
+        )}
+        {onDeleteStudent && (
+          <DropdownMenuItem
+            className="text-red-700 focus:text-red-700"
+            onClick={() => onDeleteStudent(student)}
+          >
+            <AlertTriangle className="mr-2 h-4 w-4 text-red-700" />
+            Delete Completely
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
-    <>
-      {/* Desktop Table View */}
-      <div className="hidden md:block rounded-md border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Student</TableHead>
-              <TableHead>Student ID</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Attendance</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {students.length === 0 ? (
+    <div className="space-y-6">
+      <div className="hidden sm:block rounded-md border">
+        <div className="w-full overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                  No students found
-                </TableCell>
+                <TableHead>Student</TableHead>
+                <TableHead>Student ID</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Attendance</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              students.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={student.photo_url} />
-                        <AvatarFallback className="bg-blue-100 text-blue-700">
-                          {getInitials(student.first_name, student.last_name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">
-                          {student.first_name} {student.last_name}
-                        </p>
-                        <p className="text-sm text-gray-500">{student.email}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-mono text-sm">{student.student_id}</span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm">{student.department || 'N/A'}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-green-600 h-2 rounded-full"
-                          style={{ width: `${student.average_attendance}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-medium min-w-[40px]">
-                        {student.average_attendance}%
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(student.status)}>
-                      {student.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onViewDetails(student)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        {onEditStudent && (
-                          <DropdownMenuItem onClick={() => onEditStudent(student)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit Student
-                          </DropdownMenuItem>
-                        )}
-                        {onManageSubjects && (
-                          <DropdownMenuItem onClick={() => onManageSubjects(student)}>
-                            <BookOpen className="mr-2 h-4 w-4" />
-                            Manage Subjects
-                          </DropdownMenuItem>
-                        )}
-                        {onTransferStudent && (
-                          <DropdownMenuItem onClick={() => onTransferStudent(student)}>
-                            <ArrowRightLeft className="mr-2 h-4 w-4" />
-                            Transfer Student
-                          </DropdownMenuItem>
-                        )}
-                        {onRemoveStudent && (
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onClick={() => onRemoveStudent(student)}
-                          >
-                            <UserMinus className="mr-2 h-4 w-4" />
-                            Remove from Class
-                          </DropdownMenuItem>
-                        )}
-                        {onDeleteStudent && (
-                          <DropdownMenuItem
-                            className="text-red-700 focus:text-red-700"
-                            onClick={() => onDeleteStudent(student)}
-                          >
-                            <AlertTriangle className="mr-2 h-4 w-4 text-red-700" />
-                            Delete Completely
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+            </TableHeader>
+            <TableBody>
+              {students.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                    No students found
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                students.map((student) => (
+                  <TableRow key={student.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarImage src={student.photo_url} />
+                          <AvatarFallback className="bg-blue-100 text-blue-700">
+                            {getInitials(student.first_name, student.last_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">
+                            {student.first_name} {student.last_name}
+                          </p>
+                          <p className="text-sm text-gray-500">{student.email}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-sm">{student.student_id}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">{student.department || 'N/A'}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 bg-gray-200 rounded-full h-2">
+                          <div
+                            className="bg-green-600 h-2 rounded-full"
+                            style={{ width: `${student.average_attendance}%` }}
+                          />
+                        </div>
+                        <span className="text-sm font-medium min-w-[40px]">
+                          {student.average_attendance}%
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(student.status)}>
+                        {student.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">{actionsMenu(student)}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
-
-      {/* Mobile Card View */}
-      <div className="md:hidden space-y-4">
+      <div className="sm:hidden">
         {students.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="rounded-md border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
             No students found
           </div>
         ) : (
-          students.map((student) => (
-            <Card key={student.id} className="overflow-hidden">
-              <CardContent className="p-4">
-                {/* Student Info */}
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Avatar className="flex-shrink-0">
+          <div className="space-y-4">
+            {students.map((student) => (
+              <div key={student.id} className="rounded-xl border px-4 py-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar>
                       <AvatarImage src={student.photo_url} />
                       <AvatarFallback className="bg-blue-100 text-blue-700">
                         {getInitials(student.first_name, student.last_name)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium truncate">
+                    <div>
+                      <p className="font-medium">
                         {student.first_name} {student.last_name}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">{student.email}</p>
+                      <p className="text-sm text-gray-500">{student.email}</p>
                     </div>
                   </div>
-                  <Badge variant={getStatusVariant(student.status)} className="flex-shrink-0">
-                    {student.status}
-                  </Badge>
+                  <div className="ml-2">{actionsMenu(student)}</div>
                 </div>
-
-                {/* Student ID and Department */}
-                <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
-                  <div>
-                    <p className="text-gray-500 text-xs">Student ID</p>
-                    <p className="font-mono font-medium">{student.student_id}</p>
+                <div className="mt-3 space-y-2 text-sm text-gray-600">
+                  <div className="flex justify-between text-xs uppercase tracking-wide text-gray-500">
+                    <span>Student ID</span>
+                    <span className="font-mono">{student.student_id}</span>
                   </div>
-                  <div>
-                    <p className="text-gray-500 text-xs">Department</p>
-                    <p className="font-medium">{student.department || 'N/A'}</p>
+                  <div className="flex justify-between text-xs uppercase tracking-wide text-gray-500">
+                    <span>Department</span>
+                    <span>{student.department || 'N/A'}</span>
                   </div>
                 </div>
-
-                {/* Attendance */}
-                <div className="mb-4">
-                  <p className="text-gray-500 text-xs mb-2">Attendance</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="w-full max-w-[140px]">
+                    <div className="h-2 rounded-full bg-gray-200">
                       <div
-                        className="bg-green-600 h-2 rounded-full"
+                        className="h-2 rounded-full bg-green-600"
                         style={{ width: `${student.average_attendance}%` }}
                       />
                     </div>
-                    <span className="text-sm font-medium min-w-[40px]">
-                      {student.average_attendance}%
-                    </span>
                   </div>
+                  <span className="text-sm font-medium">{student.average_attendance}%</span>
                 </div>
-
-                {/* Actions */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-full">
-                      <MoreHorizontal className="h-4 w-4 mr-2" />
-                      Actions
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onViewDetails(student)}>
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </DropdownMenuItem>
-                    {onEditStudent && (
-                      <DropdownMenuItem onClick={() => onEditStudent(student)}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit Student
-                      </DropdownMenuItem>
-                    )}
-                    {onManageSubjects && (
-                      <DropdownMenuItem onClick={() => onManageSubjects(student)}>
-                        <BookOpen className="mr-2 h-4 w-4" />
-                        Manage Subjects
-                      </DropdownMenuItem>
-                    )}
-                    {onTransferStudent && (
-                      <DropdownMenuItem onClick={() => onTransferStudent(student)}>
-                        <ArrowRightLeft className="mr-2 h-4 w-4" />
-                        Transfer Student
-                      </DropdownMenuItem>
-                    )}
-                    {onRemoveStudent && (
-                      <DropdownMenuItem
-                        className="text-red-600 focus:text-red-600"
-                        onClick={() => onRemoveStudent(student)}
-                      >
-                        <UserMinus className="mr-2 h-4 w-4" />
-                        Remove from Class
-                      </DropdownMenuItem>
-                    )}
-                    {onDeleteStudent && (
-                      <DropdownMenuItem
-                        className="text-red-700 focus:text-red-700"
-                        onClick={() => onDeleteStudent(student)}
-                      >
-                        <AlertTriangle className="mr-2 h-4 w-4 text-red-700" />
-                        Delete Completely
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardContent>
-            </Card>
-          ))
+                <div className="mt-3">
+                  <Badge variant={getStatusVariant(student.status)}>
+                    {student.status}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
-    </>
+    </div>
   );
-      }
+}

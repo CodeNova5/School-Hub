@@ -33,7 +33,7 @@ interface StudentStats {
   totalAttendance: number;
   presentPercentage: number;
   upcomingAssignments: number;
-  upcomingExams: number;
+  upcomingEvents: number;
   averageScore: number;
   completedAssignments: number;
 }
@@ -57,7 +57,7 @@ export default function StudentDashboardPage() {
     totalAttendance: 0,
     presentPercentage: 0,
     upcomingAssignments: 0,
-    upcomingExams: 0,
+    upcomingEvents: 0,
     averageScore: 0,
     completedAssignments: 0,
   });
@@ -148,11 +148,10 @@ export default function StudentDashboardPage() {
         );
       }
 
-      // Fetch upcoming events (for exams)
+      // Fetch upcoming events
       const { data: eventsData } = await supabase
         .from("events")
         .select("*")
-        .eq("event_type", "exam")
         .gt("start_date", new Date().toISOString());
 
       // Fetch assignments (upcoming)
@@ -221,7 +220,7 @@ export default function StudentDashboardPage() {
         totalAttendance: attendanceData?.length || 0,
         presentPercentage,
         upcomingAssignments: assignmentsData?.length || 0,
-        upcomingExams: eventsData?.length || 0,
+        upcomingEvents: eventsData?.length || 0,
         averageScore,
         completedAssignments: submissionsData?.length || 0,
       });
@@ -243,7 +242,7 @@ export default function StudentDashboardPage() {
         });
       }
 
-      // Add upcoming exams
+      // Add upcoming events
       if (eventsData && eventsData.length > 0) {
         eventsData.slice(0, 2).forEach((event) => {
           activities.push({
@@ -252,7 +251,7 @@ export default function StudentDashboardPage() {
             type: "event",
             date: event.start_date,
             icon: Calendar,
-            color: "bg-red-100 text-red-600",
+            color: "bg-green-100 text-green-600",
           });
         });
       }
@@ -435,7 +434,7 @@ export default function StudentDashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Exams Card */}
+          {/* Events Card */}
           <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-2xl transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-red-50 to-orange-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <div className="absolute top-0 right-0 h-24 w-24 bg-red-100 rounded-full -mr-12 -mt-12 opacity-50 group-hover:scale-110 transition-transform" />
@@ -448,10 +447,10 @@ export default function StudentDashboardPage() {
                   Upcoming
                 </span>
               </div>
-              <p className="text-gray-600 font-medium mb-1">Exams</p>
+              <p className="text-gray-600 font-medium mb-1">Events</p>
               <div className="flex items-baseline gap-2">
                 <p className="text-4xl font-bold text-gray-900">
-                  {stats.upcomingExams}
+                  {stats.upcomingEvents}
                 </p>
                 <p className="text-sm text-gray-500">scheduled</p>
               </div>
@@ -517,7 +516,7 @@ export default function StudentDashboardPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 bg-yellow-50 hover:bg-yellow-100 border-yellow-200"
+                  className="flex-1 bg-yellow-50 hover:bg-yellow-100 border-yellow-200 font-bold"
                   disabled
                 >
                   In Progress
@@ -540,7 +539,7 @@ export default function StudentDashboardPage() {
                   <div>
                     <CardTitle>Recent Activities</CardTitle>
                     <p className="text-sm text-gray-500 mt-1">
-                      Your upcoming deadlines and events
+                      Your upcoming deadlines, assignments and events
                     </p>
                   </div>
                 </div>

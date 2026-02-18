@@ -149,95 +149,172 @@ export default function TeacherCalendarPage() {
       selectedDate.getFullYear() === year
     );
   };
+return (
+  <DashboardLayout role="teacher">
+    <div className="space-y-6 overflow-x-hidden">
 
-  return (
-    <DashboardLayout role="teacher">
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold">Calendar</h1>
-          <p className="text-gray-600 mt-1">View school events and schedule</p>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold">Calendar</h1>
+        <p className="text-gray-600 mt-1 text-sm sm:text-base">
+          View school events and schedule
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-gray-600">Total Events</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                  {totalEvents}
+                </p>
+              </div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-green-500">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-gray-600">Upcoming</p>
+                <p className="text-2xl sm:text-3xl font-bold text-green-600">
+                  {upcomingEvents}
+                </p>
+              </div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-green-100 flex items-center justify-center">
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500 sm:col-span-2 lg:col-span-1">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs sm:text-sm text-gray-600">Today</p>
+                <p className="text-2xl sm:text-3xl font-bold text-orange-600">
+                  {todayEvents}
+                </p>
+              </div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-orange-100 flex items-center justify-center">
+                <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Layout */}
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-6">
+
+        {/* Filters - First on mobile */}
+        <div className="order-1 lg:order-2 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg flex items-center gap-2">
+                <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
+                Filters
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Search</label>
+                <Input
+                  placeholder="Search events..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">
+                  Event Type
+                </label>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Types</option>
+                  {uniqueEventTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(searchTerm || filterType || selectedDate) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterType("");
+                    setSelectedDate(null);
+                  }}
+                  className="w-full"
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Total Events</p>
-                  <p className="text-3xl font-bold text-gray-900">{totalEvents}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                  <CalendarIcon className="h-6 w-6 text-blue-600" />
+        {/* Calendar */}
+        <div className="order-2 lg:order-1 lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="text-lg sm:text-xl">
+                  {currentMonth.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </CardTitle>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={goToToday}>
+                    Today
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={previousMonth}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={nextMonth}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </CardHeader>
 
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Upcoming</p>
-                  <p className="text-3xl font-bold text-green-600">{upcomingEvents}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                  <Clock className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            <CardContent className="overflow-x-auto">
+              <div className="min-w-[320px]">
 
-          <Card className="border-l-4 border-l-orange-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600">Today</p>
-                  <p className="text-3xl font-bold text-orange-600">{todayEvents}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
-                  <CalendarIcon className="h-6 w-6 text-orange-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Calendar View */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl">
-                    {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                  </CardTitle>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={goToToday}>
-                      Today
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={previousMonth}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="icon" onClick={nextMonth}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
                 <div className="grid grid-cols-7 gap-1 mb-2">
                   {days.map((day) => (
-                    <div key={day} className="text-center text-xs font-semibold text-gray-600 py-2">
+                    <div
+                      key={day}
+                      className="text-center text-[10px] sm:text-xs font-semibold text-gray-600 py-2"
+                    >
                       {day}
                     </div>
                   ))}
                 </div>
+
                 <div className="grid grid-cols-7 gap-1">
                   {Array.from({ length: startingDayOfWeek }).map((_, i) => (
                     <div key={`empty-${i}`} className="aspect-square" />
                   ))}
+
                   {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
                     const date = new Date(year, month, day);
@@ -249,25 +326,26 @@ export default function TeacherCalendarPage() {
                       <button
                         key={day}
                         onClick={() => setSelectedDate(date)}
-                        className={`aspect-square p-1 transition-all hover:shadow-md flex flex-col items-center justify-center ${
-                          selected
-                            ? 'bg-blue-50'
-                            : ''
+                        className={`aspect-square p-1 flex flex-col items-center justify-center transition-all hover:shadow-md ${
+                          selected ? "bg-blue-50 rounded-md" : ""
                         }`}
                       >
-                        <div 
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                        <div
+                          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold ${
                             today
-                              ? 'bg-blue-500 text-white'
+                              ? "bg-blue-500 text-white"
                               : dayEvents.length > 0
-                              ? `${eventTypeColors[dayEvents[0].event_type] || 'bg-gray-400 text-white'}`
-                              : 'text-gray-900'
+                              ? eventTypeColors[
+                                  dayEvents[0].event_type
+                                ] || "bg-gray-400 text-white"
+                              : "text-gray-900"
                           }`}
                         >
                           {day}
                         </div>
+
                         {dayEvents.length > 1 && (
-                          <div className="text-[8px] text-gray-600 mt-0.5">
+                          <div className="text-[8px] sm:text-[9px] text-gray-600 mt-0.5">
                             +{dayEvents.length - 1}
                           </div>
                         )}
@@ -275,173 +353,121 @@ export default function TeacherCalendarPage() {
                     );
                   })}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
 
-          {/* Filters & Legend */}
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Search</label>
-                  <Input
-                    placeholder="Search events..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Event Type</label>
-                  <select
-                    value={filterType}
-                    onChange={(e) => setFilterType(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">All Types</option>
-                    {uniqueEventTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {(searchTerm || filterType || selectedDate) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSearchTerm('');
-                      setFilterType('');
-                      setSelectedDate(null);
-                    }}
-                    className="w-full"
-                  >
-                    Clear Filters
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Event Types</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {Object.entries(eventTypeColors).map(([type, color]) => (
-                  <div key={type} className="flex items-center gap-2">
-                    <div className={`h-3 w-3 rounded-full ${color}`} />
-                    <span className="text-sm capitalize">{type}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      </div>
 
-        {/* Events List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {selectedDate
-                ? `Events on ${selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
-                : 'All Events'}
-              <span className="text-sm font-normal text-gray-600 ml-2">
-                ({filteredEvents.length})
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredEvents.length > 0 ? (
-              <div className="space-y-3">
-                {filteredEvents.map((event) => {
-                  const isUpcoming = new Date(event.start_date) > new Date();
-                  return (
-                    <div
-                      key={event.id}
-                      className={`p-5 border-2 rounded-xl transition-all hover:shadow-lg ${
-                        eventTypeBgColors[event.event_type] || 'bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className={`h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          eventTypeColors[event.event_type] || 'bg-gray-400 text-white'
-                        }`}>
-                          <CalendarIcon className="h-6 w-6" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
-                            <div className="flex gap-2 flex-wrap">
-                              <Badge className={eventTypeColors[event.event_type] || 'bg-gray-400'}>
-                                {event.event_type}
+      {/* Events List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base sm:text-lg">
+            {selectedDate
+              ? `Events on ${selectedDate.toLocaleDateString()}`
+              : "All Events"}
+            <span className="text-sm font-normal text-gray-600 ml-2">
+              ({filteredEvents.length})
+            </span>
+          </CardTitle>
+        </CardHeader>
+
+        <CardContent>
+          {filteredEvents.length > 0 ? (
+            <div className="space-y-3">
+              {filteredEvents.map((event) => {
+                const isUpcoming =
+                  new Date(event.start_date) > new Date();
+
+                return (
+                  <div
+                    key={event.id}
+                    className={`p-4 sm:p-5 border rounded-xl transition-all hover:shadow-lg ${
+                      eventTypeBgColors[event.event_type] ||
+                      "bg-gray-50 border-gray-200"
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+
+                      <div
+                        className={`h-10 w-10 sm:h-12 sm:w-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          eventTypeColors[event.event_type] ||
+                          "bg-gray-400 text-white"
+                        }`}
+                      >
+                        <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words">
+                            {event.title}
+                          </h3>
+
+                          <div className="flex flex-wrap gap-2">
+                            <Badge
+                              className={
+                                eventTypeColors[event.event_type] ||
+                                "bg-gray-400"
+                              }
+                            >
+                              {event.event_type}
+                            </Badge>
+
+                            {isUpcoming && (
+                              <Badge className="bg-blue-500 text-white">
+                                Upcoming
                               </Badge>
-                              {event.is_all_day && (
-                                <Badge variant="outline" className="text-xs">
-                                  All Day
-                                </Badge>
-                              )}
-                              {isUpcoming && (
-                                <Badge className="bg-blue-500 text-white">
-                                  Upcoming
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {event.description && (
-                            <p className="text-sm text-gray-700 mb-3">{event.description}</p>
-                          )}
-
-                          <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
-                              <span>
-                                {event.is_all_day 
-                                  ? new Date(event.start_date).toLocaleDateString()
-                                  : new Date(event.start_date).toLocaleString(undefined, {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })
-                                }
-                              </span>
-                            </div>
-                            {event.location && (
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-4 w-4" />
-                                <span>{event.location}</span>
-                              </div>
                             )}
                           </div>
                         </div>
+
+                        {event.description && (
+                          <p className="text-sm text-gray-700 mb-3 break-words">
+                            {event.description}
+                          </p>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-4 w-4" />
+                            <span>
+                              {new Date(
+                                event.start_date
+                              ).toLocaleString()}
+                            </span>
+                          </div>
+
+                          {event.location && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="h-4 w-4" />
+                              <span className="break-words">
+                                {event.location}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="py-16 text-center">
-                <CalendarIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg font-medium">No events found</p>
-                <p className="text-gray-400 text-sm mt-1">
-                  {searchTerm || filterType || selectedDate
-                    ? 'Try adjusting your filters'
-                    : 'No events scheduled yet'}
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </DashboardLayout>
-  );
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-16 text-center">
+              <CalendarIcon className="h-12 w-12 sm:h-16 sm:w-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 text-base sm:text-lg font-medium">
+                No events found
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+    </div>
+  </DashboardLayout>
+);
 }

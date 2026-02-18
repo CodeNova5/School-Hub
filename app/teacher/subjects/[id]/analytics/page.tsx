@@ -258,17 +258,19 @@ export default function SubjectAnalyticsPage({ params }: any) {
             <div className="space-y-8">
 
                 {/* HEADER */}
-                <h1 className="text-3xl font-bold">Subject Analytics</h1>
-                <p className="text-gray-600">
-                    {subject?.subject?.name} — {subject?.class?.name} ({subject?.class?.level})
-                </p>
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold">Subject Analytics</h1>
+                    <p className="text-sm md:text-base text-gray-600 mt-2">
+                        {subject?.subject?.name} — {subject?.class?.name} ({subject?.class?.level})
+                    </p>
+                </div>
 
                 {/* 1. FILTERS */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Filters</CardTitle>
+                        <CardTitle className="text-lg md:text-xl">Filters</CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-4">
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                         {/* Session Selector */}
                         <Select
@@ -278,7 +280,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 loadResults(subjectClassId, val, selectedTerm);
                             }}
                         >
-                            <SelectTrigger>
+                            <SelectTrigger className="text-sm md:text-base">
                                 <SelectValue placeholder="Select Session" />
                             </SelectTrigger>
                             <SelectContent>
@@ -298,7 +300,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 loadResults(subjectClassId, selectedSession, val);
                             }}
                         >
-                            <SelectTrigger>
+                            <SelectTrigger className="text-sm md:text-base">
                                 <SelectValue placeholder="Select Term" />
                             </SelectTrigger>
                             <SelectContent>
@@ -316,41 +318,41 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 </Card>
 
                 {/* 2. SUMMARY CARDS */}
-                <div className="grid md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
 
                     {/* Students Count */}
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <Users className="h-6 w-6 mb-2 text-blue-600" />
-                            <p className="text-3xl font-bold">{results.length}</p>
-                            <p className="text-gray-500 text-sm">Students Offering This Subject</p>
+                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
+                            <Users className="h-5 md:h-6 w-5 md:w-6 mb-2 text-blue-600" />
+                            <p className="text-2xl md:text-3xl font-bold">{results.length}</p>
+                            <p className="text-gray-500 text-xs md:text-sm text-center">Students Offering This Subject</p>
                         </CardContent>
                     </Card>
 
                     {/* Average Score */}
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <TrendingUp className="h-6 w-6 mb-2 text-green-600" />
-                            <p className="text-3xl font-bold">{avgScore}</p>
-                            <p className="text-gray-500 text-sm">Average Score</p>
+                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
+                            <TrendingUp className="h-5 md:h-6 w-5 md:w-6 mb-2 text-green-600" />
+                            <p className="text-2xl md:text-3xl font-bold">{avgScore}</p>
+                            <p className="text-gray-500 text-xs md:text-sm text-center">Average Score</p>
                         </CardContent>
                     </Card>
 
                     {/* Highest Score */}
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <Award className="h-6 w-6 mb-2 text-purple-600" />
-                            <p className="text-3xl font-bold">{highestScore}</p>
-                            <p className="text-gray-500 text-sm">Highest Score</p>
+                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
+                            <Award className="h-5 md:h-6 w-5 md:w-6 mb-2 text-purple-600" />
+                            <p className="text-2xl md:text-3xl font-bold">{highestScore}</p>
+                            <p className="text-gray-500 text-xs md:text-sm text-center">Highest Score</p>
                         </CardContent>
                     </Card>
 
                     {/* Lowest Score */}
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center">
-                            <TrendingDown className="h-6 w-6 mb-2 text-red-600" />
-                            <p className="text-3xl font-bold">{lowestScore}</p>
-                            <p className="text-gray-500 text-sm">Lowest Score</p>
+                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
+                            <TrendingDown className="h-5 md:h-6 w-5 md:w-6 mb-2 text-red-600" />
+                            <p className="text-2xl md:text-3xl font-bold">{lowestScore}</p>
+                            <p className="text-gray-500 text-xs md:text-sm text-center">Lowest Score</p>
                         </CardContent>
                     </Card>
 
@@ -359,8 +361,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 {/* 🔥 STUDENT RESULT BREAKDOWN */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Student Performance Breakdown</CardTitle>
-                        <p className="text-gray-500 text-sm">
+                        <CardTitle className="text-lg md:text-xl">Student Performance Breakdown</CardTitle>
+                        <p className="text-gray-500 text-xs md:text-sm mt-1">
                             Ordered by total score (highest → lowest)
                         </p>
                     </CardHeader>
@@ -368,17 +370,17 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     <CardContent>
 
                         {/* 🔍 Filters */}
-                        <div className="flex gap-4 mb-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:gap-4 mb-4">
 
                             <Input
                                 placeholder="Search by name or ID"
-                                className="w-1/3"
+                                className="w-full md:w-1/3 text-sm"
                                 value={searchQuery}
                                 onChange={(e: any) => setSearchQuery(e.target.value)}
                             />
 
                             <select
-                                className="border rounded p-2"
+                                className="border rounded p-2 text-sm md:text-base bg-white"
                                 value={genderFilter}
                                 onChange={(e) => setGenderFilter(e.target.value)}
                             >
@@ -388,7 +390,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             </select>
 
                             <select
-                                className="border rounded p-2"
+                                className="border rounded p-2 text-sm md:text-base bg-white"
                                 value={scoreFilter}
                                 onChange={(e) => setScoreFilter(Number(e.target.value))}
                             >
@@ -399,9 +401,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             </select>
                         </div>
 
-                        {/* 📊 Table */}
-                        <div className="border rounded-lg overflow-hidden">
-                            <table className="w-full text-sm">
+                        {/* 📊 Table - Scrollable on mobile */}
+                        <div className="border rounded-lg overflow-x-auto">
+                            <table className="w-full text-xs md:text-sm">
                                 <thead className="bg-gray-100">
                                     <tr>
                                         <th className="p-2 text-left">#</th>
@@ -428,11 +430,11 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                         .map((s, index) => (
                                             <tr key={s.id} className="border-t">
                                                 <td className="p-2">{index + 1}</td>
-                                                <td className="p-2">
+                                                <td className="p-2 whitespace-nowrap">
                                                     {/* Student Info with Avatar */}
 
-                                                    <div className="flex items-center gap-3">
-                                                        <Avatar>
+                                                    <div className="flex items-center gap-2">
+                                                        <Avatar className="h-8 w-8 md:h-10 md:w-10">
                                                             <AvatarImage
                                                                 src={
                                                                     s.photo_url
@@ -444,7 +446,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                             />
                                                         </Avatar>
                                                         <div>
-                                                            <div className="font-medium">
+                                                            <div className="font-medium text-xs md:text-sm">
                                                                 {s.name}
                                                             </div>
                                                             <div className="text-xs text-gray-500">({s.student_id})</div>
@@ -468,10 +470,10 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 {/* 3. ASSESSMENT COMPONENT BREAKDOWN */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Assessment Component Breakdown</CardTitle>
+                        <CardTitle className="text-lg md:text-xl">Assessment Component Breakdown</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
+                    <CardContent className="w-full overflow-x-auto">
+                        <ResponsiveContainer width="100%" height={300} minWidth={250}>
                             <BarChart
                                 data={[
                                     { name: "Welcome Test", avg: results.length ? (results.reduce((a, b) => a + b.welcome_test, 0) / results.length).toFixed(1) : 0 },
@@ -492,10 +494,10 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 {/* 4. GRADE DISTRIBUTION */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Grade Distribution</CardTitle>
+                        <CardTitle className="text-lg md:text-xl">Grade Distribution</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
+                    <CardContent className="w-full overflow-x-auto">
+                        <ResponsiveContainer width="100%" height={300} minWidth={250}>
                             <BarChart data={gradeDistribution}>
                                 <XAxis dataKey="grade" />
                                 <YAxis />
@@ -514,8 +516,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 {/* 6. STUDENTS NEEDING ATTENTION */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Students Needing Attention</CardTitle>
-                        <p className="text-gray-500 text-sm">
+                        <CardTitle className="text-lg md:text-xl">Students Needing Attention</CardTitle>
+                        <p className="text-gray-500 text-xs md:text-sm mt-1">
                             Students scoring below 50 or failing (D7, E8, F9)
                         </p>
                     </CardHeader>
@@ -524,8 +526,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         {results.filter(r => r.total < 50 || ["D7", "E8", "F9"].includes(r.grade)).length === 0 ? (
                             <p className="text-gray-500">No struggling students found.</p>
                         ) : (
-                            <div className="border rounded-lg overflow-hidden">
-                                <table className="w-full text-sm">
+                            <div className="border rounded-lg overflow-x-auto">
+                                <table className="w-full text-xs md:text-sm">
                                     <thead className="bg-red-50">
                                         <tr>
                                             <th className="p-2 text-left">Student</th>
@@ -539,8 +541,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                             .sort((a, b) => a.total - b.total)
                                             .map((r) => (
                                                 <tr key={r.id} className="border-t bg-red-50/30">
-                                                    <td className="p-2 flex items-center gap-3">
-                                                        <Avatar>
+                                                    <td className="p-2 flex items-center gap-2 whitespace-nowrap">
+                                                        <Avatar className="h-8 w-8 md:h-10 md:w-10">
                                                             <AvatarImage
                                                                 src={
                                                                     r.students.photo_url
@@ -551,14 +553,14 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                                 }
                                                             />
 
-                                                            <AvatarFallback className="bg-blue-100 text-blue-700">
+                                                            <AvatarFallback className="bg-blue-100 text-blue-700 text-xs md:text-sm">
                                                                 {r.students.first_name.charAt(0)}
                                                                 {r.students.last_name.charAt(0)}
                                                             </AvatarFallback>
 
                                                         </Avatar>
                                                         <div>
-                                                            <div className="font-medium">
+                                                            <div className="font-medium text-xs md:text-sm">
                                                                 {r.students.first_name} {r.students.last_name}
                                                             </div>
                                                             <div className="text-xs text-gray-500">({r.students.student_id})</div>
@@ -578,12 +580,12 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 {/* 9. MALE vs FEMALE PERFORMANCE */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Male vs Female Performance</CardTitle>
-                        <p className="text-gray-500 text-sm">Average score comparison by gender</p>
+                        <CardTitle className="text-lg md:text-xl">Male vs Female Performance</CardTitle>
+                        <p className="text-gray-500 text-xs md:text-sm mt-1">Average score comparison by gender</p>
                     </CardHeader>
 
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={300}>
+                    <CardContent className="w-full overflow-x-auto">
+                        <ResponsiveContainer width="100%" height={300} minWidth={250}>
                             <BarChart data={genderComparison}>
                                 <XAxis dataKey="gender" />
                                 <YAxis />

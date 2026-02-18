@@ -250,81 +250,81 @@ export default function TeacherStudentsPage() {
   return (
     <DashboardLayout role="teacher">
       <div className="space-y-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Students</h1>
-            <p className="text-gray-600 mt-1">View all students offering subjects assigned to you</p>
+            <h1 className="text-2xl md:text-3xl font-bold">Students</h1>
+            <p className="text-sm md:text-base text-gray-600 mt-1">View all students offering subjects assigned to you</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleExport}>
+          <div className="flex gap-2 w-full md:w-auto">
+            <Button variant="outline" onClick={handleExport} className="w-full md:w-auto">
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Total Students</CardTitle>
               <Users className="h-4 w-4 text-gray-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalStudents}</div>
+              <div className="text-xl md:text-2xl font-bold">{totalStudents}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Active Students</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Active Students</CardTitle>
               <UserCheck className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{activeStudents}</div>
+              <div className="text-xl md:text-2xl font-bold text-green-600">{activeStudents}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Suspended</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">Suspended</CardTitle>
               <UserX className="h-4 w-4 text-red-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{suspendedStudents}</div>
+              <div className="text-xl md:text-2xl font-bold text-red-600">{suspendedStudents}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">New This Month</CardTitle>
+              <CardTitle className="text-xs md:text-sm font-medium">New This Month</CardTitle>
               <CalendarIcon className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{newThisMonth}</div>
+              <div className="text-xl md:text-2xl font-bold text-blue-600">{newThisMonth}</div>
             </CardContent>
           </Card>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Search & Filters</CardTitle>
+            <CardTitle className="text-lg md:text-xl">Search & Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-5">
-              <div className="relative">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+              <div className="relative md:col-span-2 lg:col-span-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Search students..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 text-sm"
                 />
               </div>
 
               <select
                 value={filterClass}
                 onChange={(e) => setFilterClass(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
               >
                 <option value="">All Classes</option>
                 {classes
@@ -339,7 +339,7 @@ export default function TeacherStudentsPage() {
               <select
                 value={filterDepartment}
                 onChange={(e) => setFilterDepartment(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
               >
                 <option value="">All Departments</option>
                 {uniqueDepartments.map((dept) => (
@@ -352,7 +352,7 @@ export default function TeacherStudentsPage() {
               <select
                 value={filterGender}
                 onChange={(e) => setFilterGender(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
               >
                 <option value="">All Genders</option>
                 <option value="male">Male</option>
@@ -362,7 +362,7 @@ export default function TeacherStudentsPage() {
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border rounded-md"
+                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
               >
                 <option value="">All Status</option>
                 <option value="active">Active</option>
@@ -376,8 +376,8 @@ export default function TeacherStudentsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Students List</CardTitle>
-            <p className="text-sm text-gray-600">
+            <CardTitle className="text-lg md:text-xl">Students List</CardTitle>
+            <p className="text-xs md:text-sm text-gray-600 mt-1">
               Showing {filteredStudents.length} of {totalStudents} students
             </p>
           </CardHeader>

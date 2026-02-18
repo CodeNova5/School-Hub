@@ -517,32 +517,6 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        {/* Key Metrics Grid */}
-        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {stats.totalClasses > 0 && (
-            <StatCard
-              title="Total Students"
-              value={stats.totalStudents}
-              icon={Users}
-              trendUp={true}
-            />
-          )}
-
-          <StatCard
-            title="Pending Assignments"
-            value={stats.pendingAssignments}
-            icon={ClipboardList}
-            trend="Review pending"
-            trendUp={false}
-          />
-          <StatCard
-            title="Submissions"
-            value={stats.completedSubmissions}
-            icon={CheckCircle2}
-            trendUp={true}
-          />
-        </div>
-
         {/* Main Content Grid */}
         <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
           {/* Upcoming Classes */}
@@ -641,57 +615,6 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        {/* Upcoming Events */}
-        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
-          <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-rose-50 p-4 md:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-rose-600 flex-shrink-0" />
-                <CardTitle className="text-lg md:text-xl">Upcoming Events</CardTitle>
-              </div>
-              <Link href="/teacher/calendar">
-                <Button variant="ghost" size="sm" className="text-rose-600 hover:text-rose-700 text-xs md:text-sm">
-                  View All <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 md:p-6">
-            <div className="space-y-3">
-              {upcomingEvents.length > 0 ? (
-                upcomingEvents.map((event) => (
-                  <div
-                    key={event.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 md:p-4 rounded-lg bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-100 hover:border-rose-300 transition-all"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm md:text-base text-gray-900 truncate">{event.title}</p>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs">
-                        <span className="text-gray-500">{event.date}</span>
-                        {event.location && (
-                          <span className="text-gray-500">{event.location}</span>
-                        )}
-                      </div>
-                    </div>
-                    <Badge className={`capitalize flex-shrink-0 ml-0 sm:ml-2 text-xs md:text-sm ${event.type === 'exam' ? 'bg-red-500' :
-                      event.type === 'holiday' ? 'bg-green-500' :
-                        event.type === 'meeting' ? 'bg-blue-500' :
-                          event.type === 'sports' ? 'bg-orange-500' :
-                            'bg-purple-500'
-                      } text-white`}>
-                      {event.type}
-                    </Badge>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">No upcoming events</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Recent Activities */}
         <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
@@ -725,6 +648,58 @@ export default function TeacherDashboard() {
                 <div className="text-center text-gray-500 py-8">
                   <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p className="text-sm">No recent activities</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Upcoming Events */}
+        <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
+          <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-green-50 p-4 md:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-green-600 flex-shrink-0" />
+                <CardTitle className="text-lg md:text-xl">Upcoming Events</CardTitle>
+              </div>
+              <Link href="/teacher/calendar">
+                <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700 text-xs md:text-sm">
+                  View All <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 md:p-6">
+            <div className="space-y-3">
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 md:p-4 rounded-lg bg-gradient-to-r from-green-50 to-green-100 border border-green-100 hover:border-green-300 transition-all"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm md:text-base text-gray-900 truncate">{event.title}</p>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2 text-xs">
+                        <span className="text-gray-500">{event.date}</span>
+                        {event.location && (
+                          <span className="text-gray-500">{event.location}</span>
+                        )}
+                      </div>
+                    </div>
+                    <Badge className={`capitalize flex-shrink-0 ml-0 sm:ml-2 text-xs md:text-sm ${event.type === 'exam' ? 'bg-green-500' :
+                      event.type === 'holiday' ? 'bg-green-500' :
+                        event.type === 'meeting' ? 'bg-blue-500' :
+                          event.type === 'sports' ? 'bg-orange-500' :
+                            'bg-purple-500'
+                      } text-white`}>
+                      {event.type}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No upcoming events</p>
                 </div>
               )}
             </div>

@@ -318,75 +318,102 @@ export default function TeacherTimetablePage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Timetable</h1>
-          <p className="text-gray-600 mt-1">Your weekly teaching schedule</p>
+      <div className="space-y-8 overflow-x-hidden">
+
+        {/* HEADER */}
+        <div className="space-y-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+            My Timetable
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600">
+            Your weekly teaching schedule
+          </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="pt-6">
+        {/* STATS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+          <Card className="border-l-4 border-l-blue-500 shadow-sm">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Teaching Periods</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.totalPeriods}</p>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    Teaching Periods
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    {stats.totalPeriods}
+                  </p>
                 </div>
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <Clock className="h-6 w-6 text-blue-600" />
+                <div className="bg-blue-100 p-3 rounded-xl">
+                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="pt-6">
+          <Card className="border-l-4 border-l-green-500 shadow-sm">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Classes</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.classesCount}</p>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    Classes
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    {stats.classesCount}
+                  </p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-full">
-                  <GraduationCap className="h-6 w-6 text-green-600" />
+                <div className="bg-green-100 p-3 rounded-xl">
+                  <GraduationCap className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-l-4 border-l-purple-500">
-            <CardContent className="pt-6">
+          <Card className="border-l-4 border-l-purple-500 shadow-sm">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Subjects</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.subjectsCount}</p>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    Subjects
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                    {stats.subjectsCount}
+                  </p>
                 </div>
-                <div className="bg-purple-100 p-3 rounded-full">
-                  <BookOpen className="h-6 w-6 text-purple-600" />
+                <div className="bg-purple-100 p-3 rounded-xl">
+                  <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
+
         </div>
 
-        {/* Timetable */}
-        <Card>
-          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-            <div className="flex items-center justify-between">
+        {/* TIMETABLE */}
+        <Card className="shadow-sm">
+
+          <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+
               <div className="flex items-center gap-3">
                 <div className="bg-blue-100 p-2 rounded-lg">
                   <Calendar className="h-5 w-5 text-blue-600" />
                 </div>
+
                 <div>
-                  <CardTitle className="text-xl">{teacherName} - Weekly Schedule</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">Your teaching timetable for the week</p>
+                  <CardTitle className="text-lg sm:text-xl">
+                    {teacherName} - Weekly Schedule
+                  </CardTitle>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                    Your teaching timetable for the week
+                  </p>
                 </div>
               </div>
+
               <Button
                 onClick={handleExportPDF}
                 disabled={exporting}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
               >
                 {exporting ? (
                   <>
@@ -400,20 +427,28 @@ export default function TeacherTimetablePage() {
                   </>
                 )}
               </Button>
+
             </div>
           </CardHeader>
-          <CardContent className="p-6">
-            <div className="overflow-x-auto border rounded-lg" id="teacher-timetable-area">
-              <table className="w-full border-collapse bg-white">
+
+          <CardContent className="p-4 sm:p-6">
+
+            <div
+              className="overflow-x-auto rounded-xl border bg-white"
+              id="teacher-timetable-area"
+            >
+              <table className="min-w-[800px] w-full border-collapse text-xs sm:text-sm">
+
                 <thead>
-                  <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
-                    <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px] sticky left-0 bg-gray-100 z-10">
+                  <tr className="bg-gray-100">
+                    <th className="sticky left-0 z-20 bg-gray-100 border p-3 text-left font-semibold min-w-[110px]">
                       Period
                     </th>
+
                     {DAYS.map((day) => (
                       <th
                         key={day}
-                        className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]"
+                        className="border p-3 text-center font-semibold min-w-[160px]"
                       >
                         <div className="flex items-center justify-center gap-2">
                           <Calendar className="h-4 w-4" />
@@ -423,31 +458,32 @@ export default function TeacherTimetablePage() {
                     ))}
                   </tr>
                 </thead>
+
                 <tbody>
                   {displayPeriodRows.map((row) => (
                     <tr key={row.index} className={row.isBreakRow ? "bg-yellow-50" : ""}>
-                      <td className="border border-gray-300 p-2 bg-gray-50 text-center font-medium sticky left-0 z-10">
-                        <div>
-                          <div className="text-sm font-semibold text-gray-800">
+
+                      <td className="sticky left-0 z-10 bg-gray-50 border p-2">
+                        <div className="text-center">
+                          <div className="font-semibold text-gray-800">
                             {row.isBreakRow ? "BREAK" : `Period ${row.label}`}
                           </div>
+
                           {!row.isBreakRow && (
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {periodsByDay[DAYS[0]]?.[row.index]?.start_time || "—"} - 
+                            <div className="text-[11px] text-gray-500 mt-1">
+                              {periodsByDay[DAYS[0]]?.[row.index]?.start_time || "—"} -
                               {periodsByDay[DAYS[0]]?.[row.index]?.end_time || "—"}
                             </div>
                           )}
                         </div>
                       </td>
+
                       {DAYS.map((day) => {
                         const period = periodsByDay[day]?.[row.index];
-                        
+
                         if (!period) {
                           return (
-                            <td
-                              key={day}
-                              className="border border-gray-300 p-3 text-center text-gray-400"
-                            >
+                            <td key={day} className="border p-3 text-center text-gray-300">
                               —
                             </td>
                           );
@@ -455,13 +491,12 @@ export default function TeacherTimetablePage() {
 
                         if (period.is_break) {
                           return (
-                            <td
-                              key={day}
-                              className="border border-gray-300 p-3 bg-yellow-50"
-                            >
+                            <td key={day} className="border p-3 bg-yellow-50">
                               <div className="text-center">
-                                <div className="font-semibold text-yellow-800 text-sm">BREAK TIME</div>
-                                <div className="text-xs text-gray-600 mt-0.5">
+                                <div className="font-semibold text-yellow-800 text-xs">
+                                  BREAK TIME
+                                </div>
+                                <div className="text-[11px] text-gray-600 mt-1">
                                   {period.start_time} - {period.end_time}
                                 </div>
                               </div>
@@ -474,28 +509,29 @@ export default function TeacherTimetablePage() {
                         return (
                           <td
                             key={day}
-                            className={`border border-gray-300 p-2 ${
-                              cell 
-                                ? "bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors cursor-pointer" 
-                                : "hover:bg-gray-50 transition-colors"
-                            }`}
+                            className={`border p-3 transition-colors ${cell
+                                ? "bg-blue-50 hover:bg-blue-100 cursor-pointer"
+                                : "hover:bg-gray-50"
+                              }`}
                           >
                             {cell ? (
                               <div className="space-y-1">
-                                <div className="text-xs font-medium text-blue-700 truncate">
+                                <div className="text-[11px] font-medium text-blue-700 truncate">
                                   {cell.class}
                                 </div>
-                                <div className="font-semibold text-gray-900 text-sm leading-tight">
+                                <div className="font-semibold text-gray-900 leading-tight">
                                   {cell.fullSubject}
                                 </div>
-                                <div className="text-xs text-gray-500">
+                                <div className="text-[11px] text-gray-500">
                                   {period.start_time} - {period.end_time}
                                 </div>
                               </div>
                             ) : (
                               <div className="text-center py-2">
-                                <div className="text-gray-400 text-xs">Free Period</div>
-                                <div className="text-xs text-gray-400 mt-1">
+                                <div className="text-gray-400 text-xs">
+                                  Free Period
+                                </div>
+                                <div className="text-[11px] text-gray-400 mt-1">
                                   {period.start_time} - {period.end_time}
                                 </div>
                               </div>
@@ -503,6 +539,7 @@ export default function TeacherTimetablePage() {
                           </td>
                         );
                       })}
+
                     </tr>
                   ))}
                 </tbody>
@@ -510,43 +547,53 @@ export default function TeacherTimetablePage() {
             </div>
 
             {stats.totalPeriods === 0 && (
-              <div className="text-center py-12 mt-6">
-                <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Calendar className="h-8 w-8 text-gray-400" />
+              <div className="text-center py-14">
+                <div className="bg-gray-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="h-6 w-6 text-gray-400" />
                 </div>
-                <p className="text-gray-600 font-medium">No timetable entries found</p>
-                <p className="text-gray-500 text-sm mt-1">
+                <p className="font-medium text-gray-600">
+                  No timetable entries found
+                </p>
+                <p className="text-sm text-gray-500 mt-1">
                   Contact the administrator to schedule your classes
                 </p>
               </div>
             )}
+
           </CardContent>
         </Card>
 
-        {/* Legend */}
+        {/* LEGEND */}
         {stats.totalPeriods > 0 && (
-          <Card>
+          <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Legend</CardTitle>
+              <CardTitle className="text-sm sm:text-base">
+                Legend
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-4 text-sm">
+              <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-6 text-xs sm:text-sm">
+
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded"></div>
-                  <span className="text-gray-700">Teaching Period</span>
+                  <div className="w-4 h-4 bg-blue-50 border border-blue-200 rounded" />
+                  <span>Teaching Period</span>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-yellow-50 border border-yellow-200 rounded"></div>
-                  <span className="text-gray-700">Break Time</span>
+                  <div className="w-4 h-4 bg-yellow-50 border border-yellow-200 rounded" />
+                  <span>Break Time</span>
                 </div>
+
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white border border-gray-300 rounded"></div>
-                  <span className="text-gray-700">Free Period</span>
+                  <div className="w-4 h-4 bg-white border border-gray-300 rounded" />
+                  <span>Free Period</span>
                 </div>
+
               </div>
             </CardContent>
           </Card>
         )}
+
       </div>
     </DashboardLayout>
   );

@@ -255,24 +255,28 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
     return (
         <DashboardLayout role="teacher">
-            <div className="space-y-8">
+            <div className="space-y-6 overflow-x-hidden">
 
                 {/* HEADER */}
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold">Subject Analytics</h1>
-                    <p className="text-sm md:text-base text-gray-600 mt-2">
+                    <h1 className="text-2xl sm:text-3xl font-bold">
+                        Subject Analytics
+                    </h1>
+                    <p className="text-sm sm:text-base text-gray-600 mt-2 break-words">
                         {subject?.subject?.name} — {subject?.class?.name} ({subject?.class?.level})
                     </p>
                 </div>
 
-                {/* 1. FILTERS */}
+                {/* FILTERS */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg md:text-xl">Filters</CardTitle>
+                        <CardTitle className="text-base sm:text-lg">
+                            Filters
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                        {/* Session Selector */}
+                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
                         <Select
                             value={selectedSession}
                             onValueChange={(val) => {
@@ -280,7 +284,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 loadResults(subjectClassId, val, selectedTerm);
                             }}
                         >
-                            <SelectTrigger className="text-sm md:text-base">
+                            <SelectTrigger className="text-sm">
                                 <SelectValue placeholder="Select Session" />
                             </SelectTrigger>
                             <SelectContent>
@@ -292,7 +296,6 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             </SelectContent>
                         </Select>
 
-                        {/* Term Selector */}
                         <Select
                             value={selectedTerm}
                             onValueChange={(val) => {
@@ -300,7 +303,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 loadResults(subjectClassId, selectedSession, val);
                             }}
                         >
-                            <SelectTrigger className="text-sm md:text-base">
+                            <SelectTrigger className="text-sm">
                                 <SelectValue placeholder="Select Term" />
                             </SelectTrigger>
                             <SelectContent>
@@ -317,70 +320,76 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </CardContent>
                 </Card>
 
-                {/* 2. SUMMARY CARDS */}
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                {/* SUMMARY CARDS */}
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-                    {/* Students Count */}
                     <Card>
-                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
-                            <Users className="h-5 md:h-6 w-5 md:w-6 mb-2 text-blue-600" />
-                            <p className="text-2xl md:text-3xl font-bold">{results.length}</p>
-                            <p className="text-gray-500 text-xs md:text-sm text-center">Students Offering This Subject</p>
+                        <CardContent className="p-4 flex flex-col items-center text-center">
+                            <Users className="h-6 w-6 mb-2 text-blue-600" />
+                            <p className="text-2xl font-bold">{results.length}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm">
+                                Students Offering
+                            </p>
                         </CardContent>
                     </Card>
 
-                    {/* Average Score */}
                     <Card>
-                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
-                            <TrendingUp className="h-5 md:h-6 w-5 md:w-6 mb-2 text-green-600" />
-                            <p className="text-2xl md:text-3xl font-bold">{avgScore}</p>
-                            <p className="text-gray-500 text-xs md:text-sm text-center">Average Score</p>
+                        <CardContent className="p-4 flex flex-col items-center text-center">
+                            <TrendingUp className="h-6 w-6 mb-2 text-green-600" />
+                            <p className="text-2xl font-bold">{avgScore}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm">
+                                Average Score
+                            </p>
                         </CardContent>
                     </Card>
 
-                    {/* Highest Score */}
                     <Card>
-                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
-                            <Award className="h-5 md:h-6 w-5 md:w-6 mb-2 text-purple-600" />
-                            <p className="text-2xl md:text-3xl font-bold">{highestScore}</p>
-                            <p className="text-gray-500 text-xs md:text-sm text-center">Highest Score</p>
+                        <CardContent className="p-4 flex flex-col items-center text-center">
+                            <Award className="h-6 w-6 mb-2 text-purple-600" />
+                            <p className="text-2xl font-bold">{highestScore}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm">
+                                Highest Score
+                            </p>
                         </CardContent>
                     </Card>
 
-                    {/* Lowest Score */}
                     <Card>
-                        <CardContent className="p-3 md:p-4 flex flex-col items-center justify-center">
-                            <TrendingDown className="h-5 md:h-6 w-5 md:w-6 mb-2 text-red-600" />
-                            <p className="text-2xl md:text-3xl font-bold">{lowestScore}</p>
-                            <p className="text-gray-500 text-xs md:text-sm text-center">Lowest Score</p>
+                        <CardContent className="p-4 flex flex-col items-center text-center">
+                            <TrendingDown className="h-6 w-6 mb-2 text-red-600" />
+                            <p className="text-2xl font-bold">{lowestScore}</p>
+                            <p className="text-gray-500 text-xs sm:text-sm">
+                                Lowest Score
+                            </p>
                         </CardContent>
                     </Card>
 
                 </div>
 
-                {/* 🔥 STUDENT RESULT BREAKDOWN */}
+                {/* STUDENT PERFORMANCE */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg md:text-xl">Student Performance Breakdown</CardTitle>
-                        <p className="text-gray-500 text-xs md:text-sm mt-1">
+                        <CardTitle className="text-base sm:text-lg">
+                            Student Performance Breakdown
+                        </CardTitle>
+                        <p className="text-gray-500 text-xs sm:text-sm mt-1">
                             Ordered by total score (highest → lowest)
                         </p>
                     </CardHeader>
 
                     <CardContent>
 
-                        {/* 🔍 Filters */}
-                        <div className="flex flex-col gap-3 md:flex-row md:gap-4 mb-4">
+                        {/* Filters */}
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-4">
 
                             <Input
                                 placeholder="Search by name or ID"
-                                className="w-full md:w-1/3 text-sm"
+                                className="w-full sm:w-64 text-sm"
                                 value={searchQuery}
                                 onChange={(e: any) => setSearchQuery(e.target.value)}
                             />
 
                             <select
-                                className="border rounded p-2 text-sm md:text-base bg-white"
+                                className="w-full sm:w-40 border rounded p-2 text-sm bg-white"
                                 value={genderFilter}
                                 onChange={(e) => setGenderFilter(e.target.value)}
                             >
@@ -390,7 +399,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             </select>
 
                             <select
-                                className="border rounded p-2 text-sm md:text-base bg-white"
+                                className="w-full sm:w-40 border rounded p-2 text-sm bg-white"
                                 value={scoreFilter}
                                 onChange={(e) => setScoreFilter(Number(e.target.value))}
                             >
@@ -399,89 +408,70 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 <option value={70}>70+ (Top)</option>
                                 <option value={85}>85+ (Excellent)</option>
                             </select>
+
                         </div>
 
-                        {/* 📊 Table - Scrollable on mobile */}
+                        {/* Table */}
                         <div className="border rounded-lg overflow-x-auto">
-                            <table className="w-full text-xs md:text-sm">
-                                <thead className="bg-gray-100">
-                                    <tr>
-                                        <th className="p-2 text-left">#</th>
-                                        <th className="p-2 text-left">Student</th>
-                                        <th className="p-2 text-left">Welcome</th>
-                                        <th className="p-2 text-left">Mid-Term</th>
-                                        <th className="p-2 text-left">Vetting</th>
-                                        <th className="p-2 text-left">Exams</th>
-                                        <th className="p-2 text-left">Total</th>
-                                        <th className="p-2 text-left">Grade</th>
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-                                    {studentBreakdown
-                                        .filter((s) =>
-                                            s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                            s.student_id.toLowerCase().includes(searchQuery.toLowerCase())
-                                        )
-                                        .filter((s) =>
-                                            genderFilter === "all" ? true : s.gender?.toLowerCase() === genderFilter
-                                        )
-                                        .filter((s) => s.total >= scoreFilter)
-                                        .map((s, index) => (
-                                            <tr key={s.id} className="border-t">
-                                                <td className="p-2">{index + 1}</td>
-                                                <td className="p-2 whitespace-nowrap">
-                                                    {/* Student Info with Avatar */}
-
-                                                    <div className="flex items-center gap-2">
-                                                        <Avatar className="h-8 w-8 md:h-10 md:w-10">
-                                                            <AvatarImage
-                                                                src={
-                                                                    s.photo_url
-                                                                        ? s.photo_url
-                                                                        : s.gender === "male"
-                                                                            ? "/male-avatar.jpg"
-                                                                            : "/female-avatar.jpg"
-                                                                }
-                                                            />
-                                                        </Avatar>
-                                                        <div>
-                                                            <div className="font-medium text-xs md:text-sm">
-                                                                {s.name}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500">({s.student_id})</div>
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="p-2">{s.welcome_test}</td>
-                                                <td className="p-2">{s.mid_term}</td>
-                                                <td className="p-2">{s.vetting}</td>
-                                                <td className="p-2">{s.exams}</td>
-                                                <td className="p-2 font-semibold">{s.total}</td>
-                                                <td className="p-2 font-bold">{s.grade}</td>
-                                            </tr>
-                                        ))}
-                                </tbody>
-                            </table>
+                            <div className="min-w-[700px]">
+                                <table className="w-full text-xs sm:text-sm">
+                                    <thead className="bg-gray-100">
+                                        <tr>
+                                            <th className="p-2 text-left">#</th>
+                                            <th className="p-2 text-left">Student</th>
+                                            <th className="p-2 text-left">Welcome</th>
+                                            <th className="p-2 text-left">Mid</th>
+                                            <th className="p-2 text-left">Vetting</th>
+                                            <th className="p-2 text-left">Exams</th>
+                                            <th className="p-2 text-left">Total</th>
+                                            <th className="p-2 text-left">Grade</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {studentBreakdown
+                                            .filter((s) =>
+                                                s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                s.student_id.toLowerCase().includes(searchQuery.toLowerCase())
+                                            )
+                                            .filter((s) =>
+                                                genderFilter === "all" ? true : s.gender?.toLowerCase() === genderFilter
+                                            )
+                                            .filter((s) => s.total >= scoreFilter)
+                                            .map((s, index) => (
+                                                <tr key={s.id} className="border-t">
+                                                    <td className="p-2">{index + 1}</td>
+                                                    <td className="p-2 whitespace-nowrap">{s.name}</td>
+                                                    <td className="p-2">{s.welcome_test}</td>
+                                                    <td className="p-2">{s.mid_term}</td>
+                                                    <td className="p-2">{s.vetting}</td>
+                                                    <td className="p-2">{s.exams}</td>
+                                                    <td className="p-2 font-semibold">{s.total}</td>
+                                                    <td className="p-2 font-bold">{s.grade}</td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
+
                     </CardContent>
                 </Card>
 
-                {/* 3. ASSESSMENT COMPONENT BREAKDOWN */}
+                {/* CHARTS */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg md:text-xl">Assessment Component Breakdown</CardTitle>
+                        <CardTitle className="text-base sm:text-lg">
+                            Assessment Component Breakdown
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="w-full overflow-x-auto">
-                        <ResponsiveContainer width="100%" height={300} minWidth={250}>
-                            <BarChart
-                                data={[
-                                    { name: "Welcome Test", avg: results.length ? (results.reduce((a, b) => a + b.welcome_test, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Mid Term", avg: results.length ? (results.reduce((a, b) => a + b.mid_term_test, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Vetting", avg: results.length ? (results.reduce((a, b) => a + b.vetting, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Exams", avg: results.length ? (results.reduce((a, b) => a + b.exam, 0) / results.length).toFixed(1) : 0 },
-                                ]}
-                            >
+                    <CardContent className="overflow-x-auto">
+                        <ResponsiveContainer width="100%" height={280}>
+                            <BarChart data={[
+                                { name: "Welcome Test", avg: results.length ? (results.reduce((a, b) => a + b.welcome_test, 0) / results.length).toFixed(1) : 0 },
+                                { name: "Mid Term", avg: results.length ? (results.reduce((a, b) => a + b.mid_term_test, 0) / results.length).toFixed(1) : 0 },
+                                { name: "Vetting", avg: results.length ? (results.reduce((a, b) => a + b.vetting, 0) / results.length).toFixed(1) : 0 },
+                                { name: "Exams", avg: results.length ? (results.reduce((a, b) => a + b.exam, 0) / results.length).toFixed(1) : 0 },
+                            ]}>
                                 <XAxis dataKey="name" />
                                 <YAxis />
                                 <Tooltip />
@@ -491,101 +481,32 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </CardContent>
                 </Card>
 
-                {/* 4. GRADE DISTRIBUTION */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg md:text-xl">Grade Distribution</CardTitle>
+                        <CardTitle className="text-base sm:text-lg">
+                            Grade Distribution
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="w-full overflow-x-auto">
-                        <ResponsiveContainer width="100%" height={300} minWidth={250}>
+                    <CardContent className="overflow-x-auto">
+                        <ResponsiveContainer width="100%" height={280}>
                             <BarChart data={gradeDistribution}>
                                 <XAxis dataKey="grade" />
                                 <YAxis />
                                 <Tooltip />
-                                <Bar dataKey="count">
-                                    {gradeDistribution.map((entry, index) => (
-                                        <Cell key={index} fill={GRADE_COLORS[entry.grade]} />
-                                    ))}
-                                </Bar>
+                                <Bar dataKey="count" />
                             </BarChart>
                         </ResponsiveContainer>
                     </CardContent>
                 </Card>
 
-
-                {/* 6. STUDENTS NEEDING ATTENTION */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-lg md:text-xl">Students Needing Attention</CardTitle>
-                        <p className="text-gray-500 text-xs md:text-sm mt-1">
-                            Students scoring below 50 or failing (D7, E8, F9)
-                        </p>
+                        <CardTitle className="text-base sm:text-lg">
+                            Male vs Female Performance
+                        </CardTitle>
                     </CardHeader>
-
-                    <CardContent>
-                        {results.filter(r => r.total < 50 || ["D7", "E8", "F9"].includes(r.grade)).length === 0 ? (
-                            <p className="text-gray-500">No struggling students found.</p>
-                        ) : (
-                            <div className="border rounded-lg overflow-x-auto">
-                                <table className="w-full text-xs md:text-sm">
-                                    <thead className="bg-red-50">
-                                        <tr>
-                                            <th className="p-2 text-left">Student</th>
-                                            <th className="p-2 text-left">Score</th>
-                                            <th className="p-2 text-left">Grade</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {results
-                                            .filter(r => r.total < 50 || ["D7", "E8", "F9"].includes(r.grade))
-                                            .sort((a, b) => a.total - b.total)
-                                            .map((r) => (
-                                                <tr key={r.id} className="border-t bg-red-50/30">
-                                                    <td className="p-2 flex items-center gap-2 whitespace-nowrap">
-                                                        <Avatar className="h-8 w-8 md:h-10 md:w-10">
-                                                            <AvatarImage
-                                                                src={
-                                                                    r.students.photo_url
-                                                                        ? r.students.photo_url
-                                                                        : r.students.gender === "male"
-                                                                            ? "/male-avatar.jpg"
-                                                                            : "/female-avatar.jpg"
-                                                                }
-                                                            />
-
-                                                            <AvatarFallback className="bg-blue-100 text-blue-700 text-xs md:text-sm">
-                                                                {r.students.first_name.charAt(0)}
-                                                                {r.students.last_name.charAt(0)}
-                                                            </AvatarFallback>
-
-                                                        </Avatar>
-                                                        <div>
-                                                            <div className="font-medium text-xs md:text-sm">
-                                                                {r.students.first_name} {r.students.last_name}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500">({r.students.student_id})</div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-2">{r.total}</td>
-                                                    <td className="p-2">{r.grade}</td>
-                                                </tr>
-                                            ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* 9. MALE vs FEMALE PERFORMANCE */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg md:text-xl">Male vs Female Performance</CardTitle>
-                        <p className="text-gray-500 text-xs md:text-sm mt-1">Average score comparison by gender</p>
-                    </CardHeader>
-
-                    <CardContent className="w-full overflow-x-auto">
-                        <ResponsiveContainer width="100%" height={300} minWidth={250}>
+                    <CardContent className="overflow-x-auto">
+                        <ResponsiveContainer width="100%" height={280}>
                             <BarChart data={genderComparison}>
                                 <XAxis dataKey="gender" />
                                 <YAxis />
@@ -596,10 +517,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </CardContent>
                 </Card>
 
-
-
             </div>
         </DashboardLayout>
-
     );
 }

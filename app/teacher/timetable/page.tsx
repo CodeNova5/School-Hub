@@ -319,8 +319,6 @@ export default function TeacherTimetablePage() {
   return (
     <DashboardLayout role="teacher">
       <div className="space-y-8 w-full max-w-full overflow-x-hidden">
-
-
         {/* HEADER */}
         <div className="space-y-2">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">

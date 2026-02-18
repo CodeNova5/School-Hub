@@ -432,117 +432,192 @@ export default function TeacherTimetablePage() {
 
           <CardContent className="p-0">
 
-            <div className="px-4 sm:px-6 py-4 sm:py-6">
-              <div className="overflow-x-auto"
-                id="teacher-timetable-area">
-
-                <table className="w-full min-w-max table-auto border-collapse text-xs sm:text-sm">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="sticky left-0  bg-gray-100 border p-3 text-left font-semibold min-w-[110px]">
-                      Period
-                    </th>
-
-                    {DAYS.map((day) => (
-                      <th
-                        key={day}
-                        className="border p-3 text-center font-semibold min-w-[160px]"
-                      >
-                        <div className="flex items-center justify-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          {day}
-                        </div>
+            {/* DESKTOP TABLE VIEW */}
+            <div className="hidden sm:block px-6 py-6"
+              id="teacher-timetable-area">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full table-fixed border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="sticky left-0 bg-gray-100 border p-2 text-left font-semibold w-24">
+                        Period
                       </th>
-                    ))}
-                  </tr>
-                </thead>
 
-                <tbody>
-                  {displayPeriodRows.map((row) => (
-                    <tr key={row.index} className={row.isBreakRow ? "bg-yellow-50" : ""}>
+                      {DAYS.map((day) => (
+                        <th
+                          key={day}
+                          className="border p-2 text-center font-semibold"
+                        >
+                          {day}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
 
-                      <td className="sticky left-0 bg-gray-50 border p-2">
-                        <div className="text-center">
-                          <div className="font-semibold text-gray-800">
-                            {row.isBreakRow ? "BREAK" : `Period ${row.label}`}
+                  <tbody>
+                    {displayPeriodRows.map((row) => (
+                      <tr key={row.index} className={row.isBreakRow ? "bg-yellow-50" : ""}>
+
+                        <td className="sticky left-0 bg-gray-50 border p-2">
+                          <div className="text-center">
+                            <div className="font-semibold text-gray-800">
+                              {row.isBreakRow ? "BREAK" : `Period ${row.label}`}
+                            </div>
+
+                            {!row.isBreakRow && (
+                              <div className="text-[11px] text-gray-500 mt-1">
+                                {periodsByDay[DAYS[0]]?.[row.index]?.start_time || "—"} -
+                                {periodsByDay[DAYS[0]]?.[row.index]?.end_time || "—"}
+                              </div>
+                            )}
                           </div>
+                        </td>
 
-                          {!row.isBreakRow && (
-                            <div className="text-[11px] text-gray-500 mt-1">
-                              {periodsByDay[DAYS[0]]?.[row.index]?.start_time || "—"} -
-                              {periodsByDay[DAYS[0]]?.[row.index]?.end_time || "—"}
+                        {DAYS.map((day) => {
+                          const period = periodsByDay[day]?.[row.index];
+
+                          if (!period) {
+                            return (
+                              <td key={day} className="border p-3 text-center text-gray-300">
+                                —
+                              </td>
+                            );
+                          }
+
+                          if (period.is_break) {
+                            return (
+                              <td key={day} className="border p-3 bg-yellow-50">
+                                <div className="text-center">
+                                  <div className="font-semibold text-yellow-800 text-xs">
+                                    BREAK TIME
+                                  </div>
+                                  <div className="text-[11px] text-gray-600 mt-1">
+                                    {period.start_time} - {period.end_time}
+                                  </div>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          const cell = timetable[day]?.[period.id];
+
+                          return (
+                            <td
+                              key={day}
+                              className={`border p-3 transition-colors ${cell
+                                ? "bg-blue-50 hover:bg-blue-100 cursor-pointer"
+                                : "hover:bg-gray-50"
+                                }`}
+                            >
+                              {cell ? (
+                                <div className="space-y-1">
+                                  <div className="text-[11px] font-medium text-blue-700 truncate">
+                                    {cell.class}
+                                  </div>
+                                  <div className="font-semibold text-gray-900 leading-tight">
+                                    {cell.fullSubject}
+                                  </div>
+                                  <div className="text-[11px] text-gray-500">
+                                    {period.start_time} - {period.end_time}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-center py-2">
+                                  <div className="text-gray-400 text-xs">
+                                    Free Period
+                                  </div>
+                                  <div className="text-[11px] text-gray-400 mt-1">
+                                    {period.start_time} - {period.end_time}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* MOBILE CARD VIEW */}
+            <div className="block sm:hidden p-4 space-y-4">
+              {displayPeriodRows.map((row) => {
+                const periodTime = periodsByDay[DAYS[0]]?.[row.index];
+
+                return (
+                  <div key={row.index} className={`rounded-lg border p-4 ${row.isBreakRow ? "bg-yellow-50 border-yellow-200" : "bg-white border-gray-200"}`}>
+                    {/* Period Header */}
+                    <div className="font-semibold text-gray-800 mb-4">
+                      {row.isBreakRow ? (
+                        <div>
+                          <div className="text-yellow-800">BREAK TIME</div>
+                          {periodTime && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              {periodTime.start_time} - {periodTime.end_time}
                             </div>
                           )}
                         </div>
-                      </td>
+                      ) : (
+                        <div>
+                          <div className="text-gray-900">Period {row.label}</div>
+                          {periodTime && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              {periodTime.start_time} - {periodTime.end_time}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
+                    {/* Days in this Period */}
+                    <div className="space-y-3">
                       {DAYS.map((day) => {
                         const period = periodsByDay[day]?.[row.index];
 
                         if (!period) {
-                          return (
-                            <td key={day} className="border p-3 text-center text-gray-300">
-                              —
-                            </td>
-                          );
+                          return null;
                         }
 
                         if (period.is_break) {
-                          return (
-                            <td key={day} className="border p-3 bg-yellow-50">
-                              <div className="text-center">
-                                <div className="font-semibold text-yellow-800 text-xs">
-                                  BREAK TIME
-                                </div>
-                                <div className="text-[11px] text-gray-600 mt-1">
-                                  {period.start_time} - {period.end_time}
-                                </div>
-                              </div>
-                            </td>
-                          );
+                          return null;
                         }
 
                         const cell = timetable[day]?.[period.id];
 
                         return (
-                          <td
-                            key={day}
-                            className={`border p-3 transition-colors ${cell
-                              ? "bg-blue-50 hover:bg-blue-100 cursor-pointer"
-                              : "hover:bg-gray-50"
-                              }`}
-                          >
+                          <div key={day} className="flex items-start gap-3 pb-3 border-b border-gray-200 last:border-b-0 last:pb-0">
+                            {/* Day Label */}
+                            <div className="min-w-[80px]">
+                              <div className="text-sm font-medium text-gray-700">
+                                {day}
+                              </div>
+                            </div>
+
+                            {/* Class/Subject Info */}
                             {cell ? (
-                              <div className="space-y-1">
-                                <div className="text-[11px] font-medium text-blue-700 truncate">
+                              <div className="flex-1 bg-blue-50 rounded p-2 border border-blue-200">
+                                <div className="text-xs font-medium text-blue-700">
                                   {cell.class}
                                 </div>
-                                <div className="font-semibold text-gray-900 leading-tight">
+                                <div className="text-sm font-semibold text-gray-900 mt-1">
                                   {cell.fullSubject}
-                                </div>
-                                <div className="text-[11px] text-gray-500">
-                                  {period.start_time} - {period.end_time}
                                 </div>
                               </div>
                             ) : (
-                              <div className="text-center py-2">
-                                <div className="text-gray-400 text-xs">
-                                  Free Period
-                                </div>
-                                <div className="text-[11px] text-gray-400 mt-1">
-                                  {period.start_time} - {period.end_time}
-                                </div>
+                              <div className="flex-1 text-xs text-gray-400">
+                                Free Period
                               </div>
                             )}
-                          </td>
+                          </div>
                         );
                       })}
-
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {stats.totalPeriods === 0 && (

@@ -173,31 +173,48 @@ export function Sidebar({
       >
 
         <div className="flex h-full flex-col">
-          {/* Collapse Button (Desktop Only) */}
-          <div className="flex items-center justify-end h-16 px-4 border-b border-slate-200">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setCollapsed(!collapsed)}
-              className="hidden md:flex"
-            >
-              <ChevronLeft
-                className={cn(
-                  "h-5 w-5 transition-transform",
-                  collapsed && "rotate-180"
-                )}
-              />
-            </Button>
+          {/* Header with Logo and Name */}
+          <div className="flex items-center justify-between h-16 px-4 border-b border-slate-200">
+            <div className={cn(
+              "flex items-center gap-3 transition-all",
+              collapsed && "justify-center"
+            )}>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold">
+                <School className="h-5 w-5" />
+              </div>
+              {!collapsed && (
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-slate-900">School Hub</span>
+                  <span className="text-xs text-slate-500">Management</span>
+                </div>
+              )}
+            </div>
 
-            {/* Mobile Close */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setMobileOpen(false)}
-              className="md:hidden"
-            >
-              <X className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCollapsed(!collapsed)}
+                className="hidden md:flex"
+              >
+                <ChevronLeft
+                  className={cn(
+                    "h-5 w-5 transition-transform",
+                    collapsed && "rotate-180"
+                  )}
+                />
+              </Button>
+
+              {/* Mobile Close */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileOpen(false)}
+                className="md:hidden"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
 
           {/* Navigation */}

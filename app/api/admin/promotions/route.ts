@@ -377,6 +377,98 @@ export async function POST(request: NextRequest) {
             console.error(`Error updating student ${student_name}:`, updateError);
             throw new Error(`Failed to update student record: ${updateError.message}`);
           }
+
+          // Handle subject reassignment for promoted student
+          try {
+            // 1. Fetch student's department and religion
+            const { data: studentData, error: studentError } = await supabaseAdmin
+              .from("students")
+              .select("department, religion")
+              .eq("id", student_id)
+              .single();
+
+            if (studentError) {
+              console.error(`Failed to fetch student details for ${student_name}:`, studentError);
+            } else if (studentData) {
+              // 2. Delete old student_subjects
+              await supabaseAdmin
+                .from("student_subjects")
+                .delete()
+                .eq("student_id", student_id);
+
+              // 3. Delete old optional subjects
+              await supabaseAdmin
+                .from("student_optional_subjects")
+                .delete()
+                .eq("student_id", student_id);
+
+              // 4. Fetch available subject_classes for new class
+              const { data: subjectClasses, error: scError } = await supabaseAdmin
+                .from("subject_classes")
+                .select(`
+                  id,
+                  subject_id,
+                  subjects (
+                    id,
+                    name,
+                    is_optional,
+                    department,
+                    religion
+                  )
+                `)
+                .eq("class_id", next_class_id);
+
+              if (scError) {
+                console.error(`Failed to fetch subject_classes for ${student_name}:`, scError);
+              } else if (subjectClasses) {
+                // 5. Filter subjects based on student's department and religion
+                const filteredSubjects = subjectClasses.filter((sc: any) => {
+                  const subject = sc.subjects;
+
+                  // Filter by department if applicable
+                  if (subject.department && studentData.department) {
+                    if (subject.department !== studentData.department) {
+                      return false;
+                    }
+                  }
+
+                  // Filter by religion if applicable
+                  if (subject.religion && studentData.religion) {
+                    if (subject.religion !== studentData.religion) {
+                      return false;
+                    }
+                  }
+
+                  return true;
+                });
+
+                // 6. Auto-select all compulsory subjects
+                const subjectsToAssign = filteredSubjects
+                  .filter((sc: any) => !sc.subjects.is_optional)
+                  .map((sc: any) => ({
+                    student_id,
+                    subject_class_id: sc.id,
+                  }));
+
+                // 7. Insert compulsory subjects if any
+                if (subjectsToAssign.length > 0) {
+                  const { error: insertError } = await supabaseAdmin
+                    .from("student_subjects")
+                    .insert(subjectsToAssign);
+
+                  if (insertError) {
+                    console.error(`Failed to assign subjects for ${student_name}:`, insertError);
+                  } else {
+                    console.log(`Assigned ${subjectsToAssign.length} subjects to promoted student ${student_name}`);
+                  }
+                }
+              }
+            }
+          } catch (subjectError: any) {
+            console.error(`Error handling subject reassignment for ${student_name}:`, subjectError);
+            // Continue anyway - the promotion itself succeeded
+          }
+
           results.promoted++;
         } else if (action === "graduate") {
           const { error: updateError } = await supabaseAdmin

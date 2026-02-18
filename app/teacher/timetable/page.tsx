@@ -412,7 +412,7 @@ export default function TeacherTimetablePage() {
               <Button
                 onClick={handleExportPDF}
                 disabled={exporting}
-                className="hidden sm:block min-w-[140px] bg-blue-600 hover:bg-blue-700"
+                className="hidden lg:inline-flex bg-blue-600 hover:bg-blue-700"
               >
                 {exporting ? (
                   <>

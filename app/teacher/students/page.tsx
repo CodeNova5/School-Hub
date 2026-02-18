@@ -246,72 +246,113 @@ export default function TeacherStudentsPage() {
       </DashboardLayout>
     );
   }
-
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="space-y-6 overflow-x-hidden">
+
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold">Students</h1>
-            <p className="text-sm md:text-base text-gray-600 mt-1">View all students offering subjects assigned to you</p>
+            <h1 className="text-2xl sm:text-3xl font-bold">Students</h1>
+            <p className="text-sm sm:text-base text-gray-600 mt-1">
+              View all students offering subjects assigned to you
+            </p>
           </div>
-          <div className="flex gap-2 w-full md:w-auto">
-            <Button variant="outline" onClick={handleExport} className="w-full md:w-auto">
+
+          <div className="w-full sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={handleExport}
+              className="w-full sm:w-auto"
+            >
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+        {/* Stats Cards */}
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
+
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Total Students</CardTitle>
-              <Users className="h-4 w-4 text-gray-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl md:text-2xl font-bold">{totalStudents}</div>
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    Total Students
+                  </p>
+                  <p className="text-xl sm:text-2xl font-bold">
+                    {totalStudents}
+                  </p>
+                </div>
+                <Users className="h-5 w-5 text-gray-600" />
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Active Students</CardTitle>
-              <UserCheck className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl md:text-2xl font-bold text-green-600">{activeStudents}</div>
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    Active Students
+                  </p>
+                  <p className="text-xl sm:text-2xl font-bold text-green-600">
+                    {activeStudents}
+                  </p>
+                </div>
+                <UserCheck className="h-5 w-5 text-green-600" />
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">Suspended</CardTitle>
-              <UserX className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl md:text-2xl font-bold text-red-600">{suspendedStudents}</div>
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    Suspended
+                  </p>
+                  <p className="text-xl sm:text-2xl font-bold text-red-600">
+                    {suspendedStudents}
+                  </p>
+                </div>
+                <UserX className="h-5 w-5 text-red-600" />
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs md:text-sm font-medium">New This Month</CardTitle>
-              <CalendarIcon className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl md:text-2xl font-bold text-blue-600">{newThisMonth}</div>
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-600">
+                    New This Month
+                  </p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">
+                    {newThisMonth}
+                  </p>
+                </div>
+                <CalendarIcon className="h-5 w-5 text-blue-600" />
+              </div>
             </CardContent>
           </Card>
+
         </div>
 
+        {/* Search & Filters */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg md:text-xl">Search & Filters</CardTitle>
+            <CardTitle className="text-base sm:text-lg">
+              Search & Filters
+            </CardTitle>
           </CardHeader>
+
           <CardContent>
-            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
-              <div className="relative md:col-span-2 lg:col-span-1">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+
+              {/* Search */}
+              <div className="relative sm:col-span-2 lg:col-span-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   placeholder="Search students..."
@@ -321,10 +362,11 @@ export default function TeacherStudentsPage() {
                 />
               </div>
 
+              {/* Class Filter */}
               <select
                 value={filterClass}
                 onChange={(e) => setFilterClass(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
+                className="w-full px-3 py-2 border rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Classes</option>
                 {classes
@@ -336,10 +378,11 @@ export default function TeacherStudentsPage() {
                   ))}
               </select>
 
+              {/* Department */}
               <select
                 value={filterDepartment}
                 onChange={(e) => setFilterDepartment(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
+                className="w-full px-3 py-2 border rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Departments</option>
                 {uniqueDepartments.map((dept) => (
@@ -349,20 +392,22 @@ export default function TeacherStudentsPage() {
                 ))}
               </select>
 
+              {/* Gender */}
               <select
                 value={filterGender}
                 onChange={(e) => setFilterGender(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
+                className="w-full px-3 py-2 border rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Genders</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
               </select>
 
+              {/* Status */}
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border rounded-md text-sm md:text-base bg-white"
+                className="w-full px-3 py-2 border rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Status</option>
                 <option value="active">Active</option>
@@ -370,22 +415,29 @@ export default function TeacherStudentsPage() {
                 <option value="graduated">Graduated</option>
                 <option value="withdrawn">Withdrawn</option>
               </select>
+
             </div>
           </CardContent>
         </Card>
 
+        {/* Students Table */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg md:text-xl">Students List</CardTitle>
-            <p className="text-xs md:text-sm text-gray-600 mt-1">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-base sm:text-lg">
+              Students List
+            </CardTitle>
+            <p className="text-xs sm:text-sm text-gray-600">
               Showing {filteredStudents.length} of {totalStudents} students
             </p>
           </CardHeader>
-          <CardContent>
-            <StudentTable
-              students={filteredStudents}
-              onViewDetails={handleViewDetails}
-            />
+
+          <CardContent className="overflow-x-auto">
+            <div className="min-w-[600px]">
+              <StudentTable
+                students={filteredStudents}
+                onViewDetails={handleViewDetails}
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -396,6 +448,7 @@ export default function TeacherStudentsPage() {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
         />
+
       </div>
     </DashboardLayout>
   );

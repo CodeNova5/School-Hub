@@ -35,7 +35,6 @@ interface StudentStats {
   upcomingAssignments: number;
   upcomingEvents: number;
   averageScore: number;
-  completedAssignments: number;
 }
 
 interface RecentActivity {
@@ -59,7 +58,6 @@ export default function StudentDashboardPage() {
     upcomingAssignments: 0,
     upcomingEvents: 0,
     averageScore: 0,
-    completedAssignments: 0,
   });
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [greeting, setGreeting] = useState("");
@@ -158,13 +156,8 @@ export default function StudentDashboardPage() {
       const { data: assignmentsData } = await supabase
         .from("assignments")
         .select("*")
+        .eq("class_id", classData?.id)
         .gt("due_date", new Date().toISOString());
-
-      // Fetch completed assignments
-      const { data: submissionsData } = await supabase
-        .from("assignment_submissions")
-        .select("*")
-        .eq("student_id", studentData.id);
 
       // Fetch results for average score - use termData.id directly, not state
       let averageScore = 0;
@@ -222,7 +215,6 @@ export default function StudentDashboardPage() {
         upcomingAssignments: assignmentsData?.length || 0,
         upcomingEvents: eventsData?.length || 0,
         averageScore,
-        completedAssignments: submissionsData?.length || 0,
       });
 
       // Build recent activities
@@ -382,9 +374,6 @@ export default function StudentDashboardPage() {
               <div className="flex items-baseline gap-2">
                 <p className="text-4xl font-bold text-gray-900">
                   {stats.upcomingAssignments}
-                </p>
-                <p className="text-sm text-gray-500">
-                  {stats.completedAssignments} completed
                 </p>
               </div>
               <div className="mt-4 flex gap-2">

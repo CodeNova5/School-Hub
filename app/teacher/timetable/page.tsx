@@ -430,12 +430,12 @@ export default function TeacherTimetablePage() {
             </div>
           </CardHeader>
 
-          <CardContent className="p-4 sm:p-6">
+          <CardContent className="p-4 sm:p-6 overflow-hidden">
 
-            <div className="w-full max-w-full overflow-x-auto rounded-xl border bg-white"
+            <div className="w-full overflow-x-auto rounded-xl border bg-white -mx-4 sm:-mx-6 px-4 sm:px-6"
               id="teacher-timetable-area">
 
-              <table className="w-full table-auto border-collapse text-xs sm:text-sm">
+              <table className="w-full min-w-max table-auto border-collapse text-xs sm:text-sm">
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="sticky left-0  bg-gray-100 border p-3 text-left font-semibold min-w-[110px]">

@@ -243,8 +243,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
         assignment_submissions: assignmentData.assignment_submissions || [],
         submissionCount: assignmentData.assignment_submissions?.length || 0,
         gradedCount: assignmentData.assignment_submissions?.filter((s: any) => s.grade !== null).length || 0,
-        isFullyGraded: assignmentData.assignment_submissions?.length > 0 && 
-                       assignmentData.assignment_submissions?.filter((s: any) => s.grade !== null).length === assignmentData.assignment_submissions?.length,
+        isFullyGraded: assignmentData.assignment_submissions?.length > 0 && assignmentData.assignment_submissions?.filter((s: any) => s.grade !== null).length === assignmentData.assignment_submissions?.length,
         hasPendingGrading: (assignmentData.assignment_submissions?.filter((s: any) => s.grade !== null).length || 0) < (assignmentData.assignment_submissions?.length || 0),
         isOverdue: new Date(assignmentData.due_date) < new Date(),
       };
@@ -298,7 +297,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
         <Textarea placeholder="Detailed instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} />
         <div className="space-y-2">
           <label className="text-sm font-medium">Attach file (Optional)</label>
-          
+
           {existingFileUrl && !file && (
             <div className="border rounded-lg p-3 bg-muted/50">
               <div className="flex items-center justify-between mb-2">
@@ -314,7 +313,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
                           .from('assignments')
                           .update({ file_url: null })
                           .eq('id', assignment.id);
-                        
+
                         if (error) throw error;
                         toast.success('File removed');
                       } catch (error: any) {
@@ -343,7 +342,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
               )}
             </div>
           )}
-          
+
           <label className="flex items-center gap-3 cursor-pointer border rounded-md p-3 hover:bg-muted transition">
             <Upload className="h-5 w-5 text-muted-foreground" />
             <span className="text-sm text-muted-foreground">
@@ -361,7 +360,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment }
               }}
             />
           </label>
-          
+
           {file && (
             <div className="border rounded-lg p-3 bg-muted/50">
               <div className="flex items-center justify-between mb-2">

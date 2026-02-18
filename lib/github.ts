@@ -43,7 +43,9 @@ export async function uploadFile(options: UploadFileOptions): Promise<string> {
     message: commitMessage,
     content,
     sha,
+    branch: "main", // 👈 ADD THIS
   });
+
 
   // Return the raw content URL
   const url = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${path}`;

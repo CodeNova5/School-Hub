@@ -78,7 +78,23 @@ export function SubmissionModal({
   if (!submission) return null;
   const fileUrl = submission.file_url ?? null;
   const ext = fileUrl?.split(".").pop()?.toLowerCase();
-  const isImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);
+  const isImage = [
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "webp",
+    "bmp",
+    "tiff",
+    "svg",
+    "ico",
+    "jfif",
+    "pjpeg",
+    "pjp",
+    "avif",
+    "heic",
+    "heif",
+  ].includes(ext);
   const isPdf = ext === "pdf";
   const isOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext);
   const googleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
@@ -86,7 +102,23 @@ export function SubmissionModal({
   )}&embedded=true`;
   const assignmentFileUrl = assignment?.file_url ?? null;
   const assignmentExt = assignmentFileUrl?.split(".").pop()?.toLowerCase();
-  const assignmentIsImage = ["png", "jpg", "jpeg", "gif", "webp"].includes(assignmentExt);
+  const assignmentIsImage = [
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "webp",
+    "bmp",
+    "tiff",
+    "svg",
+    "ico",
+    "jfif",
+    "pjpeg",
+    "pjp",
+    "avif",
+    "heic",
+    "heif",
+  ].includes(assignmentExt);
   const assignmentIsPdf = assignmentExt === "pdf";
   const assignmentIsOffice = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(assignmentExt);
   const assignmentGoogleViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(
@@ -98,24 +130,24 @@ export function SubmissionModal({
       <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col" hideClose>
 
         {/* ================= HEADER ================= */}
-        <DialogHeader className="px-8 py-6 border-b bg-gradient-to-r from-gray-50 to-white">
-          <div className="flex items-center justify-between gap-4 w-full">
+        <DialogHeader className="px-4 md:px-8 py-4 md:py-6 border-b bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
             {/* Left: Student identity */}
-            <div className="flex items-center gap-4">
-              <Avatar className="h-12 w-12">
-                <AvatarFallback className="font-bold text-lg bg-blue-100 text-blue-900">
+            <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto">
+              <Avatar className="h-10 w-10 md:h-12 md:w-12">
+                <AvatarFallback className="font-bold text-base md:text-lg bg-blue-100 text-blue-900">
                   {submission.students?.first_name?.[0]}
                   {submission.students?.last_name?.[0]}
                 </AvatarFallback>
               </Avatar>
 
               <div className="leading-tight">
-                <DialogTitle className="text-xl font-bold text-gray-900">
+                <DialogTitle className="text-lg md:text-xl font-bold text-gray-900">
                   {submission.students?.first_name}{" "}
                   {submission.students?.last_name}
                 </DialogTitle>
 
-                <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                <div className="flex items-center gap-1 text-xs md:text-sm text-gray-500 mt-1">
                   <Clock className="h-4 w-4" />
                   <span>
                     Submitted{" "}
@@ -126,8 +158,8 @@ export function SubmissionModal({
             </div>
 
             {/* Right: Navigation + Close */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 font-medium">
+            <div className="flex items-center gap-2 md:gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
+              <span className="text-xs md:text-sm text-gray-500 font-medium">
                 {activeIndex + 1} of {submissions.length}
               </span>
               <Button
@@ -135,7 +167,7 @@ export function SubmissionModal({
                 size="sm"
                 disabled={activeIndex === 0}
                 onClick={goPrev}
-                className="h-9 w-9 p-0"
+                className="h-8 w-8 md:h-9 md:w-9 p-0"
               >
                 <ChevronLeft className="h-5 w-5" />
               </Button>
@@ -145,7 +177,7 @@ export function SubmissionModal({
                 size="sm"
                 disabled={activeIndex === submissions.length - 1}
                 onClick={goNext}
-                className="h-9 w-9 p-0"
+                className="h-8 w-8 md:h-9 md:w-9 p-0"
               >
                 <ChevronRight className="h-5 w-5" />
               </Button>
@@ -154,7 +186,7 @@ export function SubmissionModal({
                 variant="ghost"
                 size="sm"
                 onClick={onClose}
-                className="h-9 w-9 p-0 hover:bg-red-100 hover:text-red-600"
+                className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-red-100 hover:text-red-600"
               >
                 <X className="h-5 w-5" />
               </Button>

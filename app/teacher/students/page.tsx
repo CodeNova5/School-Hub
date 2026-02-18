@@ -253,7 +253,7 @@ export default function TeacherStudentsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Students</h1>
-            <p className="text-gray-600 mt-1">Manage all students in your class</p>
+            <p className="text-gray-600 mt-1">View all students offering subjects assigned to you</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExport}>

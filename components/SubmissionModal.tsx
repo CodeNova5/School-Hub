@@ -130,26 +130,26 @@ export function SubmissionModal({
       <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col" hideClose>
 
         {/* ================= HEADER ================= */}
-        <DialogHeader className="px-4 md:px-8 py-4 md:py-6 border-b bg-gradient-to-r from-gray-50 to-white">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
+        <DialogHeader className="px-4 py-4 md:px-8 md:py-6 border-b bg-gradient-to-r from-gray-50 to-white">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between w-full">
             {/* Left: Student identity */}
-            <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto">
-              <Avatar className="h-10 w-10 md:h-12 md:w-12">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar className="h-10 w-10 md:h-12 md:w-12 flex-shrink-0">
                 <AvatarFallback className="font-bold text-base md:text-lg bg-blue-100 text-blue-900">
                   {submission.students?.first_name?.[0]}
                   {submission.students?.last_name?.[0]}
                 </AvatarFallback>
               </Avatar>
 
-              <div className="leading-tight">
-                <DialogTitle className="text-lg md:text-xl font-bold text-gray-900">
+              <div className="leading-tight min-w-0">
+                <DialogTitle className="text-lg md:text-xl font-bold text-gray-900 truncate">
                   {submission.students?.first_name}{" "}
                   {submission.students?.last_name}
                 </DialogTitle>
 
-                <div className="flex items-center gap-1 text-xs md:text-sm text-gray-500 mt-1">
-                  <Clock className="h-4 w-4" />
-                  <span>
+                <div className="flex items-center gap-1 text-xs md:text-sm text-gray-500 mt-1 truncate">
+                  <Clock className="h-3 w-3 md:h-4 md:w-4 flex-shrink-0" />
+                  <span className="truncate">
                     Submitted{" "}
                     {new Date(submission.submitted_at).toLocaleString()}
                   </span>
@@ -158,8 +158,8 @@ export function SubmissionModal({
             </div>
 
             {/* Right: Navigation + Close */}
-            <div className="flex items-center gap-2 md:gap-3 mt-4 md:mt-0 w-full md:w-auto justify-end">
-              <span className="text-xs md:text-sm text-gray-500 font-medium">
+            <div className="flex items-center justify-end gap-2 md:gap-3 flex-shrink-0">
+              <span className="text-xs md:text-sm text-gray-500 font-medium whitespace-nowrap">
                 {activeIndex + 1} of {submissions.length}
               </span>
               <Button
@@ -169,7 +169,7 @@ export function SubmissionModal({
                 onClick={goPrev}
                 className="h-8 w-8 md:h-9 md:w-9 p-0"
               >
-                <ChevronLeft className="h-5 w-5" />
+                <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
               </Button>
 
               <Button
@@ -179,7 +179,7 @@ export function SubmissionModal({
                 onClick={goNext}
                 className="h-8 w-8 md:h-9 md:w-9 p-0"
               >
-                <ChevronRight className="h-5 w-5" />
+                <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
               </Button>
 
               <Button
@@ -188,7 +188,7 @@ export function SubmissionModal({
                 onClick={onClose}
                 className="h-8 w-8 md:h-9 md:w-9 p-0 hover:bg-red-100 hover:text-red-600"
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4 md:h-5 md:w-5" />
               </Button>
             </div>
           </div>

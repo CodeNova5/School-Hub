@@ -430,12 +430,13 @@ export default function TeacherTimetablePage() {
             </div>
           </CardHeader>
 
-          <CardContent className="p-4 sm:p-6 overflow-hidden">
+          <CardContent className="p-0">
 
-            <div className="w-full overflow-x-auto rounded-xl border bg-white -mx-4 sm:-mx-6 px-4 sm:px-6"
-              id="teacher-timetable-area">
+            <div className="px-4 sm:px-6 py-4 sm:py-6">
+              <div className="overflow-x-auto"
+                id="teacher-timetable-area">
 
-              <table className="w-full min-w-max table-auto border-collapse text-xs sm:text-sm">
+                <table className="w-full min-w-max table-auto border-collapse text-xs sm:text-sm">
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="sticky left-0  bg-gray-100 border p-3 text-left font-semibold min-w-[110px]">
@@ -541,10 +542,11 @@ export default function TeacherTimetablePage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {stats.totalPeriods === 0 && (
-              <div className="text-center py-14">
+              <div className="text-center py-14 px-4 sm:px-6">
                 <div className="bg-gray-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Calendar className="h-6 w-6 text-gray-400" />
                 </div>

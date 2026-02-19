@@ -66,7 +66,7 @@ export default function GoogleDocsStyleEditor({
     editorProps: {
       attributes: {
         class:
-          "prose max-w-none focus:outline-none px-4 sm:px-10 py-6 sm:py-10 min-h-[600px] sm:min-h-[1100px]",
+          "prose prose-invert max-w-none focus:outline-none px-4 sm:px-10 py-6 sm:py-10 min-h-[600px] sm:min-h-[1100px] text-white pb-24 md:pb-10",
       },
     },
   });
@@ -74,19 +74,67 @@ export default function GoogleDocsStyleEditor({
   if (!editor) return null;
 
   return (
-    <div className="w-full bg-[#f8f9fa]">
-      {/* ===== Top App Bar (like Google Docs) ===== */}
-      <div className="sticky top-0 z-50 bg-white border-b">
-        {/* Title Row */}
-        <div className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3">
+    <div className="w-full bg-[#f8f9fa] md:bg-[#f8f9fa] bg-black">
+      {/* ===== Top App Bar - Mobile: Minimal, Desktop: Full ===== */}
+      <div className="sticky top-0 z-50 bg-[#1f1f1f] md:bg-white border-b border-gray-700 md:border-gray-200">
+        {/* Mobile Top Bar - Minimal Icons Only */}
+        <div className="md:hidden flex items-center justify-between px-3 py-3">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-white"
+            onClick={() => editor.chain().focus().undo().run()}
+          >
+            <Undo className="h-5 w-5" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-white"
+            onClick={() => editor.chain().focus().redo().run()}
+          >
+            <Redo className="h-5 w-5" />
+          </Button>
+          
+          <Select onValueChange={(v) => editor.chain().focus().setFontFamily(v).run()}>
+            <SelectTrigger className="h-9 w-[50px] bg-transparent border-none text-white">
+              <SelectValue placeholder="A≡" />
+            </SelectTrigger>
+            <SelectContent>
+              {["Arial", "Georgia", "Times New Roman", "Verdana", "Courier New"].map((f) => (
+                <SelectItem key={f} value={f}>{f}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-white"
+            onClick={() => editor.chain().focus().setTextAlign("center").run()}
+          >
+            <AlignCenter className="h-5 w-5" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="text-white"
+            onClick={() => window.print()}
+          >
+            <Printer className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* Desktop Title Row */}
+        <div className="hidden md:flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3">
           <input
             defaultValue="Answer Document"
             className="text-base sm:text-xl font-semibold outline-none focus:bg-muted px-2 py-1 rounded w-full"
           />
         </div>
 
-        {/* Toolbar – single line */}
-        <div className="flex items-center gap-1 px-2 sm:px-4 py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
+        {/* Desktop Toolbar – full features */}
+        <div className="hidden md:flex items-center gap-1 px-2 sm:px-4 py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
           <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().undo().run()}>
             <Undo className="h-4 w-4" />
           </Button>
@@ -182,10 +230,82 @@ export default function GoogleDocsStyleEditor({
       </div>
 
       {/* ===== Page Canvas ===== */}
-      <div className="flex justify-center py-4 sm:py-10 px-2 sm:px-4">
-        <div className="bg-white shadow-sm w-full sm:w-[820px] min-h-[600px] sm:min-h-[1100px]">
+      <div className="flex justify-center py-0 md:py-4 sm:py-10 px-0 md:px-2 sm:px-4">
+        <div className="bg-black md:bg-white shadow-sm w-full sm:w-[820px] min-h-[600px] sm:min-h-[1100px]">
           <EditorContent editor={editor} />
         </div>
+      </div>
+
+      {/* ===== Bottom Mobile Toolbar ===== */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-[#2d2d2d] border-t border-gray-700 px-3 py-3 flex items-center justify-around z-50">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className={editor.isActive("bold") ? "text-blue-400" : "text-white"}
+          onClick={() => editor.chain().focus().toggleBold().run()}
+        >
+          <Bold className="h-5 w-5" />
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className={editor.isActive("italic") ? "text-blue-400" : "text-white"}
+          onClick={() => editor.chain().focus().toggleItalic().run()}
+        >
+          <Italic className="h-5 w-5" />
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className={editor.isActive("underline") ? "text-blue-400" : "text-white"}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        >
+          <UnderlineIcon className="h-5 w-5" />
+        </Button>
+        
+        <Select onValueChange={(v) => editor.chain().focus().setFontSize(`${v}px`).run()}>
+          <SelectTrigger className="h-9 w-[45px] bg-transparent border-none text-white">
+            <SelectValue placeholder="A" />
+          </SelectTrigger>
+          <SelectContent>
+            {[8, 10, 12, 14, 16, 18, 24, 30].map((s) => (
+              <SelectItem key={s} value={String(s)}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Input
+          type="color"
+          className="h-9 w-9 p-1 bg-transparent border-none"
+          value={editor.getAttributes("textStyle").color || "#ffffff"}
+          onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+        />
+
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className="text-white"
+          onClick={() => {
+            const currentAlign = editor.isActive({ textAlign: 'left' }) ? 'center' 
+              : editor.isActive({ textAlign: 'center' }) ? 'right'
+              : editor.isActive({ textAlign: 'right' }) ? 'justify'
+              : 'left';
+            editor.chain().focus().setTextAlign(currentAlign).run();
+          }}
+        >
+          <AlignJustify className="h-5 w-5" />
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className={editor.isActive("bulletList") ? "text-blue-400" : "text-white"}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
+          <List className="h-5 w-5" />
+        </Button>
       </div>
     </div>
   );

@@ -140,7 +140,7 @@ export default function StudentAssignmentSubmission() {
       <Separator className="my-4 sm:my-6" />
 
       {/* ===== Actions ===== */}
-      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sticky bottom-0 bg-background py-3 sm:py-0 sm:relative border-t sm:border-t-0 -mx-2 px-2 sm:mx-0 sm:px-0">
+      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sm:relative mb-20 md:mb-0">
         <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">Cancel</Button>
         <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full sm:w-auto">
           {isSubmitting ? "Submitting…" : "Submit Assignment"}

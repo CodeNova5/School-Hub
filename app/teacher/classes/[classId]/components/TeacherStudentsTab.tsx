@@ -15,6 +15,7 @@ import { Search, MoreVertical, User } from "lucide-react";
 import { toast } from "sonner";
 import { Student, Session, Term } from "@/lib/types";
 import { StudentDetailsModal } from "@/components/student-details-modal";
+import { supabase } from "@/lib/supabase";
 
 interface TeacherStudentsTabProps {
   classId: string;
@@ -51,18 +52,15 @@ export default function TeacherStudentsTab({
   async function handleViewDetails(student: Student) {
     try {
       // Fetch attendance for this student
-      const attendanceRes = await fetch('/api/admin-read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table: 'attendance',
-          operation: 'select',
-        }),
-      }).then(r => r.json());
+      const { data: studentAttendance, error } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("student_id", student.id);
 
-      const attendance = Array.isArray(attendanceRes) ? attendanceRes : (attendanceRes?.data || []);
-      const studentAttendance = attendance.filter((a: any) => a.student_id === student.id);
-      
+      if (error) {
+        throw error;
+      }
+
       const total = studentAttendance.length;
       const present = studentAttendance.filter(
         (r: any) => r.status === "present" || r.status === "late" || r.status === "excused"
@@ -93,6 +91,35 @@ export default function TeacherStudentsTab({
         </CardHeader>
 
         <CardContent className="space-y-4">
+
+          {/* Summary Stats */}
+          {filteredStudents.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-600 font-medium">Total</p>
+                <p className="text-2xl font-bold text-blue-900">{filteredStudents.length}</p>
+              </div>
+              <div className="p-4 bg-purple-50 rounded-lg">
+                <p className="text-sm text-purple-600 font-medium">Male</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {filteredStudents.filter(s => s.gender === "male").length}
+                </p>
+              </div>
+              <div className="p-4 bg-pink-50 rounded-lg">
+                <p className="text-sm text-pink-600 font-medium">Female</p>
+                <p className="text-2xl font-bold text-pink-900">
+                  {filteredStudents.filter(s => s.gender === "female").length}
+                </p>
+              </div>
+              <div className="p-4 bg-green-50 rounded-lg">
+                <p className="text-sm text-green-600 font-medium">Active</p>
+                <p className="text-2xl font-bold text-green-900">
+                  {filteredStudents.filter(s => s.status === "active").length}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Search and Filter */}
           <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1">
@@ -183,33 +210,6 @@ export default function TeacherStudentsTab({
             </table>
           </div>
 
-          {/* Summary Stats */}
-          {filteredStudents.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-600 font-medium">Total</p>
-                <p className="text-2xl font-bold text-blue-900">{filteredStudents.length}</p>
-              </div>
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <p className="text-sm text-purple-600 font-medium">Male</p>
-                <p className="text-2xl font-bold text-purple-900">
-                  {filteredStudents.filter(s => s.gender === "male").length}
-                </p>
-              </div>
-              <div className="p-4 bg-pink-50 rounded-lg">
-                <p className="text-sm text-pink-600 font-medium">Female</p>
-                <p className="text-2xl font-bold text-pink-900">
-                  {filteredStudents.filter(s => s.gender === "female").length}
-                </p>
-              </div>
-              <div className="p-4 bg-green-50 rounded-lg">
-                <p className="text-sm text-green-600 font-medium">Active</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {filteredStudents.filter(s => s.status === "active").length}
-                </p>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 

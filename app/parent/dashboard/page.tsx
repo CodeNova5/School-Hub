@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Loader2 } from "lucide-react";
 
 interface Student {
   id: string;
@@ -194,6 +195,7 @@ export default function ParentDashboardPage() {
     return (
       <DashboardLayout role="parent">
         <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           <p className="text-gray-500">Loading...</p>
         </div>
       </DashboardLayout>
@@ -310,7 +312,7 @@ export default function ParentDashboardPage() {
                         variant="outline"
                         size="sm"
                         className="w-full mt-3"
-                        onClick={() => router.push(`/parent/children/${child.id}`)}
+                        onClick={() => router.push(`/parent/student/${child.id}`)}
                       >
                         <Eye className="w-4 h-4 mr-2" />
                         View Details

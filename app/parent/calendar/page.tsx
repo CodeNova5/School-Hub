@@ -2,7 +2,7 @@
 
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, MapPin, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, MapPin, Filter, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Event } from '@/lib/types';
@@ -176,6 +176,7 @@ export default function ParentCalendarPage() {
     return (
       <DashboardLayout role="parent">
         <div className="flex items-center justify-center h-screen">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           <p className="text-gray-500">Loading calendar...</p>
         </div>
       </DashboardLayout>

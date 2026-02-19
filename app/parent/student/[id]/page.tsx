@@ -9,8 +9,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { 
-  ArrowLeft, 
+import {
+  Loader2,
+  ArrowLeft,
   User,
   Mail,
   Phone,
@@ -80,7 +81,7 @@ export default function ParentStudentDetailPage() {
     setIsLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (!user) {
         router.push("/parent/login");
         return;
@@ -212,6 +213,7 @@ export default function ParentStudentDetailPage() {
     return (
       <DashboardLayout role="parent">
         <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           <p className="text-gray-500">Loading...</p>
         </div>
       </DashboardLayout>
@@ -354,7 +356,7 @@ export default function ParentStudentDetailPage() {
                     <div>
                       <p className="text-sm text-gray-600">Date of Birth</p>
                       <p className="font-medium">
-                        {student.date_of_birth 
+                        {student.date_of_birth
                           ? new Date(student.date_of_birth).toLocaleDateString()
                           : "Not set"
                         }
@@ -420,8 +422,8 @@ export default function ParentStudentDetailPage() {
                     <div>
                       <p className="text-sm text-gray-600">Status</p>
                       <Badge className={
-                        student.status === "active" 
-                          ? "bg-green-100 text-green-700 hover:bg-green-100" 
+                        student.status === "active"
+                          ? "bg-green-100 text-green-700 hover:bg-green-100"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-100"
                       }>
                         {student.status}

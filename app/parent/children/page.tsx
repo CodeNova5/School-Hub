@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { 
+  Loader2,
   Users, 
   Calendar, 
   BookOpen, 
@@ -162,6 +163,7 @@ export default function ParentChildPage() {
     return (
       <DashboardLayout role="parent">
         <div className="flex items-center justify-center h-96">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           <p className="text-gray-500">Loading...</p>
         </div>
       </DashboardLayout>

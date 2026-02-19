@@ -66,7 +66,7 @@ export default function GoogleDocsStyleEditor({
     editorProps: {
       attributes: {
         class:
-          "prose prose-invert max-w-none focus:outline-none px-4 sm:px-10 py-6 sm:py-10 min-h-[600px] sm:min-h-[1100px] text-white pb-24 md:pb-10",
+          "prose max-w-none focus:outline-none px-4 sm:px-10 py-6 sm:py-10 min-h-[600px] sm:min-h-[1100px] text-zinc-900 md:text-white pb-24 md:pb-10",
       },
     },
   });
@@ -74,9 +74,9 @@ export default function GoogleDocsStyleEditor({
   if (!editor) return null;
 
   return (
-    <div className="w-full bg-[#f8f9fa] md:bg-[#f8f9fa] bg-black">
+    <div className="w-full bg-white md:bg-[#f8f9fa]">
       {/* ===== Top App Bar - Mobile: Minimal, Desktop: Full ===== */}
-      <div className="sticky top-0 z-50 bg-[#1f1f1f] md:bg-white border-b border-gray-700 md:border-gray-200">
+      <div className="sticky top-0 z-50 bg-white md:bg-white border-b border-gray-200">
         {/* Mobile Top Bar - Minimal Icons Only */}
         <div className="md:hidden flex items-center justify-between px-3 py-3">
           <Button 
@@ -231,7 +231,7 @@ export default function GoogleDocsStyleEditor({
 
       {/* ===== Page Canvas ===== */}
       <div className="flex justify-center py-0 md:py-4 sm:py-10 px-0 md:px-2 sm:px-4">
-        <div className="bg-black md:bg-white shadow-sm w-full sm:w-[820px] min-h-[600px] sm:min-h-[1100px]">
+        <div className="bg-white md:bg-white shadow-sm w-full sm:w-[820px] min-h-[600px] sm:min-h-[1100px]">
           <EditorContent editor={editor} />
         </div>
       </div>

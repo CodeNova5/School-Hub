@@ -82,7 +82,7 @@ export default function GoogleDocsStyleEditor({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="text-white"
+            className="text-zinc-700"
             onClick={() => editor.chain().focus().undo().run()}
           >
             <Undo className="h-5 w-5" />
@@ -90,14 +90,14 @@ export default function GoogleDocsStyleEditor({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="text-white"
+            className="text-zinc-700"
             onClick={() => editor.chain().focus().redo().run()}
           >
             <Redo className="h-5 w-5" />
           </Button>
           
           <Select onValueChange={(v) => editor.chain().focus().setFontFamily(v).run()}>
-            <SelectTrigger className="h-9 w-[50px] bg-transparent border-none text-white">
+            <SelectTrigger className="h-9 w-[50px] bg-transparent border-none text-zinc-700">
               <SelectValue placeholder="A≡" />
             </SelectTrigger>
             <SelectContent>
@@ -110,7 +110,7 @@ export default function GoogleDocsStyleEditor({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="text-white"
+            className="text-zinc-700"
             onClick={() => editor.chain().focus().setTextAlign("center").run()}
           >
             <AlignCenter className="h-5 w-5" />
@@ -118,7 +118,7 @@ export default function GoogleDocsStyleEditor({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="text-white"
+            className="text-zinc-700"
             onClick={() => window.print()}
           >
             <Printer className="h-5 w-5" />

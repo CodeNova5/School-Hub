@@ -136,57 +136,57 @@ export default function StudentSettingsPage() {
 
   return (
     <DashboardLayout role="student">
-      <div className="space-y-8">
+      <div className="space-y-8 px-2 sm:px-0">
         <div>
-          <h1 className="text-3xl font-bold">Settings</h1>
-          <p className="text-gray-600 mt-1">Manage your profile and security preferences</p>
+          <h1 className="text-2xl sm:text-3xl font-bold break-words">Settings</h1>
+          <p className="text-gray-600 mt-1 text-sm sm:text-base break-words">Manage your profile and security preferences</p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <User className="w-5 h-5" />
               Profile Information
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label className="text-gray-700">First Name</Label>
-                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-gray-900 font-medium">{student?.first_name || '-'}</p>
+                <Label className="text-gray-700 text-sm">First Name</Label>
+                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200 overflow-x-auto">
+                  <p className="text-gray-900 font-medium break-words text-sm">{student?.first_name || '-'}</p>
                 </div>
               </div>
               <div>
-                <Label className="text-gray-700">Last Name</Label>
-                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-gray-900 font-medium">{student?.last_name || '-'}</p>
+                <Label className="text-gray-700 text-sm">Last Name</Label>
+                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200 overflow-x-auto">
+                  <p className="text-gray-900 font-medium break-words text-sm">{student?.last_name || '-'}</p>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <Label className="text-gray-700">Student ID</Label>
-                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-gray-900 font-medium">{student?.student_id || '-'}</p>
+                <Label className="text-gray-700 text-sm">Student ID</Label>
+                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200 overflow-x-auto">
+                  <p className="text-gray-900 font-medium break-words text-sm">{student?.student_id || '-'}</p>
                 </div>
               </div>
               <div>
-                <Label className="text-gray-700 flex items-center gap-2">
+                <Label className="text-gray-700 flex items-center gap-2 text-sm">
                   <Mail className="w-4 h-4" />
                   Email Address
                 </Label>
-                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
-                  <p className="text-gray-900 font-medium">{student?.email || '-'}</p>
+                <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200 overflow-x-auto">
+                  <p className="text-gray-900 font-medium break-words text-sm">{student?.email || '-'}</p>
                 </div>
               </div>
             </div>
 
             <div>
-              <Label className="text-gray-700">Phone Number</Label>
-              <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
-                <p className="text-gray-900 font-medium">{student?.phone || '-'}</p>
+              <Label className="text-gray-700 text-sm">Phone Number</Label>
+              <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200 overflow-x-auto">
+                <p className="text-gray-900 font-medium break-words text-sm">{student?.phone || '-'}</p>
               </div>
             </div>
           </CardContent>
@@ -194,21 +194,21 @@ export default function StudentSettingsPage() {
 
         <Card className="border-orange-200 bg-orange-50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-900">
+            <CardTitle className="flex items-center gap-2 text-orange-900 text-base sm:text-lg">
               <Lock className="w-5 h-5" />
               Password & Security
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-gray-700 break-words">
               Reset your password to create a new one. A verification email will be sent to {student?.email}, and all active sessions will be terminated.
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button 
                 onClick={handleResetPassword}
                 disabled={resettingPassword}
                 variant="default"
-                className="bg-orange-600 hover:bg-orange-700"
+                className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto"
               >
                 {resettingPassword ? (
                   <>
@@ -225,7 +225,7 @@ export default function StudentSettingsPage() {
               <Button 
                 onClick={handleSignOut}
                 variant="outline"
-                className="border-red-300 text-red-600 hover:bg-red-50"
+                className="border-red-300 text-red-600 hover:bg-red-50 w-full sm:w-auto"
               >
                 Sign Out
               </Button>

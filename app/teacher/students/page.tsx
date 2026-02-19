@@ -431,13 +431,11 @@ export default function TeacherStudentsPage() {
             </p>
           </CardHeader>
 
-          <CardContent className="overflow-x-auto">
-            <div className="min-w-[600px]">
-              <StudentTable
-                students={filteredStudents}
-                onViewDetails={handleViewDetails}
-              />
-            </div>
+          <CardContent>
+            <StudentTable
+              students={filteredStudents}
+              onViewDetails={handleViewDetails}
+            />
           </CardContent>
         </Card>
 

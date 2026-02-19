@@ -88,13 +88,13 @@ export default function StudentAssignmentSubmission() {
   if (!assignment) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 pb-10">
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-6 sm:pb-10">
       {/* ===== Assignment Details ===== */}
-      <Card className="mb-6">
-        <CardHeader className="space-y-2">
-          <h1 className="text-3xl font-bold">{assignment.title}</h1>
-          <p className="text-muted-foreground">{assignment.description}</p>
-          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground pt-2">
+      <Card className="mb-4 sm:mb-6">
+        <CardHeader className="space-y-2 p-4 sm:p-6">
+          <h1 className="text-xl sm:text-3xl font-bold">{assignment.title}</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">{assignment.description}</p>
+          <div className="flex flex-wrap gap-3 sm:gap-6 text-xs sm:text-sm text-muted-foreground pt-2">
             <span className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Due: {assignment.due_date || "Not set"}</span>
             <span className="flex items-center gap-2"><Clock className="h-4 w-4" /> Marks: {assignment.total_marks}</span>
             <span className="flex items-center gap-2"><FileText className="h-4 w-4" /> Type: {assignment.submission_type}</span>
@@ -109,7 +109,7 @@ export default function StudentAssignmentSubmission() {
 
       {/* ===== Editor Section ===== */}
       {(assignment.submission_type === "text" || assignment.submission_type === "both") && (
-        <Card className="mb-6">
+        <Card className="mb-4 sm:mb-6">
           <CardContent className="p-0">
             <GoogleDocsStyleEditor
               content={content}
@@ -121,12 +121,12 @@ export default function StudentAssignmentSubmission() {
 
       {/* ===== File Upload ===== */}
       {(assignment.submission_type === "file" || assignment.submission_type === "both") && (
-        <Card className="mb-6">
-          <CardContent>
-            <p className="text-sm font-medium mb-2">Attach file</p>
-            <label className="flex items-center gap-3 cursor-pointer border rounded-md p-4 hover:bg-muted transition">
-              <Upload className="h-5 w-5" />
-              <span className="text-sm">{file ? file.name : "Upload PDF, DOC, Image, etc."}</span>
+        <Card className="mb-4 sm:mb-6">
+          <CardContent className="p-4 sm:p-6">
+            <p className="text-xs sm:text-sm font-medium mb-2">Attach file</p>
+            <label className="flex items-center gap-2 sm:gap-3 cursor-pointer border rounded-md p-3 sm:p-4 hover:bg-muted transition">
+              <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="text-xs sm:text-sm truncate">{file ? file.name : "Upload file"}</span>
               <input
                 type="file"
                 hidden
@@ -137,12 +137,12 @@ export default function StudentAssignmentSubmission() {
         </Card>
       )}
 
-      <Separator className="my-6" />
+      <Separator className="my-4 sm:my-6" />
 
       {/* ===== Actions ===== */}
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={() => router.back()}>Cancel</Button>
-        <Button onClick={handleSubmit} disabled={isSubmitting}>
+      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sticky bottom-0 bg-background py-3 sm:py-0 sm:relative border-t sm:border-t-0 -mx-2 px-2 sm:mx-0 sm:px-0">
+        <Button variant="outline" onClick={() => router.back()} className="w-full sm:w-auto">Cancel</Button>
+        <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full sm:w-auto">
           {isSubmitting ? "Submitting…" : "Submit Assignment"}
         </Button>
       </div>

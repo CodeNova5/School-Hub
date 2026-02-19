@@ -66,7 +66,7 @@ export default function GoogleDocsStyleEditor({
     editorProps: {
       attributes: {
         class:
-          "prose max-w-none focus:outline-none px-10 py-10 min-h-[1100px]",
+          "prose max-w-none focus:outline-none px-4 sm:px-10 py-6 sm:py-10 min-h-[600px] sm:min-h-[1100px]",
       },
     },
   });
@@ -78,15 +78,15 @@ export default function GoogleDocsStyleEditor({
       {/* ===== Top App Bar (like Google Docs) ===== */}
       <div className="sticky top-0 z-50 bg-white border-b">
         {/* Title Row */}
-        <div className="flex items-center gap-4 px-6 py-3">
+        <div className="flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-2 sm:py-3">
           <input
             defaultValue="Answer Document"
-            className="text-xl font-semibold outline-none focus:bg-muted px-2 py-1 rounded"
+            className="text-base sm:text-xl font-semibold outline-none focus:bg-muted px-2 py-1 rounded w-full"
           />
         </div>
 
         {/* Toolbar – single line */}
-        <div className="flex items-center gap-1 px-4 py-2 overflow-x-auto">
+        <div className="flex items-center gap-1 px-2 sm:px-4 py-2 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300">
           <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().undo().run()}>
             <Undo className="h-4 w-4" />
           </Button>
@@ -101,7 +101,7 @@ export default function GoogleDocsStyleEditor({
 
           {/* Font family */}
           <Select onValueChange={(v) => editor.chain().focus().setFontFamily(v).run()}>
-            <SelectTrigger className="h-8 w-[140px]">
+            <SelectTrigger className="h-8 w-[100px] sm:w-[140px] text-xs sm:text-sm">
               <SelectValue placeholder="Arial" />
             </SelectTrigger>
             <SelectContent>
@@ -115,7 +115,7 @@ export default function GoogleDocsStyleEditor({
 
           {/* Font size */}
           <Select onValueChange={(v) => editor.chain().focus().setFontSize(`${v}px`).run()}>
-            <SelectTrigger className="h-8 w-[70px]">
+            <SelectTrigger className="h-8 w-[60px] sm:w-[70px] text-xs sm:text-sm">
               <SelectValue placeholder="14" />
             </SelectTrigger>
             <SelectContent>
@@ -182,8 +182,8 @@ export default function GoogleDocsStyleEditor({
       </div>
 
       {/* ===== Page Canvas ===== */}
-      <div className="flex justify-center py-10">
-        <div className="bg-white shadow-sm w-[820px] min-h-[1100px]">
+      <div className="flex justify-center py-4 sm:py-10 px-2 sm:px-4">
+        <div className="bg-white shadow-sm w-full sm:w-[820px] min-h-[600px] sm:min-h-[1100px]">
           <EditorContent editor={editor} />
         </div>
       </div>

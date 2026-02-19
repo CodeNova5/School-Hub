@@ -353,52 +353,52 @@ export default function StudentTimetablePage() {
 
   return (
     <DashboardLayout role="student">
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">My Timetable</h1>
-          <p className="text-gray-600 mt-1">Your weekly class schedule for {className}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Timetable</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Your weekly class schedule for {className}</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Class Periods</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.totalPeriods}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Class Periods</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalPeriods}</p>
                 </div>
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <Clock className="h-6 w-6 text-blue-600" />
+                <div className="bg-blue-100 p-2 sm:p-3 rounded-full">
+                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-green-500">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">My Subjects</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.subjectsCount}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">My Subjects</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.subjectsCount}</p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-full">
-                  <BookOpen className="h-6 w-6 text-green-600" />
+                <div className="bg-green-100 p-2 sm:p-3 rounded-full">
+                  <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-l-4 border-l-purple-500">
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Teachers</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats.teachersCount}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Teachers</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.teachersCount}</p>
                 </div>
-                <div className="bg-purple-100 p-3 rounded-full">
-                  <User className="h-6 w-6 text-purple-600" />
+                <div className="bg-purple-100 p-2 sm:p-3 rounded-full">
+                  <User className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
                 </div>
               </div>
             </CardContent>
@@ -408,20 +408,20 @@ export default function StudentTimetablePage() {
         {/* Timetable */}
         <Card>
           <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Calendar className="h-5 w-5 text-blue-600" />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg flex-shrink-0">
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                 </div>
-                <div>
-                  <CardTitle className="text-xl">{studentName} - {className}</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">Your weekly class timetable</p>
+                <div className="min-w-0">
+                  <CardTitle className="text-base sm:text-xl truncate">{studentName} - {className}</CardTitle>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">Your weekly class timetable</p>
                 </div>
               </div>
               <Button
                 onClick={handleExportPDF}
                 disabled={exporting}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto flex-shrink-0"
               >
                 {exporting ? (
                   <>
@@ -437,22 +437,23 @@ export default function StudentTimetablePage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-3 sm:p-6">
             <div className="overflow-x-auto border rounded-lg" id="student-timetable-area">
               <table className="w-full border-collapse bg-white">
                 <thead>
                   <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
-                    <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px] sticky left-0 bg-gray-100 z-10">
+                    <th className="border border-gray-300 p-2 sm:p-3 font-semibold text-gray-700 text-xs sm:text-sm min-w-[80px] sm:min-w-[100px] sticky left-0 bg-gray-100 z-10">
                       Period
                     </th>
                     {DAYS.map((day) => (
                       <th
                         key={day}
-                        className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]"
+                        className="border border-gray-300 p-2 sm:p-3 font-semibold text-gray-700 text-xs sm:text-sm min-w-[140px] sm:min-w-[180px]"
                       >
-                        <div className="flex items-center justify-center gap-2">
-                          <Calendar className="h-4 w-4" />
-                          {day}
+                        <div className="flex items-center justify-center gap-1 sm:gap-2">
+                          <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <span className="hidden sm:inline">{day}</span>
+                          <span className="sm:hidden">{day.slice(0, 3)}</span>
                         </div>
                       </th>
                     ))}
@@ -461,13 +462,18 @@ export default function StudentTimetablePage() {
                 <tbody>
                   {displayPeriodRows.map((row) => (
                     <tr key={row.index} className={row.isBreakRow ? "bg-yellow-50" : ""}>
-                      <td className="border border-gray-300 p-2 bg-gray-50 text-center font-medium sticky left-0 z-10">
+                      <td className="border border-gray-300 p-1.5 sm:p-2 bg-gray-50 text-center font-medium sticky left-0 z-10">
                         <div>
-                          <div className="text-sm font-semibold text-gray-800">
-                            {row.isBreakRow ? "BREAK" : `Period ${row.label}`}
+                          <div className="text-xs sm:text-sm font-semibold text-gray-800">
+                            {row.isBreakRow ? "BREAK" : (
+                              <>
+                                <span className="hidden sm:inline">Period {row.label}</span>
+                                <span className="sm:hidden">P{row.label}</span>
+                              </>
+                            )}
                           </div>
                           {!row.isBreakRow && (
-                            <div className="text-xs text-gray-500 mt-0.5">
+                            <div className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
                               {periodsByDay[DAYS[0]]?.[row.index]?.start_time || "—"} - 
                               {periodsByDay[DAYS[0]]?.[row.index]?.end_time || "—"}
                             </div>
@@ -481,7 +487,7 @@ export default function StudentTimetablePage() {
                           return (
                             <td
                               key={day}
-                              className="border border-gray-300 p-3 text-center text-gray-400"
+                              className="border border-gray-300 p-2 sm:p-3 text-center text-gray-400 text-xs sm:text-sm"
                             >
                               —
                             </td>
@@ -492,10 +498,10 @@ export default function StudentTimetablePage() {
                           return (
                             <td
                               key={day}
-                              className="border border-gray-300 p-3 bg-yellow-50"
+                              className="border border-gray-300 p-2 sm:p-3 bg-yellow-50"
                             >
                               <div className="text-center">
-                                <div className="font-semibold text-yellow-800 text-sm">BREAK TIME</div>
+                                <div className="font-semibold text-yellow-800 text-xs sm:text-sm">BREAK TIME</div>
                               </div>
                             </td>
                           );
@@ -506,26 +512,26 @@ export default function StudentTimetablePage() {
                         return (
                           <td
                             key={day}
-                            className={`border border-gray-300 p-2 ${
+                            className={`border border-gray-300 p-1.5 sm:p-2 ${
                               cell 
                                 ? "bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors" 
                                 : "hover:bg-gray-50 transition-colors"
                             }`}
                           >
                             {cell ? (
-                              <div className="space-y-1">
-                                <div className="font-semibold text-gray-900 text-sm leading-tight">
+                              <div className="space-y-0.5 sm:space-y-1">
+                                <div className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight">
                                   {cell.fullSubject}
                                 </div>
-                                <div className="flex items-center gap-1 text-xs text-blue-700">
-                                  <User className="h-3 w-3" />
+                                <div className="flex items-center gap-1 text-[10px] sm:text-xs text-blue-700">
+                                  <User className="h-3 w-3 flex-shrink-0" />
                                   <span className="truncate">{cell.teacher}</span>
                                 </div>
                               </div>
                             ) : (
-                              <div className="text-center py-2">
-                                <div className="text-gray-400 text-xs">Free Period</div>
-                                <div className="text-xs text-gray-400 mt-1">
+                              <div className="text-center py-1 sm:py-2">
+                                <div className="text-gray-400 text-[10px] sm:text-xs">Free Period</div>
+                                <div className="text-[10px] sm:text-xs text-gray-400 mt-0.5 sm:mt-1">
                                   {period.start_time} - {period.end_time}
                                 </div>
                               </div>

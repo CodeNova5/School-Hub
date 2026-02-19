@@ -269,7 +269,74 @@ export default function SettingsPage() {
         <div className="grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>School Information</CardTitle>
+              <CardTitle>School Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Logo Display */}
+              {logoPreview && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">School Logo</p>
+                  <div className="w-32 h-32 border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                    <img
+                      src={logoPreview}
+                      alt="School Logo"
+                      className="w-full h-full object-contain p-2"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* School Name Display */}
+              <div>
+                <p className="text-sm font-medium text-gray-700">School Name</p>
+                <p className="text-lg text-gray-900 mt-1">{formData.school_name || 'Not set'}</p>
+              </div>
+
+              {/* Address Display */}
+              <div>
+                <p className="text-sm font-medium text-gray-700">Address</p>
+                <p className="text-lg text-gray-900 mt-1">{formData.school_address || 'Not set'}</p>
+              </div>
+
+              {/* Contact Email Display */}
+              <div>
+                <p className="text-sm font-medium text-gray-700">Contact Email</p>
+                <p className="text-lg text-gray-900 mt-1">
+                  <a href={`mailto:${formData.school_email}`} className="text-blue-600 hover:underline">
+                    {formData.school_email || 'Not set'}
+                  </a>
+                </p>
+              </div>
+
+              {/* Phone Number Display */}
+              <div>
+                <p className="text-sm font-medium text-gray-700">Phone Number</p>
+                <p className="text-lg text-gray-900 mt-1">
+                  <a href={`tel:${formData.school_phone}`} className="text-blue-600 hover:underline">
+                    {formData.school_phone || 'Not set'}
+                  </a>
+                </p>
+              </div>
+
+              {/* Principal Signature Display */}
+              {signaturePreview && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Principal Signature</p>
+                  <div className="w-32 h-32 border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                    <img
+                      src={signaturePreview}
+                      alt="Principal Signature"
+                      className="w-full h-full object-contain p-2"
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit School Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Logo Section */}

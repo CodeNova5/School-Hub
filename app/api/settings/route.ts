@@ -60,14 +60,16 @@ export async function POST(req: Request) {
     const school_phone = form?.get("school_phone") || body.school_phone;
     const logoFile = form?.get("school_logo") as File | null;
     const signatureFile = form?.get("principal_signature") as File | null;
+    const existingLogoUrl = form?.get("school_logo_url") || body.school_logo_url;
+    const existingSignatureUrl = form?.get("principal_signature_url") || body.principal_signature_url;
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    let school_logo = "";
-    let principal_signature = "";
+    let school_logo = existingLogoUrl || "";
+    let principal_signature = existingSignatureUrl || "";
 
     console.log("Content-Type:", contentType);
     if (logoFile) {
@@ -77,10 +79,10 @@ export async function POST(req: Request) {
         type: logoFile.type,
       });
     } else {
-      console.log("No logo file provided.");
+      console.log("No logo file provided. Using existing URL if available.");
     }
 
-    // Upload logo to GitHub if provided
+    // Upload logo to GitHub if new file provided
     if (logoFile && logoFile.size > 0) {
       try {
         const base64Content = await fileToBase64(logoFile);
@@ -95,7 +97,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Upload principal signature to GitHub if provided
+    // Upload principal signature to GitHub if new file provided
     if (signatureFile && signatureFile.size > 0) {
       try {
         const base64Content = await fileToBase64(signatureFile);
@@ -116,8 +118,8 @@ export async function POST(req: Request) {
       { key: "school_address", value: school_address || "" },
       { key: "school_email", value: school_email || "" },
       { key: "school_phone", value: school_phone || "" },
-      ...(school_logo ? [{ key: "school_logo", value: school_logo }] : []),
-      ...(principal_signature ? [{ key: "principal_signature", value: principal_signature }] : []),
+      ...(school_logo && school_logo.trim() ? [{ key: "school_logo", value: school_logo }] : []),
+      ...(principal_signature && principal_signature.trim() ? [{ key: "principal_signature", value: principal_signature }] : []),
     ];
 
     for (const setting of settingsToUpdate) {

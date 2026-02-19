@@ -132,16 +132,22 @@ export default function SettingsPage() {
       formDataToSend.append("school_email", formData.school_email);
       formDataToSend.append("school_phone", formData.school_phone);
 
-      if (formData.school_logo && typeof formData.school_logo === "string") {
-        const fileInput = document.querySelector("input[name='school_logo']") as HTMLInputElement;
-        if (fileInput?.files?.[0]) {
-          formDataToSend.append("school_logo", fileInput.files[0]);
-        }
+      // Handle logo file or existing URL
+      const logoInput = document.querySelector("input[name='school_logo']") as HTMLInputElement;
+      if (logoInput?.files?.[0]) {
+        formDataToSend.append("school_logo", logoInput.files[0]);
+      } else if (formData.school_logo) {
+        // If no new file but existing URL exists, send as JSON field
+        formDataToSend.append("school_logo_url", formData.school_logo);
       }
 
+      // Handle signature file or existing URL
       const signatureInput = document.querySelector("input[name='principal_signature']") as HTMLInputElement;
       if (signatureInput?.files?.[0]) {
         formDataToSend.append("principal_signature", signatureInput.files[0]);
+      } else if (formData.principal_signature) {
+        // If no new file but existing URL exists, send as JSON field
+        formDataToSend.append("principal_signature_url", formData.principal_signature);
       }
 
       const response = await fetch("/api/settings", {
@@ -150,18 +156,22 @@ export default function SettingsPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to save settings");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to save settings");
       }
 
       toast({
         title: "Success",
         description: "Settings saved successfully",
       });
+      
+      // Refresh settings after successful save
+      await fetchSettings();
     } catch (error) {
       console.error("Error saving settings:", error);
       toast({
         title: "Error",
-        description: "Failed to save settings",
+        description: error instanceof Error ? error.message : "Failed to save settings",
         variant: "destructive",
       });
     } finally {
@@ -269,74 +279,7 @@ export default function SettingsPage() {
         <div className="grid gap-6">
           <Card>
             <CardHeader>
-              <CardTitle>School Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Logo Display */}
-              {logoPreview && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">School Logo</p>
-                  <div className="w-32 h-32 border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                    <img
-                      src={logoPreview}
-                      alt="School Logo"
-                      className="w-full h-full object-contain p-2"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* School Name Display */}
-              <div>
-                <p className="text-sm font-medium text-gray-700">School Name</p>
-                <p className="text-lg text-gray-900 mt-1">{formData.school_name || 'Not set'}</p>
-              </div>
-
-              {/* Address Display */}
-              <div>
-                <p className="text-sm font-medium text-gray-700">Address</p>
-                <p className="text-lg text-gray-900 mt-1">{formData.school_address || 'Not set'}</p>
-              </div>
-
-              {/* Contact Email Display */}
-              <div>
-                <p className="text-sm font-medium text-gray-700">Contact Email</p>
-                <p className="text-lg text-gray-900 mt-1">
-                  <a href={`mailto:${formData.school_email}`} className="text-blue-600 hover:underline">
-                    {formData.school_email || 'Not set'}
-                  </a>
-                </p>
-              </div>
-
-              {/* Phone Number Display */}
-              <div>
-                <p className="text-sm font-medium text-gray-700">Phone Number</p>
-                <p className="text-lg text-gray-900 mt-1">
-                  <a href={`tel:${formData.school_phone}`} className="text-blue-600 hover:underline">
-                    {formData.school_phone || 'Not set'}
-                  </a>
-                </p>
-              </div>
-
-              {/* Principal Signature Display */}
-              {signaturePreview && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Principal Signature</p>
-                  <div className="w-32 h-32 border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50">
-                    <img
-                      src={signaturePreview}
-                      alt="Principal Signature"
-                      className="w-full h-full object-contain p-2"
-                    />
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Edit School Information</CardTitle>
+              <CardTitle>School Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Logo Section */}

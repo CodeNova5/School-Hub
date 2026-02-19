@@ -63,11 +63,24 @@ export default function StudentAssignmentsPage() {
         .select("id, class_id")
         .eq("user_id", user.id)
         .single();
-        
+
       if (!student) {
-          toast.error("Student profile not found");
-          return;
+        toast.error("Student profile not found");
+        return;
       }
+
+      // Get current session and term
+      const { data: currentSession } = await supabase
+        .from("sessions")
+        .select("id")
+        .eq("is_current", true)
+        .single();
+
+      const { data: currentTerm } = await supabase
+        .from("terms")
+        .select("id")
+        .eq("is_current", true)
+        .single();
 
       const { data: assignmentData } = await supabase
         .from("assignments")
@@ -84,6 +97,8 @@ export default function StudentAssignmentsPage() {
       `
         )
         .eq("class_id", student.class_id)
+        .eq("session_id", currentSession?.id)
+        .eq("term_id", currentTerm?.id)
         .order("due_date", { ascending: false });
 
       if (assignmentData) {
@@ -111,7 +126,7 @@ export default function StudentAssignmentsPage() {
     }
     return "Not Submitted";
   }
-  
+
   function applyFilters() {
     let filtered = [...assignments];
 
@@ -123,18 +138,18 @@ export default function StudentAssignmentsPage() {
           a.description.toLowerCase().includes(term)
       );
     }
-      
+
     if (statusFilter !== "all") {
-        filtered = filtered.filter((a) => getStatus(a) === statusFilter);
+      filtered = filtered.filter((a) => getStatus(a) === statusFilter);
     }
 
     if (subjectFilter !== "all") {
-        filtered = filtered.filter((a) => a.subjects?.id === subjectFilter);
+      filtered = filtered.filter((a) => a.subjects?.id === subjectFilter);
     }
 
     setFilteredAssignments(filtered);
   }
-  
+
   function getDaysUntilDue(dueDate: string): number {
     const due = new Date(dueDate);
     const today = new Date();
@@ -169,7 +184,7 @@ export default function StudentAssignmentsPage() {
             View and manage your assignments
           </p>
         </div>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Filters</CardTitle>
@@ -185,26 +200,26 @@ export default function StudentAssignmentsPage() {
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                    <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="Not Submitted">Not Submitted</SelectItem>
-                    <SelectItem value="Submitted">Submitted</SelectItem>
-                    <SelectItem value="Graded">Graded</SelectItem>
-                </SelectContent>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="Not Submitted">Not Submitted</SelectItem>
+                <SelectItem value="Submitted">Submitted</SelectItem>
+                <SelectItem value="Graded">Graded</SelectItem>
+              </SelectContent>
             </Select>
             <Select value={subjectFilter} onValueChange={setSubjectFilter}>
-                <SelectTrigger>
-                    <SelectValue placeholder="Filter by subject" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Subjects</SelectItem>
-                    {subjects.map(subject => (
-                        <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
-                    ))}
-                </SelectContent>
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by subject" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subjects</SelectItem>
+                {subjects.map(subject => (
+                  <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           </CardContent>
         </Card>
@@ -250,7 +265,7 @@ export default function StudentAssignmentsPage() {
                               <Calendar className="h-3 w-3 mr-1 inline" />
                               {dueStatus.label}
                             </Badge>
-                             <Badge variant={status === 'Graded' ? 'default' : 'outline'}>{status}</Badge>
+                            <Badge variant={status === 'Graded' ? 'default' : 'outline'}>{status}</Badge>
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">

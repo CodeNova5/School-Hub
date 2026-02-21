@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
-import { getUserTokens, getTokensByRole, formatFCMPayload } from "@/lib/notification-utils";
-
-// Note: You'll need to set up Firebase Admin SDK
-// npm install firebase-admin
-// Then initialize it in your project
+import {
+  getUserTokens,
+  getTokensByRole,
+  formatFCMPayload,
+  deactivateToken,
+} from "@/lib/notification-utils";
+import {
+  sendNotificationsToMultiple,
+  initializeAdminSDK,
+} from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,75 +98,48 @@ export async function POST(request: NextRequest) {
       data: customData,
     });
 
-    // Send notifications using Firebase Admin SDK
-    // IMPORTANT: You need to initialize Firebase Admin SDK first
-    // See comments below for implementation
+    // Initialize Firebase Admin SDK
+    try {
+      initializeAdminSDK();
+    } catch (error) {
+      console.error("Firebase Admin initialization error:", error);
+      return NextResponse.json(
+        {
+          error: "Firebase Admin SDK not configured. Please set FIREBASE_SERVICE_ACCOUNT_KEY in .env.local",
+        },
+        { status: 500 }
+      );
+    }
 
-    /*
-    // Uncomment after setting up Firebase Admin SDK:
-    
-    import * as admin from "firebase-admin";
+    // Send notifications via Firebase Admin SDK
+    const tokensList = tokens.map((t: any) => t.token);
 
-    const messaging = admin.messaging();
-    
-    let successCount = 0;
-    let failureCount = 0;
-    const errors: string[] = [];
+    const result = await sendNotificationsToMultiple(
+      tokensList,
+      {
+        title,
+        body,
+        imageUrl,
+      },
+      notificationPayload.data
+    );
 
-    // Send in batches to avoid rate limiting
-    const batchSize = 100;
-    for (let i = 0; i < tokens.length; i += batchSize) {
-      const batch = tokens.slice(i, i + batchSize);
-      const messages = batch.map(t => ({
-        token: t.token,
-        ...notificationPayload,
-      }));
-
-      try {
-        const response = await messaging.sendMulticast({ messages });
-        successCount += response.successCount;
-        failureCount += response.failureCount;
-
-        // Handle failed tokens
-        if (response.failureCount > 0) {
-          response.responses.forEach((resp, idx) => {
-            if (!resp.success) {
-              errors.push(`Token ${batch[idx].token}: ${resp.error?.message}`);
-              
-              // Deactivate token if invalid
-              if (resp.error?.code === "messaging/invalid-registration-token") {
-                supabase
-                  .from("notification_tokens")
-                  .update({ is_active: false })
-                  .eq("token", batch[idx].token)
-                  .catch(err => console.error("Error deactivating token:", err));
-              }
-            }
-          });
-        }
-      } catch (error) {
-        console.error("Batch send error:", error);
-        failureCount += batch.length;
+    // Deactivate failed tokens
+    if (result.failedTokens && result.failedTokens.length > 0) {
+      for (const token of result.failedTokens) {
+        await deactivateToken(token);
       }
     }
 
     return NextResponse.json({
       success: true,
-      successCount,
-      failureCount,
-      errors: errors.slice(0, 10), // Return first 10 errors
-      message: `Sent ${successCount} notifications, ${failureCount} failed`,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+      errors: result.errors,
+      message: `Sent ${result.successCount} notification${
+        result.successCount !== 1 ? "s" : ""
+      }, ${result.failureCount} failed`,
     });
-    */
-
-    // Placeholder response (replace with actual Firebase Admin SDK call)
-    return NextResponse.json(
-      {
-        error:
-          "Firebase Admin SDK not yet configured. Please set up Firebase Admin SDK and uncomment the code in app/api/admin/send-notification/route.ts",
-      },
-      { status: 500 }
-    );
   } catch (error) {
     console.error("Send notification error:", error);
     return NextResponse.json(

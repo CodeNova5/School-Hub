@@ -130,6 +130,7 @@ export async function cleanupOldTokens(daysOld: number = 30) {
  */
 export async function getTokenHealthDiagnostics() {
   try {
+    // Use supabase client for user context
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -139,15 +140,23 @@ export async function getTokenHealthDiagnostics() {
       .from("notification_tokens")
       .select("id, is_active, created_at, last_registered_at, role, user_id");
 
-    if (allError) throw allError;
+    if (allError) {
+      console.error("Error getting all tokens:", allError);
+      throw allError;
+    }
 
-    // Get active tokens
+    // Get active tokens  
     const { data: activeTokens, error: activeError } = await supabase
       .from("notification_tokens")
       .select("id, last_registered_at")
       .eq("is_active", true);
 
-    if (activeError) throw activeError;
+    if (activeError) {
+      console.error("Error getting active tokens:", activeError);
+      throw activeError;
+    }
+
+    console.log(`Token diagnostics: Total=${allTokens?.length || 0}, Active=${activeTokens?.length || 0}`);
 
     // Identify stale tokens (haven't been used in 30 days)
     const staleTokens = activeTokens?.filter(
@@ -200,6 +209,7 @@ export async function getTokenHealthDiagnostics() {
     return null;
   }
 }
+
 
 /**
  * Get notification statistics

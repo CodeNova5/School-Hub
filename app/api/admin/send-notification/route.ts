@@ -65,6 +65,41 @@ export async function POST(request: NextRequest) {
         // Get tokens based on target
         let tokens: any[] = [];
 
+        // FIRST - Debug: Check total tokens vs active tokens
+        try {
+            const { count: totalCount } = await supabaseAdmin
+                .from("notification_tokens")
+                .select("token", { count: "exact" })
+                ;
+
+            const { count: activeCount } = await supabaseAdmin
+                .from("notification_tokens")
+                .select("token", { count: "exact" })
+                .eq("is_active", true);
+
+            const { data: inactiveTokensSample } = await supabaseAdmin
+                .from("notification_tokens")
+                .select("token, user_id, is_active")
+                .eq("is_active", false)
+                .limit(3);
+
+            console.log(`
+📊 Token Status Check:
+├─ Total tokens in database: ${totalCount || 0}
+├─ Active tokens (is_active=true): ${activeCount || 0}
+├─ Inactive tokens: ${(totalCount || 0) - (activeCount || 0)}
+└─ Inactive sample: ${inactiveTokensSample?.length ? "Found inactive tokens" : "None"}
+            `);
+
+            if ((totalCount || 0) > 0 && (activeCount || 0) === 0) {
+                console.warn(
+                    "⚠️ ALERT: Found tokens but ALL are marked as INACTIVE (is_active=false)!"
+                );
+            }
+        } catch (debugError) {
+            console.error("Debug check error:", debugError);
+        }
+
         if (target === "all") {
             // Get all active tokens
             const { data, error } = await supabaseAdmin
@@ -72,7 +107,12 @@ export async function POST(request: NextRequest) {
                 .select("token")
                 .eq("is_active", true);
 
-            if (error) throw error;
+            if (error) {
+                console.error("Error fetching active tokens:", error);
+                throw error;
+            }
+            
+            console.log(`Found ${data?.length || 0} active tokens for target 'all'`);
             tokens = data || [];
         } else if (target === "role") {
             // Get tokens by role
@@ -82,26 +122,44 @@ export async function POST(request: NextRequest) {
                 .eq("role", targetValue)
                 .eq("is_active", true);
 
-            if (error) throw error;
+            if (error) {
+                console.error(`Error fetching tokens for role '${targetValue}':`, error);
+                throw error;
+            }
+            
+            console.log(`Found ${data?.length || 0} active tokens for role '${targetValue}'`);
             tokens = data || [];
         } else if (target === "user") {
             // Get tokens for specific user
             tokens = await getUserTokens(targetValue);
+            console.log(`Found ${tokens.length} tokens for user '${targetValue}'`);
         } else if (target === "class") {
             // Get tokens for students in a class
             const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
-                .select("nt.token")
-                .eq("students.class_id", targetValue)
+                .select("token")
                 .eq("is_active", true);
 
-            if (error) throw error;
+            if (error) {
+                console.error(`Error fetching tokens:`, error);
+                throw error;
+            }
+            
+            console.log(`Found ${data?.length || 0} active tokens for class`);
             tokens = data || [];
         }
 
         if (tokens.length === 0) {
+            console.warn("⚠️ NO ACTIVE TOKENS FOUND - Returning empty result");
             return NextResponse.json(
-                { success: true, successCount: 0, message: "No active tokens found" },
+                { 
+                    success: true, 
+                    successCount: 0, 
+                    totalTokens: 0, 
+                    failureCount: 0,
+                    warning: "No active tokens found. Verify tokens have is_active=true in database.",
+                    message: "No active tokens found" 
+                },
                 { status: 200 }
             );
         }

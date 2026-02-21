@@ -62,6 +62,16 @@ export async function sendNotificationToToken(
         body: notification.body,
         ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
       },
+      webpush: {
+        notification: {
+          icon: notification.imageUrl || "/logo.png",
+          badge: "/notification-badge.png",
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
+      },
       ...(data && { data }),
     };
 
@@ -93,6 +103,16 @@ export async function sendNotificationsToMultiple(
         body: notification.body,
         ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
       },
+      webpush: {
+        notification: {
+          icon: notification.imageUrl || "/logo.png",
+          badge: "/notification-badge.png",
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
+      },
       ...(data && { data }),
     }));
 
@@ -113,6 +133,7 @@ export async function sendNotificationsToMultiple(
             messaging.send({
               token: msg.token,
               notification: msg.notification,
+              webpush: msg.webpush,
               data: msg.data,
             } as admin.messaging.Message)
           )
@@ -209,6 +230,16 @@ export async function sendNotificationToTopic(
         title: notification.title,
         body: notification.body,
         ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
+      },
+      webpush: {
+        notification: {
+          icon: notification.imageUrl || "/logo.png",
+          badge: "/notification-badge.png",
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
       },
       ...(data && { data }),
     } as admin.messaging.Message;

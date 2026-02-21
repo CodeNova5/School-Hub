@@ -126,6 +126,82 @@ export async function cleanupOldTokens(daysOld: number = 30) {
 }
 
 /**
+ * Get diagnostic info about token health
+ */
+export async function getTokenHealthDiagnostics() {
+  try {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Get all tokens
+    const { data: allTokens, error: allError } = await supabase
+      .from("notification_tokens")
+      .select("id, is_active, created_at, last_registered_at, role, user_id");
+
+    if (allError) throw allError;
+
+    // Get active tokens
+    const { data: activeTokens, error: activeError } = await supabase
+      .from("notification_tokens")
+      .select("id, last_registered_at")
+      .eq("is_active", true);
+
+    if (activeError) throw activeError;
+
+    // Identify stale tokens (haven't been used in 30 days)
+    const staleTokens = activeTokens?.filter(
+      (t: any) => new Date(t.last_registered_at) < thirtyDaysAgo
+    ) || [];
+
+    // Identify recently inactive tokens (deactivated within 7 days)
+    const recentlyInactiveTokens = allTokens?.filter(
+      (t: any) => !t.is_active && new Date(t.created_at) < sevenDaysAgo && new Date(t.last_registered_at) > sevenDaysAgo
+    ) || [];
+
+    // Count by role
+    const roleStats: Record<string, { active: number; inactive: number }> = {};
+    allTokens?.forEach((token: any) => {
+      const role = token.role || "unknown";
+      if (!roleStats[role]) {
+        roleStats[role] = { active: 0, inactive: 0 };
+      }
+      if (token.is_active) {
+        roleStats[role].active++;
+      } else {
+        roleStats[role].inactive++;
+      }
+    });
+
+    return {
+      totalTokens: allTokens?.length || 0,
+      activeTokens: activeTokens?.length || 0,
+      inactiveTokens: (allTokens?.length || 0) - (activeTokens?.length || 0),
+      staleTokensCount: staleTokens.length,
+      recentlyInactiveTokensCount: recentlyInactiveTokens.length,
+      roleStats,
+      healthScore: allTokens && allTokens.length > 0 
+        ? Math.round(((activeTokens?.length || 0) / allTokens.length) * 100)
+        : 0,
+      recommendations: [
+        ...(staleTokens.length > (activeTokens?.length || 0) * 0.3 
+          ? [`⚠️ ${staleTokens.length} tokens haven't been updated in 30 days. Users may have uninstalled/disabled notifications.`] 
+          : []),
+        ...(recentlyInactiveTokens.length > 0 
+          ? [`ℹ️ ${recentlyInactiveTokens.length} tokens were deactivated recently. They may have been invalid or expired.`] 
+          : []),
+        ...(activeTokens && activeTokens.length === 0 
+          ? [`⚠️ No active tokens found! Users haven't registered for notifications yet.`] 
+          : []),
+      ]
+    };
+  } catch (error) {
+    console.error("Error getting token health diagnostics:", error);
+    return null;
+  }
+}
+
+/**
  * Get notification statistics
  */
 export async function getNotificationStats() {

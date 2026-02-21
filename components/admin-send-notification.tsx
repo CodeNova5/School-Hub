@@ -63,11 +63,30 @@ export function AdminSendNotificationComponent() {
         throw new Error(data.error || "Failed to send notification");
       }
 
-      toast.success(
-        `Notification sent successfully! (${data.successCount} recipient${
-          data.successCount !== 1 ? "s" : ""
-        })`
-      );
+      // Show detailed success message with diagnostics
+      const successRate = data.successRate ? parseFloat(data.successRate) : 0;
+      let successMessage = `Notification sent! (${data.successCount}/${data.totalTokens} reached)`;
+      
+      // Add warnings if success rate is low
+      if (successRate < 100 && successRate >= 50) {
+        toast.warning(
+          `⚠️ Low delivery rate (${data.successRate}%). ${data.diagnostics?.recommendation || ""}`
+        );
+      } else if (successRate < 50 && successRate > 0) {
+        toast.error(
+          `❌ Very low delivery rate (${data.successRate}%). ${data.diagnostics?.recommendation || "Check token health."}`
+        );
+      } else if (successRate === 0 && data.totalTokens > 0) {
+        toast.error(
+          `❌ No notifications delivered. ${data.diagnostics?.recommendation || "Tokens may be invalid."}`
+        );
+      } else if (data.totalTokens === 0) {
+        toast.warning(
+          `⚠️ No active tokens found. Users need to register for notifications.`
+        );
+      } else {
+        toast.success(successMessage);
+      }
 
       // Reset form
       setPayload({

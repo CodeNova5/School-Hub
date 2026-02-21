@@ -80,7 +80,7 @@ export async function sendNotificationsToMultiple(
   data?: Record<string, string>
 ) {
   if (tokens.length === 0) {
-    return { successCount: 0, failureCount: 0, errors: [] };
+    return { successCount: 0, failureCount: 0, errors: [], failedTokens: [], invalidTokens: [] };
   }
 
   try {
@@ -102,6 +102,7 @@ export async function sendNotificationsToMultiple(
     let failureCount = 0;
     const errors: string[] = [];
     const failedTokens: string[] = [];
+    const invalidTokens: string[] = [];
 
     for (let i = 0; i < messages.length; i += batchSize) {
       const batch = messages.slice(i, i + batchSize);
@@ -113,20 +114,36 @@ export async function sendNotificationsToMultiple(
               token: msg.token,
               notification: msg.notification,
               data: msg.data,
-            })
+            } as admin.messaging.Message)
           )
         );
 
         results.forEach((result, idx) => {
+          const token = tokens[i + idx];
           if (result.status === "fulfilled") {
             successCount++;
+            console.log(`✓ Notification sent to token ${token.substring(0, 20)}...`);
           } else {
             failureCount++;
-            const token = tokens[i + idx];
-            errors.push(
-              `Token ${token.substring(0, 20)}...: ${result.reason?.message || "Unknown error"}`
-            );
-            failedTokens.push(token);
+            const errorMsg = result.reason?.message || "Unknown error";
+            const errorCode = result.reason?.code || "";
+            
+            // Check for invalid token errors
+            if (
+              errorCode.includes("invalid-argument") ||
+              errorCode.includes("authentication-error") ||
+              errorMsg.includes("Invalid registration token") ||
+              errorMsg.includes("not a valid registration token")
+            ) {
+              invalidTokens.push(token);
+              console.warn(`⚠ Invalid FCM token detected: ${token.substring(0, 20)}...`);
+            } else {
+              failedTokens.push(token);
+            }
+            
+            const errorLog = `Token ${token.substring(0, 20)}...: [${errorCode}] ${errorMsg}`;
+            errors.push(errorLog);
+            console.error(`✗ Failed to send notification: ${errorLog}`);
           }
         });
       } catch (error) {
@@ -136,11 +153,16 @@ export async function sendNotificationsToMultiple(
       }
     }
 
+    if (errors.length > 0) {
+      console.warn(`⚠ Notification delivery summary: ${successCount} sent, ${failureCount} failed (${invalidTokens.length} invalid tokens)`);
+    }
+
     return {
       successCount,
       failureCount,
       errors: errors.slice(0, 10), // Return first 10 errors
-      failedTokens, // Return all failed tokens for cleanup
+      failedTokens: [...failedTokens, ...invalidTokens], // Return all failed tokens for cleanup
+      invalidTokens, // Track invalid tokens separately for better diagnostics
     };
   } catch (error) {
     console.error("Error sending multicast notifications:", error);

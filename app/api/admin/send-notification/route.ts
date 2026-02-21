@@ -141,20 +141,45 @@ export async function POST(request: NextRequest) {
             notificationPayload.data
         );
 
-        // Deactivate failed tokens
+        // Deactivate all failed tokens (including invalid ones)
         if (result.failedTokens && result.failedTokens.length > 0) {
+            console.log(`Deactivating ${result.failedTokens.length} failed tokens...`);
             for (const token of result.failedTokens) {
                 await deactivateToken(token);
             }
         }
 
+        // Log notification send details for debugging
+        console.log(`
+📊 Notification Send Summary:
+├─ Title: ${title}
+├─ Target: ${target === "all" ? "All Users" : `${target} (${targetValue})`}
+├─ Success: ${result.successCount}
+├─ Failed: ${result.failureCount}
+├─ Invalid Tokens: ${result.invalidTokens?.length || 0}
+├─ Total Tokens Found: ${tokensList.length}
+└─ Success Rate: ${tokensList.length > 0 ? ((result.successCount / tokensList.length) * 100).toFixed(1) : 0}%
+        `);
+
+        // Return detailed response
         return NextResponse.json({
             success: true,
             successCount: result.successCount,
             failureCount: result.failureCount,
+            invalidTokensCount: result.invalidTokens?.length || 0,
+            totalTokens: tokensList.length,
+            successRate: tokensList.length > 0 ? ((result.successCount / tokensList.length) * 100).toFixed(1) : 0,
             errors: result.errors,
-            message: `Sent ${result.successCount} notification${result.successCount !== 1 ? "s" : ""
-                }, ${result.failureCount} failed`,
+            message: `Sent ${result.successCount}/${tokensList.length} notification${result.successCount !== 1 ? "s" : ""
+                }, ${result.failureCount} failed (${result.invalidTokens?.length || 0} invalid tokens detected)`,
+            diagnostics: {
+                tokensWithoutRecipients: tokensList.length === 0,
+                hasInvalidTokens: (result.invalidTokens?.length || 0) > 0,
+                recommendation: 
+                    tokensList.length === 0 ? "No active tokens found. Check if users have registered for notifications." :
+                    (result.invalidTokens?.length || 0) > 0 ? `${result.invalidTokens?.length} invalid/expired tokens detected. Users may need to re-register for notifications.` :
+                    ""
+            }
         });
     } catch (error) {
         console.error("Send notification error:", error);

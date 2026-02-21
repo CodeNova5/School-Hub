@@ -14,7 +14,6 @@ import {
   Clock,
   Users,
   TrendingUp,
-  Loader2,
   RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -52,15 +51,41 @@ interface NotificationStats {
   notificationTrend: Array<{ date: string; sent: number }>;
 }
 
+interface TokenDiagnostics {
+  totalTokens: number;
+  activeTokens: number;
+  inactiveTokens: number;
+  staleTokensCount: number;
+  recentlyInactiveTokensCount: number;
+  healthScore: number;
+  recommendations: string[];
+  roleStats: Record<string, { active: number; inactive: number }>;
+}
+
 export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<NotificationStats | null>(null);
+  const [diagnostics, setDiagnostics] = useState<TokenDiagnostics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchNotificationStats();
+    fetchTokenDiagnostics();
   }, []);
+
+  const fetchTokenDiagnostics = async () => {
+    try {
+      const response = await fetch('/api/admin/notifications/diagnostics');
+      const result = await response.json();
+
+      if (response.ok) {
+        setDiagnostics(result.data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching diagnostics:', err);
+    }
+  };
 
   const fetchNotificationStats = async () => {
     try {
@@ -86,6 +111,7 @@ export default function NotificationsPage() {
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchNotificationStats();
+    await fetchTokenDiagnostics();
     setRefreshing(false);
   };
 
@@ -210,6 +236,71 @@ export default function NotificationsPage() {
               </Card>
             ))}
           </div>
+        )}
+
+        {/* Token Health Check */}
+        {diagnostics && (
+          <Card className={`border-l-4 ${
+            diagnostics.healthScore >= 80 
+              ? 'border-l-green-600 bg-green-50' 
+              : diagnostics.healthScore >= 50 
+              ? 'border-l-yellow-600 bg-yellow-50' 
+              : 'border-l-red-600 bg-red-50'
+          }`}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <AlertCircle className={`h-5 w-5 ${
+                    diagnostics.healthScore >= 80 
+                      ? 'text-green-600' 
+                      : diagnostics.healthScore >= 50 
+                      ? 'text-yellow-600' 
+                      : 'text-red-600'
+                  }`} />
+                  Token Health Status
+                </CardTitle>
+                <Badge variant={
+                  diagnostics.healthScore >= 80 
+                    ? 'default' 
+                    : diagnostics.healthScore >= 50 
+                    ? 'secondary' 
+                    : 'destructive'
+                }>
+                  {diagnostics.healthScore}% Healthy
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <p className="text-xs text-gray-600">Total Tokens</p>
+                  <p className="text-lg font-semibold">{diagnostics.totalTokens}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Active Tokens</p>
+                  <p className="text-lg font-semibold text-green-600">{diagnostics.activeTokens}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Inactive Tokens</p>
+                  <p className="text-lg font-semibold text-red-600">{diagnostics.inactiveTokens}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Stale Tokens</p>
+                  <p className="text-lg font-semibold text-orange-600">{diagnostics.staleTokensCount}</p>
+                </div>
+              </div>
+              
+              {diagnostics.recommendations.length > 0 && (
+                <div className="mt-3 pt-3 border-t space-y-2">
+                  {diagnostics.recommendations.map((rec, idx) => (
+                    <p key={idx} className="text-sm text-gray-700">
+                      {rec}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Main Tabs */}

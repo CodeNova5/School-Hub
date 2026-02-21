@@ -28,6 +28,7 @@ import {
   Plus,
   Loader2,
   UserPlus,
+  Bell,
 } from 'lucide-react';
 import {
   LineChart,
@@ -243,6 +244,10 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex gap-3">
+            <Button variant="outline" size="lg" onClick={() => router.push('/admin/notifications')}>
+              <Bell className="h-4 w-4 mr-2" />
+              Notifications
+            </Button>
             <Button variant="outline" size="lg" onClick={() => router.push('/admin/students')}>
               <GraduationCap className="h-4 w-4 mr-2" />
               Manage Students
@@ -518,11 +523,12 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick Access & Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {[
             { title: 'Manage Students', icon: GraduationCap, color: 'bg-blue-50', textColor: 'text-blue-600', borderColor: 'border-blue-200', path: '/admin/students' },
             { title: 'Manage Teachers', icon: Users, color: 'bg-purple-50', textColor: 'text-purple-600', borderColor: 'border-purple-200', path: '/admin/teachers' },
             { title: 'Manage Classes', icon: BookOpen, color: 'bg-green-50', textColor: 'text-green-600', borderColor: 'border-green-200', path: '/admin/classes' },
+            { title: 'Notifications', icon: Bell, color: 'bg-amber-50', textColor: 'text-amber-600', borderColor: 'border-amber-200', path: '/admin/notifications' },
             { title: 'Settings', icon: Settings, color: 'bg-orange-50', textColor: 'text-orange-600', borderColor: 'border-orange-200', path: '/admin/settings' },
           ].map((action, index) => {
             const IconComponent = action.icon;

@@ -18,6 +18,7 @@ import {
   History,
   TrendingUp,
   X,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -97,6 +98,7 @@ export function Sidebar({
     { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" /> },
     { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" /> },
     { href: "/admin/admissions", label: "Admissions", icon: <ClipboardList className="h-5 w-5" /> },
+    { href: "/admin/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/admin/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> },
   ];

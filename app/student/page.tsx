@@ -28,6 +28,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
+import { NotificationPermissionComponent } from "@/components/notification-permission";
 
 interface StudentStats {
   totalAttendance: number;
@@ -287,6 +288,7 @@ export default function StudentDashboardPage() {
 
   return (
     <DashboardLayout role="student">
+       <NotificationPermissionComponent role="student" autoPromptDelay={3000} />
       <div className="space-y-8">
         {/* Premium Welcome Header */}
         <div className="relative overflow-hidden">

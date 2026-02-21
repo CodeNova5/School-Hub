@@ -27,11 +27,12 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log("Received background message:", payload);
 
-    const notificationTitle = payload.notification.title || "New Notification";
+    const notificationTitle = payload.notification?.title || "New Notification";
     const notificationOptions = {
-        body: payload.notification.body || "You have a new message",
-        icon: payload.notification.image || "/notification-icon.png",
-        badge: "/notification-badge.png",
+        body: payload.notification?.body || "You have a new message",
+        icon: "/logo.png", // App icon (small, always same)
+        image: payload.notification?.image, // Large image (optional, content-specific)
+        badge: "/logo.png",
         tag: payload.data?.tag || "default",
         data: payload.data || {},
         actions: [

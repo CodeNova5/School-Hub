@@ -64,8 +64,8 @@ export async function sendNotificationToToken(
       },
       webpush: {
         notification: {
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/notification-badge.png",
+          icon: "/logo.png",
+          badge: "/logo.png",
           requireInteraction: false,
         },
         fcmOptions: {
@@ -105,8 +105,8 @@ export async function sendNotificationsToMultiple(
       },
       webpush: {
         notification: {
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/notification-badge.png",
+          icon: "/logo.png",
+          badge: "/logo.png",
           requireInteraction: false,
         },
         fcmOptions: {
@@ -233,8 +233,8 @@ export async function sendNotificationToTopic(
       },
       webpush: {
         notification: {
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/notification-badge.png",
+          icon: "/logo.png",
+          badge: "/logo.png",
           requireInteraction: false,
         },
         fcmOptions: {

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // Middleware to check if user is admin
 async function checkIsAdmin() {
@@ -44,7 +50,7 @@ export async function GET(request: NextRequest) {
 
         // Get total notifications sent (from notification_logs or similar table)
         // For now, we'll use notification_tokens as a proxy
-        const { count: totalTokens } = await supabase
+        const { count: totalTokens } = await supabaseAdmin
             .from("notification_tokens")
             .select("*", { count: "exact" })
             .eq("is_active", true);

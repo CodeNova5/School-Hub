@@ -13,6 +13,12 @@ import {
 } from "@/lib/firebase-admin";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 // Middleware to check if user is admin
 async function checkIsAdmin() {
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
 
         if (target === "all") {
             // Get all active tokens
-            const { data, error } = await supabase
+            const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token")
                 .eq("is_active", true);
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
             tokens = data || [];
         } else if (target === "role") {
             // Get tokens by role
-            const { data, error } = await supabase
+            const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token")
                 .eq("role", targetValue)
@@ -83,7 +89,7 @@ export async function POST(request: NextRequest) {
             tokens = await getUserTokens(targetValue);
         } else if (target === "class") {
             // Get tokens for students in a class
-            const { data, error } = await supabase
+            const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("nt.token")
                 .eq("students.class_id", targetValue)

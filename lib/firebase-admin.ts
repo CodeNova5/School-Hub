@@ -67,8 +67,8 @@ export async function sendNotificationToToken(
         fcmOptions: {
           link: data?.link || "/",
         },
+        ...(data && { data }),
       },
-      ...(data && { data }),
     };
 
     const response = await messaging.send(message as admin.messaging.Message);
@@ -105,8 +105,8 @@ export async function sendNotificationsToMultiple(
         fcmOptions: {
           link: data?.link || "/",
         },
+        ...(data && { data }),
       },
-      ...(data && { data }),
     }));
 
     // Send in batches of 500 (Firebase limit)
@@ -126,7 +126,6 @@ export async function sendNotificationsToMultiple(
             messaging.send({
               token: msg.token,
               webpush: msg.webpush,
-              data: msg.data,
             } as admin.messaging.Message)
           )
         );
@@ -232,8 +231,8 @@ export async function sendNotificationToTopic(
         fcmOptions: {
           link: data?.link || "/",
         },
+        ...(data && { data }),
       },
-      ...(data && { data }),
     } as admin.messaging.Message;
 
     const response = await messaging.send(message);

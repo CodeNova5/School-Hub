@@ -207,6 +207,30 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Get current user for logging
+        const supabase = createRouteHandlerClient({ cookies });
+        const { data: { user } } = await supabase.auth.getUser();
+
+        // Log notification to database
+        const successRate = tokensList.length > 0 ? (result.successCount / tokensList.length) * 100 : 0;
+        const { error: logError } = await supabaseAdmin
+            .from("notification_logs")
+            .insert({
+                title,
+                body,
+                target,
+                target_value: targetValue || null,
+                success_count: result.successCount,
+                failure_count: result.failureCount,
+                total_recipients: tokensList.length,
+                success_rate: parseFloat(successRate.toFixed(2)),
+                sent_by: user?.id,
+            });
+
+        if (logError) {
+            console.error("Error logging notification:", logError);
+        }
+
         // Log notification send details for debugging
         console.log(`
 📊 Notification Send Summary:

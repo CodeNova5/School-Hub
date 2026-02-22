@@ -94,19 +94,30 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       onMessage(messaging, (payload) => {
         console.log("Foreground message received:", payload);
 
-        // Show notification in foreground
-        if (payload.notification) {
-          const notificationTitle = payload.notification.title || "Notification";
-          const notificationOptions: NotificationOptions = {
-            body: payload.notification.body || "New notification",
-            icon: payload.notification.image || "/notification-icon.png",
-            badge: "/notification-badge.png",
-            tag: payload.data?.tag || "default",
-            data: payload.data || {},
-          };
+        // Get notification details from payload.notification (top-level)
+        // or fall back to payload.data fields
+        const title =
+          payload.notification?.title ||
+          payload.data?.title ||
+          "Notification";
+        const body =
+          payload.notification?.body ||
+          payload.data?.body ||
+          "New notification";
+        const icon =
+          payload.notification?.image ||
+          payload.data?.icon ||
+          "/logo.png";
 
-          new Notification(notificationTitle, notificationOptions);
-        }
+        const notificationOptions: NotificationOptions = {
+          body,
+          icon,
+          badge: "/logo.png",
+          tag: payload.data?.tag || "default",
+          data: payload.data || {},
+        };
+
+        new Notification(title, notificationOptions);
       });
     } catch (err) {
       console.error("Failed to setup foreground message handler:", err);

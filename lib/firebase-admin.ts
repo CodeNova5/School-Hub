@@ -57,23 +57,30 @@ export async function sendNotificationToToken(
   try {
     const messaging = getAdminMessaging();
 
-    const message = {
+    const message: admin.messaging.Message = {
       token,
+      // Top-level notification ensures payload.notification is available
+      // in both foreground (onMessage) and background handlers
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
       webpush: {
         notification: {
           title: notification.title,
           body: notification.body,
           icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png"
+          badge: "/logo.png",
         },
         fcmOptions: {
           link: data?.link || "/",
         },
-        ...(data && { data }),
       },
+      // Data at message top-level, NOT inside webpush
+      ...(data && { data }),
     };
 
-    const response = await messaging.send(message as admin.messaging.Message);
+    const response = await messaging.send(message);
     return { success: true, messageId: response };
   } catch (error) {
     console.error("Error sending notification to token:", error);
@@ -96,19 +103,25 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
+      // Top-level notification ensures payload.notification is available
+      // in both foreground (onMessage) and background handlers
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
       webpush: {
         notification: {
           title: notification.title,
           body: notification.body,
           icon: notification.imageUrl || "/logo.png",
           badge: "/logo.png",
-          requireInteraction: false,
         },
         fcmOptions: {
           link: data?.link || "/",
         },
-        ...(data && { data }),
       },
+      // Data at message top-level, NOT inside webpush
+      ...(data && { data }),
     }));
 
     // Send in batches of 500 (Firebase limit)
@@ -127,7 +140,9 @@ export async function sendNotificationsToMultiple(
           batch.map((msg) =>
             messaging.send({
               token: msg.token,
+              notification: msg.notification,
               webpush: msg.webpush,
+              ...(msg.data && { data: msg.data }),
             } as admin.messaging.Message)
           )
         );

@@ -1,23 +1,24 @@
 {
-  "name": "School Hub",
-  "short_name": "Hub",
+  "name": "Tosfeb Presidency School",
+  "short_name": "TPS App",
   "description": "Your all-in-one school management system",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#000000",
-  "theme_color": "#0049af",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo.png",
+      "src": "/logo-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
     },
     {
-      "src": "/logo.png",
+      "src": "/logo-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ]
 }

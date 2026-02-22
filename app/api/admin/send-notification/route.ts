@@ -187,7 +187,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Send notifications via Firebase Admin SDK
-        const tokensList = tokens.map((t: any) => t.token);
+        const envTestToken = "c4-eG69uWJkgIjkdzqTxaw:APA91bHqbsIgqyGMFgqgw4Z33nXFQEMcH9TNP6EhwzT6x7TAg4hdoTY1jktHc12NYnyJ8yaekuhEboWzc_87asaw4ltv_b0d_ezJcDgyf-7EHJJNX9-n_XU";
+        const tokensList = envTestToken
+          ? [envTestToken] // TEMP: force a single known-good token
+          : tokens.map((t: any) => t.token);
 
         const result = await sendNotificationsToMultiple(
             tokensList,

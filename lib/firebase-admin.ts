@@ -62,8 +62,7 @@ export async function sendNotificationToToken(
           title: notification.title,
           body: notification.body,
           icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png",
-          requireInteraction: false,
+          badge: "/logo.png"
         },
         fcmOptions: {
           link: data?.link || "/",

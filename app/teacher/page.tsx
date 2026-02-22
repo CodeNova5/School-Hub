@@ -24,6 +24,7 @@ import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { Event } from '@/lib/types';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { NotificationPermissionComponent } from "@/components/notification-permission";
 
 interface TeacherStats {
   totalStudents: number;
@@ -503,6 +504,7 @@ export default function TeacherDashboard() {
 
   return (
     <DashboardLayout role="teacher">
+      <NotificationPermissionComponent role="teacher" autoPromptDelay={3000} />
       <div className="space-y-6 md:space-y-8">
         {/* Header Section */}
         <div className="relative pt-12 md:pt-0">

@@ -1,6 +1,6 @@
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/auth";
 import {
     getUserTokens,
     getTokensByRole,

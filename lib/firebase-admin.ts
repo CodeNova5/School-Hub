@@ -20,7 +20,10 @@ export function initializeAdminSDK() {
 
   try {
     // Parse the service account JSON
-    const serviceAccountJson = JSON.parse(serviceAccount);
+    const serviceAccountJson = JSON.parse(serviceAccount.trim());
+
+    serviceAccountJson.private_key =
+      serviceAccountJson.private_key.replace(/\\n/g, "\n");
 
     adminApp = admin.initializeApp({
       credential: admin.credential.cert(serviceAccountJson),
@@ -31,8 +34,7 @@ export function initializeAdminSDK() {
   } catch (error) {
     console.error("Error initializing Firebase Admin SDK:", error);
     throw new Error(
-      `Failed to initialize Firebase Admin SDK: ${
-        error instanceof Error ? error.message : "Unknown error"
+      `Failed to initialize Firebase Admin SDK: ${error instanceof Error ? error.message : "Unknown error"
       }`
     );
   }
@@ -139,7 +141,7 @@ export async function sendNotificationsToMultiple(
             failureCount++;
             const errorMsg = result.reason?.message || "Unknown error";
             const errorCode = result.reason?.code || "";
-            
+
             // Check for invalid token errors
             if (
               errorCode.includes("invalid-argument") ||
@@ -152,7 +154,7 @@ export async function sendNotificationsToMultiple(
             } else {
               failedTokens.push(token);
             }
-            
+
             const errorLog = `Token ${token.substring(0, 20)}...: [${errorCode}] ${errorMsg}`;
             errors.push(errorLog);
             console.error(`✗ Failed to send notification: ${errorLog}`);

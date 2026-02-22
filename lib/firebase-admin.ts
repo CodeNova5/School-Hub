@@ -57,14 +57,11 @@ export async function sendNotificationToToken(
 
     const message = {
       token,
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
       webpush: {
         notification: {
-          icon: "/logo.png",
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "/logo.png",
           badge: "/logo.png",
           requireInteraction: false,
         },
@@ -98,14 +95,11 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
       webpush: {
         notification: {
-          icon: "/logo.png",
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "/logo.png",
           badge: "/logo.png",
           requireInteraction: false,
         },
@@ -132,7 +126,6 @@ export async function sendNotificationsToMultiple(
           batch.map((msg) =>
             messaging.send({
               token: msg.token,
-              notification: msg.notification,
               webpush: msg.webpush,
               data: msg.data,
             } as admin.messaging.Message)

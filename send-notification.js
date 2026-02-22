@@ -16,8 +16,7 @@ const serviceAccount = {
 };
 
 // 🔥 STEP 2: Replace with your device FCM token
-const DEVICE_TOKEN = "c4-eG69uWJkgIjkdzqTxaw:APA91bHqbsIgqyGMFgqgw4Z33nXFQEMcH9TNP6EhwzT6x7TAg4hdoTY1jktHc12NYnyJ8yaekuhEboWzc_87asaw4ltv_b0d_ezJcDgyf-7EHJJNX9-n_XU";
-
+const DEVICE_TOKEN = "fUyFaE0wPM6y3J7NfSZyn8:APA91bHEuGlFzc4QUJ5seM4KcyQVON5vGX9mXy9GF9V4WG6aVm8oTx7T31klba-KhsrzSvXWAkiH2oiE8D08QjgdxcyOJ0T4r9Zy6M1vbGLlhc53zbGDpGk";
 // Initialize Firebase Admin
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),

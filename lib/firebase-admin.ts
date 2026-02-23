@@ -59,25 +59,18 @@ export async function sendNotificationToToken(
 
     const message: admin.messaging.Message = {
       token,
-      // Top-level notification ensures payload.notification is available
-      // in both foreground (onMessage) and background handlers
-      notification: {
+      data: {
         title: notification.title,
         body: notification.body,
+        icon: notification.imageUrl || "/logo.png",
+        link: data?.link || "/",
+        ...data,
       },
       webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png",
-        },
-        fcmOptions: {
-          link: data?.link || "/",
+        headers: {
+          Urgency: "high",
         },
       },
-      // Data at message top-level, NOT inside webpush
-      ...(data && { data }),
     };
 
     const response = await messaging.send(message);

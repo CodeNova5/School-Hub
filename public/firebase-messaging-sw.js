@@ -19,18 +19,13 @@ const firebaseConfig = {
     measurementId: "G-5M6JBZFZ4K"
 };
 
-try {
-    firebase.initializeApp(firebaseConfig);
-    console.log('✓ Firebase initialized in Service Worker');
-} catch (error) {
-    console.error('Error initializing Firebase in SW:', error);
-}
+firebase.initializeApp(firebaseConfig);
 
 const messaging = firebase.messaging();
 
 // Handle notifications when the app is in the background
 messaging.onBackgroundMessage((payload) => {
-    console.log("✓ Background message received:", payload);
+    console.log("Received background message:", payload);
 
     const notificationTitle = payload.notification?.title || "New Notification";
     const notificationOptions = {
@@ -38,10 +33,8 @@ messaging.onBackgroundMessage((payload) => {
         icon: "/logo.png", // App icon (small, always same)
         image: payload.notification?.image, // Large image (optional, content-specific)
         badge: "/logo.png",
-        tag: payload.data?.tag || "notification", // Tag for grouping notifications
+        tag: payload.data?.tag || "default",
         data: payload.data || {},
-        requireInteraction: true, // Keep notification until user interacts
-        vibrate: [200, 100, 200], // Vibration pattern for Android
         actions: [
             {
                 action: "open",
@@ -54,13 +47,11 @@ messaging.onBackgroundMessage((payload) => {
         ],
     };
 
-    console.log("Displaying notification:", notificationTitle);
-    return self.registration.showNotification(notificationTitle, notificationOptions);
+    self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // Handle notification click
 self.addEventListener("notificationclick", (event) => {
-    console.log("✓ Notification clicked:", event.notification.tag);
     event.notification.close();
 
     if (event.action === "close") {
@@ -78,12 +69,10 @@ self.addEventListener("notificationclick", (event) => {
                     client.url === urlToOpen ||
                     new URL(client.url).pathname === new URL(urlToOpen).pathname
                 ) {
-                    console.log("✓ Focusing existing window");
                     return client.focus();
                 }
             }
             // If not, open a new window/tab with the target URL
-            console.log("Opening new window with URL:", urlToOpen);
             return clients.openWindow(urlToOpen);
         })
     );
@@ -91,29 +80,5 @@ self.addEventListener("notificationclick", (event) => {
 
 // Handle notification close
 self.addEventListener("notificationclose", (event) => {
-    console.log("✓ Notification closed:", event.notification.tag);
-});
-
-// Listen for messages from clients
-self.addEventListener("message", (event) => {
-    console.log("Message received in SW:", event.data);
-    
-    // Handle skip-waiting message for SW updates
-    if (event.data && event.data.type === "SKIP_WAITING") {
-        self.skipWaiting();
-    }
-});
-
-// Handle push events directly (backup for notifications that don't include Firebase headers)
-self.addEventListener("push", (event) => {
-    if (event.data) {
-        console.log("✓ Push event received (non-FCM)");
-        // This is typically handled by Firebase messaging, but adding as backup
-    }
-});
-
-// Handle service worker activation
-self.addEventListener("activate", (event) => {
-    console.log("✓ Service Worker activated");
-    event.waitUntil(clients.claim()); // Take control of all pages immediately
+    console.log("Notification closed:", event.notification.tag);
 });

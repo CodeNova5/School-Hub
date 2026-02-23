@@ -85,14 +85,15 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
     }
   };
 
-  // Listen for foreground messages
+  // Listen for foreground messages - setup globally to persist
   const setupForegroundMessageHandler = async () => {
     try {
       const messaging = await getFirebaseMessaging();
       if (!messaging) return;
 
+      // Setup handler - this will persist even if component unmounts
       onMessage(messaging, (payload) => {
-        console.log("Foreground message received:", payload);
+        console.log("✓ Foreground message received:", payload);
 
         // Get notification details from payload.notification (top-level)
         // or fall back to payload.data fields
@@ -115,14 +116,24 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
           badge: "/logo.png",
           tag: payload.data?.tag || "default",
           data: payload.data || {},
+          requireInteraction: true, // Keep notification visible until user interacts
         };
 
         new Notification(title, notificationOptions);
       });
+      
+      console.log("✓ Foreground message handler setup successful");
     } catch (err) {
       console.error("Failed to setup foreground message handler:", err);
     }
   };
+
+  // Automatically setup foreground handler when permission changes
+  useEffect(() => {
+    if (permission === "granted") {
+      setupForegroundMessageHandler();
+    }
+  }, [permission]);
 
   // Save token to Supabase
   const saveTokenToSupabase = async (

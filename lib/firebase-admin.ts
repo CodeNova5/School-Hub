@@ -59,21 +59,32 @@ export async function sendNotificationToToken(
 
     const message: admin.messaging.Message = {
       token,
-      data: {
+      // Top-level notification ensures payload.notification is available
+      // in both foreground (onMessage) and background handlers
+      notification: {
         title: notification.title,
         body: notification.body,
-        icon: notification.imageUrl || "/logo.png",
-        link: data?.link || "/",
-        ...data,
+        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
       },
       webpush: {
-        headers: {
-          Urgency: "high",
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "/logo.png",
+          badge: "/logo.png",
+          requireInteraction: true, // Keep notification visible until user acts
+          vibrate: [200, 100, 200],
+        },
+        fcmOptions: {
+          link: data?.link || "/",
         },
       },
+      // Data at message top-level, NOT inside webpush
+      ...(data && { data }),
     };
 
     const response = await messaging.send(message);
+    console.log(`✓ Notification sent to token. Message ID: ${response}`);
     return { success: true, messageId: response };
   } catch (error) {
     console.error("Error sending notification to token:", error);
@@ -101,6 +112,7 @@ export async function sendNotificationsToMultiple(
       notification: {
         title: notification.title,
         body: notification.body,
+        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
       },
       webpush: {
         notification: {
@@ -108,6 +120,8 @@ export async function sendNotificationsToMultiple(
           body: notification.body,
           icon: notification.imageUrl || "/logo.png",
           badge: "/logo.png",
+          requireInteraction: true, // Keep notification visible until user acts
+          vibrate: [200, 100, 200],
         },
         fcmOptions: {
           link: data?.link || "/",
@@ -177,6 +191,8 @@ export async function sendNotificationsToMultiple(
 
     if (errors.length > 0) {
       console.warn(`⚠ Notification delivery summary: ${successCount} sent, ${failureCount} failed (${invalidTokens.length} invalid tokens)`);
+    } else {
+      console.log(`✓ All ${successCount} notifications sent successfully!`);
     }
 
     return {

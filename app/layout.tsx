@@ -29,11 +29,41 @@ export default function RootLayout({
         <Toaster />
         <Script id="sw-register" strategy="afterInteractive">
           {`
-            if ('serviceWorker' in navigator) {
+            function registerServiceWorker() {
+              if (!('serviceWorker' in navigator)) {
+                console.warn('Service Workers not supported');
+                return;
+              }
+
               navigator.serviceWorker.register('/firebase-messaging-sw.js')
-                .then(reg => console.log('SW registered:', reg))
-                .catch(err => console.log('SW registration failed:', err));
+                .then(reg => {
+                  console.log('✓ Service Worker registered:', reg.scope);
+                  // Check for updates periodically
+                  setInterval(() => {
+                    reg.update().catch(err => console.log('SW update check failed:', err));
+                  }, 60000); // Check every minute
+                })
+                .catch(err => {
+                  console.error('✗ Service Worker registration failed:', err);
+                  // Retry after 5 seconds
+                  setTimeout(() => {
+                    console.log('Retrying Service Worker registration...');
+                    registerServiceWorker();
+                  }, 5000);
+                });
             }
+
+            // Register on page load
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', registerServiceWorker);
+            } else {
+              registerServiceWorker();
+            }
+
+            // Check for controller change (SW activation)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              console.log('✓ Service Worker controller changed (new version active)');
+            });
           `}
         </Script>
       </body>

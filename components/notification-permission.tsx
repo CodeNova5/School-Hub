@@ -47,7 +47,7 @@ export function NotificationPermissionComponent({
     // Check if permission is already granted
     if (permission === "granted") {
       setHasPermission(true);
-      setupForegroundMessageHandler();
+      // No need to call setupForegroundMessageHandler here - it's automatic in the hook now
     } else if (permission === "default" && !dismissed) {
       // Auto prompt after delay if permission not yet requested
       const timer = setTimeout(() => {
@@ -63,7 +63,7 @@ export function NotificationPermissionComponent({
       setHasPermission(true);
       setShowDialog(false);
       setShowBanner(false);
-      setupForegroundMessageHandler();
+      // No need to call setupForegroundMessageHandler here - it's automatic in the hook now
     } else {
       setShowBanner(true);
     }

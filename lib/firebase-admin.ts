@@ -59,28 +59,15 @@ export async function sendNotificationToToken(
 
     const message: admin.messaging.Message = {
       token,
-      // Top-level notification ensures payload.notification is available
-      // in both foreground (onMessage) and background handlers
-      notification: {
+      // Send data-only message with notification fields in data
+      // This prevents Firebase from auto-showing notifications on Android
+      // allowing only the service worker to display (preventing duplicates)
+      data: {
         title: notification.title,
         body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
+        imageUrl: notification.imageUrl || "/logo.png",
+        ...data,
       },
-      webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png",
-          requireInteraction: true, // Keep notification visible until user acts
-          vibrate: [200, 100, 200],
-        },
-        fcmOptions: {
-          link: data?.link || "/",
-        },
-      },
-      // Data at message top-level, NOT inside webpush
-      ...(data && { data }),
     };
 
     const response = await messaging.send(message);
@@ -107,28 +94,15 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
-      // Top-level notification ensures payload.notification is available
-      // in both foreground (onMessage) and background handlers
-      notification: {
+      // Send data-only message with notification fields in data
+      // This prevents Firebase from auto-showing notifications on Android
+      // allowing only the service worker to display (preventing duplicates)
+      data: {
         title: notification.title,
         body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
+        imageUrl: notification.imageUrl || "/logo.png",
+        ...data,
       },
-      webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png",
-          requireInteraction: true, // Keep notification visible until user acts
-          vibrate: [200, 100, 200],
-        },
-        fcmOptions: {
-          link: data?.link || "/",
-        },
-      },
-      // Data at message top-level, NOT inside webpush
-      ...(data && { data }),
     }));
 
     // Send in batches of 500 (Firebase limit)
@@ -147,9 +121,7 @@ export async function sendNotificationsToMultiple(
           batch.map((msg) =>
             messaging.send({
               token: msg.token,
-              notification: msg.notification,
-              webpush: msg.webpush,
-              ...(msg.data && { data: msg.data }),
+              data: msg.data,
             } as admin.messaging.Message)
           )
         );
@@ -243,21 +215,14 @@ export async function sendNotificationToTopic(
 
     const message = {
       topic,
-      notification: {
+      // Send data-only message with notification fields in data
+      // This prevents Firebase from auto-showing notifications on Android
+      // allowing only the service worker to display (preventing duplicates)
+      data: {
         title: notification.title,
         body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
-      webpush: {
-        notification: {
-          icon: "/logo.png",
-          badge: "/logo.png",
-          requireInteraction: false,
-        },
-        fcmOptions: {
-          link: data?.link || "/",
-        },
-        ...(data && { data }),
+        imageUrl: notification.imageUrl || "/logo.png",
+        ...data,
       },
     } as admin.messaging.Message;
 

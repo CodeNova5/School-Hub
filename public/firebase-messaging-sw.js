@@ -27,11 +27,16 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log("Received background message:", payload);
 
-    const notificationTitle = payload.notification?.title || "New Notification";
+    // Extract notification data from data-only messages
+    // (prevents duplicate notifications on Android)
+    const notificationTitle = payload.data?.title || payload.notification?.title || "New Notification";
+    const notificationBody = payload.data?.body || payload.notification?.body || "You have a new message";
+    const notificationIcon = payload.data?.imageUrl || payload.notification?.image || "/logo.png";
+
     const notificationOptions = {
-        body: payload.notification?.body || "You have a new message",
-        icon: "/logo.png", // App icon (small, always same)
-        image: payload.notification?.image, // Large image (optional, content-specific)
+        body: notificationBody,
+        icon: notificationIcon,
+        image: notificationIcon,
         badge: "/logo.png",
         tag: payload.data?.tag || "default",
         data: payload.data || {},

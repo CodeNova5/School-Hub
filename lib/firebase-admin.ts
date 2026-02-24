@@ -109,11 +109,6 @@ export async function sendNotificationsToMultiple(
       token,
       // Top-level notification ensures payload.notification is available
       // in both foreground (onMessage) and background handlers
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
       webpush: {
         notification: {
           title: notification.title,
@@ -147,7 +142,6 @@ export async function sendNotificationsToMultiple(
           batch.map((msg) =>
             messaging.send({
               token: msg.token,
-              notification: msg.notification,
               webpush: msg.webpush,
               ...(msg.data && { data: msg.data }),
             } as admin.messaging.Message)

@@ -54,7 +54,9 @@ async function logNotification(
     link?: string
 ) {
     try {
-        const { error } = await supabaseAdmin
+        console.log("📝 Attempting to log notification to database...", { sentBy, target });
+        
+        const { data, error } = await supabaseAdmin
             .from("notification_logs")
             .insert({
                 title,
@@ -74,14 +76,19 @@ async function logNotification(
             });
 
         if (error) {
-            console.error("Error logging notification:", error);
-            throw error;
+            console.error("❌ Error logging notification to database:", error);
+            console.error("Error details:", { 
+                message: error.message, 
+                code: error.code
+            });
+            return false;
         }
         
-        console.log("✅ Notification logged to database");
+        console.log("✅ Notification logged to database successfully");
+        return true;
     } catch (error) {
-        console.error("Failed to log notification:", error);
-        // Don't throw - logging failure shouldn't break the notification send
+        console.error("❌ Failed to log notification - Exception caught:", error);
+        return false;
     }
 }
 
@@ -256,7 +263,7 @@ export async function POST(request: NextRequest) {
 
         // Log notification to database
         if (userId) {
-            await logNotification(
+            const logSuccess = await logNotification(
                 title,
                 body,
                 target,
@@ -268,6 +275,11 @@ export async function POST(request: NextRequest) {
                 imageUrl,
                 link
             );
+            if (!logSuccess) {
+                console.warn("⚠️ Notification was sent but failed to log to database");
+            }
+        } else {
+            console.warn("⚠️ User ID not found - notification not logged to database");
         }
 
         // Log notification send details for debugging

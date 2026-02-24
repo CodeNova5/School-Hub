@@ -553,20 +553,6 @@ CREATE TABLE IF NOT EXISTS testimonials (
 
 CREATE INDEX IF NOT EXISTS idx_testimonials_published ON testimonials(published);
 
--- NOTIFICATIONS TABLE
-CREATE TABLE IF NOT EXISTS notifications (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  title text NOT NULL,
-  message text NOT NULL,
-  type text DEFAULT 'info',
-  read boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
-
 -- SCHOOL_SETTINGS TABLE
 CREATE TABLE IF NOT EXISTS school_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -907,7 +893,6 @@ ALTER TABLE admissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE news ENABLE ROW LEVEL SECURITY;
 ALTER TABLE testimonials ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE school_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE period_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_optional_subjects ENABLE ROW LEVEL SECURITY;
@@ -952,8 +937,6 @@ DROP POLICY IF EXISTS "Authenticated users can read news" ON news;
 DROP POLICY IF EXISTS "Admins can manage news" ON news;
 DROP POLICY IF EXISTS "Authenticated users can read testimonials" ON testimonials;
 DROP POLICY IF EXISTS "Admins can manage testimonials" ON testimonials;
-DROP POLICY IF EXISTS "Authenticated users can read notifications" ON notifications;
-DROP POLICY IF EXISTS "Admins can manage notifications" ON notifications;
 DROP POLICY IF EXISTS "Authenticated users can read school_settings" ON school_settings;
 DROP POLICY IF EXISTS "Admins can manage school_settings" ON school_settings;
 DROP POLICY IF EXISTS "Authenticated users can read period_slots" ON period_slots;
@@ -967,11 +950,7 @@ DROP POLICY IF EXISTS "Admins can manage parents" ON parents;
 DROP POLICY IF EXISTS "Authenticated users can read results_publication" ON results_publication;
 DROP POLICY IF EXISTS "Admins can manage results_publication" ON results_publication;
 DROP POLICY IF EXISTS "Admins can manage admissions" ON admissions;
--- notifications
-DROP POLICY IF EXISTS "Authenticated users can read notifications" ON notifications;
-DROP POLICY IF EXISTS "Admins can manage notifications" ON notifications;
-DROP POLICY IF EXISTS "Users can read their own notifications" ON notifications;
--- SESSIONS
+
 
 
 CREATE POLICY "Authenticated users can read sessions"
@@ -1188,18 +1167,6 @@ CREATE POLICY "Admins can manage testimonials"
   TO authenticated
   USING (has_permission('edit_testimonials') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_testimonials') OR has_permission('admin_full'));
-
--- NOTIFICATIONS
-CREATE POLICY "Users can read their own notifications"
-  ON notifications FOR SELECT
-  TO authenticated
-  USING (user_id = auth.uid());
-
-CREATE POLICY "Admins can manage all notifications"
-  ON notifications FOR ALL
-  TO authenticated
-  USING (has_permission('edit_notifications') OR has_permission('admin_full'))
-  WITH CHECK (has_permission('edit_notifications') OR has_permission('admin_full'));
 
 -- SCHOOL_SETTINGS
 CREATE POLICY "Authenticated users can read school_settings"

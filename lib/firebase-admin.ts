@@ -59,14 +59,51 @@ export async function sendNotificationToToken(
 
     const message: admin.messaging.Message = {
       token,
-      // Send data-only message with notification fields in data
-      // This prevents Firebase from auto-showing notifications on Android
-      // allowing only the service worker to display (preventing duplicates)
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
+      },
       data: {
         title: notification.title,
         body: notification.body,
         imageUrl: notification.imageUrl || "/logo.png",
         ...data,
+      },
+      webpush: {
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "/logo.png",
+          badge: "/logo.png",
+          tag: "notification",
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
+      },
+      android: {
+        priority: "high",
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: "ic_launcher",
+          sound: "default",
+          channelId: "default",
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: {
+              title: notification.title,
+              body: notification.body,
+            },
+            sound: "default",
+            badge: 1,
+          },
+        },
       },
     };
 
@@ -94,14 +131,51 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
-      // Send data-only message with notification fields in data
-      // This prevents Firebase from auto-showing notifications on Android
-      // allowing only the service worker to display (preventing duplicates)
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
+      },
       data: {
         title: notification.title,
         body: notification.body,
         imageUrl: notification.imageUrl || "/logo.png",
         ...data,
+      },
+      webpush: {
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "/logo.png",
+          badge: "/logo.png",
+          tag: "notification",
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
+      },
+      android: {
+        priority: "high",
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: "ic_launcher",
+          sound: "default",
+          chanelId: "default",
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: {
+              title: notification.title,
+              body: notification.body,
+            },
+            sound: "default",
+            badge: 1,
+          },
+        },
       },
     }));
 
@@ -119,10 +193,7 @@ export async function sendNotificationsToMultiple(
       try {
         const results = await Promise.allSettled(
           batch.map((msg) =>
-            messaging.send({
-              token: msg.token,
-              data: msg.data,
-            } as admin.messaging.Message)
+            messaging.send(msg as admin.messaging.Message)
           )
         );
 
@@ -215,14 +286,51 @@ export async function sendNotificationToTopic(
 
     const message = {
       topic,
-      // Send data-only message with notification fields in data
-      // This prevents Firebase from auto-showing notifications on Android
-      // allowing only the service worker to display (preventing duplicates)
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
+      },
       data: {
         title: notification.title,
         body: notification.body,
         imageUrl: notification.imageUrl || "/logo.png",
         ...data,
+      },
+      webpush: {
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "/logo.png",
+          badge: "/logo.png",
+          tag: "notification",
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
+      },
+      android: {
+        priority: "high",
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: "ic_launcher",
+          sound: "default",
+          chanelId: "default",
+        },
+      },
+      apns: {
+        payload: {
+          aps: {
+            alert: {
+              title: notification.title,
+              body: notification.body,
+            },
+            sound: "default",
+            badge: 1,
+          },
+        },
       },
     } as admin.messaging.Message;
 

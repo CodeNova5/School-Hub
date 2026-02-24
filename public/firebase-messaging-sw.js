@@ -27,11 +27,24 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log("Received background message:", payload);
 
-    // Extract notification data from data-only messages
-    // (prevents duplicate notifications on Android)
-    const notificationTitle = payload.data?.title || payload.notification?.title || "New Notification";
-    const notificationBody = payload.data?.body || payload.notification?.body || "You have a new message";
-    const notificationIcon = payload.data?.imageUrl || payload.notification?.image || "/logo.png";
+    // Extract notification data from both notification and data fields
+    // Firebase sends notifications in the notification field for proper delivery
+    // and also includes them in data for fallback handling
+    const notificationTitle = 
+      payload.notification?.title || 
+      payload.data?.title || 
+      "New Notification";
+    
+    const notificationBody = 
+      payload.notification?.body || 
+      payload.data?.body || 
+      "You have a new message";
+    
+    const notificationIcon = 
+      payload.notification?.imageUrl ||
+      payload.notification?.image ||
+      payload.data?.imageUrl || 
+      "/logo.png";
 
     const notificationOptions = {
         body: notificationBody,
@@ -52,6 +65,7 @@ messaging.onBackgroundMessage((payload) => {
         ],
     };
 
+    console.log(`Showing notification: "${notificationTitle}" - "${notificationBody}"`);
     self.registration.showNotification(notificationTitle, notificationOptions);
 });
 

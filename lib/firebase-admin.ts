@@ -57,15 +57,10 @@ export async function sendNotificationToToken(
   try {
     const messaging = getAdminMessaging();
 
+    // Use webpush only to avoid duplicate notifications
+    // Top-level notification + webpush notification causes duplicates
     const message: admin.messaging.Message = {
       token,
-      // Top-level notification ensures payload.notification is available
-      // in both foreground (onMessage) and background handlers
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
       webpush: {
         notification: {
           title: notification.title,
@@ -79,7 +74,7 @@ export async function sendNotificationToToken(
           link: data?.link || "/",
         },
       },
-      // Data at message top-level, NOT inside webpush
+      // Data at message top-level for foreground access via payload.data
       ...(data && { data }),
     };
 
@@ -107,8 +102,6 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
-      // Top-level notification ensures payload.notification is available
-      // in both foreground (onMessage) and background handlers
       webpush: {
         notification: {
           title: notification.title,
@@ -122,7 +115,7 @@ export async function sendNotificationsToMultiple(
           link: data?.link || "/",
         },
       },
-      // Data at message top-level, NOT inside webpush
+      // Data at message top-level for foreground access via payload.data
       ...(data && { data }),
     }));
 
@@ -235,24 +228,23 @@ export async function sendNotificationToTopic(
   try {
     const messaging = getAdminMessaging();
 
+    // Use webpush only to avoid duplicate notifications
     const message = {
       topic,
-      notification: {
-        title: notification.title,
-        body: notification.body,
-        ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
       webpush: {
         notification: {
-          icon: "/logo.png",
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "/logo.png",
           badge: "/logo.png",
           requireInteraction: false,
         },
         fcmOptions: {
           link: data?.link || "/",
         },
-        ...(data && { data }),
       },
+      // Data at message top-level for foreground access via payload.data
+      ...(data && { data }),
     } as admin.messaging.Message;
 
     const response = await messaging.send(message);

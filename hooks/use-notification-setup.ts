@@ -95,8 +95,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       onMessage(messaging, (payload) => {
         console.log("✓ Foreground message received:", payload);
 
-        // Get notification details from payload.notification (top-level)
-        // or fall back to payload.data fields
+        // Firebase webpush puts notification data in payload.notification
+        // Data fields are in payload.data
         const title =
           payload.notification?.title ||
           payload.data?.title ||
@@ -107,6 +107,7 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
           "New notification";
         const icon =
           payload.notification?.image ||
+          payload.data?.imageUrl ||
           payload.data?.icon ||
           "/logo.png";
 
@@ -114,12 +115,16 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
           body,
           icon,
           badge: "/logo.png",
-          tag: payload.data?.tag || "default",
+          tag: payload.data?.tag || "notification",
           data: payload.data || {},
           requireInteraction: true, // Keep notification visible until user interacts
         };
 
-        new Notification(title, notificationOptions);
+        // Show notification to user
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification(title, notificationOptions);
+          console.log("✓ Foreground notification displayed:", title);
+        }
       });
       
       console.log("✓ Foreground message handler setup successful");
@@ -132,8 +137,31 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   useEffect(() => {
     if (permission === "granted") {
       setupForegroundMessageHandler();
+      setupNotificationClickHandler();
     }
   }, [permission]);
+
+  // Setup notification click handler for foreground notifications
+  const setupNotificationClickHandler = () => {
+    // This just needs to run once globally
+    if (typeof window !== "undefined" && "Notification" in window) {
+      // Remove old listener and add new one to avoid duplicates
+      if ((window as any).notificationClickHandlerActive) {
+        return;
+      }
+      (window as any).notificationClickHandlerActive = true;
+
+      // Listen for notification clicks
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          if (event.data && event.data.type === "NOTIFICATION_CLICK") {
+            const link = event.data.link || "/";
+            window.open(link, "_self");
+          }
+        });
+      }
+    }
+  };
 
   // Save token to Supabase
   const saveTokenToSupabase = async (

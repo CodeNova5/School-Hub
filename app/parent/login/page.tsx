@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff, Loader2, Users, Mail, Lock, X } from "lucide-react";
+import { PortalSwitcher } from "@/components/portal-switcher";
 
 export default function ParentLoginPage() {
   const router = useRouter();
@@ -198,10 +199,15 @@ export default function ParentLoginPage() {
             </form>
 
             {/* Footer */}
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Need an account? Contact your school administrator
-              </p>
+            <div className="mt-6 space-y-6 border-t pt-6">
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  Need an account? Contact your school administrator
+                </p>
+              </div>
+
+              {/* Portal Switcher */}
+              <PortalSwitcher currentPortal="parent" />
             </div>
           </CardContent>
         </Card>

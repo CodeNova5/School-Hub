@@ -41,6 +41,29 @@ export async function middleware(req: NextRequest) {
     },
   ];
 
+  // Handle root path - redirect authenticated users to their dashboard
+  if (pathname === "/") {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session) {
+      // Get user metadata to determine their role
+      const userRole = session.user?.user_metadata?.role;
+      const config = routeConfigs.find((cfg) => cfg.rpc.includes(userRole));
+      
+      if (config) {
+        // Verify they still have access
+        const { data: canAccess } = await supabase.rpc(config.rpc);
+        if (canAccess) {
+          return NextResponse.redirect(new URL(config.dashboard, req.url));
+        }
+      }
+    }
+    
+    return res;
+  }
+
   // Find which config matches
   const config = routeConfigs.find((cfg) => pathname.startsWith(cfg.prefix));
   if (!config) {

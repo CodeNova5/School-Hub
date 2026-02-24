@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Lock, Mail, Eye, EyeOff, BookOpen, Loader2, X } from "lucide-react";
+import { PortalSwitcher } from "@/components/portal-switcher";
 
 export default function StudentLoginPage() {
   const router = useRouter();
@@ -209,10 +210,15 @@ export default function StudentLoginPage() {
             </form>
 
             {/* Footer */}
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Having trouble? Contact your administrator
-              </p>
+            <div className="mt-6 space-y-6 border-t pt-6">
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  Having trouble? Contact your administrator
+                </p>
+              </div>
+
+              {/* Portal Switcher */}
+              <PortalSwitcher currentPortal="student" />
             </div>
           </CardContent>
         </Card>

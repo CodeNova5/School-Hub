@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Lock, Mail, Eye, EyeOff, BookOpen, Loader2, X } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, Award, Loader2, X } from "lucide-react";
+import { PortalSwitcher } from "@/components/portal-switcher";
 
 export default function TeacherLoginPage() {
   const router = useRouter();
@@ -119,7 +120,7 @@ export default function TeacherLoginPage() {
           <CardHeader className="text-center pb-6">
             <div className="flex justify-center mb-4">
               <div className="p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl">
-                <BookOpen className="w-8 h-8 text-white" />
+                <Award className="w-8 h-8 text-white" />
               </div>
             </div>
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -204,10 +205,15 @@ export default function TeacherLoginPage() {
             </form>
 
             {/* Footer */}
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Having trouble? Contact your administrator
-              </p>
+            <div className="mt-6 space-y-6 border-t pt-6">
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  Having trouble? Contact your administrator
+                </p>
+              </div>
+
+              {/* Portal Switcher */}
+              <PortalSwitcher currentPortal="teacher" />
             </div>
           </CardContent>
         </Card>

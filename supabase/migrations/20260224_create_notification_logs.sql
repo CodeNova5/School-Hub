@@ -1,0 +1,33 @@
+-- Create notification_logs table to track sent notifications
+CREATE TABLE IF NOT EXISTS public.notification_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  image_url TEXT,
+  link TEXT,
+  target TEXT NOT NULL,
+  target_value TEXT,
+  success_count INTEGER DEFAULT 0,
+  failure_count INTEGER DEFAULT 0,
+  total_recipients INTEGER DEFAULT 0,
+  sent_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+-- Create indexes for faster queries
+CREATE INDEX IF NOT EXISTS idx_notification_logs_created_at ON public.notification_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_target ON public.notification_logs(target);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_sent_by ON public.notification_logs(sent_by);
+
+-- Enable RLS (Row Level Security)
+ALTER TABLE public.notification_logs ENABLE ROW LEVEL SECURITY;
+
+-- Create policy: admin can manage all logs
+CREATE POLICY "Admins can manage all logs" ON public.notification_logs
+  FOR ALL
+  USING (
+    is_admin()
+  );
+

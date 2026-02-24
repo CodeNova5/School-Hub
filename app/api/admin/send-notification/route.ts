@@ -28,16 +28,61 @@ async function checkIsAdmin() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        return { authorized: false, error: "Unauthorized", status: 401 };
+        return { authorized: false, error: "Unauthorized", status: 401, user: null };
     }
 
     const { data: isAdmin } = await supabase.rpc("is_admin");
 
     if (!isAdmin) {
-        return { authorized: false, error: "Forbidden", status: 403 };
+        return { authorized: false, error: "Forbidden", status: 403, user: null };
     }
 
-    return { authorized: true };
+    return { authorized: true, user };
+}
+
+// Function to log notification to the database
+async function logNotification(
+    title: string,
+    body: string,
+    target: string,
+    targetValue: string | undefined,
+    successCount: number,
+    failureCount: number,
+    totalRecipients: number,
+    sentBy: string,
+    imageUrl?: string,
+    link?: string
+) {
+    try {
+        const { error } = await supabaseAdmin
+            .from("notification_logs")
+            .insert({
+                title,
+                body,
+                image_url: imageUrl,
+                link,
+                target,
+                target_value: targetValue,
+                success_count: successCount,
+                failure_count: failureCount,
+                total_recipients: totalRecipients,
+                sent_by: sentBy,
+                metadata: {
+                    success_rate: totalRecipients > 0 ? ((successCount / totalRecipients) * 100).toFixed(1) : 0,
+                    timestamp: new Date().toISOString()
+                }
+            });
+
+        if (error) {
+            console.error("Error logging notification:", error);
+            throw error;
+        }
+        
+        console.log("✅ Notification logged to database");
+    } catch (error) {
+        console.error("Failed to log notification:", error);
+        // Don't throw - logging failure shouldn't break the notification send
+    }
 }
 
 export async function POST(request: NextRequest) {
@@ -50,6 +95,8 @@ export async function POST(request: NextRequest) {
                 { status: authCheck.status || 401 }
             );
         }
+
+        const userId = authCheck.user?.id;
 
         const { title, body, imageUrl, link, target, targetValue, data: customData } =
             await request.json();
@@ -205,6 +252,22 @@ export async function POST(request: NextRequest) {
             for (const token of result.failedTokens) {
                 await deactivateToken(token);
             }
+        }
+
+        // Log notification to database
+        if (userId) {
+            await logNotification(
+                title,
+                body,
+                target,
+                targetValue,
+                result.successCount,
+                result.failureCount,
+                tokensList.length,
+                userId,
+                imageUrl,
+                link
+            );
         }
 
         // Log notification send details for debugging

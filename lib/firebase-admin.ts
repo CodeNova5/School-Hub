@@ -59,16 +59,12 @@ export async function sendNotificationToToken(
 
     const message: admin.messaging.Message = {
       token,
+      // Top-level notification ensures payload.notification is available
+      // in both foreground (onMessage) and background handlers
       notification: {
         title: notification.title,
         body: notification.body,
         ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
-      data: {
-        title: notification.title,
-        body: notification.body,
-        imageUrl: notification.imageUrl || "/logo.png",
-        ...data,
       },
       webpush: {
         notification: {
@@ -76,35 +72,15 @@ export async function sendNotificationToToken(
           body: notification.body,
           icon: notification.imageUrl || "/logo.png",
           badge: "/logo.png",
-          tag: "notification",
-          requireInteraction: false,
+          requireInteraction: true, // Keep notification visible until user acts
+          vibrate: [200, 100, 200],
         },
         fcmOptions: {
           link: data?.link || "/",
         },
       },
-      android: {
-        priority: "high",
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: "ic_launcher",
-          sound: "default",
-          channelId: "default",
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: {
-              title: notification.title,
-              body: notification.body,
-            },
-            sound: "default",
-            badge: 1,
-          },
-        },
-      },
+      // Data at message top-level, NOT inside webpush
+      ...(data && { data }),
     };
 
     const response = await messaging.send(message);
@@ -131,16 +107,12 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
+      // Top-level notification ensures payload.notification is available
+      // in both foreground (onMessage) and background handlers
       notification: {
         title: notification.title,
         body: notification.body,
         ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
-      },
-      data: {
-        title: notification.title,
-        body: notification.body,
-        imageUrl: notification.imageUrl || "/logo.png",
-        ...data,
       },
       webpush: {
         notification: {
@@ -148,35 +120,15 @@ export async function sendNotificationsToMultiple(
           body: notification.body,
           icon: notification.imageUrl || "/logo.png",
           badge: "/logo.png",
-          tag: "notification",
-          requireInteraction: false,
+          requireInteraction: true, // Keep notification visible until user acts
+          vibrate: [200, 100, 200],
         },
         fcmOptions: {
           link: data?.link || "/",
         },
       },
-      android: {
-        priority: "high",
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: "ic_launcher",
-          sound: "default",
-          chanelId: "default",
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: {
-              title: notification.title,
-              body: notification.body,
-            },
-            sound: "default",
-            badge: 1,
-          },
-        },
-      },
+      // Data at message top-level, NOT inside webpush
+      ...(data && { data }),
     }));
 
     // Send in batches of 500 (Firebase limit)
@@ -196,10 +148,8 @@ export async function sendNotificationsToMultiple(
             messaging.send({
               token: msg.token,
               notification: msg.notification,
-              data: msg.data,
               webpush: msg.webpush,
-              android: msg.android,
-              apns: msg.apns,
+              ...(msg.data && { data: msg.data }),
             } as admin.messaging.Message)
           )
         );
@@ -298,46 +248,16 @@ export async function sendNotificationToTopic(
         body: notification.body,
         ...(notification.imageUrl && { imageUrl: notification.imageUrl }),
       },
-      data: {
-        title: notification.title,
-        body: notification.body,
-        imageUrl: notification.imageUrl || "/logo.png",
-        ...data,
-      },
       webpush: {
         notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "/logo.png",
+          icon: "/logo.png",
           badge: "/logo.png",
-          tag: "notification",
           requireInteraction: false,
         },
         fcmOptions: {
           link: data?.link || "/",
         },
-      },
-      android: {
-        priority: "high",
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: "ic_launcher",
-          sound: "default",
-          chanelId: "default",
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: {
-              title: notification.title,
-              body: notification.body,
-            },
-            sound: "default",
-            badge: 1,
-          },
-        },
+        ...(data && { data }),
       },
     } as admin.messaging.Message;
 

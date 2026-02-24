@@ -95,18 +95,19 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       onMessage(messaging, (payload) => {
         console.log("✓ Foreground message received:", payload);
 
-        // Get notification details from payload.data (data-only messages)
+        // Get notification details from payload.notification (top-level)
+        // or fall back to payload.data fields
         const title =
-          payload.data?.title ||
           payload.notification?.title ||
+          payload.data?.title ||
           "Notification";
         const body =
-          payload.data?.body ||
           payload.notification?.body ||
+          payload.data?.body ||
           "New notification";
         const icon =
-          payload.data?.imageUrl ||
           payload.notification?.image ||
+          payload.data?.icon ||
           "/logo.png";
 
         const notificationOptions: NotificationOptions = {

@@ -193,7 +193,14 @@ export async function sendNotificationsToMultiple(
       try {
         const results = await Promise.allSettled(
           batch.map((msg) =>
-            messaging.send(msg as admin.messaging.Message)
+            messaging.send({
+              token: msg.token,
+              notification: msg.notification,
+              data: msg.data,
+              webpush: msg.webpush,
+              android: msg.android,
+              apns: msg.apns,
+            } as admin.messaging.Message)
           )
         );
 

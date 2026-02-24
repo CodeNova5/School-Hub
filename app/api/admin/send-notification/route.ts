@@ -68,11 +68,7 @@ async function logNotification(
                 success_count: successCount,
                 failure_count: failureCount,
                 total_recipients: totalRecipients,
-                sent_by: sentBy,
-                metadata: {
-                    success_rate: totalRecipients > 0 ? ((successCount / totalRecipients) * 100).toFixed(1) : 0,
-                    timestamp: new Date().toISOString()
-                }
+                sent_by: sentBy
             });
 
         if (error) {

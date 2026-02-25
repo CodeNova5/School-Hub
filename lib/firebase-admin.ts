@@ -1,29 +1,5 @@
 import admin from "firebase-admin";
-import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // MUST be service role key
-);
-
-async function cleanupInvalidTokens(tokens: string[]) {
-  if (!tokens.length) return;
-
-  try {
-    const { error } = await supabase
-      .from("notification_tokens")
-      .delete()
-      .in("token", tokens);
-
-    if (error) {
-      console.error("Failed to cleanup invalid tokens:", error);
-    } else {
-      console.log(`🧹 Cleaned up ${tokens.length} invalid tokens`);
-    }
-  } catch (err) {
-    console.error("Error during token cleanup:", err);
-  }
-}
 // Initialize Firebase Admin SDK
 let adminApp: admin.app.App;
 
@@ -177,9 +153,9 @@ export async function sendNotificationsToMultiple(
 
             // Check for invalid token errors
             if (
-              errorCode.includes("registration-token-not-registered") ||
-              errorCode.includes("invalid-registration-token") ||
               errorCode.includes("invalid-argument") ||
+              errorCode.includes("authentication-error") ||
+              errorMsg.includes("Invalid registration token") ||
               errorMsg.includes("not a valid registration token")
             ) {
               invalidTokens.push(token);
@@ -204,11 +180,6 @@ export async function sendNotificationsToMultiple(
       console.warn(`⚠ Notification delivery summary: ${successCount} sent, ${failureCount} failed (${invalidTokens.length} invalid tokens)`);
     } else {
       console.log(`✓ All ${successCount} notifications sent successfully!`);
-    }
-
-    // After all batches complete
-    if (invalidTokens.length > 0) {
-      await cleanupInvalidTokens(invalidTokens);
     }
 
     return {

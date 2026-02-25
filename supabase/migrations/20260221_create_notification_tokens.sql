@@ -19,6 +19,8 @@ create index if not exists idx_notification_tokens_token on public.notification_
 
 -- Create index on is_active for filtering active tokens
 create index if not exists idx_notification_tokens_is_active on public.notification_tokens(is_active);
+CREATE UNIQUE INDEX notification_tokens_token_key
+ON notification_tokens (token);
 
 -- Create unique constraint to prevent duplicate tokens per user (optional but recommended)
 -- Uncomment if you want to prevent same token from being registered twice per user

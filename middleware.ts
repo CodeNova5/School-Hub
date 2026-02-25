@@ -97,12 +97,6 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(redirectUrl);
       }
     }
-    // Set lastPortal cookie if not already set
-    if (!req.cookies.get("lastPortal")?.value) {
-      const resWithCookie = NextResponse.next();
-      resWithCookie.cookies.set("lastPortal", config.prefix.slice(1), { path: "/", maxAge: 60 * 60 * 24 * 30 });
-      return resWithCookie;
-    }
     return res;
   }
 
@@ -112,43 +106,22 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getSession();
 
   if (!session) {
-    // Try to get lastPortal from cookie
-    const lastPortal = req.cookies.get("lastPortal")?.value;
-    let loginPath = config.login;
-    if (lastPortal) {
-      const lastConfig = routeConfigs.find((cfg) => cfg.prefix.slice(1) === lastPortal);
-      if (lastConfig) {
-        loginPath = lastConfig.login;
-      }
-    }
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = loginPath;
+    redirectUrl.pathname = config.login;
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
   const { data: canAccess, error } = await supabase.rpc(config.rpc);
   if (error || !canAccess) {
-    // Try to get lastPortal from cookie
-    const lastPortal = req.cookies.get("lastPortal")?.value;
-    let loginPath = config.login;
-    if (lastPortal) {
-      const lastConfig = routeConfigs.find((cfg) => cfg.prefix.slice(1) === lastPortal);
-      if (lastConfig) {
-        loginPath = lastConfig.login;
-      }
-    }
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = loginPath;
+    redirectUrl.pathname = config.login;
     redirectUrl.searchParams.set("error", "unauthorized");
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Set lastPortal cookie for successful access
-  const resWithCookie = NextResponse.next();
-  resWithCookie.cookies.set("lastPortal", config.prefix.slice(1), { path: "/", maxAge: 60 * 60 * 24 * 30 });
-  return resWithCookie;
+  return res;
 }
 
 export const config = {

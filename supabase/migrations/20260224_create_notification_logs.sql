@@ -43,46 +43,9 @@ CREATE POLICY "Admins can manage all logs" ON public.notification_logs
   (has_permission('admin_full'::text))
 );
 
--- Create policy: Students can view notifications sent to all or to student role
-CREATE POLICY "Students can view their notifications" ON public.notification_logs
-  FOR SELECT
-  USING (
-    (
-      SELECT role FROM public.users 
-      WHERE users.id = auth.uid()
-    ) = 'student'
-    AND (
-      target = 'all' 
-      OR (target = 'role' AND target_value = 'student')
-    )
-  );
 
--- Create policy: Teachers can view notifications sent to all or to teacher role
-CREATE POLICY "Teachers can view their notifications" ON public.notification_logs
-  FOR SELECT
-  USING (
-    (
-      SELECT role FROM public.users 
-      WHERE users.id = auth.uid()
-    ) = 'teacher'
-    AND (
-      target = 'all' 
-      OR (target = 'role' AND target_value = 'teacher')
-    )
-  );
-
--- Create policy: Parents can view notifications sent to all or to parent role
-CREATE POLICY "Parents can view their notifications" ON public.notification_logs
-  FOR SELECT
-  USING (
-    (
-      SELECT role FROM public.users 
-      WHERE users.id = auth.uid()
-    ) = 'parent'
-    AND (
-      target = 'all' 
-      OR (target = 'role' AND target_value = 'parent')
-    )
-  );
-
-
+CREATE POLICY "Authenticated users can view logs"
+ON public.notification_logs
+FOR SELECT
+TO authenticated
+USING ( TRUE );

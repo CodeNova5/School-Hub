@@ -126,9 +126,9 @@ export default function HomePage() {
               const Icon = portal.icon;
               return (
                 <Link href={portal.loginUrl} key={portal.id}>
-                  <Card className="h-full bg-slate-800/50 border-slate-700/50 hover:border-slate-600/50 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer group overflow-hidden">
+                  <Card className="relative h-full bg-slate-800/50 border-slate-700/50 hover:border-slate-600/50 hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 cursor-pointer group overflow-hidden">
                     {/* Gradient background on hover */}
-                    <div className={`absolute inset-0 bg-gradient-to-br ${portal.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}></div>
+                    <div className={`absolute inset-0 pointer-events-none bg-gradient-to-br ${portal.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`}></div>
 
                     <CardHeader className="relative pb-3">
                       <div className="flex items-start justify-between mb-3">

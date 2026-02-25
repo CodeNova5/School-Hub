@@ -31,24 +31,13 @@ messaging.onBackgroundMessage((payload) => {
     // (prevents duplicate notifications on Android)
     const notificationTitle = payload.data?.title || payload.notification?.title || "New Notification";
     const notificationBody = payload.data?.body || payload.notification?.body || "You have a new message";
-    const notificationIcon = "https://emojiisland.com/cdn/shop/products/Upside-Down_Face_Emoji_4dbbbd80-eb60-4c91-9642-83368692e361_large.png";
+    const notificationIcon = "https://school-hub-sooty.vercel.app/logo.png";
 
     const notificationOptions = {
         body: notificationBody,
-        icon: notificationIcon,
-        badge: "https://emojiisland.com/cdn/shop/products/Upside-Down_Face_Emoji_4dbbbd80-eb60-4c91-9642-83368692e361_large.png",
+        badge: "https://school-hub-sooty.vercel.app/logo.png",
         tag: payload.data?.tag || "default",
         data: payload.data || {},
-        actions: [
-            {
-                action: "open",
-                title: "Open",
-            },
-            {
-                action: "close",
-                title: "Close",
-            },
-        ],
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);
@@ -58,11 +47,7 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener("notificationclick", (event) => {
     event.notification.close();
 
-    if (event.action === "close") {
-        return;
-    }
-
-    const urlToOpen = event.notification.data?.link || "/";
+    const urlToOpen = event.notification.data?.link || "https://school-hub-sooty.vercel.app/";
 
     event.waitUntil(
         clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

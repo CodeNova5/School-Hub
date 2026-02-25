@@ -62,9 +62,9 @@ export async function sendNotificationToToken(
       data: {
         title: notification.title,
         body: notification.body,
-        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo-192.png",
-        badge: "https://school-hub-sooty.vercel.app/logo-192.png",
-        link: data?.link || "/",
+        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+        badge: "https://school-hub-sooty.vercel.app/logo.png",
+        link: data?.link || "https://school-hub-sooty.vercel.app/",
         ...data, // merge extra custom data
       },
     };
@@ -97,9 +97,9 @@ export async function sendNotificationsToMultiple(
       data: {
         title: notification.title,
         body: notification.body,
-        badge: "https://school-hub-sooty.vercel.app/logo-192.png",
-        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo-192.png",
-        link: data?.link || "/",
+        badge: "https://school-hub-sooty.vercel.app/logo.png",
+        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+        link: data?.link || "https://school-hub-sooty.vercel.app/",
         ...data,
       },
     }));

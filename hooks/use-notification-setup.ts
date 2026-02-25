@@ -205,51 +205,37 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
 
   // Save token to Supabase
   const saveTokenToSupabase = async (
-    fcmToken: string,
-    userId: string,
-    role?: string
-  ) => {
-    try {
-      // First check if token already exists
-      const { data: existingToken } = await supabase
-        .from("notification_tokens")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("token", fcmToken)
-        .single();
-
-      if (existingToken) {
-        // Update last_registered_at
-        await supabase
-          .from("notification_tokens")
-          .update({
-            last_registered_at: new Date().toISOString(),
-            is_active: true,
-          })
-          .eq("id", existingToken.id);
-        console.log("✓ Token updated in Supabase");
-      } else {
-        // Insert new token
-        const { error } = await supabase.from("notification_tokens").insert({
-          user_id: userId,
+  fcmToken: string,
+  userId: string,
+  role?: string
+) => {
+  try {
+    const { error } = await supabase
+      .from("notification_tokens")
+      .upsert(
+        {
           token: fcmToken,
+          user_id: userId,
           role: role || "user",
           device_type: getDeviceType(),
           is_active: true,
-          created_at: new Date().toISOString(),
           last_registered_at: new Date().toISOString(),
-        });
-
-        if (error) {
-          console.error("Error saving token to Supabase:", error);
-        } else {
-          console.log("✓ Token saved to Supabase");
+        },
+        {
+          onConflict: "token",
         }
-      }
-    } catch (err) {
-      console.error("Error saving token to Supabase:", err);
+      );
+
+    if (error) {
+      console.error("Error upserting token:", error);
+    } else {
+      console.log("✓ Token upserted successfully");
     }
-  };
+  } catch (err) {
+    console.error("Error saving token to Supabase:", err);
+  }
+};
+
 
   // Get device type
   const getDeviceType = () => {

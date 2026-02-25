@@ -31,12 +31,11 @@ messaging.onBackgroundMessage((payload) => {
     // (prevents duplicate notifications on Android)
     const notificationTitle = payload.data?.title || payload.notification?.title || "New Notification";
     const notificationBody = payload.data?.body || payload.notification?.body || "You have a new message";
-    const notificationIcon = payload.data?.imageUrl || payload.notification?.image || "/logo.png";
+    const notificationIcon = "/logo.png";
 
     const notificationOptions = {
         body: notificationBody,
         icon: notificationIcon,
-        image: notificationIcon,
         badge: "/logo.png",
         tag: payload.data?.tag || "default",
         data: payload.data || {},

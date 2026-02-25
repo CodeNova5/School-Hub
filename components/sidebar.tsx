@@ -105,6 +105,7 @@ export function Sidebar({
 
   const teacherNav: NavItem[] = [
     { href: "/teacher", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: "/teacher/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     ...(hasAssignedClasses
       ? [{ href: "/teacher/classes", label: "Class", icon: <School className="h-5 w-5" /> }]
       : []),
@@ -119,6 +120,7 @@ export function Sidebar({
 
   const studentNav: NavItem[] = [
     { href: "/student", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: "/student/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/student/timetable", label: "Timetable", icon: <Calendar className="h-5 w-5" /> },
     { href: "/student/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
     { href: "/student/results", label: "Results", icon: <GraduationCap className="h-5 w-5" /> },
@@ -130,6 +132,7 @@ export function Sidebar({
 
   const parentNav: NavItem[] = [
     { href: "/parent", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: "/parent/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/parent/children", label: "My Children", icon: <Users className="h-5 w-5" /> },
     { href: "/parent/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
     { href: "/parent/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> },

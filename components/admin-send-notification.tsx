@@ -298,137 +298,121 @@ export function AdminSendNotificationComponent() {
             Link (Optional)
           </label>
           <div className="space-y-2">
-            <Select value={payload.link || ""} onValueChange={(value) => 
-              setPayload({ ...payload, link: value })
-            }>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a destination page" />
-              </SelectTrigger>
-              <SelectContent className="w-full max-h-96">
-                {/* All Users Links */}
-                {payload.target === "all" && (
-                  <>
-                    <SelectGroup>
-                      <SelectLabel className="text-xs font-bold text-slate-500">For Students</SelectLabel>
-                      <SelectItem value="/student">📊 Student Dashboard</SelectItem>
-                      <SelectItem value="/student/timetable">📅 Timetable</SelectItem>
-                      <SelectItem value="/student/subjects">📚 Subjects</SelectItem>
-                      <SelectItem value="/student/results">⭐ Results</SelectItem>
-                      <SelectItem value="/student/assignments">📝 Assignments</SelectItem>
-                      <SelectItem value="/student/attendance">✓ Attendance</SelectItem>
-                      <SelectItem value="/student/calendar">📆 Calendar</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel className="text-xs font-bold text-slate-500">For Teachers</SelectLabel>
-                      <SelectItem value="/teacher">📊 Teacher Dashboard</SelectItem>
-                      <SelectItem value="/teacher/classes">🏫 Classes</SelectItem>
-                      <SelectItem value="/teacher/students">👥 Students</SelectItem>
-                      <SelectItem value="/teacher/subjects">📚 Subjects</SelectItem>
-                      <SelectItem value="/teacher/results">⭐ Results</SelectItem>
-                      <SelectItem value="/teacher/assignments">📝 Assignments</SelectItem>
-                      <SelectItem value="/teacher/timetable">📅 Timetable</SelectItem>
-                      <SelectItem value="/teacher/calendar">📆 Calendar</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel className="text-xs font-bold text-slate-500">For Parents</SelectLabel>
-                      <SelectItem value="/parent">📊 Parent Dashboard</SelectItem>
-                      <SelectItem value="/parent/children">👨‍👩‍👧 My Children</SelectItem>
-                      <SelectItem value="/parent/calendar">📆 Calendar</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel className="text-xs font-bold text-slate-500">For Admins</SelectLabel>
-                      <SelectItem value="/admin">📊 Admin Dashboard</SelectItem>
-                      <SelectItem value="/admin/students">👥 Students</SelectItem>
-                      <SelectItem value="/admin/teachers">🎓 Teachers</SelectItem>
-                      <SelectItem value="/admin/classes">🏫 Classes</SelectItem>
-                      <SelectItem value="/admin/notifications">🔔 Notifications</SelectItem>
-                    </SelectGroup>
-                  </>
-                )}
+            {payload.target === "all" ? (
+              <>
+                <Select value={payload.link || "/"} onValueChange={(value) => 
+                  setPayload({ ...payload, link: value })
+                }>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select destination" />
+                  </SelectTrigger>
+                  <SelectContent className="w-full">
+                    <SelectItem value="/">🏠 Home (Root)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Or enter custom URL (e.g., https://...)"
+                  value={payload.link && payload.link !== "/" && payload.link !== "" ? payload.link : ""}
+                  onChange={(e) => setPayload({ ...payload, link: e.target.value })}
+                  className="text-xs"
+                />
+              </>
+            ) : (
+              <>
+                <Select value={payload.link || ""} onValueChange={(value) => 
+                  setPayload({ ...payload, link: value })
+                }>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a destination page" />
+                  </SelectTrigger>
+                  <SelectContent className="w-full max-h-96">
+                    {/* Student Role */}
+                    {payload.target === "role" && payload.targetValue === "student" && (
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-slate-500">Student Pages</SelectLabel>
+                        <SelectItem value="/student">📊 Dashboard</SelectItem>
+                        <SelectItem value="/student/timetable">📅 Timetable</SelectItem>
+                        <SelectItem value="/student/subjects">📚 Subjects</SelectItem>
+                        <SelectItem value="/student/results">⭐ Results</SelectItem>
+                        <SelectItem value="/student/assignments">📝 Assignments</SelectItem>
+                        <SelectItem value="/student/attendance">✓ Attendance</SelectItem>
+                        <SelectItem value="/student/calendar">📆 Calendar</SelectItem>
+                      </SelectGroup>
+                    )}
 
-                {/* Student Role */}
-                {payload.target === "role" && payload.targetValue === "student" && (
-                  <SelectGroup>
-                    <SelectLabel className="text-xs font-bold text-slate-500">Student Pages</SelectLabel>
-                    <SelectItem value="/student">📊 Dashboard</SelectItem>
-                    <SelectItem value="/student/timetable">📅 Timetable</SelectItem>
-                    <SelectItem value="/student/subjects">📚 Subjects</SelectItem>
-                    <SelectItem value="/student/results">⭐ Results</SelectItem>
-                    <SelectItem value="/student/assignments">📝 Assignments</SelectItem>
-                    <SelectItem value="/student/attendance">✓ Attendance</SelectItem>
-                    <SelectItem value="/student/calendar">📆 Calendar</SelectItem>
-                  </SelectGroup>
-                )}
+                    {/* Teacher Role */}
+                    {payload.target === "role" && payload.targetValue === "teacher" && (
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-slate-500">Teacher Pages</SelectLabel>
+                        <SelectItem value="/teacher">📊 Dashboard</SelectItem>
+                        <SelectItem value="/teacher/classes">🏫 Classes</SelectItem>
+                        <SelectItem value="/teacher/students">👥 Students</SelectItem>
+                        <SelectItem value="/teacher/subjects">📚 Subjects</SelectItem>
+                        <SelectItem value="/teacher/results">⭐ Results</SelectItem>
+                        <SelectItem value="/teacher/assignments">📝 Assignments</SelectItem>
+                        <SelectItem value="/teacher/timetable">📅 Timetable</SelectItem>
+                        <SelectItem value="/teacher/calendar">📆 Calendar</SelectItem>
+                      </SelectGroup>
+                    )}
 
-                {/* Teacher Role */}
-                {payload.target === "role" && payload.targetValue === "teacher" && (
-                  <SelectGroup>
-                    <SelectLabel className="text-xs font-bold text-slate-500">Teacher Pages</SelectLabel>
-                    <SelectItem value="/teacher">📊 Dashboard</SelectItem>
-                    <SelectItem value="/teacher/classes">🏫 Classes</SelectItem>
-                    <SelectItem value="/teacher/students">👥 Students</SelectItem>
-                    <SelectItem value="/teacher/subjects">📚 Subjects</SelectItem>
-                    <SelectItem value="/teacher/results">⭐ Results</SelectItem>
-                    <SelectItem value="/teacher/assignments">📝 Assignments</SelectItem>
-                    <SelectItem value="/teacher/timetable">📅 Timetable</SelectItem>
-                    <SelectItem value="/teacher/calendar">📆 Calendar</SelectItem>
-                  </SelectGroup>
-                )}
+                    {/* Parent Role */}
+                    {payload.target === "role" && payload.targetValue === "parent" && (
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-slate-500">Parent Pages</SelectLabel>
+                        <SelectItem value="/parent">📊 Dashboard</SelectItem>
+                        <SelectItem value="/parent/children">👨‍👩‍👧 My Children</SelectItem>
+                        <SelectItem value="/parent/calendar">📆 Calendar</SelectItem>
+                      </SelectGroup>
+                    )}
 
-                {/* Parent Role */}
-                {payload.target === "role" && payload.targetValue === "parent" && (
-                  <SelectGroup>
-                    <SelectLabel className="text-xs font-bold text-slate-500">Parent Pages</SelectLabel>
-                    <SelectItem value="/parent">📊 Dashboard</SelectItem>
-                    <SelectItem value="/parent/children">👨‍👩‍👧 My Children</SelectItem>
-                    <SelectItem value="/parent/calendar">📆 Calendar</SelectItem>
-                  </SelectGroup>
-                )}
+                    {/* Admin Role */}
+                    {payload.target === "role" && payload.targetValue === "admin" && (
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-slate-500">Admin Pages</SelectLabel>
+                        <SelectItem value="/admin">📊 Dashboard</SelectItem>
+                        <SelectItem value="/admin/manage-admins">👥 Manage Admins</SelectItem>
+                        <SelectItem value="/admin/students">🎓 Students</SelectItem>
+                        <SelectItem value="/admin/teachers">👨‍🏫 Teachers</SelectItem>
+                        <SelectItem value="/admin/classes">🏫 Classes</SelectItem>
+                        <SelectItem value="/admin/subjects">📚 Subjects</SelectItem>
+                        <SelectItem value="/admin/timetable">📅 Timetable</SelectItem>
+                        <SelectItem value="/admin/notifications">🔔 Notifications</SelectItem>
+                        <SelectItem value="/admin/promotions">📈 Promotions</SelectItem>
+                        <SelectItem value="/admin/admissions">📋 Admissions</SelectItem>
+                        <SelectItem value="/admin/history">📜 History</SelectItem>
+                        <SelectItem value="/admin/calendar">📆 Calendar</SelectItem>
+                        <SelectItem value="/admin/settings">⚙️ Settings</SelectItem>
+                      </SelectGroup>
+                    )}
 
-                {/* Admin Role */}
-                {payload.target === "role" && payload.targetValue === "admin" && (
-                  <SelectGroup>
-                    <SelectLabel className="text-xs font-bold text-slate-500">Admin Pages</SelectLabel>
-                    <SelectItem value="/admin">📊 Dashboard</SelectItem>
-                    <SelectItem value="/admin/manage-admins">👥 Manage Admins</SelectItem>
-                    <SelectItem value="/admin/students">🎓 Students</SelectItem>
-                    <SelectItem value="/admin/teachers">👨‍🏫 Teachers</SelectItem>
-                    <SelectItem value="/admin/classes">🏫 Classes</SelectItem>
-                    <SelectItem value="/admin/subjects">📚 Subjects</SelectItem>
-                    <SelectItem value="/admin/timetable">📅 Timetable</SelectItem>
-                    <SelectItem value="/admin/notifications">🔔 Notifications</SelectItem>
-                    <SelectItem value="/admin/promotions">📈 Promotions</SelectItem>
-                    <SelectItem value="/admin/admissions">📋 Admissions</SelectItem>
-                    <SelectItem value="/admin/history">📜 History</SelectItem>
-                    <SelectItem value="/admin/calendar">📆 Calendar</SelectItem>
-                    <SelectItem value="/admin/settings">⚙️ Settings</SelectItem>
-                  </SelectGroup>
-                )}
-
-                {/* Class Target (show student pages) */}
-                {payload.target === "class" && (
-                  <SelectGroup>
-                    <SelectLabel className="text-xs font-bold text-slate-500">Student Pages</SelectLabel>
-                    <SelectItem value="/student">📊 Dashboard</SelectItem>
-                    <SelectItem value="/student/timetable">📅 Timetable</SelectItem>
-                    <SelectItem value="/student/subjects">📚 Subjects</SelectItem>
-                    <SelectItem value="/student/results">⭐ Results</SelectItem>
-                    <SelectItem value="/student/assignments">📝 Assignments</SelectItem>
-                    <SelectItem value="/student/attendance">✓ Attendance</SelectItem>
-                    <SelectItem value="/student/calendar">📆 Calendar</SelectItem>
-                  </SelectGroup>
-                )}
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="Or enter custom URL (e.g., https://...)"
-              value={payload.link || ""}
-              onChange={(e) => setPayload({ ...payload, link: e.target.value })}
-              className="text-xs"
-            />
+                    {/* Class Target (show student pages) */}
+                    {payload.target === "class" && (
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-bold text-slate-500">Student Pages</SelectLabel>
+                        <SelectItem value="/student">📊 Dashboard</SelectItem>
+                        <SelectItem value="/student/timetable">📅 Timetable</SelectItem>
+                        <SelectItem value="/student/subjects">📚 Subjects</SelectItem>
+                        <SelectItem value="/student/results">⭐ Results</SelectItem>
+                        <SelectItem value="/student/assignments">📝 Assignments</SelectItem>
+                        <SelectItem value="/student/attendance">✓ Attendance</SelectItem>
+                        <SelectItem value="/student/calendar">📆 Calendar</SelectItem>
+                      </SelectGroup>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Or enter custom URL (e.g., https://...)"
+                  value={payload.link || ""}
+                  onChange={(e) => setPayload({ ...payload, link: e.target.value })}
+                  className="text-xs"
+                />
+              </>
+            )}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Select a destination or enter a custom URL. Users will be directed here when clicking the notification.
+            {payload.target === "all" 
+              ? "For 'All Users', defaults to home. Or enter a custom URL."
+              : "Select a destination or enter a custom URL. Users will be directed here when clicking the notification."}
           </p>
         </div>
 

@@ -57,28 +57,19 @@ export async function sendNotificationToToken(
   try {
     const messaging = getAdminMessaging();
 
-    // Use webpush only to avoid duplicate notifications
-    // Top-level notification + webpush notification causes duplicates
     const message: admin.messaging.Message = {
       token,
-      webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png",
-          requireInteraction: true, // Keep notification visible until user acts
-          vibrate: [200, 100, 200],
-        },
-        fcmOptions: {
-          link: data?.link || "/",
-        },
+      data: {
+        title: notification.title,
+        body: notification.body,
+        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo-192.png",
+        link: data?.link || "/",
+        ...data, // merge extra custom data
       },
-      // Data at message top-level for foreground access via payload.data
-      ...(data && { data }),
     };
 
     const response = await messaging.send(message);
+
     console.log(`✓ Notification sent to token. Message ID: ${response}`);
     return { success: true, messageId: response };
   } catch (error) {
@@ -102,21 +93,13 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
-      webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png",
-          requireInteraction: true, // Keep notification visible until user acts
-          vibrate: [200, 100, 200],
-        },
-        fcmOptions: {
-          link: data?.link || "/",
-        },
+      data: {
+        title: notification.title,
+        body: notification.body,
+        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo-192.png",
+        link: data?.link || "/",
+        ...data,
       },
-      // Data at message top-level for foreground access via payload.data
-      ...(data && { data }),
     }));
 
     // Send in batches of 500 (Firebase limit)
@@ -135,8 +118,7 @@ export async function sendNotificationsToMultiple(
           batch.map((msg) =>
             messaging.send({
               token: msg.token,
-              webpush: msg.webpush,
-              ...(msg.data && { data: msg.data }),
+              data: msg.data,
             } as admin.messaging.Message)
           )
         );
@@ -228,24 +210,16 @@ export async function sendNotificationToTopic(
   try {
     const messaging = getAdminMessaging();
 
-    // Use webpush only to avoid duplicate notifications
-    const message = {
+    const message: admin.messaging.Message = {
       topic,
-      webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "/logo.png",
-          badge: "/logo.png",
-          requireInteraction: false,
-        },
-        fcmOptions: {
-          link: data?.link || "/",
-        },
+      data: {
+        title: notification.title,
+        body: notification.body,
+        icon: notification.imageUrl || "/logo.png",
+        link: data?.link || "/",
+        ...data,
       },
-      // Data at message top-level for foreground access via payload.data
-      ...(data && { data }),
-    } as admin.messaging.Message;
+    };
 
     const response = await messaging.send(message);
     return { success: true, messageId: response };

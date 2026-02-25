@@ -31,7 +31,7 @@ messaging.onBackgroundMessage((payload) => {
     // (prevents duplicate notifications on Android)
     const notificationTitle = payload.data?.title || payload.notification?.title || "New Notification";
     const notificationBody = payload.data?.body || payload.notification?.body || "You have a new message";
-    const notificationIcon = "https://school-hub-sooty.vercel.app/logo.png";
+    const notificationIcon = "https://school-hub-sooty.vercel.app/logo-192.png";
 
     const notificationOptions = {
         body: notificationBody,

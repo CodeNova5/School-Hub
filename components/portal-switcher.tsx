@@ -66,19 +66,18 @@ export function PortalSwitcher({ currentPortal }: PortalSwitcherProps) {
               key={portal.id}
               href={portal.url}
               className="
-group relative p-3 rounded-lg 
-border border-slate-600 
-bg-slate-800/60 
-hover:border-slate-500 
-hover:bg-slate-800 
-hover:-translate-y-0.5
-hover:shadow-md hover:shadow-black/30
-transition-all duration-200 
+group relative p-4 rounded-xl 
+bg-white
+border border-slate-300
+shadow-sm
+hover:shadow-md
+hover:-translate-y-1
+transition-all duration-200
 flex flex-col items-center gap-2
 cursor-pointer
-"            >
+"       >
               <Icon className={`w-5 h-5 ${portal.color} transition-transform group-hover:scale-110`} />
-              <span className="text-xs font-medium text-slate-300 text-center">
+              <span className="text-xs font-medium text-slate-700 text-center">
                 {portal.name}
               </span>
               <ChevronRight className="absolute top-2 right-2 w-3 h-3 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />

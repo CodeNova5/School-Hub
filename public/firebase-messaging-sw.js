@@ -31,12 +31,12 @@ messaging.onBackgroundMessage((payload) => {
     // (prevents duplicate notifications on Android)
     const notificationTitle = payload.data?.title || payload.notification?.title || "New Notification";
     const notificationBody = payload.data?.body || payload.notification?.body || "You have a new message";
-    const notificationIcon = "https://school-hub-sooty.vercel.app/logo-192.png";
+    const notificationIcon = "https://emojiisland.com/cdn/shop/products/Upside-Down_Face_Emoji_4dbbbd80-eb60-4c91-9642-83368692e361_large.png";
 
     const notificationOptions = {
         body: notificationBody,
         icon: notificationIcon,
-        badge: "https://school-hub-sooty.vercel.app/logo-192.png",
+        badge: "https://emojiisland.com/cdn/shop/products/Upside-Down_Face_Emoji_4dbbbd80-eb60-4c91-9642-83368692e361_large.png",
         tag: payload.data?.tag || "default",
         data: payload.data || {},
         actions: [

@@ -30,7 +30,7 @@ async function sendNotification() {
         notification: {
           title: "Test Notification 🚀",
           body: "If you see this, Firebase Admin is working!",
-          icon: "/notification-icon.png",
+          icon: "https://school-hub-sooty.vercel.app/logo.png",
         },
         fcmOptions: {
           link: "http://localhost:3000",

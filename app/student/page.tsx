@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
 import { NotificationPermissionComponent } from "@/components/notification-permission";
+import { useNotificationSetup } from "@/hooks/use-notification-setup";
 
 interface StudentStats {
   totalAttendance: number;
@@ -62,6 +63,7 @@ export default function StudentDashboardPage() {
   });
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [greeting, setGreeting] = useState("");
+  const { syncNotificationToken } = useNotificationSetup({ role: "student" });
 
   useEffect(() => {
     loadDashboardData();
@@ -86,6 +88,9 @@ export default function StudentDashboardPage() {
         window.location.href = "/student/login";
         return;
       }
+
+      // Sync notification token
+      await syncNotificationToken(user.id, "student");
 
       // get current term ID
       const { data: termData, error: termError } = await supabase

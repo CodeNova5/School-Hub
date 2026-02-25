@@ -54,7 +54,7 @@ CREATE TABLE parents (
 
 ### Dashboard & Overview
 - `/parent` - Redirects to dashboard
-- `/parent/dashboard` - Main parent dashboard showing all children
+- `/parent` - Main parent dashboard showing all children
 - `/parent/children` - List view of all children with quick stats
 
 ### Child Detail Pages

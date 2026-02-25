@@ -63,7 +63,7 @@ Parent Email: parent2@example.com ← Wrong! Different email
 |---------|-----|
 | Login | `/parent/login` |
 | Activation | `/parent/activate?token=xxx` |
-| Dashboard | `/parent/dashboard` |
+| Dashboard | `/parent` |
 
 ## 🎫 What Parents Can View
 

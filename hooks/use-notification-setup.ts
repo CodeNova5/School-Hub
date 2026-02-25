@@ -163,6 +163,46 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
     }
   };
 
+  // Sync notification token on app load (auto-sync if permission already granted)
+  const syncNotificationToken = async (userId: string, role?: string) => {
+    try {
+      // Only sync if permission is already granted
+      if (Notification.permission !== "granted") {
+        console.log("Notification permission not granted, skipping token sync");
+        return null;
+      }
+
+      // Get Firebase messaging
+      const messaging = await getFirebaseMessaging();
+      if (!messaging) {
+        console.log("Firebase Cloud Messaging not available");
+        return null;
+      }
+
+      // Get FCM token
+      const fcmToken = await getToken(messaging, {
+        vapidKey: "BEvnsPzvqGc4nrfwtMGILhEQzBNQ5zAtIn7gLQuT48Ix6RJdbWbisZYOz0AeRV7Wc0L6hsn0JlfAPUk63xyM_AA",
+      });
+
+      if (!fcmToken) {
+        console.log("Failed to get notification token");
+        return null;
+      }
+
+      setToken(fcmToken);
+
+      // Save/update token in Supabase
+      await saveTokenToSupabase(fcmToken, userId, role);
+
+      console.log("✓ Notification token synced successfully");
+      return fcmToken;
+    } catch (err) {
+      // Don't set error here as this is a silent sync
+      console.error("Failed to sync notification token:", err);
+      return null;
+    }
+  };
+
   // Save token to Supabase
   const saveTokenToSupabase = async (
     fcmToken: string,
@@ -187,6 +227,7 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
             is_active: true,
           })
           .eq("id", existingToken.id);
+        console.log("✓ Token updated in Supabase");
       } else {
         // Insert new token
         const { error } = await supabase.from("notification_tokens").insert({
@@ -201,6 +242,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
 
         if (error) {
           console.error("Error saving token to Supabase:", error);
+        } else {
+          console.log("✓ Token saved to Supabase");
         }
       }
     } catch (err) {
@@ -226,5 +269,6 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
     error,
     requestNotificationPermission,
     setupForegroundMessageHandler,
+    syncNotificationToken,
   };
 };

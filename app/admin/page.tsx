@@ -46,6 +46,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useRouter } from 'next/navigation';
+import { useNotificationSetup } from '@/hooks/use-notification-setup';
+import { supabase } from '@/lib/supabase';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
@@ -82,10 +84,23 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { syncNotificationToken } = useNotificationSetup({ role: "admin" });
 
   useEffect(() => {
     fetchDashboardData();
+    syncTokenOnLoad();
   }, []);
+
+  const syncTokenOnLoad = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await syncNotificationToken(user.id, "admin");
+      }
+    } catch (err) {
+      console.error("Failed to sync notification token:", err);
+    }
+  };
 
   const fetchDashboardData = async () => {
     try {

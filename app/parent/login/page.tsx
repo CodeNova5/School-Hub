@@ -52,7 +52,7 @@ export default function ParentLoginPage() {
       }
 
       toast.success("Login successful!");
-      router.push("/parent/dashboard");
+      router.push("/parent");
     } catch (error: any) {
       toast.error(error.message || "Login failed");
     } finally {

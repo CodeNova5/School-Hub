@@ -129,7 +129,7 @@ export function Sidebar({
   ];
 
   const parentNav: NavItem[] = [
-    { href: "/parent/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: "/parent", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/parent/children", label: "My Children", icon: <Users className="h-5 w-5" /> },
     { href: "/parent/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
     { href: "/parent/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> },

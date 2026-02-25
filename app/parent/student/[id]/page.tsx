@@ -96,7 +96,7 @@ export default function ParentStudentDetailPage() {
 
       if (!parent) {
         toast.error("Parent account not found");
-        router.push("/parent/dashboard");
+        router.push("/parent");
         return;
       }
 
@@ -109,7 +109,7 @@ export default function ParentStudentDetailPage() {
 
       if (studentError || !studentData) {
         toast.error("Student not found or not authorized");
-        router.push("/parent/dashboard");
+        router.push("/parent");
         return;
       }
 

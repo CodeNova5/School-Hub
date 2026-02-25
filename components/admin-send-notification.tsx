@@ -331,7 +331,7 @@ export function AdminSendNotificationComponent() {
                     </SelectGroup>
                     <SelectGroup>
                       <SelectLabel className="text-xs font-bold text-slate-500">For Parents</SelectLabel>
-                      <SelectItem value="/parent/dashboard">📊 Parent Dashboard</SelectItem>
+                      <SelectItem value="/parent">📊 Parent Dashboard</SelectItem>
                       <SelectItem value="/parent/children">👨‍👩‍👧 My Children</SelectItem>
                       <SelectItem value="/parent/calendar">📆 Calendar</SelectItem>
                     </SelectGroup>
@@ -379,7 +379,7 @@ export function AdminSendNotificationComponent() {
                 {payload.target === "role" && payload.targetValue === "parent" && (
                   <SelectGroup>
                     <SelectLabel className="text-xs font-bold text-slate-500">Parent Pages</SelectLabel>
-                    <SelectItem value="/parent/dashboard">📊 Dashboard</SelectItem>
+                    <SelectItem value="/parent">📊 Dashboard</SelectItem>
                     <SelectItem value="/parent/children">👨‍👩‍👧 My Children</SelectItem>
                     <SelectItem value="/parent/calendar">📆 Calendar</SelectItem>
                   </SelectGroup>

@@ -25,6 +25,7 @@ import { Event } from '@/lib/types';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { NotificationPermissionComponent } from "@/components/notification-permission";
+import { useNotificationSetup } from '@/hooks/use-notification-setup';
 
 interface TeacherStats {
   totalStudents: number;
@@ -79,6 +80,7 @@ export default function TeacherDashboard() {
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [teacherName, setTeacherName] = useState('');
+  const { syncNotificationToken } = useNotificationSetup({ role: "teacher" });
 
   useEffect(() => {
     async function fetchTeacherData() {
@@ -92,6 +94,10 @@ export default function TeacherDashboard() {
           console.error('No user found');
           return;
         }
+
+        // Sync notification token
+        await syncNotificationToken(user.id, "teacher");
+
         // Get teacher info
         const teacher = await getTeacherByUserId(user.id);
         if (!teacher) {

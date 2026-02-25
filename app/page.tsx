@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,7 +13,6 @@ import {
   Shield,
   BarChart3,
   GraduationCap,
-  Loader2,
   ChevronRight,
 } from "lucide-react";
 import Link from "next/link";

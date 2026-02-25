@@ -50,7 +50,15 @@ export async function middleware(req: NextRequest) {
     if (session) {
       // Get user metadata to determine their role
       const userRole = session.user?.user_metadata?.role;
-      const config = routeConfigs.find((cfg) => cfg.rpc.includes(userRole));
+      
+      // Map role to config
+      const roleConfigMap: Record<string, (typeof routeConfigs)[0]> = {};
+      routeConfigs.forEach((cfg) => {
+        const role = cfg.prefix.slice(1); // Remove leading slash to get role name
+        roleConfigMap[role] = cfg;
+      });
+      
+      const config = roleConfigMap[userRole];
       
       if (config) {
         // Verify they still have access
@@ -118,6 +126,7 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
     "/admin/:path*",
     "/teacher/:path*",
     "/student/:path*",

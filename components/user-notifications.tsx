@@ -23,6 +23,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { supabase } from "@/lib/supabase";
 
 interface NotificationItem {
   id: string;
@@ -62,17 +63,75 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/notifications?role=${role}`);
-      const result = await response.json();
+      // Fetch notifications visible to this role
+      // RLS policy ensures only notifications sent to "all" or to this specific role are returned
+      const { data: notifications, error: fetchError } = await supabase
+        .from("notification_logs")
+        .select("*")
+        .or(
+          `and(target.eq.all),and(target.eq.role,target_value.eq.${role})`
+        )
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to fetch notifications");
+      if (fetchError) {
+        throw new Error(fetchError.message || "Failed to fetch notifications");
       }
 
-      setStats(result.data);
+      // Calculate stats
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todayCount = (notifications || []).filter(
+        (n) => new Date(n.created_at) >= today
+      ).length;
+
+      // Get the last 7 days of data for trend
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+        return date;
+      }).reverse();
+
+      const notificationTrend = last7Days.map((date) => {
+        const count = (notifications || []).filter((n) => {
+          const nDate = new Date(n.created_at);
+          nDate.setHours(0, 0, 0, 0);
+          return nDate.getTime() === date.getTime();
+        }).length;
+
+        return {
+          date: date.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          }),
+          received: count,
+        };
+      });
+
+      // Format the response
+      const recentNotifications = (notifications || []).map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        imageUrl: n.image_url,
+        link: n.link,
+        target: n.target,
+        targetValue: n.target_value,
+        createdAt: n.created_at,
+        sentBy: n.sent_by,
+      }));
+
+      setStats({
+        totalReceived: notifications?.length || 0,
+        todayCount,
+        recentNotifications: recentNotifications.slice(0, 10),
+        notificationTrend,
+      });
     } catch (err: any) {
       console.error("Error fetching notifications:", err);
-      setError(err.message);
+      setError(err.message || "Failed to load notifications");
     } finally {
       setLoading(false);
     }

@@ -63,6 +63,7 @@ export async function sendNotificationToToken(
         title: notification.title,
         body: notification.body,
         icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo-192.png",
+        badge: "https://school-hub-sooty.vercel.app/logo-192.png",
         link: data?.link || "/",
         ...data, // merge extra custom data
       },
@@ -96,6 +97,7 @@ export async function sendNotificationsToMultiple(
       data: {
         title: notification.title,
         body: notification.body,
+        badge: "https://school-hub-sooty.vercel.app/logo-192.png",
         icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo-192.png",
         link: data?.link || "/",
         ...data,

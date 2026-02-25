@@ -35,6 +35,7 @@ messaging.onBackgroundMessage((payload) => {
 
     const notificationOptions = {
         body: notificationBody,
+        icon: notificationIcon,
         badge: "https://school-hub-sooty.vercel.app/logo.png",
         tag: payload.data?.tag || "default",
         data: payload.data || {},

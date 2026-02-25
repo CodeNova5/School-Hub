@@ -57,20 +57,27 @@ export async function sendNotificationToToken(
   try {
     const messaging = getAdminMessaging();
 
+    // Use webpush only to avoid duplicate notifications
+    // Top-level notification + webpush notification causes duplicates
     const message: admin.messaging.Message = {
       token,
-      data: {
-        title: notification.title,
-        body: notification.body,
-        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
-        badge: "https://school-hub-sooty.vercel.app/logo.png",
-        link: data?.link || "https://school-hub-sooty.vercel.app/",
-        ...data, // merge extra custom data
+      webpush: {
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+          requireInteraction: true, // Keep notification visible until user acts
+          vibrate: [200, 100, 200],
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
       },
+      // Data at message top-level for foreground access via payload.data
+      ...(data && { data }),
     };
 
     const response = await messaging.send(message);
-
     console.log(`✓ Notification sent to token. Message ID: ${response}`);
     return { success: true, messageId: response };
   } catch (error) {
@@ -94,14 +101,20 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
-      data: {
-        title: notification.title,
-        body: notification.body,
-        badge: "https://school-hub-sooty.vercel.app/logo.png",
-        icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
-        link: data?.link || "https://school-hub-sooty.vercel.app/",
-        ...data,
+      webpush: {
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+          requireInteraction: true, // Keep notification visible until user acts
+          vibrate: [200, 100, 200],
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
       },
+      // Data at message top-level for foreground access via payload.data
+      ...(data && { data }),
     }));
 
     // Send in batches of 500 (Firebase limit)
@@ -120,7 +133,8 @@ export async function sendNotificationsToMultiple(
           batch.map((msg) =>
             messaging.send({
               token: msg.token,
-              data: msg.data,
+              webpush: msg.webpush,
+              ...(msg.data && { data: msg.data }),
             } as admin.messaging.Message)
           )
         );
@@ -212,16 +226,23 @@ export async function sendNotificationToTopic(
   try {
     const messaging = getAdminMessaging();
 
-    const message: admin.messaging.Message = {
+    // Use webpush only to avoid duplicate notifications
+    const message = {
       topic,
-      data: {
-        title: notification.title,
-        body: notification.body,
-        icon: notification.imageUrl || "/logo.png",
-        link: data?.link || "/",
-        ...data,
+      webpush: {
+        notification: {
+          title: notification.title,
+          body: notification.body,
+          icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+          requireInteraction: false,
+        },
+        fcmOptions: {
+          link: data?.link || "/",
+        },
       },
-    };
+      // Data at message top-level for foreground access via payload.data
+      ...(data && { data }),
+    } as admin.messaging.Message;
 
     const response = await messaging.send(message);
     return { success: true, messageId: response };

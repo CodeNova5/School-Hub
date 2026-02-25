@@ -16,7 +16,7 @@ const serviceAccount = {
 };
 
 // 🔥 STEP 2: Replace with your device FCM token
-const DEVICE_TOKEN = "fN7hShdzIKbegGJp0O-Vj0:APA91bHQ9oAOjcfDOokFNHm86KKd_bKVfAp8HyqZe8mTFpPQOtgSuNGc0bgJD3HW81dDOjjRycm7o6ejzMm0G1ruUCx3obqUuf3yW3gr0XigYlyHlNbVm7Y";
+const DEVICE_TOKEN = "fwuitiWwt3_EUYJOcd-rXE:APA91bHePTq6njD0_Vb5-vNKRagLizD9Ie9gceG3wPB6pkQ54khiqdpAodSYuC2kwKjyKjEsOfMJ87gpFUQXC98geg-Ulj8vcyMni1o3CSZNE6OWRAdXDzw";
 // Initialize Firebase Admin
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -26,12 +26,15 @@ async function sendNotification() {
   try {
     const message = {
       token: DEVICE_TOKEN,
-      data: {
-        title: "Hello from Firebase Admin!",
-        body: "This is a test notification sent from the Firebase Admin SDK.",
-        icon: "https://emojiisland.com/cdn/shop/products/Upside-Down_Face_Emoji_4dbbbd80-eb60-4c91-9642-83368692e361_large.png",
-        badge: "https://emojiisland.com/cdn/shop/products/Upside-Down_Face_Emoji_4dbbbd80-eb60-4c91-9642-83368692e361_large.png",
-        link: "https://school-hub-sooty.vercel.app/",
+      webpush: {
+        notification: {
+          title: "Test Notification 🚀",
+          body: "If you see this, Firebase Admin is working!",
+          icon: "https://school-hub-sooty.vercel.app/logo.png",
+        },
+        fcmOptions: {
+          link: "https://school-hub-sooty.vercel.app/",
+        },
       },
     };
 

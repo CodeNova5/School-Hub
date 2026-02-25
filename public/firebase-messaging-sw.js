@@ -35,7 +35,6 @@ messaging.onBackgroundMessage((payload) => {
 
     const notificationOptions = {
         body: notificationBody,
-        icon: notificationIcon,
         badge: "/logo.png",
         tag: payload.data?.tag || "default",
         data: payload.data || {},

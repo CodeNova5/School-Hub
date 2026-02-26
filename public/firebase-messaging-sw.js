@@ -27,18 +27,22 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
     console.log("Received background message:", payload);
 
-    // Extract notification data from data-only messages
-    // (prevents duplicate notifications on Android)
-    const notificationTitle = payload.data?.title || payload.notification?.title || "New Notification";
-    const notificationBody = payload.data?.body || payload.notification?.body || "You have a new message";
-    const notificationIcon = "https://school-hub-sooty.vercel.app/logo.png";
+    // Extract notification data - supports both top-level notification and data-based notifications
+    const notificationTitle = payload.notification?.title || payload.data?.title || "New Notification";
+    const notificationBody = payload.notification?.body || payload.data?.body || "You have a new message";
+    const notificationIcon = payload.notification?.imageUrl || payload.data?.imageUrl || "https://school-hub-sooty.vercel.app/logo.png";
+    const notificationLink = payload.data?.link || "/";
 
     const notificationOptions = {
         body: notificationBody,
         icon: notificationIcon,
         badge: "https://school-hub-sooty.vercel.app/logo.png",
         tag: payload.data?.tag || "default",
-        data: payload.data || {},
+        // Pass link in data for click handler
+        data: {
+            link: notificationLink,
+            ...payload.data,
+        },
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);

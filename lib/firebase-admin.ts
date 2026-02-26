@@ -57,18 +57,16 @@ export async function sendNotificationToToken(
   try {
     const messaging = getAdminMessaging();
 
-    // Use webpush only to avoid duplicate notifications
-    // Top-level notification + webpush notification causes duplicates
+    // Use top-level notification so service worker handles it properly
+    // This avoids duplicate notifications from webpush
     const message: admin.messaging.Message = {
       token,
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        imageUrl: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+      },
       webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
-          requireInteraction: true, // Keep notification visible until user acts
-          vibrate: [200, 100, 200],
-        },
         fcmOptions: {
           link: data?.link || "/",
         },
@@ -101,20 +99,17 @@ export async function sendNotificationsToMultiple(
 
     const messages = tokens.map((token) => ({
       token,
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        imageUrl: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+      },
       webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
-          requireInteraction: true, // Keep notification visible until user acts
-          vibrate: [200, 100, 200],
-        },
         fcmOptions: {
           link: data?.link || "/",
         },
       },
-      // Data at message top-level for foreground access via payload.data
-      ...(data && { data }),
+      data: data || {},
     }));
 
     // Send in batches of 500 (Firebase limit)
@@ -133,7 +128,16 @@ export async function sendNotificationsToMultiple(
           batch.map((msg) =>
             messaging.send({
               token: msg.token,
-              webpush: msg.webpush,
+              notification: {
+                title: msg.notification.title,
+                body: msg.notification.body,
+                imageUrl: msg.notification.imageUrl,
+              },
+              webpush: {
+                fcmOptions: {
+                  link: msg.data?.link || "/",
+                },
+              },
               ...(msg.data && { data: msg.data }),
             } as admin.messaging.Message)
           )
@@ -226,16 +230,15 @@ export async function sendNotificationToTopic(
   try {
     const messaging = getAdminMessaging();
 
-    // Use webpush only to avoid duplicate notifications
+    // Use top-level notification for consistency
     const message = {
       topic,
+      notification: {
+        title: notification.title,
+        body: notification.body,
+        imageUrl: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
+      },
       webpush: {
-        notification: {
-          title: notification.title,
-          body: notification.body,
-          icon: notification.imageUrl || "https://school-hub-sooty.vercel.app/logo.png",
-          requireInteraction: false,
-        },
         fcmOptions: {
           link: data?.link || "/",
         },

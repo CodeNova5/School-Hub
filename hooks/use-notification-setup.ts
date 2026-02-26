@@ -95,8 +95,11 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       onMessage(messaging, (payload) => {
         console.log("✓ Foreground message received:", payload);
 
-        // Firebase webpush puts notification data in payload.notification
-        // Data fields are in payload.data
+        // NOTE: Service worker already handles notification display via firebase-messaging-sw.js
+        // We don't show notifications here to avoid duplicates.
+        // The service worker will display the notification for both foreground and background modes.
+        
+        // Extract notification data for any custom handling if needed
         const title =
           payload.notification?.title ||
           payload.data?.title ||
@@ -105,26 +108,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
           payload.notification?.body ||
           payload.data?.body ||
           "New notification";
-        const icon =
-          payload.notification?.image ||
-          payload.data?.imageUrl ||
-          payload.data?.icon ||
-          "/logo.png";
 
-        const notificationOptions: NotificationOptions = {
-          body,
-          icon,
-          badge: "/logo.png",
-          tag: payload.data?.tag || "notification",
-          data: payload.data || {},
-          requireInteraction: true, // Keep notification visible until user interacts
-        };
-
-        // Show notification to user
-        if ("Notification" in window && Notification.permission === "granted") {
-          new Notification(title, notificationOptions);
-          console.log("✓ Foreground notification displayed:", title);
-        }
+        console.log("✓ Foreground message processed by service worker:", title);
       });
       
       console.log("✓ Foreground message handler setup successful");

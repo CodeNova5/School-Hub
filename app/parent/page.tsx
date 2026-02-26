@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { useNotificationSetup } from "@/hooks/use-notification-setup";
+import { NotificationPermissionComponent } from "@/components/notification-permission";
 
 interface Student {
   id: string;
@@ -215,6 +216,7 @@ export default function ParentDashboardPage() {
 
   return (
     <DashboardLayout role="parent">
+      <NotificationPermissionComponent role="student" autoPromptDelay={3000} />
       <div className="space-y-8">
         {/* Header */}
         <div>

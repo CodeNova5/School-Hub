@@ -23,31 +23,6 @@ firebase.initializeApp(firebaseConfig);
 
 const messaging = firebase.messaging();
 
-// Handle notifications when the app is in the background
-messaging.onBackgroundMessage((payload) => {
-    console.log("Received background message:", payload);
-
-    // Extract notification data - supports both top-level notification and data-based notifications
-    const notificationTitle = payload.notification?.title || payload.data?.title || "New Notification";
-    const notificationBody = payload.notification?.body || payload.data?.body || "You have a new message";
-    const notificationIcon = payload.notification?.imageUrl || payload.data?.imageUrl || "https://school-hub-sooty.vercel.app/logo.png";
-    const notificationLink = payload.data?.link || "/";
-
-    const notificationOptions = {
-        body: notificationBody,
-        icon: notificationIcon,
-        badge: "https://school-hub-sooty.vercel.app/logo.png",
-        tag: payload.data?.tag || "default",
-        // Pass link in data for click handler
-        data: {
-            link: notificationLink,
-            ...payload.data,
-        },
-    };
-
-    self.registration.showNotification(notificationTitle, notificationOptions);
-});
-
 // Handle notification click
 self.addEventListener("notificationclick", (event) => {
     event.notification.close();

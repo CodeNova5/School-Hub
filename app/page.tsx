@@ -14,8 +14,15 @@ import {
   BarChart3,
   GraduationCap,
   ChevronRight,
+  Download,
+  X,
 } from "lucide-react";
 import Link from "next/link";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
 
 interface Portal {
   id: string;
@@ -71,10 +78,37 @@ const portals: Portal[] = [
 export default function HomePage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
+    // Listen for the beforeinstallprompt event
+    const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt as EventListener);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt as EventListener);
+    };
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+
+    if (outcome === "accepted") {
+      setDeferredPrompt(null);
+      setShowInstallPrompt(false);
+    }
+  };
 
   if (!mounted) {
     return null;
@@ -103,6 +137,15 @@ export default function HomePage() {
                 <p className="text-xs text-slate-400">Education Management System</p>
               </div>
             </div>
+            {showInstallPrompt && (
+              <button
+                onClick={handleInstallClick}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200 font-medium text-sm"
+              >
+                <Download className="w-4 h-4" />
+                Install App
+              </button>
+            )}
           </div>
         </header>
 

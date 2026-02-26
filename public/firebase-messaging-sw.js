@@ -51,21 +51,20 @@ messaging.onBackgroundMessage((payload) => {
 self.addEventListener("notificationclick", (event) => {
     event.notification.close();
 
-    const urlToOpen = event.notification.data?.link || "https://school-hub-sooty.vercel.app/";
+    const urlToOpen =
+        event.notification.data?.link ||
+        "https://school-hub-sooty.vercel.app/";
 
     event.waitUntil(
-        clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
-            // Check if there's already a window/tab open with the target URL
-            for (let i = 0; i < clients.length; i++) {
-                const client = clients[i];
-                if (
-                    client.url === urlToOpen ||
-                    new URL(client.url).pathname === new URL(urlToOpen).pathname
-                ) {
+        clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+            // Try to focus an existing tab
+            for (const client of clientList) {
+                if (client.url.includes("school-hub-sooty.vercel.app")) {
                     return client.focus();
                 }
             }
-            // If not, open a new window/tab with the target URL
+
+            // Otherwise open new tab
             return clients.openWindow(urlToOpen);
         })
     );

@@ -109,7 +109,7 @@ export async function sendNotificationsToMultiple(
         imageUrl:
           notification.imageUrl ||
           "https://school-hub-sooty.vercel.app/logo.png",
-        link: data?.link || "/",
+        link: `https://school-hub-sooty.vercel.app${data?.link || "/"}`,
         tag: data?.tag || "default",
         ...(data || {}),
       },

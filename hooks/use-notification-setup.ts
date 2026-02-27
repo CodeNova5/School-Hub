@@ -195,26 +195,59 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   role?: string
 ) => {
   try {
-    const { error } = await supabase
+    // First, check if this user already has this token
+    const { data: existing, error: selectError } = await supabase
       .from("notification_tokens")
-      .upsert(
-        {
+      .select("id")
+      .eq("user_id", userId)
+      .eq("token", fcmToken)
+      .single();
+
+    if (selectError && selectError.code !== "PGRST116") {
+      // Error other than "no rows found"
+      console.error("Error checking existing token:", selectError);
+    }
+
+    if (existing) {
+      // Update only this user's token
+      const { error: updateError } = await supabase
+        .from("notification_tokens")
+        .update({
+          device_type: getDeviceType(),
+          is_active: true,
+          last_registered_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      if (updateError) {
+        console.error("Error updating token:", updateError);
+      } else {
+        console.log("✓ Token updated successfully");
+      }
+    } else {
+      // Insert new token
+      const { error: insertError } = await supabase
+        .from("notification_tokens")
+        .insert({
           token: fcmToken,
           user_id: userId,
           role: role || "user",
           device_type: getDeviceType(),
           is_active: true,
           last_registered_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "token",
-        }
-      );
+        });
 
-    if (error) {
-      console.error("Error upserting token:", error);
-    } else {
-      console.log("✓ Token upserted successfully");
+      if (insertError) {
+        if (insertError.code === "23505") {
+          // Unique constraint violation - token already exists for another user
+          // This is expected if another user has the same token
+          console.log("Token already registered by another user");
+        } else {
+          console.error("Error inserting token:", insertError);
+        }
+      } else {
+        console.log("✓ Token inserted successfully");
+      }
     }
   } catch (err) {
     console.error("Error saving token to Supabase:", err);

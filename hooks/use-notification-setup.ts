@@ -195,16 +195,24 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   role?: string
 ) => {
   try {
-    // First, delete all old tokens for this user to avoid conflicts
-    const { error: deleteError } = await supabase
+    // Delete this token from all users (in case it was registered by another user)
+    const { error: deleteTokenError } = await supabase
+      .from("notification_tokens")
+      .delete()
+      .eq("token", fcmToken);
+
+    if (deleteTokenError) {
+      console.error("Error deleting token from other users:", deleteTokenError);
+    }
+
+    // Delete all old tokens for this user
+    const { error: deleteUserTokensError } = await supabase
       .from("notification_tokens")
       .delete()
       .eq("user_id", userId);
 
-    if (deleteError) {
-      console.error("Error deleting old tokens:", deleteError);
-    } else {
-      console.log("✓ Old tokens deleted successfully");
+    if (deleteUserTokensError) {
+      console.error("Error deleting user's old tokens:", deleteUserTokensError);
     }
 
     // Now insert the new token

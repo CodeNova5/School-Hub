@@ -180,9 +180,20 @@ export async function POST(request: NextRequest) {
             console.log(`Found ${data?.length || 0} active tokens for role '${targetValue}'`);
             tokens = data || [];
         } else if (target === "user") {
-            // Get tokens for specific user
-            tokens = await getUserTokens(targetValue);
-            console.log(`Found ${tokens.length} tokens for user '${targetValue}'`);
+            // Get tokens for specific user - use admin client for server-side calls
+            const { data, error } = await supabaseAdmin
+                .from("notification_tokens")
+                .select("token")
+                .eq("user_id", targetValue)
+                .eq("is_active", true);
+
+            if (error) {
+                console.error(`Error fetching tokens for user '${targetValue}':`, error);
+                throw error;
+            }
+            
+            console.log(`Found ${data?.length || 0} active tokens for user '${targetValue}'`);
+            tokens = data || [];
         } else if (target === "class") {
             // Get tokens for students in a class
             const { data, error } = await supabaseAdmin

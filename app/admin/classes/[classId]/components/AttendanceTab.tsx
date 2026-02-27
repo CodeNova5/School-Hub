@@ -149,91 +149,185 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
     }>
   ) {
     try {
-      console.log(`📱 Sending attendance notifications to ${attendanceRecords.length} parents...`);
+      console.log(`📱 Starting to send attendance notifications to ${attendanceRecords.length} students...`);
+
+      let successCount = 0;
+      let failureCount = 0;
 
       for (const record of attendanceRecords) {
-        // Get student's parent email
-        const { data: student, error: studentError } = await supabase
-          .from("students")
-          .select("parent_email, parent_name")
-          .eq("id", record.student_id)
-          .single();
+        try {
+          // Get student's parent email
+          const { data: student, error: studentError } = await supabase
+            .from("students")
+            .select("parent_email, parent_name")
+            .eq("id", record.student_id)
+            .single();
 
-        if (studentError || !student?.parent_email) {
-          console.warn(
-            `⚠️ No parent email found for student ${record.student_id}`
-          );
-          continue;
-        }
+          if (studentError) {
+            console.error(`❌ Error fetching student ${record.student_id}:`, studentError);
+            failureCount++;
+            continue;
+          }
 
-        // Find parent user by email
-        const { data: parent, error: parentError } = await supabase
-          .from("parents")
-          .select("user_id, id")
-          .eq("email", student.parent_email)
-          .single();
+          if (!student?.parent_email) {
+            console.warn(
+              `⚠️ No parent email found for student ${record.student_id} (${record.studentName})`
+            );
+            failureCount++;
+            continue;
+          }
 
-        if (parentError || !parent?.user_id) {
-          console.warn(
-            `⚠️ Parent account not found for email ${student.parent_email}`
-          );
-          continue;
-        }
+          console.log(`🔍 Looking up parent account for email: ${student.parent_email}`);
 
-        // Get parent's notification tokens
-        const { data: tokens, error: tokensError } = await supabase
-          .from("notification_tokens")
-          .select("token")
-          .eq("user_id", parent.user_id)
-          .eq("is_active", true);
+          // Find parent user by email
+          const { data: parent, error: parentError } = await supabase
+            .from("parents")
+            .select("user_id, id, is_active")
+            .eq("email", student.parent_email)
+            .single();
 
-        if (tokensError || !tokens || tokens.length === 0) {
-          console.warn(
-            `⚠️ No active notification tokens found for parent ${student.parent_email}`
-          );
-          continue;
-        }
+          if (parentError) {
+            console.error(
+              `❌ Error finding parent account for ${student.parent_email}:`,
+              parentError.message
+            );
+            failureCount++;
+            continue;
+          }
 
-        // Get notification message
-        const { title, body } = getNotificationMessage(
-          record.status,
-          record.studentName
-        );
+          if (!parent) {
+            console.warn(
+              `⚠️ No parent account found for email ${student.parent_email}. Parent may not be registered.`
+            );
+            failureCount++;
+            continue;
+          }
 
-        // Send notification via API
-        const response = await fetch("/api/admin/send-notification", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            title,
-            body,
-            target: "user",
-            targetValue: parent.user_id,
-            data: {
-              type: "attendance",
-              studentId: record.student_id,
-              status: record.status,
-              date: selectedDate,
-            },
-          }),
-        });
+          if (!parent?.user_id) {
+            console.warn(
+              `⚠️ Parent account exists but has no user_id for ${student.parent_email}`
+            );
+            failureCount++;
+            continue;
+          }
 
-        if (!response.ok) {
-          console.error(
-            `❌ Failed to send notification to parent ${student.parent_email}`
-          );
-        } else {
-          const result = await response.json();
+          if (!parent.is_active) {
+            console.warn(
+              `⚠️ Parent account is inactive for ${student.parent_email}. They need to activate their account.`
+            );
+            failureCount++;
+            continue;
+          }
+
+          console.log(`👤 Found parent: ${parent.user_id}`);
+
+          // Get parent's notification tokens
+          const { data: tokens, error: tokensError } = await supabase
+            .from("notification_tokens")
+            .select("token, user_id, device_type, is_active")
+            .eq("user_id", parent.user_id)
+            .eq("is_active", true);
+
+          if (tokensError) {
+            console.error(
+              `❌ Error fetching tokens for parent ${student.parent_email}:`,
+              tokensError
+            );
+            failureCount++;
+            continue;
+          }
+
+          if (!tokens || tokens.length === 0) {
+            console.warn(
+              `⚠️ No active notification tokens found for parent ${student.parent_email}. Parent may not have enabled notifications.`
+            );
+            failureCount++;
+            continue;
+          }
+
           console.log(
-            `✅ Notification sent to parent: ${result.successCount} delivered`
+            `📲 Found ${tokens.length} active notification token(s) for parent ${student.parent_email}`
           );
+
+          // Get notification message
+          const { title, body } = getNotificationMessage(
+            record.status,
+            record.studentName
+          );
+
+          console.log(`📤 Sending notification to parent ${student.parent_email}...`);
+
+          // Send notification via API
+          const response = await fetch("/api/admin/send-notification", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              title,
+              body,
+              target: "user",
+              targetValue: parent.user_id,
+              data: {
+                type: "attendance",
+                studentId: record.student_id,
+                status: record.status,
+                date: selectedDate,
+              },
+            }),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(
+              `❌ API Error (${response.status}) for parent ${student.parent_email}:`,
+              errorText
+            );
+            failureCount++;
+            continue;
+          }
+
+          try {
+            const result = await response.json();
+            if (result.success || result.successCount > 0) {
+              console.log(
+                `✅ Notification sent to parent ${student.parent_email}: ${result.successCount || 1} delivered`
+              );
+              successCount++;
+            } else {
+              console.error(
+                `❌ API returned error for parent ${student.parent_email}:`,
+                result
+              );
+              failureCount++;
+            }
+          } catch (parseError) {
+            console.error(
+              `❌ Failed to parse API response for parent ${student.parent_email}:`,
+              parseError
+            );
+            failureCount++;
+          }
+        } catch (error) {
+          console.error(`❌ Unexpected error processing student ${record.student_id}:`, error);
+          failureCount++;
         }
       }
+
+      console.log(
+        `\n📊 Notification Summary:\n✅ Sent: ${successCount}\n❌ Failed: ${failureCount}\n📱 Total: ${attendanceRecords.length}`
+      );
+
+      if (failureCount > 0) {
+        toast.warning(
+          `${successCount}/${attendanceRecords.length} parent notifications sent. Check browser console for details.`
+        );
+      } else if (successCount > 0) {
+        toast.success(`✅ All ${successCount} parent notifications sent successfully!`);
+      }
     } catch (error) {
-      console.error("Error sending notifications to parents:", error);
-      toast.error("Notifications sent but some parent messages may have failed");
+      console.error("Fatal error in sendNotificationsToParents:", error);
+      toast.error("Failed to send parent notifications. Check console for details.");
     }
   }
 

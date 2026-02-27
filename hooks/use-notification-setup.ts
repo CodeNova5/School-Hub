@@ -188,35 +188,45 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
     }
   };
 
-  // Save token to Supabase
+  // Save token to backend API
   const saveTokenToSupabase = async (
   fcmToken: string,
   userId: string,
   role?: string
 ) => {
   try {
-    // Use upsert to atomically handle token registration and avoid race conditions
-    const { error: upsertError } = await supabase
-      .from("notification_tokens")
-      .upsert(
-        {
-          token: fcmToken,
-          user_id: userId,
-          role: role || "user",
-          device_type: getDeviceType(),
-          is_active: true,
-          last_registered_at: new Date().toISOString(),
-        },
-        { onConflict: "token" } // If token exists, update it
-      );
+    // Get the authentication token from Supabase session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    if (upsertError) {
-      console.error("Error upserting token:", upsertError);
-    } else {
-      console.log("✓ Notification token registered successfully");
+    if (sessionError || !session?.access_token) {
+      console.error("Authentication error: No valid session", sessionError);
+      return;
     }
+
+    // Call the backend API to register the token with authentication
+    const response = await fetch("/api/notifications/register-token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        fcmToken,
+        userId,
+        role: role || "user",
+        deviceType: getDeviceType(),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Error registering token:", errorData);
+      return;
+    }
+
+    console.log("✓ Notification token registered successfully");
   } catch (err) {
-    console.error("Error saving token to Supabase:", err);
+    console.error("Error saving token:", err);
   }
 };
 

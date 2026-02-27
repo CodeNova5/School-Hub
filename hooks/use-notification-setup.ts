@@ -195,42 +195,25 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   role?: string
 ) => {
   try {
-    // Delete this token from all users (in case it was registered by another user)
-    const { error: deleteTokenError } = await supabase
+    // Use upsert to atomically handle token registration and avoid race conditions
+    const { error: upsertError } = await supabase
       .from("notification_tokens")
-      .delete()
-      .eq("token", fcmToken);
+      .upsert(
+        {
+          token: fcmToken,
+          user_id: userId,
+          role: role || "user",
+          device_type: getDeviceType(),
+          is_active: true,
+          last_registered_at: new Date().toISOString(),
+        },
+        { onConflict: "token" } // If token exists, update it
+      );
 
-    if (deleteTokenError) {
-      console.error("Error deleting token from other users:", deleteTokenError);
-    }
-
-    // Delete all old tokens for this user
-    const { error: deleteUserTokensError } = await supabase
-      .from("notification_tokens")
-      .delete()
-      .eq("user_id", userId);
-
-    if (deleteUserTokensError) {
-      console.error("Error deleting user's old tokens:", deleteUserTokensError);
-    }
-
-    // Now insert the new token
-    const { error: insertError } = await supabase
-      .from("notification_tokens")
-      .insert({
-        token: fcmToken,
-        user_id: userId,
-        role: role || "user",
-        device_type: getDeviceType(),
-        is_active: true,
-        last_registered_at: new Date().toISOString(),
-      });
-
-    if (insertError) {
-      console.error("Error inserting new token:", insertError);
+    if (upsertError) {
+      console.error("Error upserting token:", upsertError);
     } else {
-      console.log("✓ New token registered successfully");
+      console.log("✓ Notification token registered successfully");
     }
   } catch (err) {
     console.error("Error saving token to Supabase:", err);

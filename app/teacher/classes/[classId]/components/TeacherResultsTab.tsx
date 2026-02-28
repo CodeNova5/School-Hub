@@ -697,11 +697,11 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
 
     return (
         <Card>
-            <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <CardHeader className="p-4 sm:p-6">
+                <div className="flex flex-col gap-3 sm:gap-4">
                     <div>
-                        <CardTitle>Class Results</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
+                        <CardTitle className="text-lg sm:text-xl">Class Results</CardTitle>
+                        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                             View and manage student results for {className}
                         </p>
                     </div>
@@ -711,9 +711,11 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                                 size="sm"
                                 variant={showCumulative ? "default" : "outline"}
                                 onClick={() => setShowCumulative(!showCumulative)}
+                                className="text-xs sm:text-sm flex-1 sm:flex-initial"
                             >
-                                <Calculator className="h-4 w-4 mr-1" />
-                                {showCumulative ? "Single Term View" : "Cumulative Results"}
+                                <Calculator className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                <span className="hidden sm:inline">{showCumulative ? "Single Term" : "Cumulative"}</span>
+                                <span className="sm:hidden">{showCumulative ? "Term" : "Cumulative"}</span>
                             </Button>
                         )}
                         <Button
@@ -721,43 +723,48 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                             variant="outline"
                             onClick={handleCalculatePositions}
                             disabled={loading || !selectedSessionId || !selectedTermId || filteredResults.filter(r => r.has_results).length === 0}
+                            className="text-xs sm:text-sm flex-1 sm:flex-initial"
                         >
-                            <Calculator className="h-4 w-4 mr-1" />
-                            Calculate Positions
+                            <Calculator className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                            <span className="hidden sm:inline">Calculate Positions</span>
+                            <span className="sm:hidden">Calculate</span>
                         </Button>
                         <Button
                             size="sm"
                             onClick={() => setIsPublicationDialogOpen(true)}
                             disabled={!selectedSessionId || !selectedTermId}
+                            className="text-xs sm:text-sm flex-1 sm:flex-initial"
                         >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Publish Results
+                            <Eye className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                            <span className="hidden sm:inline">Publish Results</span>
+                            <span className="sm:hidden">Publish</span>
                         </Button>
                         <Button
                             size="sm"
                             variant="outline"
                             onClick={handleExportResults}
                             disabled={loading || (showCumulative ? filteredCumulativeResults.length === 0 : filteredResults.length === 0)}
+                            className="text-xs sm:text-sm flex-1 sm:flex-initial"
                         >
-                            <Download className="h-4 w-4 mr-1" />
+                            <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                             Export
                         </Button>
                     </div>
                 </div>
             </CardHeader>
 
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
                 {/* Session and Term Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Session</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
+                    <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-xs sm:text-sm font-medium">Session</label>
                         <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-9 sm:h-10 text-sm">
                                 <SelectValue placeholder="Select session" />
                             </SelectTrigger>
                             <SelectContent>
                                 {sessions.map((session) => (
-                                    <SelectItem key={session.id} value={session.id}>
+                                    <SelectItem key={session.id} value={session.id} className="text-sm">
                                         {session.name} {session.is_current && "(Current)"}
                                     </SelectItem>
                                 ))}
@@ -765,17 +772,17 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                         </Select>
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Term</label>
+                    <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-xs sm:text-sm font-medium">Term</label>
                         <Select value={selectedTermId} onValueChange={setSelectedTermId} disabled={!selectedSessionId}>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-9 sm:h-10 text-sm">
                                 <SelectValue placeholder="Select term" />
                             </SelectTrigger>
                             <SelectContent>
                                 {terms
                                     .filter(term => term.session_id === selectedSessionId)
                                     .map((term) => (
-                                        <SelectItem key={term.id} value={term.id}>
+                                        <SelectItem key={term.id} value={term.id} className="text-sm">
                                             {term.name} {term.is_current && "(Current)"}
                                         </SelectItem>
                                     ))}
@@ -785,19 +792,19 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                 </div>
 
                 {/* Filters */}
-                <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <div className="relative flex-1">
-                        <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+                        <Search className="h-3 w-3 sm:h-4 sm:w-4 absolute left-2.5 sm:left-3 top-2.5 sm:top-3 text-muted-foreground" />
                         <Input
-                            placeholder="Search by name or student ID..."
-                            className="pl-9"
+                            placeholder="Search by name or ID..."
+                            className="pl-8 sm:pl-9 h-9 sm:h-10 text-sm"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
 
                     <select
-                        className="border rounded-md p-2"
+                        className="border rounded-md px-3 py-2 text-xs sm:text-sm h-9 sm:h-10"
                         value={genderFilter}
                         onChange={(e) => setGenderFilter(e.target.value as any)}
                     >
@@ -807,7 +814,7 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                     </select>
 
                     <select
-                        className="border rounded-md p-2"
+                        className="border rounded-md px-3 py-2 text-xs sm:text-sm h-9 sm:h-10 min-w-0"
                         value={performanceFilter}
                         onChange={(e) => setPerformanceFilter(e.target.value as any)}
                     >
@@ -849,20 +856,20 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
 
                 {/* Summary Stats */}
                 {!loading && filteredResults.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="p-4 bg-blue-50 rounded-lg">
-                            <p className="text-sm text-blue-600 font-medium">Total Students</p>
-                            <p className="text-2xl font-bold text-blue-900">{filteredResults.length}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                        <div className="p-3 sm:p-4 bg-blue-50 rounded-lg">
+                            <p className="text-xs sm:text-sm text-blue-600 font-medium">Total Students</p>
+                            <p className="text-xl sm:text-2xl font-bold text-blue-900">{filteredResults.length}</p>
                         </div>
-                        <div className="p-4 bg-green-50 rounded-lg">
-                            <p className="text-sm text-green-600 font-medium">With Results</p>
-                            <p className="text-2xl font-bold text-green-900">
+                        <div className="p-3 sm:p-4 bg-green-50 rounded-lg">
+                            <p className="text-xs sm:text-sm text-green-600 font-medium">With Results</p>
+                            <p className="text-xl sm:text-2xl font-bold text-green-900">
                                 {filteredResults.filter((r) => r.has_results).length}
                             </p>
                         </div>
-                        <div className="p-4 bg-yellow-50 rounded-lg">
-                            <p className="text-sm text-yellow-600 font-medium">Class Average</p>
-                            <p className="text-2xl font-bold text-yellow-900">
+                        <div className="p-3 sm:p-4 bg-yellow-50 rounded-lg">
+                            <p className="text-xs sm:text-sm text-yellow-600 font-medium">Class Average</p>
+                            <p className="text-xl sm:text-2xl font-bold text-yellow-900">
                                 {(
                                     filteredResults.reduce((sum, r) => sum + r.average_score, 0) /
                                     filteredResults.filter((r) => r.has_results).length || 0
@@ -870,9 +877,9 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                                 %
                             </p>
                         </div>
-                        <div className="p-4 bg-purple-50 rounded-lg">
-                            <p className="text-sm text-purple-600 font-medium">Highest Average</p>
-                            <p className="text-2xl font-bold text-purple-900">
+                        <div className="p-3 sm:p-4 bg-purple-50 rounded-lg">
+                            <p className="text-xs sm:text-sm text-purple-600 font-medium">Highest Average</p>
+                            <p className="text-xl sm:text-2xl font-bold text-purple-900">
                                 {Math.max(...filteredResults.map((r) => r.average_score), 0).toFixed(1)}%
                             </p>
                         </div>
@@ -881,9 +888,9 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
 
                 {/* Results Table */}
                 {loading ? (
-                    <div className="text-center py-8 text-muted-foreground">Loading results...</div>
+                    <div className="text-center py-8 text-sm sm:text-base text-muted-foreground">Loading results...</div>
                 ) : !selectedSessionId || !selectedTermId ? (
-                    <div className="text-center py-8 text-muted-foreground">
+                    <div className="text-center py-8 text-sm sm:text-base text-muted-foreground">
                         Please select a session and term to view results
                     </div>
                 ) : showCumulative ? (
@@ -907,26 +914,26 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
 
                         {/* Cumulative Stats */}
                         {filteredCumulativeResults.length > 0 && (
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
-                                    <p className="text-sm text-purple-600 font-medium">Total Ranked</p>
-                                    <p className="text-2xl font-bold text-purple-900">{filteredCumulativeResults.length}</p>
+                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+                                <div className="p-3 sm:p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg border border-purple-200">
+                                    <p className="text-xs sm:text-sm text-purple-600 font-medium">Total Ranked</p>
+                                    <p className="text-xl sm:text-2xl font-bold text-purple-900">{filteredCumulativeResults.length}</p>
                                 </div>
-                                <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
-                                    <p className="text-sm text-green-600 font-medium">Complete (3 Terms)</p>
-                                    <p className="text-2xl font-bold text-green-900">
+                                <div className="p-3 sm:p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg border border-green-200">
+                                    <p className="text-xs sm:text-sm text-green-600 font-medium">Complete (3 Terms)</p>
+                                    <p className="text-xl sm:text-2xl font-bold text-green-900">
                                         {filteredCumulativeResults.filter((r) => r.is_complete).length}
                                     </p>
                                 </div>
-                                <div className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg border border-amber-200">
-                                    <p className="text-sm text-amber-600 font-medium">Partial Results</p>
-                                    <p className="text-2xl font-bold text-amber-900">
+                                <div className="p-3 sm:p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg border border-amber-200">
+                                    <p className="text-xs sm:text-sm text-amber-600 font-medium">Partial Results</p>
+                                    <p className="text-xl sm:text-2xl font-bold text-amber-900">
                                         {filteredCumulativeResults.filter((r) => !r.is_complete).length}
                                     </p>
                                 </div>
-                                <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
-                                    <p className="text-sm text-blue-600 font-medium">Average Score</p>
-                                    <p className="text-2xl font-bold text-blue-900">
+                                <div className="p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg border border-blue-200">
+                                    <p className="text-xs sm:text-sm text-blue-600 font-medium">Average Score</p>
+                                    <p className="text-xl sm:text-2xl font-bold text-blue-900">
                                         {(
                                             filteredCumulativeResults.reduce((sum, r) => sum + r.cumulative_average, 0) /
                                             filteredCumulativeResults.length || 0
@@ -938,6 +945,8 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
 
                         {/* Cumulative Results Table */}
                         <div className="border rounded-lg overflow-hidden shadow-sm">
+                            {/* Desktop Table */}
+                            <div className="hidden lg:block overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-gradient-to-r from-purple-100 to-blue-100">
                                     <tr>
@@ -1030,18 +1039,100 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                                 </tbody>
                             </table>
 
-                            {filteredCumulativeResults.length === 0 && (
-                                <div className="p-8 text-center text-muted-foreground">
-                                    {search || genderFilter !== "all" || performanceFilter !== "all"
-                                        ? "No cumulative results match your filters."
-                                        : "No cumulative results available."}
-                                </div>
-                            )}
+                        {filteredCumulativeResults.length === 0 && (
+                            <div className="p-8 text-center text-sm sm:text-base text-muted-foreground">
+                                {search || genderFilter !== "all" || performanceFilter !== "all"
+                                    ? "No cumulative results match your filters."
+                                    : "No cumulative results available."}
+                            </div>
+                        )}
+                        </div>
+
+                        {/* Mobile Card Layout */}
+                            <div className="lg:hidden space-y-3 p-3">
+                                {filteredCumulativeResults.map((result) => (
+                                    <div key={result.student_id} className="border rounded-lg p-4 space-y-3 bg-white shadow-sm">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {getPositionDisplay(result.cumulative_position)}
+                                                    <Badge 
+                                                        variant="outline" 
+                                                        className={result.is_complete ? "bg-green-50 text-green-700 border-green-200 text-xs" : "bg-amber-50 text-amber-700 border-amber-200 text-xs"}
+                                                    >
+                                                        {result.terms_with_results}/3 Terms
+                                                    </Badge>
+                                                </div>
+                                                <p className="font-medium text-sm truncate">{result.student_name}</p>
+                                                <p className="text-xs text-muted-foreground">{result.student_number}</p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <div className="text-lg font-bold text-purple-700">
+                                                    {result.cumulative_average.toFixed(1)}%
+                                                </div>
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`text-xs font-bold ${getGradeColor(result.cumulative_grade)}`}
+                                                >
+                                                    {result.cumulative_grade}
+                                                </Badge>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-2 text-xs">
+                                            {result.term_averages.map((term, idx) => (
+                                                <div key={idx} className="bg-gray-50 rounded p-2">
+                                                    <p className="text-gray-600 font-medium truncate">{term.term_name}</p>
+                                                    <p className="font-semibold text-gray-900 mt-0.5">
+                                                        {term.average > 0 ? `${term.average.toFixed(1)}%` : "N/A"}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t">
+                                            <div className="flex items-center gap-1">
+                                                {(() => {
+                                                    const perf = getPerformanceIndicator(result.cumulative_average);
+                                                    const Icon = perf.icon;
+                                                    return (
+                                                        <>
+                                                            <Icon className={`h-3 w-3 ${perf.color}`} />
+                                                            <span className={`text-xs ${perf.color} font-medium`}>
+                                                                {perf.label}
+                                                            </span>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                            {result.is_complete ? (
+                                                <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">
+                                                    Complete
+                                                </Badge>
+                                            ) : (
+                                                <Badge className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                                                    Partial
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {filteredCumulativeResults.length === 0 && (
+                                    <div className="p-8 text-center text-sm text-muted-foreground">
+                                        {search || genderFilter !== "all" || performanceFilter !== "all"
+                                            ? "No cumulative results match your filters."
+                                            : "No cumulative results available."}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 ) : (
                     /* Single Term Results View */
                     <div className="border rounded-md overflow-hidden">
+                        {/* Desktop Table */}
+                        <div className="hidden lg:block overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-muted">
                                 <tr>
@@ -1207,12 +1298,154 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                         </table>
 
                         {filteredResults.length === 0 && (
-                            <div className="p-8 text-center text-muted-foreground">
+                            <div className="p-8 text-center text-sm sm:text-base text-muted-foreground">
                                 {search || genderFilter !== "all" || performanceFilter !== "all"
                                     ? "No results match your filters."
                                     : "No student results found for this term."}
                             </div>
                         )}
+                        </div>
+
+                        {/* Mobile Card Layout */}
+                        <div className="lg:hidden space-y-3 p-3">
+                            {filteredResults.map((result) => {
+                                const performance = getPerformanceIndicator(result.average_score);
+                                const PerformanceIcon = performance.icon;
+
+                                return (
+                                    <div key={result.student_id} className="border rounded-lg p-4 space-y-3 bg-white shadow-sm">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-sm truncate">{result.student_name}</p>
+                                                <p className="text-xs text-muted-foreground">{result.student_number}</p>
+                                            </div>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleViewStudentReport(result.student_id)}
+                                                    >
+                                                        <Eye className="mr-2 h-4 w-4" />
+                                                        View Report Card
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={async () => {
+                                                            const studentObj = students.find(s => s.id === result.student_id);
+                                                            if (studentObj) {
+                                                                try {
+                                                                    const { data: attendance, error } = await supabase
+                                                                        .from("attendance")
+                                                                        .select("*")
+                                                                        .eq("student_id", result.student_id);
+
+                                                                    if (error) throw error;
+
+                                                                    const studentAttendance = attendance || [];
+                                                                    const total = studentAttendance.length;
+                                                                    const present = studentAttendance.filter(
+                                                                        (r: any) =>
+                                                                            r.status === "present" ||
+                                                                            r.status === "late" ||
+                                                                            r.status === "excused"
+                                                                    ).length;
+
+                                                                    const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
+
+                                                                    const enrichedStudent = {
+                                                                        ...studentObj,
+                                                                        average_attendance: averageAttendance,
+                                                                        total_attendance: total,
+                                                                    };
+
+                                                                    setSelectedStudent(enrichedStudent);
+                                                                } catch (error) {
+                                                                    console.error("Error fetching attendance:", error);
+                                                                    setSelectedStudent(studentObj);
+                                                                }
+                                                                setIsStudentDetailsOpen(true);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <FileText className="mr-2 h-4 w-4" />
+                                                        View Details
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+
+                                        {result.has_results ? (
+                                            <>
+                                                <div className="grid grid-cols-3 gap-2">
+                                                    <div className="bg-blue-50 rounded-lg p-2 text-center">
+                                                        <p className="text-xs text-blue-600 font-medium">Average</p>
+                                                        <p className="text-lg font-bold text-blue-900">
+                                                            {result.average_score.toFixed(1)}%
+                                                        </p>
+                                                    </div>
+                                                    <div className="bg-green-50 rounded-lg p-2 text-center">
+                                                        <p className="text-xs text-green-600 font-medium">Highest</p>
+                                                        <p className="text-lg font-bold text-green-900">
+                                                            {result.highest_score.toFixed(0)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="bg-orange-50 rounded-lg p-2 text-center">
+                                                        <p className="text-xs text-orange-600 font-medium">Lowest</p>
+                                                        <p className="text-lg font-bold text-orange-900">
+                                                            {result.lowest_score.toFixed(0)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between text-xs">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-gray-600">Subjects:</span>
+                                                        <Badge variant="outline" className="text-xs">{result.total_subjects}</Badge>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <PerformanceIcon className={`h-3 w-3 ${performance.color}`} />
+                                                        <span className={`${performance.color} font-medium`}>
+                                                            {performance.label}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between pt-2 border-t">
+                                                    <Badge
+                                                        variant="outline"
+                                                        className={`text-sm font-bold ${getGradeColor(result.average_grade)}`}
+                                                    >
+                                                        Grade: {result.average_grade}
+                                                    </Badge>
+                                                    {result.class_position ? (
+                                                        <div className="flex items-center gap-1">
+                                                            {getPositionDisplay(result.class_position)}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">No position</span>
+                                                    )}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-center py-4 text-sm text-muted-foreground bg-gray-50 rounded-lg">
+                                                No results recorded
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {filteredResults.length === 0 && (
+                                <div className="p-8 text-center text-sm text-muted-foreground">
+                                    {search || genderFilter !== "all" || performanceFilter !== "all"
+                                        ? "No results match your filters."
+                                        : "No student results found for this term."}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </CardContent>

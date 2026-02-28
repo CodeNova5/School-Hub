@@ -445,44 +445,51 @@ export default function TeacherAttendanceTab({
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <CardTitle>Class Attendance</CardTitle>
+      <CardHeader className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <CardTitle className="text-lg sm:text-xl">Class Attendance</CardTitle>
           <div className="flex gap-2">
             <Button
               size="sm"
               variant="outline"
               onClick={handleExportAttendance}
               disabled={attendanceLoading}
+              className="text-xs sm:text-sm"
             >
-              <Download className="h-4 w-4 mr-1" />
-              Export
+              <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              <span className="hidden xs:inline">Export</span>
+              <span className="xs:hidden">Export</span>
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 p-4 sm:p-6">
         {/* Date Selection and Quick Actions */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b">
-          <div className="flex-1">
-            <Label className="block text-sm font-medium mb-2">Select Date</Label>
+        <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b">
+          <div className="flex-1 w-full sm:w-auto">
+            <Label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">Select Date</Label>
             <div className="flex gap-2">
               <Input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="flex-1"
+                className="flex-1 text-sm h-9 sm:h-10"
               />
-              <Button variant="outline" onClick={setToday}>
+              <Button variant="outline" onClick={setToday} className="text-xs sm:text-sm px-3 h-9 sm:h-10 shrink-0">
                 Today
               </Button>
             </div>
-            <p className="text-sm text-gray-600 mt-1">{getFormattedDate(selectedDate)}</p>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1 sm:mt-1.5">{getFormattedDate(selectedDate)}</p>
           </div>
 
-          <div>
-            <Label className="block text-sm font-medium mb-2">Quick Actions</Label>
-            <Button onClick={markAllPresent} variant="outline" disabled={attendanceLoading}>
+          <div className="w-full sm:w-auto">
+            <Label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">Quick Actions</Label>
+            <Button 
+              onClick={markAllPresent} 
+              variant="outline" 
+              disabled={attendanceLoading}
+              className="w-full sm:w-auto text-xs sm:text-sm h-9 sm:h-10"
+            >
               Mark All Present
             </Button>
           </div>
@@ -490,10 +497,11 @@ export default function TeacherAttendanceTab({
 
         {/* Attendance List */}
         {attendanceLoading ? (
-          <div className="text-center py-8 text-gray-500">Loading attendance data...</div>
+          <div className="text-center py-8 text-sm sm:text-base text-gray-500">Loading attendance data...</div>
         ) : (
-          <div className="space-y-2">
-            <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 rounded-lg font-medium text-sm">
+          <div className="space-y-2 sm:space-y-3">
+            {/* Desktop Table Header - Hidden on mobile */}
+            <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-4 py-2 bg-gray-50 rounded-lg font-medium text-sm">
               <div className="col-span-1">#</div>
               <div className="col-span-4">Student Name</div>
               <div className="col-span-2">Gender</div>
@@ -502,61 +510,118 @@ export default function TeacherAttendanceTab({
             </div>
 
             {attendanceStudents.map((student, index) => (
-              <div
-                key={student.id}
-                className="grid grid-cols-12 gap-4 px-4 py-3 border rounded-lg items-center hover:bg-gray-50"
-              >
-                <div className="col-span-1 text-gray-600">{index + 1}</div>
-                <div className="col-span-4">
-                  <p className="font-medium">
-                    {student.first_name} {student.last_name}
-                  </p>
-                  <p className="text-xs text-gray-500">{student.student_id}</p>
+              <div key={student.id}>
+                {/* Desktop Layout */}
+                <div className="hidden lg:grid lg:grid-cols-12 gap-4 px-4 py-3 border rounded-lg items-center hover:bg-gray-50">
+                  <div className="col-span-1 text-gray-600">{index + 1}</div>
+                  <div className="col-span-4">
+                    <p className="font-medium">
+                      {student.first_name} {student.last_name}
+                    </p>
+                    <p className="text-xs text-gray-500">{student.student_id}</p>
+                  </div>
+                  <div className="col-span-2 text-sm text-gray-600 capitalize">
+                    {student.gender || "N/A"}
+                  </div>
+                  <div className="col-span-2">
+                    <span
+                      className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                        statusColors[student.attendanceStatus]
+                      }`}
+                    >
+                      {student.attendanceStatus.replace("_", " ").toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="col-span-3">
+                    <select
+                      value={student.attendanceStatus}
+                      onChange={(e) =>
+                        updateStudentAttendanceStatus(
+                          student.id,
+                          e.target.value as StudentAttendance["attendanceStatus"]
+                        )
+                      }
+                      className="w-full px-2 py-1.5 border rounded text-sm"
+                    >
+                      <option value="not_marked">Not Marked</option>
+                      <option value="present">Present</option>
+                      <option value="absent">Absent</option>
+                      <option value="late">Late</option>
+                      <option value="excused">Excused</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="col-span-2 text-sm text-gray-600 capitalize">
-                  {student.gender || "N/A"}
-                </div>
-                <div className="col-span-2">
-                  <span
-                    className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                      statusColors[student.attendanceStatus]
-                    }`}
-                  >
-                    {student.attendanceStatus.replace("_", " ").toUpperCase()}
-                  </span>
-                </div>
-                <div className="col-span-3">
-                  <select
-                    value={student.attendanceStatus}
-                    onChange={(e) =>
-                      updateStudentAttendanceStatus(
-                        student.id,
-                        e.target.value as StudentAttendance["attendanceStatus"]
-                      )
-                    }
-                    className="w-full px-2 py-1.5 border rounded text-sm"
-                  >
-                    <option value="not_marked">Not Marked</option>
-                    <option value="present">Present</option>
-                    <option value="absent">Absent</option>
-                    <option value="late">Late</option>
-                    <option value="excused">Excused</option>
-                  </select>
+
+                {/* Mobile Card Layout */}
+                <div className="lg:hidden border rounded-lg p-3 sm:p-4 space-y-3 hover:bg-gray-50">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-xs font-medium shrink-0">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm sm:text-base truncate">
+                            {student.first_name} {student.last_name}
+                          </p>
+                          <p className="text-xs text-gray-500">{student.student_id}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-block px-2 py-1 rounded text-xs font-medium shrink-0 ${
+                        statusColors[student.attendanceStatus]
+                      }`}
+                    >
+                      {student.attendanceStatus.replace("_", " ").toUpperCase()}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 text-xs sm:text-sm">
+                    <div className="flex-1">
+                      <span className="text-gray-600">Gender: </span>
+                      <span className="font-medium capitalize">{student.gender || "N/A"}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium text-gray-700">Mark Attendance</Label>
+                    <select
+                      value={student.attendanceStatus}
+                      onChange={(e) =>
+                        updateStudentAttendanceStatus(
+                          student.id,
+                          e.target.value as StudentAttendance["attendanceStatus"]
+                        )
+                      }
+                      className="w-full px-3 py-2 border rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="not_marked">Not Marked</option>
+                      <option value="present">✓ Present</option>
+                      <option value="absent">✗ Absent</option>
+                      <option value="late">⏰ Late</option>
+                      <option value="excused">📋 Excused</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             ))}
 
             {attendanceStudents.length === 0 && (
-              <div className="text-center py-8 text-gray-500">No students found in this class</div>
+              <div className="text-center py-8 text-sm sm:text-base text-gray-500">No students found in this class</div>
             )}
           </div>
         )}
 
         {/* Save Button */}
         {attendanceStudents.length > 0 && (
-          <div className="flex gap-2 pt-4 border-t">
-            <Button onClick={submitAttendance} disabled={attendanceLoading} className="flex-1">
-              Save Attendance
+          <div className="flex gap-2 pt-3 sm:pt-4 border-t sticky bottom-0 bg-white">
+            <Button 
+              onClick={submitAttendance} 
+              disabled={attendanceLoading} 
+              className="flex-1 h-10 sm:h-11 text-sm sm:text-base font-medium"
+            >
+              {attendanceLoading ? "Saving..." : "Save Attendance"}
             </Button>
           </div>
         )}

@@ -44,14 +44,6 @@ export function NotificationPermissionComponent({
   } = useNotificationSetup({ role });
 
   useEffect(() => {
-    // Load dismissed state from localStorage
-    const savedDismissed = localStorage.getItem(`notifications-dismissed-${role}`);
-    if (savedDismissed === "true") {
-      setDismissed(true);
-    }
-  }, [role]);
-
-  useEffect(() => {
     // Check if permission is already granted
     if (permission === "granted") {
       setHasPermission(true);
@@ -80,20 +72,13 @@ export function NotificationPermissionComponent({
   const handleDismiss = () => {
     setShowDialog(false);
     setDismissed(true);
-    // Persist dismissed state to localStorage
-    localStorage.setItem(`notifications-dismissed-${role}`, "true");
   };
 
   // Show nothing if already has permission
   if (hasPermission) {
     return (
-      <Alert className="border-green-200 bg-green-50 mb-4">
-        <CheckCircle className="h-5 w-5 text-green-600" />
-        <AlertDescription className="text-green-800">
-          ✓ Notifications enabled. You'll receive updates about assignments,
-          events, and announcements.
-        </AlertDescription>
-      </Alert>
+      <>
+      </>
     );
   }
 

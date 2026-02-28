@@ -38,6 +38,7 @@ export default function TeacherTimetablePage() {
   const [teacherName, setTeacherName] = useState("");
   const [timetable, setTimetable] = useState<Record<string, Record<string, TimetableCell>>>({});
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
+  const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
 
   useEffect(() => {
     loadTimetable();
@@ -432,8 +433,112 @@ export default function TeacherTimetablePage() {
 
           <CardContent className="p-0">
 
+            {/* MOBILE DAY VIEW */}
+            <div className="md:hidden p-4 space-y-4">
+              {/* Day Selector */}
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {DAYS.map((day) => (
+                  <Button
+                    key={day}
+                    onClick={() => setSelectedDay(day)}
+                    variant={selectedDay === day ? "default" : "outline"}
+                    size="sm"
+                    className="flex-shrink-0 whitespace-nowrap"
+                  >
+                    {day.slice(0, 3)}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Day's Schedule */}
+              <div className="space-y-3">
+                {displayPeriodRows.map((row) => {
+                  const periodTime = periodsByDay[selectedDay]?.[row.index];
+
+                  if (!periodTime) {
+                    return null;
+                  }
+
+                  if (row.isBreakRow) {
+                    return (
+                      <div
+                        key={row.index}
+                        className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center"
+                      >
+                        <div className="font-semibold text-yellow-800">BREAK TIME</div>
+                        <div className="text-sm text-yellow-700 mt-1">
+                          {periodTime.start_time} - {periodTime.end_time}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const cell = timetable[selectedDay]?.[periodTime.id];
+
+                  return (
+                    <div
+                      key={row.index}
+                      className={`p-4 border rounded-lg transition-colors ${
+                        cell
+                          ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"
+                          : "bg-gray-50 border-gray-200"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <div className="text-sm font-semibold text-gray-600">
+                          Period {row.label} • {periodTime.start_time} - {periodTime.end_time}
+                        </div>
+                        {cell ? (
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-blue-700">
+                              {cell.class}
+                            </div>
+                            <div className="text-lg font-bold text-gray-900">
+                              {cell.fullSubject}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-gray-500 italic">Free Period</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {stats.totalPeriods === 0 && (
+                <div className="text-center py-8">
+                  <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600 font-medium">No timetable entries found</p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    Contact the administrator to schedule your classes
+                  </p>
+                </div>
+              )}
+
+              {stats.totalPeriods > 0 && (
+                <Button
+                  onClick={handleExportPDF}
+                  disabled={exporting}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  {exporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
             {/* DESKTOP TABLE VIEW */}
-            <div className="hidden sm:block px-6 py-6"
+            <div className="hidden md:block px-6 py-6"
               id="teacher-timetable-area">
               <div className="w-full overflow-x-auto">
                 <table className="w-full table-fixed border-collapse">
@@ -542,86 +647,8 @@ export default function TeacherTimetablePage() {
               </div>
             </div>
 
-            {/* MOBILE CARD VIEW */}
-            <div className="block sm:hidden p-4 space-y-4">
-              {displayPeriodRows.map((row) => {
-                const periodTime = periodsByDay[DAYS[0]]?.[row.index];
-
-                return (
-                  <div key={row.index} className={`rounded-lg border p-4 ${row.isBreakRow ? "bg-yellow-50 border-yellow-200" : "bg-white border-gray-200"}`}>
-                    {/* Period Header */}
-                    <div className="font-semibold text-gray-800 mb-4">
-                      {row.isBreakRow ? (
-                        <div>
-                          <div className="text-yellow-800">BREAK TIME</div>
-                          {periodTime && (
-                            <div className="text-xs text-gray-600 mt-1">
-                              {periodTime.start_time} - {periodTime.end_time}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div>
-                          <div className="text-gray-900">Period {row.label}</div>
-                          {periodTime && (
-                            <div className="text-xs text-gray-600 mt-1">
-                              {periodTime.start_time} - {periodTime.end_time}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Days in this Period */}
-                    <div className="space-y-3">
-                      {DAYS.map((day) => {
-                        const period = periodsByDay[day]?.[row.index];
-
-                        if (!period) {
-                          return null;
-                        }
-
-                        if (period.is_break) {
-                          return null;
-                        }
-
-                        const cell = timetable[day]?.[period.id];
-
-                        return (
-                          <div key={day} className="flex items-start gap-3 pb-3 border-b border-gray-200 last:border-b-0 last:pb-0">
-                            {/* Day Label */}
-                            <div className="min-w-[80px]">
-                              <div className="text-sm font-medium text-gray-700">
-                                {day}
-                              </div>
-                            </div>
-
-                            {/* Class/Subject Info */}
-                            {cell ? (
-                              <div className="flex-1 bg-blue-50 rounded p-2 border border-blue-200">
-                                <div className="text-xs font-medium text-blue-700">
-                                  {cell.class}
-                                </div>
-                                <div className="text-sm font-semibold text-gray-900 mt-1">
-                                  {cell.fullSubject}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex-1 text-xs text-gray-400">
-                                Free Period
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
             {stats.totalPeriods === 0 && (
-              <div className="text-center py-14 px-4 sm:px-6">
+              <div className="hidden md:block text-center py-14 px-4 sm:px-6">
                 <div className="bg-gray-100 w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Calendar className="h-6 w-6 text-gray-400" />
                 </div>

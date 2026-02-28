@@ -86,36 +86,54 @@ export default function TeacherClassManagement({ params }: PageProps) {
   async function loadInitialData() {
     try {
       setLoading(true);
-      await Promise.all([
-        fetchClass(),
-        fetchSessions(),
-        fetchTerms(),
+      const [classResult, sessionsResult, termsResult] = await Promise.all([
+        supabase.from('classes').select('*').eq('id', classId).single(),
+        supabase.from('sessions').select('*'),
+        supabase.from('terms').select('*')
       ]);
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  useEffect(() => {
-    if (classData?.id) {
-      fetchClassSubjects();
-      fetchStudents();
-    }
-  }, [classData?.id]);
+      if (classResult.data) setClassData(classResult.data);
+      if (sessionsResult.data) setSessions(sessionsResult.data);
+      if (termsResult.data) setTerms(termsResult.data);
 
-  async function fetchClass() {
-    try {
-      const { data, error } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('id', classId)
-        .single();
-      if (!error && data) {
-        setClassData(data);
+      // Load subjects and students in parallel after class data
+      if (classResult.data) {
+        setSubjectsLoading(true);
+        setStudentsLoading(true);
+
+        const [subjectsResult, studentsResult] = await Promise.all([
+          supabase
+            .from('subject_classes')
+            .select(`id, subject_code, subject:subjects(id, name, is_optional, religion, department), teacher:teachers(id, first_name, last_name)`)
+            .eq('class_id', classId),
+          supabase
+            .from('students')
+            .select('*')
+            .eq('class_id', classId)
+        ]);
+
+        if (subjectsResult.data) {
+          const formatted: SubjectClass[] = subjectsResult.data.map((item: any) => ({
+            id: item.id,
+            subject_code: item.subject_code,
+            subject: item.subject,
+            teacher: item.teacher ?? null,
+          }));
+          setSubjects(formatted);
+        }
+
+        if (studentsResult.data) {
+          setStudents(studentsResult.data);
+        }
+
+        setSubjectsLoading(false);
+        setStudentsLoading(false);
       }
     } catch (error) {
-      console.error('Error fetching class:', error);
+      console.error('Error loading data:', error);
       toast.error("Failed to load class data");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -124,7 +142,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
     try {
       const { data, error } = await supabase
         .from('subject_classes')
-        .select(`id, subject_code, subject:subjects(id, name, is_optional, religion, department), teacher:teachers(id, first_name, last_name)`) // adjust join syntax as needed
+        .select(`id, subject_code, subject:subjects(id, name, is_optional, religion, department), teacher:teachers(id, first_name, last_name)`)
         .eq('class_id', classId);
       const formatted: SubjectClass[] = (data || []).map((item: any) => ({
         id: item.id,
@@ -137,43 +155,6 @@ export default function TeacherClassManagement({ params }: PageProps) {
       console.error('Error fetching subjects:', error);
     } finally {
       setSubjectsLoading(false);
-    }
-  }
-
-  async function fetchStudents() {
-    setStudentsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('class_id', classId);
-      setStudents(data || []);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-    } finally {
-      setStudentsLoading(false);
-    }
-  }
-
-  async function fetchSessions() {
-    try {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*');
-      setSessions(data || []);
-    } catch (error) {
-      console.error('Error fetching sessions:', error);
-    }
-  }
-
-  async function fetchTerms() {
-    try {
-      const { data, error } = await supabase
-        .from('terms')
-        .select('*');
-      setTerms(data || []);
-    } catch (error) {
-      console.error('Error fetching terms:', error);
     }
   }
 
@@ -223,7 +204,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8">
+      <div className="space-y-4 sm:space-y-6 md:space-y-8 pb-4 sm:pb-6">
         {/* Header */}
         <div>
           <div className="flex items-center gap-4 mb-4">
@@ -270,80 +251,81 @@ export default function TeacherClassManagement({ params }: PageProps) {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-5 p-10 bg-muted rounded-none border-b">
-              <TabsTrigger value="subjects" className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4" />
-                <span className="hidden sm:inline">Subjects</span>
+            <TabsList className="grid w-full grid-cols-5 p-2 sm:p-4 md:p-6 bg-muted rounded-none border-b h-auto">
+              <TabsTrigger value="subjects" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-2 text-xs sm:text-sm">
+                <BookOpen className="h-4 w-4 sm:h-4 sm:w-4 shrink-0" />
+                <span className="text-[10px] sm:text-sm">Subjects</span>
               </TabsTrigger>
-              <TabsTrigger value="students" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                <span className="hidden sm:inline">Students</span>
+              <TabsTrigger value="students" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-2 text-xs sm:text-sm">
+                <Users className="h-4 w-4 sm:h-4 sm:w-4 shrink-0" />
+                <span className="text-[10px] sm:text-sm">Students</span>
               </TabsTrigger>
-              <TabsTrigger value="timetable" className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" />
-                <span className="hidden sm:inline">Timetable</span>
+              <TabsTrigger value="timetable" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-2 text-xs sm:text-sm">
+                <CalendarDays className="h-4 w-4 sm:h-4 sm:w-4 shrink-0" />
+                <span className="text-[10px] sm:text-sm">Timetable</span>
               </TabsTrigger>
-              <TabsTrigger value="attendance" className="flex items-center gap-2">
-                <UserCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">Attendance</span>
+              <TabsTrigger value="attendance" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-2 text-xs sm:text-sm">
+                <UserCheck className="h-4 w-4 sm:h-4 sm:w-4 shrink-0" />
+                <span className="text-[10px] sm:text-sm">Attendance</span>
               </TabsTrigger>
-              <TabsTrigger value="results" className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                <span className="hidden sm:inline">Results</span>
+              <TabsTrigger value="results" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 sm:py-2.5 px-2 text-xs sm:text-sm">
+                <BarChart3 className="h-4 w-4 sm:h-4 sm:w-4 shrink-0" />
+                <span className="text-[10px] sm:text-sm">Results</span>
               </TabsTrigger>
             </TabsList>
           </Card>
+            <TabsContent value="subjects" className="mt-2 sm:mt-3 md:mt-4">
+              {subjectsLoading ? (
+                <Card>
+                  <CardContent className="p-4 sm:pt-6">
+                    <SkeletonLoader />
+                  </CardContent>
+                </Card>
+              ) : (
+                <TeacherSubjectsTab
+                  classId={classId}
+                  subjects={subjects}
+                  onRefresh={fetchClassSubjects}
+                />
+              )}
+            </TabsContent>
 
-          <TabsContent value="subjects" className="mt-0">
-            {subjectsLoading ? (
-              <Card>
-                <CardContent className="pt-6">
-                  <SkeletonLoader />
-                </CardContent>
-              </Card>
-            ) : (
-              <TeacherSubjectsTab 
-                classId={classId}
-                subjects={subjects}
-                onRefresh={fetchClassSubjects}
-              />
-            )}
-          </TabsContent>
 
-          <TabsContent value="students" className="mt-0">
-            {studentsLoading ? (
-              <Card>
-                <CardContent className="pt-6">
-                  <SkeletonLoader />
-                </CardContent>
-              </Card>
-            ) : (
-              <TeacherStudentsTab 
-                classId={classId}
-                students={students}
-                sessions={sessions}
-                terms={terms}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="timetable" className="mt-0">
-            <TeacherTimetableTab 
+            <TabsContent value="students" className="mt-2 sm:mt-3 md:mt-4">
+              {studentsLoading ? (
+                <Card>
+                  <CardContent className="p-4 sm:pt-6">
+                    <p className="text-sm text-gray-600">Students</p>
+                    <p className="text-xl font-bold">{students.length}</p>
+                    <SkeletonLoader />
+                  </CardContent>
+                </Card>
+              ) : (
+                <TeacherStudentsTab
+                  classId={classId}
+                  students={students}
+                  sessions={sessions}
+                  terms={terms}
+                />
+              )}
+            </TabsContent>
+            <TabsContent value="timetable" className="mt-2 sm:mt-3 md:mt-4">
+            <TeacherTimetableTab
               classId={classId}
               className={classData.name}
             />
           </TabsContent>
 
-          <TabsContent value="attendance" className="mt-0">
-            <TeacherAttendanceTab 
+          <TabsContent value="attendance" className="mt-2 sm:mt-3 md:mt-4">
+            <TeacherAttendanceTab
               classId={classId}
               className={classData.name}
               students={students}
             />
           </TabsContent>
 
-          <TabsContent value="results" className="mt-0">
-            <TeacherResultsTab 
+          <TabsContent value="results" className="mt-2 sm:mt-3 md:mt-4">
+            <TeacherResultsTab
               classId={classId}
               className={classData.name}
               students={students}

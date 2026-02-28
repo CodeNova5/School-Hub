@@ -506,32 +506,32 @@ export function ResultsPublicationDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] md:max-w-2xl max-h-[90vh] overflow-y-auto p-3 sm:p-4 md:p-6">
         <DialogHeader>
-          <DialogTitle>Publish Results to Students</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-lg sm:text-xl md:text-2xl">Publish Results to Students</DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
             Control which result components students can see for {className}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-4 sm:space-y-5 md:space-y-6 py-2 sm:py-3 md:py-4">
           {/* Component Selection */}
-          <div className="space-y-4">
+          <div className="space-y-2 sm:space-y-3 md:space-y-4">
             <div>
-              <h3 className="font-semibold text-sm">Select Components to Publish</h3>
-              <p className="text-xs text-gray-500 mt-1">
+              <h3 className="font-semibold text-sm sm:text-base">Select Components to Publish</h3>
+              <p className="text-xs text-gray-500 mt-0.5 sm:mt-1">
                 Component selection and calculation mode are automatically synced
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="welcome_test"
                   checked={settings.welcome_test_published}
                   onCheckedChange={() => handleComponentToggle('welcome_test_published')}
                 />
-                <Label htmlFor="welcome_test" className="cursor-pointer">
+                <Label htmlFor="welcome_test" className="cursor-pointer text-xs sm:text-sm">
                   Welcome Test (10 marks)
                 </Label>
               </div>
@@ -542,7 +542,7 @@ export function ResultsPublicationDialog({
                   checked={settings.mid_term_test_published}
                   onCheckedChange={() => handleComponentToggle('mid_term_test_published')}
                 />
-                <Label htmlFor="mid_term_test" className="cursor-pointer">
+                <Label htmlFor="mid_term_test" className="cursor-pointer text-xs sm:text-sm">
                   Mid-Term Test (20 marks)
                 </Label>
               </div>
@@ -553,7 +553,7 @@ export function ResultsPublicationDialog({
                   checked={settings.vetting_published}
                   onCheckedChange={() => handleComponentToggle('vetting_published')}
                 />
-                <Label htmlFor="vetting" className="cursor-pointer">
+                <Label htmlFor="vetting" className="cursor-pointer text-xs sm:text-sm">
                   Vetting (10 marks)
                 </Label>
               </div>
@@ -564,7 +564,7 @@ export function ResultsPublicationDialog({
                   checked={settings.exam_published}
                   onCheckedChange={() => handleComponentToggle('exam_published')}
                 />
-                <Label htmlFor="exam" className="cursor-pointer">
+                <Label htmlFor="exam" className="cursor-pointer text-xs sm:text-sm">
                   Exam (60 marks)
                 </Label>
               </div>
@@ -572,10 +572,10 @@ export function ResultsPublicationDialog({
           </div>
 
           {/* Calculation Mode */}
-          <div className="space-y-2">
-            <Label>Grade Calculation Mode</Label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <Label className="text-sm sm:text-base">Grade Calculation Mode</Label>
             <Select value={settings.calculation_mode} onValueChange={handleCalculationModeChange}>
-              <SelectTrigger>
+              <SelectTrigger className="text-xs sm:text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -596,15 +596,16 @@ export function ResultsPublicationDialog({
               variant="outline"
               onClick={checkStudentCompletions}
               disabled={checking || (!settings.welcome_test_published && !settings.mid_term_test_published && !settings.vetting_published && !settings.exam_published)}
+              className="w-full text-xs sm:text-sm"
             >
               {checking ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 animate-spin" />
                   Checking...
                 </>
               ) : (
                 <>
-                  <AlertCircle className="h-4 w-4 mr-2" />
+                  <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
                   Check Student Completions
                 </>
               )}
@@ -613,10 +614,10 @@ export function ResultsPublicationDialog({
 
           {/* Student Completions Display */}
           {studentCompletions.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {completeStudents.length > 0 && (
-                <Alert className="border-green-200 bg-green-50">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <Alert className="border-green-200 bg-green-50 text-xs sm:text-sm">
+                  <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
                   <AlertDescription>
                     <strong>{completeStudents.length} student(s)</strong> have complete results
                   </AlertDescription>
@@ -624,16 +625,16 @@ export function ResultsPublicationDialog({
               )}
 
               {incompleteStudents.length > 0 && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
+                <Alert variant="destructive" className="text-xs sm:text-sm">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
                   <AlertDescription>
-                    <div className="space-y-2">
-                      <p className="font-semibold">
+                    <div className="space-y-1 sm:space-y-2">
+                      <p className="font-semibold text-xs sm:text-sm">
                         {incompleteStudents.length} student(s) have incomplete results:
                       </p>
-                      <div className="max-h-40 overflow-y-auto space-y-1">
+                      <div className="max-h-40 overflow-y-auto space-y-0.5 sm:space-y-1">
                         {incompleteStudents.map((student) => (
-                          <div key={student.student_id} className="text-sm">
+                          <div key={student.student_id} className="text-xs sm:text-sm">
                             <span className="font-medium">{student.student_name}</span> ({student.student_number})
                             - Missing: {student.missing_components.join(", ")}
                           </div>
@@ -646,15 +647,15 @@ export function ResultsPublicationDialog({
             </div>
           )}
           {/* Master Publish Toggle */}
-          <div className="border-t pt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label className="text-base font-semibold">Make Results Visible to Students</Label>
-                <p className="text-sm text-gray-500">
+          <div className="border-t pt-3 sm:pt-4 md:pt-4 space-y-3 sm:space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+              <div className="space-y-0.5 sm:space-y-1 flex-1">
+                <Label className="text-sm sm:text-base font-semibold">Make Results Visible to Students</Label>
+                <p className="text-xs sm:text-sm text-gray-500">
                   Enable this to allow students to view their results
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-shrink-0">
                 <Checkbox
                   id="is_published"
                   checked={settings.is_published}
@@ -662,13 +663,13 @@ export function ResultsPublicationDialog({
                 />
                 <Label htmlFor="is_published" className="cursor-pointer">
                   {settings.is_published ? (
-                    <Badge className="bg-green-600">
-                      <Eye className="h-3 w-3 mr-1" />
+                    <Badge className="bg-green-600 text-xs">
+                      <Eye className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" />
                       Published
                     </Badge>
                   ) : (
-                    <Badge variant="secondary">
-                      <EyeOff className="h-3 w-3 mr-1" />
+                    <Badge variant="secondary" className="text-xs">
+                      <EyeOff className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" />
                       Not Published
                     </Badge>
                   )}
@@ -676,14 +677,14 @@ export function ResultsPublicationDialog({
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label className="text-base font-semibold">Make Results Visible to Parents</Label>
-                <p className="text-sm text-gray-500">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+              <div className="space-y-0.5 sm:space-y-1 flex-1">
+                <Label className="text-sm sm:text-base font-semibold">Make Results Visible to Parents</Label>
+                <p className="text-xs sm:text-sm text-gray-500">
                   Enable this to allow parents to view their children's results
                 </p>
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-shrink-0">
                 <Checkbox
                   id="is_published_to_parents"
                   checked={settings.is_published_to_parents}
@@ -691,13 +692,13 @@ export function ResultsPublicationDialog({
                 />
                 <Label htmlFor="is_published_to_parents" className="cursor-pointer">
                   {settings.is_published_to_parents ? (
-                    <Badge className="bg-green-600">
-                      <Eye className="h-3 w-3 mr-1" />
+                    <Badge className="bg-green-600 text-xs">
+                      <Eye className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" />
                       Published
                     </Badge>
                   ) : (
-                    <Badge variant="secondary">
-                      <EyeOff className="h-3 w-3 mr-1" />
+                    <Badge variant="secondary" className="text-xs">
+                      <EyeOff className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1" />
                       Not Published
                     </Badge>
                   )}
@@ -708,21 +709,21 @@ export function ResultsPublicationDialog({
         </div>
         
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button onClick={handlePublish} disabled={loading}>
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            "Save Publication Settings"
-          )}
-        </Button>
-      </DialogFooter>
+        <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
+          <Button variant="outline" onClick={onClose} disabled={loading} className="text-xs sm:text-sm">
+            Cancel
+          </Button>
+          <Button onClick={handlePublish} disabled={loading} className="text-xs sm:text-sm">
+            {loading ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Publication Settings"
+            )}
+          </Button>
+        </DialogFooter>
     </DialogContent>
     </Dialog >
   );

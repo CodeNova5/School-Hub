@@ -184,14 +184,9 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-gray-900 text-sm">
-                {notification.sentBy || "System"}
-              </p>
-              <p className="text-gray-600 text-sm flex-1 line-clamp-2">
-                {notification.title}
-              </p>
-            </div>
+            <p className="font-semibold text-gray-900 text-sm line-clamp-2">
+              {notification.title}
+            </p>
             <p className="text-gray-600 text-sm mt-1 line-clamp-2">
               {notification.body}
             </p>

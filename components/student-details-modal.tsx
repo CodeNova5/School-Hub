@@ -142,64 +142,64 @@ export function StudentDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto w-[95vw] max-w-[95vw] md:max-w-5xl p-4 md:p-6">
         <DialogHeader>
-          <DialogTitle>Student Details</DialogTitle>
+          <DialogTitle className="text-xl md:text-2xl">Student Details</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-start gap-6">
-                <Avatar className="h-24 w-24">
+            <CardContent className="p-3 md:p-6">
+              <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
+                <Avatar className="h-20 w-20 md:h-24 md:w-24 flex-shrink-0">
                   <AvatarImage src={student.photo_url} />
-                  <AvatarFallback className="bg-blue-100 text-blue-700 text-2xl">
+                  <AvatarFallback className="bg-blue-100 text-blue-700 text-xl md:text-2xl">
                     {getInitials(student.first_name, student.last_name)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 space-y-4">
                   <div>
-                    <h2 className="text-2xl font-bold">
+                    <h2 className="text-xl md:text-2xl font-bold">
                       {student.first_name} {student.last_name}
                     </h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline">
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <Badge variant="outline" className="text-xs md:text-sm">
                         <Hash className="h-3 w-3 mr-1" />
                         {student.student_id}
                       </Badge>
-                      <Badge>{student.status}</Badge>
+                      <Badge className="text-xs md:text-sm">{student.status}</Badge>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-2 text-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 text-xs md:text-sm">
+                    <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-gray-500" />
                       <span>{student.email}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-gray-500" />
                       <span>{student.phone}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-500" />
                       <span className="capitalize">{student.gender}</span>
                     </div>
                     {/* New: Department */}
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-500" />
                       <span className="capitalize">Department: {student.department}</span>
                     </div>
 
                     {/* New: Date of Birth */}
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-gray-500" />
                       <span>
                         DOB: {student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString() : 'N/A'}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-500" />
                       <span>
                         Age:{' '}
@@ -212,15 +212,15 @@ export function StudentDetailsModal({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-gray-500" />
                       <span>Admitted: {new Date(student.admission_date).toLocaleDateString()}</span>
                     </div>
                   </div>
 
                   {student.address && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                    <div className="flex items-start gap-2 text-xs md:text-sm">
+                      <MapPin className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
                       <span>{student.address}</span>
                     </div>
                   )}
@@ -231,21 +231,21 @@ export function StudentDetailsModal({
 
           <Card>
             <CardHeader>
-              <CardTitle>Parent/Guardian Information</CardTitle>
+              <CardTitle className="text-lg md:text-xl">Parent/Guardian Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <Label className="text-gray-600">Name</Label>
-                  <p className="font-medium">{student.parent_name}</p>
+                  <Label className="text-xs md:text-sm text-gray-600">Name</Label>
+                  <p className="font-medium text-sm md:text-base">{student.parent_name}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Email</Label>
-                  <p className="font-medium">{student.parent_email}</p>
+                  <Label className="text-xs md:text-sm text-gray-600">Email</Label>
+                  <p className="font-medium text-sm md:text-base break-all">{student.parent_email}</p>
                 </div>
                 <div>
-                  <Label className="text-gray-600">Phone</Label>
-                  <p className="font-medium">{student.parent_phone}</p>
+                  <Label className="text-xs md:text-sm text-gray-600">Phone</Label>
+                  <p className="font-medium text-sm md:text-base">{student.parent_phone}</p>
                 </div>
               </div>
             </CardContent>
@@ -253,21 +253,21 @@ export function StudentDetailsModal({
 
           <Tabs defaultValue="attendance" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="attendance">Attendance</TabsTrigger>
-              <TabsTrigger value="results">Academic Results</TabsTrigger>
+              <TabsTrigger value="attendance" className="text-xs md:text-sm">Attendance</TabsTrigger>
+              <TabsTrigger value="results" className="text-xs md:text-sm">Academic Results</TabsTrigger>
             </TabsList>
 
             <TabsContent value="attendance" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>Attendance History</CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Label>Filter by:</Label>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <CardTitle className="text-lg md:text-xl">Attendance History</CardTitle>
+                    <div className="flex flex-col md:flex-row md:items-center gap-2">
+                      <Label className="text-xs md:text-sm">Filter by:</Label>
                       <select
                         value={attendancePeriod}
                         onChange={(e) => setAttendancePeriod(e.target.value as any)}
-                        className="px-3 py-1.5 border rounded-md text-sm"
+                        className="px-2 md:px-3 py-1.5 border rounded-md text-xs md:text-sm"
                       >
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
@@ -279,9 +279,9 @@ export function StudentDetailsModal({
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Average Attendance</p>
-                    <p className="text-3xl font-bold text-blue-600">
+                  <div className="mb-4 p-3 md:p-4 bg-blue-50 rounded-lg">
+                    <p className="text-xs md:text-sm text-gray-600">Average Attendance</p>
+                    <p className="text-2xl md:text-3xl font-bold text-blue-600">
                       {student.average_attendance}%
                     </p>
                   </div>
@@ -293,17 +293,17 @@ export function StudentDetailsModal({
             <TabsContent value="results" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Academic Performance</CardTitle>
-                  <div className="flex gap-4 mt-4">
+                  <CardTitle className="text-lg md:text-xl">Academic Performance</CardTitle>
+                  <div className="flex flex-col md:flex-row gap-3 md:gap-4 mt-4">
                     <div className="flex-1">
-                      <Label>Session</Label>
+                      <Label className="text-xs md:text-sm">Session</Label>
                       <select
                         value={activeSessionId}
                         onChange={(e) => {
                           setSelectedSessionId(e.target.value);
                           setSelectedTermId('');
                         }}
-                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        className="w-full px-2 md:px-3 py-2 border rounded-md mt-1 text-xs md:text-sm"
                       >
                         <option value="">Select Session</option>
                         {sessions.map((session) => (
@@ -314,11 +314,11 @@ export function StudentDetailsModal({
                       </select>
                     </div>
                     <div className="flex-1">
-                      <Label>Term</Label>
+                      <Label className="text-xs md:text-sm">Term</Label>
                       <select
                         value={activeTermId}
                         onChange={(e) => setSelectedTermId(e.target.value)}
-                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        className="w-full px-2 md:px-3 py-2 border rounded-md mt-1 text-xs md:text-sm"
                         disabled={!activeSessionId}
                       >
                         <option value="">Select Term</option>

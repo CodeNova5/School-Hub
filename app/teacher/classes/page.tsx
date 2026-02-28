@@ -88,10 +88,6 @@ export default function TeacherClassesPage() {
         setAssignedClasses([]);
       } else {
         setAssignedClasses(classes);
-        // If only one class, auto-redirect
-        if (classes.length === 1) {
-          router.push(`/teacher/classes/${classes[0].id}`);
-        }
       }
     } catch (error) {
       console.error("Error fetching teacher classes:", error);

@@ -255,27 +255,27 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
     return (
         <DashboardLayout role="teacher">
-            <div className="space-y-6 overflow-x-hidden">
+            <div className="space-y-4 sm:space-y-6 overflow-x-hidden pb-4 sm:pb-6">
 
                 {/* HEADER */}
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold">
+                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold">
                         Subject Analytics
                     </h1>
-                    <p className="text-sm sm:text-base text-gray-600 mt-2 break-words">
+                    <p className="text-xs sm:text-sm text-gray-600 mt-1.5 sm:mt-2 break-words">
                         {subject?.subject?.name} — {subject?.class?.name} ({subject?.class?.level})
                     </p>
                 </div>
 
                 {/* FILTERS */}
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardTitle className="text-base sm:text-lg">
                             Filters
                         </CardTitle>
                     </CardHeader>
 
-                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <CardContent className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
 
                         <Select
                             value={selectedSession}
@@ -284,12 +284,12 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 loadResults(subjectClassId, val, selectedTerm);
                             }}
                         >
-                            <SelectTrigger className="text-sm">
+                            <SelectTrigger className="text-sm h-9 sm:h-10">
                                 <SelectValue placeholder="Select Session" />
                             </SelectTrigger>
                             <SelectContent>
                                 {sessions.map((s: any) => (
-                                    <SelectItem value={s.id} key={s.id}>
+                                    <SelectItem value={s.id} key={s.id} className="text-sm">
                                         {s.name}
                                     </SelectItem>
                                 ))}
@@ -303,14 +303,14 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                 loadResults(subjectClassId, selectedSession, val);
                             }}
                         >
-                            <SelectTrigger className="text-sm">
+                            <SelectTrigger className="text-sm h-9 sm:h-10">
                                 <SelectValue placeholder="Select Term" />
                             </SelectTrigger>
                             <SelectContent>
                                 {terms
                                     .filter((t: any) => t.session_id === selectedSession)
                                     .map((t: any) => (
-                                        <SelectItem value={t.id} key={t.id}>
+                                        <SelectItem value={t.id} key={t.id} className="text-sm">
                                             {t.name}
                                         </SelectItem>
                                     ))}
@@ -321,12 +321,12 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 </Card>
 
                 {/* SUMMARY CARDS */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
 
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center text-center">
-                            <Users className="h-6 w-6 mb-2 text-blue-600" />
-                            <p className="text-2xl font-bold">{results.length}</p>
+                        <CardContent className="p-3 sm:p-4 flex flex-col items-center text-center">
+                            <Users className="h-5 w-5 sm:h-6 sm:w-6 mb-1.5 sm:mb-2 text-blue-600 shrink-0" />
+                            <p className="text-lg sm:text-2xl font-bold">{results.length}</p>
                             <p className="text-gray-500 text-xs sm:text-sm">
                                 Students Offering
                             </p>
@@ -334,9 +334,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </Card>
 
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center text-center">
-                            <TrendingUp className="h-6 w-6 mb-2 text-green-600" />
-                            <p className="text-2xl font-bold">{avgScore}</p>
+                        <CardContent className="p-3 sm:p-4 flex flex-col items-center text-center">
+                            <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 mb-1.5 sm:mb-2 text-green-600 shrink-0" />
+                            <p className="text-lg sm:text-2xl font-bold">{avgScore}</p>
                             <p className="text-gray-500 text-xs sm:text-sm">
                                 Average Score
                             </p>
@@ -344,9 +344,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </Card>
 
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center text-center">
-                            <Award className="h-6 w-6 mb-2 text-purple-600" />
-                            <p className="text-2xl font-bold">{highestScore}</p>
+                        <CardContent className="p-3 sm:p-4 flex flex-col items-center text-center">
+                            <Award className="h-5 w-5 sm:h-6 sm:w-6 mb-1.5 sm:mb-2 text-purple-600 shrink-0" />
+                            <p className="text-lg sm:text-2xl font-bold">{highestScore}</p>
                             <p className="text-gray-500 text-xs sm:text-sm">
                                 Highest Score
                             </p>
@@ -354,9 +354,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     </Card>
 
                     <Card>
-                        <CardContent className="p-4 flex flex-col items-center text-center">
-                            <TrendingDown className="h-6 w-6 mb-2 text-red-600" />
-                            <p className="text-2xl font-bold">{lowestScore}</p>
+                        <CardContent className="p-3 sm:p-4 flex flex-col items-center text-center">
+                            <TrendingDown className="h-5 w-5 sm:h-6 sm:w-6 mb-1.5 sm:mb-2 text-red-600 shrink-0" />
+                            <p className="text-lg sm:text-2xl font-bold">{lowestScore}</p>
                             <p className="text-gray-500 text-xs sm:text-sm">
                                 Lowest Score
                             </p>
@@ -367,7 +367,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
                 {/* STUDENT PERFORMANCE */}
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardTitle className="text-base sm:text-lg">
                             Student Performance Breakdown
                         </CardTitle>
@@ -376,20 +376,20 @@ export default function SubjectAnalyticsPage({ params }: any) {
                         </p>
                     </CardHeader>
 
-                    <CardContent>
+                    <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
 
                         {/* Filters */}
-                        <div className="flex flex-col sm:flex-row flex-wrap gap-3 mb-4">
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
 
                             <Input
                                 placeholder="Search by name or ID"
-                                className="w-full sm:w-64 text-sm"
+                                className="flex-1 min-w-0 text-sm h-9 sm:h-10"
                                 value={searchQuery}
                                 onChange={(e: any) => setSearchQuery(e.target.value)}
                             />
 
                             <select
-                                className="w-full sm:w-40 border rounded p-2 text-sm bg-white"
+                                className="border rounded p-2 text-xs sm:text-sm h-9 sm:h-10 bg-white min-w-fit"
                                 value={genderFilter}
                                 onChange={(e) => setGenderFilter(e.target.value)}
                             >
@@ -399,7 +399,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             </select>
 
                             <select
-                                className="w-full sm:w-40 border rounded p-2 text-sm bg-white"
+                                className="border rounded p-2 text-xs sm:text-sm h-9 sm:h-10 bg-white min-w-fit"
                                 value={scoreFilter}
                                 onChange={(e) => setScoreFilter(Number(e.target.value))}
                             >
@@ -411,9 +411,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
                         </div>
 
-                        {/* Table */}
-                        <div className="border rounded-lg overflow-x-auto">
-                            <div className="min-w-[700px]">
+                        {/* Desktop Table */}
+                        <div className="hidden lg:block border rounded-lg overflow-x-auto">
+                            <div>
                                 <table className="w-full text-xs sm:text-sm">
                                     <thead className="bg-gray-100">
                                         <tr>
@@ -438,7 +438,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                             )
                                             .filter((s) => s.total >= scoreFilter)
                                             .map((s, index) => (
-                                                <tr key={s.id} className="border-t">
+                                                <tr key={s.id} className="border-t hover:bg-gray-50">
                                                     <td className="p-2">{index + 1}</td>
                                                     <td className="p-2 whitespace-nowrap">{s.name}</td>
                                                     <td className="p-2">{s.welcome_test}</td>
@@ -454,66 +454,132 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             </div>
                         </div>
 
+                        {/* Mobile Card Layout */}
+                        <div className="lg:hidden space-y-3">
+                            {studentBreakdown
+                                .filter((s) =>
+                                    s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                    s.student_id.toLowerCase().includes(searchQuery.toLowerCase())
+                                )
+                                .filter((s) =>
+                                    genderFilter === "all" ? true : s.gender?.toLowerCase() === genderFilter
+                                )
+                                .filter((s) => s.total >= scoreFilter)
+                                .map((s, index) => (
+                                    <div key={s.id} className="border rounded-lg p-4 space-y-2 bg-white shadow-sm">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-xs font-medium shrink-0">
+                                                        {index + 1}
+                                                    </span>
+                                                    <p className="font-medium text-sm truncate">{s.name}</p>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground ml-8">{s.student_id}</p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className="text-lg font-bold text-blue-600">{s.total}</p>
+                                                <p className="text-xs font-semibold" style={{ color: GRADE_COLORS[s.grade] || '#666' }}>{s.grade}</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-4 gap-2 pt-2 border-t text-xs">
+                                            <div className="text-center">
+                                                <p className="text-gray-600 font-medium">Welcome</p>
+                                                <p className="font-semibold text-gray-900 mt-0.5">{s.welcome_test}</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-gray-600 font-medium">Mid</p>
+                                                <p className="font-semibold text-gray-900 mt-0.5">{s.mid_term}</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-gray-600 font-medium">Vetting</p>
+                                                <p className="font-semibold text-gray-900 mt-0.5">{s.vetting}</p>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-gray-600 font-medium">Exams</p>
+                                                <p className="font-semibold text-gray-900 mt-0.5">{s.exams}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            {studentBreakdown.filter((s) =>
+                                (s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                s.student_id.toLowerCase().includes(searchQuery.toLowerCase())) &&
+                                (genderFilter === "all" ? true : s.gender?.toLowerCase() === genderFilter) &&
+                                s.total >= scoreFilter
+                            ).length === 0 && (
+                                <div className="p-8 text-center text-sm text-muted-foreground">
+                                    No students match your filters
+                                </div>
+                            )}
+                        </div>
+
                     </CardContent>
                 </Card>
 
                 {/* CHARTS */}
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardTitle className="text-base sm:text-lg">
                             Assessment Component Breakdown
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto">
-                        <ResponsiveContainer width="100%" height={280}>
-                            <BarChart data={[
-                                { name: "Welcome Test", avg: results.length ? (results.reduce((a, b) => a + b.welcome_test, 0) / results.length).toFixed(1) : 0 },
-                                { name: "Mid Term", avg: results.length ? (results.reduce((a, b) => a + b.mid_term_test, 0) / results.length).toFixed(1) : 0 },
-                                { name: "Vetting", avg: results.length ? (results.reduce((a, b) => a + b.vetting, 0) / results.length).toFixed(1) : 0 },
-                                { name: "Exams", avg: results.length ? (results.reduce((a, b) => a + b.exam, 0) / results.length).toFixed(1) : 0 },
-                            ]}>
-                                <XAxis dataKey="name" />
-                                <YAxis />
-                                <Tooltip />
-                                <Bar dataKey="avg" fill="#3b82f6" />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <CardContent className="p-4 sm:p-6 overflow-x-auto">
+                        <div style={{ height: '280px', width: '100%', minWidth: '300px' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={[
+                                    { name: "Welcome Test", avg: results.length ? (results.reduce((a, b) => a + b.welcome_test, 0) / results.length).toFixed(1) : 0 },
+                                    { name: "Mid Term", avg: results.length ? (results.reduce((a, b) => a + b.mid_term_test, 0) / results.length).toFixed(1) : 0 },
+                                    { name: "Vetting", avg: results.length ? (results.reduce((a, b) => a + b.vetting, 0) / results.length).toFixed(1) : 0 },
+                                    { name: "Exams", avg: results.length ? (results.reduce((a, b) => a + b.exam, 0) / results.length).toFixed(1) : 0 },
+                                ]}>
+                                    <XAxis dataKey="name" fontSize={12} />
+                                    <YAxis fontSize={12} />
+                                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                                    <Bar dataKey="avg" fill="#3b82f6" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </CardContent>
                 </Card>
 
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardTitle className="text-base sm:text-lg">
                             Grade Distribution
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto">
-                        <ResponsiveContainer width="100%" height={280}>
-                            <BarChart data={gradeDistribution}>
-                                <XAxis dataKey="grade" />
-                                <YAxis />
-                                <Tooltip />
-                                <Bar dataKey="count" />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <CardContent className="p-4 sm:p-6 overflow-x-auto">
+                        <div style={{ height: '280px', width: '100%', minWidth: '300px' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={gradeDistribution}>
+                                    <XAxis dataKey="grade" fontSize={12} />
+                                    <YAxis fontSize={12} />
+                                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                                    <Bar dataKey="count" fill="#8b5cf6" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </CardContent>
                 </Card>
 
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="p-4 sm:p-6">
                         <CardTitle className="text-base sm:text-lg">
                             Male vs Female Performance
                         </CardTitle>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto">
-                        <ResponsiveContainer width="100%" height={280}>
-                            <BarChart data={genderComparison}>
-                                <XAxis dataKey="gender" />
-                                <YAxis />
-                                <Tooltip />
-                                <Bar dataKey="avg" fill="#60a5fa" />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <CardContent className="p-4 sm:p-6 overflow-x-auto">
+                        <div style={{ height: '280px', width: '100%', minWidth: '300px' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={genderComparison}>
+                                    <XAxis dataKey="gender" fontSize={12} />
+                                    <YAxis fontSize={12} />
+                                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                                    <Bar dataKey="avg" fill="#60a5fa" />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </CardContent>
                 </Card>
 

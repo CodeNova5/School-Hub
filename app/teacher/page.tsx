@@ -79,11 +79,14 @@ export default function TeacherDashboard() {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [eventsLoading, setEventsLoading] = useState(false);
   const [teacherName, setTeacherName] = useState('');
   const { syncNotificationToken } = useNotificationSetup({ role: "teacher" });
 
+  // Load critical data first (header, stats, today's classes)
   useEffect(() => {
-    async function fetchTeacherData() {
+    async function fetchCriticalData() {
       try {
         setLoading(true);
 
@@ -95,8 +98,8 @@ export default function TeacherDashboard() {
           return;
         }
 
-        // Sync notification token
-        await syncNotificationToken(user.id, "teacher");
+        // Sync notification token (non-blocking)
+        syncNotificationToken(user.id, "teacher").catch(err => console.error('Notification sync error:', err));
 
         // Get teacher info
         const teacher = await getTeacherByUserId(user.id);
@@ -107,72 +110,44 @@ export default function TeacherDashboard() {
 
         setTeacherName(`${teacher.first_name} ${teacher.last_name}`);
 
-        // Fetch classes assigned to this teacher
-        const { data: classes, error: classError } = await supabase
-          .from('classes')
-          .select('id, name')
-          .eq('class_teacher_id', teacher.id);
-
-        if (classError) throw classError;
-        const classIds = classes?.map(c => c.id) || [];
-        const totalClasses = classIds.length;
-
-        // Fetch students in all teacher's classes
-        let students: any[] = [];
-        if (classIds.length > 0) {
-          const { data: studentsData, error: studentError } = await supabase
+        // Fetch classes and students in parallel
+        const [{ data: classes, error: classError }, { data: studentsData, error: studentError }] = await Promise.all([
+          supabase
+            .from('classes')
+            .select('id, name')
+            .eq('class_teacher_id', teacher.id),
+          supabase
             .from('students')
             .select('id, class_id')
-            .in('class_id', classIds)
-            .eq('status', 'active');
+            .eq('status', 'active')
+        ]);
 
-          if (studentError) throw studentError;
-          students = studentsData || [];
-        } else {
-        }
+        if (classError) throw classError;
+        if (studentError) throw studentError;
+
+        const classIds = classes?.map(c => c.id) || [];
+        const totalClasses = classIds.length;
+        const students = studentsData || [];
         const totalStudents = students.length;
 
-        // Fetch subject classes for this teacher
-        const { data: subjectClasses, error: subjectError } = await supabase
-          .from('subject_classes')
-          .select(`
-            id,
-            subject_id,
-            class_id,
-            subjects(name),
-            classes(name)
-          `)
-          .eq('teacher_id', teacher.id);
+        // Fetch subject classes and session/term info in parallel
+        const [{ data: subjectClasses, error: subjectError }, { data: currentSession }, { data: currentTerm }] = await Promise.all([
+          supabase
+            .from('subject_classes')
+            .select(`id, subject_id, class_id, subjects(name), classes(name)`)
+            .eq('teacher_id', teacher.id),
+          supabase.from("sessions").select("id").eq("is_current", true).single(),
+          supabase.from("terms").select("id").eq("is_current", true).single()
+        ]);
 
         if (subjectError) throw subjectError;
 
-        // Fetch assignments for this teacher (using direct teacher_id query)
-        let assignments: any[] = [];
-
-        // Get current session and term
-        const { data: currentSession } = await supabase
-          .from("sessions")
-          .select("id")
-          .eq("is_current", true)
-          .single();
-
-        const { data: currentTerm } = await supabase
-          .from("terms")
-          .select("id")
-          .eq("is_current", true)
-          .single();
+        // Fetch assignments for stats calculation
         let assignmentQuery = supabase
           .from('assignments')
-          .select(`
-            id,
-            title,
-            due_date,
-            subjects(name),
-            assignment_submissions(id, grade)
-          `)
+          .select(`id, title, due_date, subjects(name), assignment_submissions(id, grade)`)
           .eq('teacher_id', teacher.id);
 
-        // Filter by session/term
         if (currentSession) {
           assignmentQuery = assignmentQuery.eq('session_id', currentSession.id);
         }
@@ -180,11 +155,8 @@ export default function TeacherDashboard() {
           assignmentQuery = assignmentQuery.eq('term_id', currentTerm.id);
         }
 
-        const { data: assignmentsData, error: assignmentError } = await assignmentQuery;
+        const { data: assignments, error: assignmentError } = await assignmentQuery;
         if (assignmentError) throw assignmentError;
-
-        // Use assignments directly (already filtered by teacher_id)
-        assignments = assignmentsData || [];
 
         const pendingAssignments = assignments?.filter(
           a => new Date(a.due_date) > new Date()
@@ -195,7 +167,6 @@ export default function TeacherDashboard() {
           0
         ) || 0;
 
-        // Calculate average score
         let totalScore = 0;
         let scoreCount = 0;
         assignments?.forEach(a => {
@@ -216,7 +187,6 @@ export default function TeacherDashboard() {
           averageScore,
         });
 
-
         // Fetch today's timetable
         const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
         const { data: allPeriodSlots, error: periodSlotsError } = await supabase
@@ -227,13 +197,11 @@ export default function TeacherDashboard() {
 
         if (periodSlotsError) throw periodSlotsError;
 
-        // Get current time
         const now = new Date();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
         const currentTimeInMinutes = currentHour * 60 + currentMinute;
 
-        // Find current period index
         let currentPeriodIndex = 0;
         if (allPeriodSlots) {
           for (let i = 0; i < allPeriodSlots.length; i++) {
@@ -253,7 +221,6 @@ export default function TeacherDashboard() {
           }
         }
 
-        // Get slots from current period to current + 5 periods
         const maxPeriodIndex = Math.min(currentPeriodIndex + 6, allPeriodSlots?.length || 0);
         const relevantPeriodIds = allPeriodSlots
           ?.slice(currentPeriodIndex, maxPeriodIndex)
@@ -274,7 +241,6 @@ export default function TeacherDashboard() {
 
         if (timetableError) throw timetableError;
 
-        // Filter timetable for this teacher and get students count
         const todayClasses: UpcomingClass[] = [];
         if (timetableData) {
           for (const entry of timetableData) {
@@ -304,62 +270,80 @@ export default function TeacherDashboard() {
         }
 
         setUpcomingClasses(todayClasses);
+        setLoading(false);
 
-        // Fetch upcoming events
-        const { data: eventsData, error: eventsError } = await supabase
-          .from('events')
-          .select('*')
-          .gte('start_date', new Date().toISOString())
-          .order('start_date', { ascending: true })
-          .limit(5);
+        // Load background data after critical data is loaded
+        fetchBackgroundData(teacher.id, classIds, currentSession, currentTerm);
+      } catch (error) {
+        console.error('Error fetching critical teacher data:', error);
+        toast.error('Failed to load dashboard data');
+        setLoading(false);
+      }
+    }
 
-        if (!eventsError && eventsData) {
-          const formattedEvents: UpcomingEvent[] = eventsData.map((event: Event) => {
-            const eventDate = new Date(event.start_date);
-            const formattedDate = eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            return {
-              id: event.id,
-              title: event.title,
-              date: formattedDate,
-              type: event.event_type,
-              location: event.location,
-            };
-          });
-          setUpcomingEvents(formattedEvents);
-        }
+    fetchCriticalData();
+  }, []);
 
-        // Fetch recent activities (recent assignments)
-        let recentAssignments: any[] = [];
+  // Load background data (events, activities, attendance) without blocking initial render
+  const fetchBackgroundData = async (
+    teacherId: string,
+    classIds: string[],
+    currentSession: any,
+    currentTerm: any
+  ) => {
+    try {
+      // Fetch events
+      setEventsLoading(true);
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('events')
+        .select('*')
+        .gte('start_date', new Date().toISOString())
+        .order('start_date', { ascending: true })
+        .limit(5);
 
-        let recentQuery = supabase
-          .from('assignments')
-          .select(`
-            id,
-            title,
-            created_at,
-            subjects(name),
-            assignment_submissions(id)
-          `)
-          .eq('teacher_id', teacher.id)
-          .order('created_at', { ascending: false })
-          .limit(4);
+      if (!eventsError && eventsData) {
+        const formattedEvents: UpcomingEvent[] = eventsData.map((event: Event) => {
+          const eventDate = new Date(event.start_date);
+          const formattedDate = eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return {
+            id: event.id,
+            title: event.title,
+            date: formattedDate,
+            type: event.event_type,
+            location: event.location,
+          };
+        });
+        setUpcomingEvents(formattedEvents);
+      }
+      setEventsLoading(false);
 
-        // Filter by session/term
-        if (currentSession) {
-          recentQuery = recentQuery.eq('session_id', currentSession.id);
-        }
-        if (currentTerm) {
-          recentQuery = recentQuery.eq('term_id', currentTerm.id);
-        }
+      // Fetch recent activities
+      setActivitiesLoading(true);
+      let recentQuery = supabase
+        .from('assignments')
+        .select(`
+          id,
+          title,
+          created_at,
+          subjects(name),
+          assignment_submissions(id)
+        `)
+        .eq('teacher_id', teacherId)
+        .order('created_at', { ascending: false })
+        .limit(4);
 
-        const { data: assignmentsDataRecent, error: recentError } = await recentQuery;
-        if (recentError) throw recentError;
+      if (currentSession) {
+        recentQuery = recentQuery.eq('session_id', currentSession.id);
+      }
+      if (currentTerm) {
+        recentQuery = recentQuery.eq('term_id', currentTerm.id);
+      }
 
-        // Use assignments directly (already filtered by teacher_id)
-        recentAssignments = assignmentsDataRecent || [];
+      const { data: recentAssignments, error: recentError } = await recentQuery;
 
+      if (!recentError && recentAssignments) {
         const activities: RecentActivity[] = [];
-        recentAssignments?.forEach((assignment: any) => {
+        recentAssignments.forEach((assignment: any) => {
           const submissionCount = assignment.assignment_submissions?.length || 0;
           const createdDate = new Date(assignment.created_at);
           const timeAgo = getTimeAgo(createdDate);
@@ -384,66 +368,38 @@ export default function TeacherDashboard() {
         });
 
         setRecentActivities(activities.slice(0, 4));
-
-        // Calculate class performance from results
-        if (subjectClasses && subjectClasses.length > 0) {
-          const subjectClassIds = subjectClasses.map(sc => sc.id);
-
-          let resultsQuery = supabase
-            .from('results')
-            .select(`
-              id,
-              subject_class_id,
-              student_id,
-              exam,
-              students(class_id)
-            `)
-            .in('subject_class_id', subjectClassIds);
-
-          // Filter by session/term
-          if (currentSession) {
-            resultsQuery = resultsQuery.eq('session_id', currentSession.id);
-          }
-          if (currentTerm) {
-            resultsQuery = resultsQuery.eq('term_id', currentTerm.id);
-          }
-
-        }
-        // Fetch attendance data for the teacher's classes
-        let totalAttendance = 0;
-        let attendanceCount = 0;
-        if (classIds.length > 0) {
-          const { data: attendanceData, error: attendanceError } = await supabase
-            .from('attendance')
-            .select('student_id, status')
-            .in('class_id', classIds);
-
-          if (!attendanceError && attendanceData) {
-            attendanceData.forEach((record: any) => {
-              if (record.status === 'present') {
-                totalAttendance++;
-              }
-              attendanceCount++;
-            });
-          }
-        }
-        const averageClassAttendance = attendanceCount > 0 ? Math.round((totalAttendance / attendanceCount) * 100) : 0;
-
-        setStats(prev => ({
-          ...prev,
-          averageAttendance: averageClassAttendance
-        }));
-
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching teacher data:', error);
-        toast.error('Failed to load dashboard data');
-        setLoading(false);
       }
-    }
+      setActivitiesLoading(false);
 
-    fetchTeacherData();
-  }, []);
+      // Fetch attendance data
+      if (classIds.length > 0) {
+        const { data: attendanceData, error: attendanceError } = await supabase
+          .from('attendance')
+          .select('student_id, status')
+          .in('class_id', classIds);
+
+        if (!attendanceError && attendanceData) {
+          let totalAttendance = 0;
+          let attendanceCount = 0;
+          attendanceData.forEach((record: any) => {
+            if (record.status === 'present') {
+              totalAttendance++;
+            }
+            attendanceCount++;
+          });
+
+          const averageClassAttendance = attendanceCount > 0 ? Math.round((totalAttendance / attendanceCount) * 100) : 0;
+
+          setStats(prev => ({
+            ...prev,
+            averageAttendance: averageClassAttendance
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching background data:', error);
+    }
+  };
 
   const getTimeAgo = (date: Date): string => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -627,9 +583,12 @@ export default function TeacherDashboard() {
         {/* Recent Activities */}
         <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow">
           <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-emerald-50 p-4 md:p-6">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-emerald-600 flex-shrink-0" />
-              <CardTitle className="text-lg md:text-xl truncate">Recent Activities</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+                <CardTitle className="text-lg md:text-xl truncate">Recent Activities</CardTitle>
+              </div>
+              {activitiesLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
             </div>
           </CardHeader>
           <CardContent className="p-4 md:p-6">
@@ -652,6 +611,12 @@ export default function TeacherDashboard() {
                     </div>
                   </div>
                 ))
+              ) : activitiesLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="p-3 md:p-4 rounded-lg bg-gray-100 animate-pulse h-20" />
+                  ))}
+                </div>
               ) : (
                 <div className="text-center text-gray-500 py-8">
                   <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -670,11 +635,14 @@ export default function TeacherDashboard() {
                 <Clock className="h-5 w-5 text-green-600 flex-shrink-0" />
                 <CardTitle className="text-lg md:text-xl">Upcoming Events</CardTitle>
               </div>
-              <Link href="/teacher/calendar">
-                <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700 text-xs md:text-sm">
-                  View All <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
-              </Link>
+              <div className="flex items-center gap-3">
+                {eventsLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+                <Link href="/teacher/calendar">
+                  <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700 text-xs md:text-sm">
+                    View All <ArrowRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </Link>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-4 md:p-6">
@@ -704,6 +672,12 @@ export default function TeacherDashboard() {
                     </Badge>
                   </div>
                 ))
+              ) : eventsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="p-3 md:p-4 rounded-lg bg-gray-100 animate-pulse h-20" />
+                  ))}
+                </div>
               ) : (
                 <div className="text-center text-gray-500 py-8">
                   <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />

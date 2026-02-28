@@ -211,11 +211,11 @@ export default function StudentAttendancePage() {
         </div>
 
         {/* Attendance Alert */}
-        {stats.presentPercentage < 75 && stats.totalDays > 0 && (
+        {stats.presentPercentage < 50 && stats.totalDays > 0 && (
           <Alert className="border-orange-200 bg-orange-50">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <AlertDescription className="text-orange-800">
-              Your attendance percentage ({stats.presentPercentage}%) is below 75%. 
+              Your attendance percentage ({stats.presentPercentage}%) is below 50%. 
               Please maintain regular attendance to meet school requirements.
             </AlertDescription>
           </Alert>

@@ -44,6 +44,14 @@ export function NotificationPermissionComponent({
   } = useNotificationSetup({ role });
 
   useEffect(() => {
+    // Load dismissed state from localStorage
+    const savedDismissed = localStorage.getItem(`notifications-dismissed-${role}`);
+    if (savedDismissed === "true") {
+      setDismissed(true);
+    }
+  }, [role]);
+
+  useEffect(() => {
     // Check if permission is already granted
     if (permission === "granted") {
       setHasPermission(true);
@@ -72,6 +80,8 @@ export function NotificationPermissionComponent({
   const handleDismiss = () => {
     setShowDialog(false);
     setDismissed(true);
+    // Persist dismissed state to localStorage
+    localStorage.setItem(`notifications-dismissed-${role}`, "true");
   };
 
   // Show nothing if already has permission

@@ -321,7 +321,7 @@ export default function StudentDashboardPage() {
         </div>
 
         {/* Attendance Alert */}
-        {stats.presentPercentage < 75 && stats.totalAttendance > 0 && (
+        {stats.presentPercentage < 50 && stats.totalAttendance > 0 && (
           <Alert className="border-orange-200 bg-orange-50 border-2">
             <AlertCircle className="h-5 w-5 text-orange-600" />
             <AlertDescription className="text-orange-800 font-medium">

@@ -38,6 +38,7 @@ export default function StudentTimetablePage() {
   const [className, setClassName] = useState("");
   const [timetable, setTimetable] = useState<Record<string, Record<string, TimetableCell>>>({});
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
+  const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
 
   useEffect(() => {
     loadTimetable();
@@ -405,8 +406,116 @@ export default function StudentTimetablePage() {
           </Card>
         </div>
 
-        {/* Timetable */}
-        <Card>
+        {/* Mobile Day View */}
+        <div className="md:hidden space-y-4">
+          <Card>
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b pb-3">
+              <CardTitle className="text-base">{studentName} - {className}</CardTitle>
+              <div className="flex items-center gap-2 mt-3">
+                <Button
+                  onClick={handleExportPDF}
+                  disabled={exporting}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 flex-1"
+                >
+                  {exporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              {/* Day Selector */}
+              <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+                {DAYS.map((day) => (
+                  <Button
+                    key={day}
+                    onClick={() => setSelectedDay(day)}
+                    variant={selectedDay === day ? "default" : "outline"}
+                    size="sm"
+                    className="flex-shrink-0 whitespace-nowrap"
+                  >
+                    {day.slice(0, 3)}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Day's Schedule */}
+              <div className="space-y-3">
+                {periodSlots
+                  .filter((p) => p.day_of_week === selectedDay)
+                  .map((period, idx) => {
+                    const cell = timetable[selectedDay]?.[period.id];
+
+                    if (period.is_break) {
+                      return (
+                        <div
+                          key={period.id}
+                          className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center"
+                        >
+                          <div className="font-semibold text-yellow-800">BREAK TIME</div>
+                          <div className="text-sm text-yellow-700 mt-1">
+                            {period.start_time} - {period.end_time}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={period.id}
+                        className={`p-4 border rounded-lg transition-colors ${
+                          cell
+                            ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"
+                            : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <div className="text-sm font-semibold text-gray-600">
+                            Period {idx + 1} • {period.start_time} - {period.end_time}
+                          </div>
+                          {cell ? (
+                            <div className="space-y-2">
+                              <div className="text-lg font-bold text-gray-900">
+                                {cell.fullSubject}
+                              </div>
+                              <div className="flex items-center gap-2 text-blue-700">
+                                <User className="h-4 w-4" />
+                                <span className="text-sm">{cell.teacher}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-gray-500 italic">Free Period</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {stats.totalPeriods === 0 && (
+                <div className="text-center py-8">
+                  <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-600 font-medium">No timetable entries found</p>
+                  <p className="text-gray-500 text-sm mt-1">
+                    You may not be enrolled in any subjects yet.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Desktop Table View */}
+        <Card className="hidden md:block">
           <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 sm:gap-3">

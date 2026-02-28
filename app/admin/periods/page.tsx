@@ -1,0 +1,519 @@
+"use client";
+
+import { DashboardLayout } from '@/components/dashboard-layout';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Plus, Edit, Trash2, AlertCircle, Clock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+interface PeriodSlot {
+  id: string;
+  day_of_week: string;
+  period_number: number;
+  start_time: string;
+  end_time: string;
+  is_break: boolean;
+  duration_minutes?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export default function PeriodsPage() {
+  const [periods, setPeriods] = useState<PeriodSlot[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingPeriod, setEditingPeriod] = useState<PeriodSlot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form fields
+  const [formDay, setFormDay] = useState('Monday');
+  const [formPeriodNumber, setFormPeriodNumber] = useState('1');
+  const [formStartTime, setFormStartTime] = useState('08:00');
+  const [formEndTime, setFormEndTime] = useState('09:00');
+  const [formIsBreak, setFormIsBreak] = useState(false);
+
+  useEffect(() => {
+    fetchPeriods();
+  }, []);
+
+  async function fetchPeriods() {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('period_slots')
+        .select('*')
+        .order('day_of_week', { ascending: true })
+        .order('period_number', { ascending: true });
+
+      if (error) throw error;
+
+      setPeriods(data || []);
+      setError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch periods';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function resetForm() {
+    setFormDay('Monday');
+    setFormPeriodNumber('1');
+    setFormStartTime('08:00');
+    setFormEndTime('09:00');
+    setFormIsBreak(false);
+  }
+
+  function openAddDialog() {
+    setEditingPeriod(null);
+    resetForm();
+    setIsDialogOpen(true);
+  }
+
+  function openEditDialog(period: PeriodSlot) {
+    setEditingPeriod(period);
+    setFormDay(period.day_of_week);
+    setFormPeriodNumber(period.period_number.toString());
+    setFormStartTime(period.start_time);
+    setFormEndTime(period.end_time);
+    setFormIsBreak(period.is_break);
+    setIsDialogOpen(true);
+  }
+
+  function closeDialog() {
+    setIsDialogOpen(false);
+    setEditingPeriod(null);
+    resetForm();
+  }
+
+  function validateForm(): string | null {
+    if (!formDay) return 'Please select a day';
+    if (!formPeriodNumber || parseInt(formPeriodNumber) <= 0) return 'Period number must be positive';
+    if (!formStartTime) return 'Please enter start time';
+    if (!formEndTime) return 'Please enter end time';
+
+    if (formStartTime >= formEndTime) {
+      return 'End time must be after start time';
+    }
+
+    // Check for duplicate day+period number when creating (excluding current if editing)
+    const isDuplicate = periods.some(
+      (p) =>
+        p.day_of_week === formDay &&
+        p.period_number === parseInt(formPeriodNumber) &&
+        (!editingPeriod || p.id !== editingPeriod.id)
+    );
+
+    if (isDuplicate) {
+      return `Period ${formPeriodNumber} already exists for ${formDay}`;
+    }
+
+    return null;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    const validationError = validateForm();
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    try {
+      const payload = {
+        day_of_week: formDay,
+        period_number: parseInt(formPeriodNumber),
+        start_time: formStartTime,
+        end_time: formEndTime,
+        is_break: formIsBreak,
+      };
+
+      if (editingPeriod) {
+        // Update
+        const { error } = await supabase
+          .from('period_slots')
+          .update(payload)
+          .eq('id', editingPeriod.id);
+
+        if (error) throw error;
+        toast.success('Period updated successfully');
+      } else {
+        // Insert
+        const { error } = await supabase
+          .from('period_slots')
+          .insert(payload);
+
+        if (error) throw error;
+        toast.success('Period created successfully');
+      }
+
+      closeDialog();
+      await fetchPeriods();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save period';
+      toast.error(message);
+    }
+  }
+
+  async function deletePeriod(id: string) {
+    if (!confirm('Are you sure you want to delete this period? This may affect existing timetables.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('period_slots')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Period deleted successfully');
+      await fetchPeriods();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete period';
+      toast.error(message);
+    }
+  }
+
+  function calculateDuration(start: string, end: string): number {
+    try {
+      const [startH, startM] = start.split(':').map(Number);
+      const [endH, endM] = end.split(':').map(Number);
+
+      const startMinutes = startH * 60 + startM;
+      const endMinutes = endH * 60 + endM;
+
+      return endMinutes - startMinutes;
+    } catch {
+      return 0;
+    }
+  }
+
+  const currentDuration = calculateDuration(formStartTime, formEndTime);
+
+  // Group periods by day
+  const periodsByDay = DAYS.reduce((acc, day) => {
+    acc[day] = periods.filter((p) => p.day_of_week === day);
+    return acc;
+  }, {} as Record<string, PeriodSlot[]>);
+
+  if (isLoading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex justify-center items-center h-96">
+          <div className="text-gray-500">Loading periods...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout role="admin">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Period Management</h1>
+            <p className="text-gray-600 mt-2">Configure school period times and breaks</p>
+          </div>
+          <Button onClick={openAddDialog} className="gap-2">
+            <Plus size={20} />
+            Add Period
+          </Button>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle size={16} />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Summary Card */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-sm text-gray-600">Total Periods</p>
+                <p className="text-2xl font-bold">{periods.filter(p => !p.is_break).length}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Break Slots</p>
+                <p className="text-2xl font-bold">{periods.filter(p => p.is_break).length}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Configured</p>
+                <p className="text-2xl font-bold">{periods.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Periods by Day */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {DAYS.map((day) => (
+            <Card key={day}>
+              <CardHeader>
+                <CardTitle className="text-lg">{day}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {periodsByDay[day].length === 0 ? (
+                  <p className="text-sm text-gray-500">No periods configured</p>
+                ) : (
+                  <div className="space-y-3">
+                    {periodsByDay[day].map((period) => (
+                      <div
+                        key={period.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={period.is_break ? 'secondary' : 'default'}>
+                              {period.is_break ? 'Break' : `Period ${period.period_number}`}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+                            <Clock size={14} />
+                            <span>
+                              {period.start_time} - {period.end_time}
+                            </span>
+                            <span className="text-gray-400">
+                              ({calculateDuration(period.start_time, period.end_time)} min)
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(period)}
+                          >
+                            <Edit size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deletePeriod(period.id)}
+                            className="text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Full Table View */}
+        <Card>
+          <CardHeader>
+            <CardTitle>All Periods</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {periods.length === 0 ? (
+              <p className="text-gray-500">No periods configured yet</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Day</TableHead>
+                      <TableHead>Period/Break</TableHead>
+                      <TableHead>Start Time</TableHead>
+                      <TableHead>End Time</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {periods.map((period) => (
+                      <TableRow key={period.id}>
+                        <TableCell className="font-medium">{period.day_of_week}</TableCell>
+                        <TableCell>
+                          {period.is_break ? 'Break' : `Period ${period.period_number}`}
+                        </TableCell>
+                        <TableCell>{period.start_time}</TableCell>
+                        <TableCell>{period.end_time}</TableCell>
+                        <TableCell>
+                          {calculateDuration(period.start_time, period.end_time)} min
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={period.is_break ? 'secondary' : 'default'}>
+                            {period.is_break ? 'Break' : 'Class'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditDialog(period)}
+                            >
+                              <Edit size={16} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deletePeriod(period.id)}
+                              className="text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {editingPeriod ? 'Edit Period Time' : 'Add Period Time'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Day Selection */}
+            <div>
+              <Label htmlFor="day">Day of Week</Label>
+              <select
+                id="day"
+                value={formDay}
+                onChange={(e) => setFormDay(e.target.value)}
+                className="w-full mt-2 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {DAYS.map((day) => (
+                  <option key={day} value={day}>
+                    {day}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Period Number */}
+            <div>
+              <Label htmlFor="period_number">Period Number</Label>
+              <Input
+                id="period_number"
+                type="number"
+                min="1"
+                value={formPeriodNumber}
+                onChange={(e) => setFormPeriodNumber(e.target.value)}
+                placeholder="1"
+                className="mt-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Sequential number for this period on the selected day
+              </p>
+            </div>
+
+            {/* Start Time */}
+            <div>
+              <Label htmlFor="start_time">Start Time</Label>
+              <Input
+                id="start_time"
+                type="time"
+                value={formStartTime}
+                onChange={(e) => setFormStartTime(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+
+            {/* End Time */}
+            <div>
+              <Label htmlFor="end_time">End Time</Label>
+              <Input
+                id="end_time"
+                type="time"
+                value={formEndTime}
+                onChange={(e) => setFormEndTime(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+
+            {/* Duration Display */}
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Duration:</span>{' '}
+                {currentDuration > 0 ? `${currentDuration} minutes` : 'Invalid time range'}
+              </p>
+            </div>
+
+            {/* Is Break Toggle */}
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+              <Checkbox
+                id="is_break"
+                checked={formIsBreak}
+                onCheckedChange={(checked) => setFormIsBreak(checked as boolean)}
+              />
+              <Label htmlFor="is_break" className="font-medium cursor-pointer">
+                This is a break/lunch period
+              </Label>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end pt-4">
+              <Button type="button" variant="outline" onClick={closeDialog}>
+                Cancel
+              </Button>
+              <Button type="submit" className="gap-2">
+                {editingPeriod ? (
+                  <>
+                    <Edit size={16} />
+                    Update Period
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} />
+                    Add Period
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </DashboardLayout>
+  );
+}

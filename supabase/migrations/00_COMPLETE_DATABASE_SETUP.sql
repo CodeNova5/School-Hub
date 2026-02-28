@@ -624,6 +624,21 @@ CREATE INDEX IF NOT EXISTS idx_parents_email ON parents(email);
 CREATE INDEX IF NOT EXISTS idx_parents_user_id ON parents(user_id);
 CREATE INDEX IF NOT EXISTS idx_parents_activation_token ON parents(activation_token_hash);
 
+-- NOTIFICATION_TOKENS TABLE
+CREATE TABLE IF NOT EXISTS notification_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  token text NOT NULL,
+  device_type text DEFAULT 'web',
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notification_tokens_user_id ON notification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_tokens_is_active ON notification_tokens(is_active);
+
 -- ============================================================================
 -- PART 4: RESULTS PUBLICATION CONTROL
 -- ============================================================================
@@ -898,6 +913,7 @@ ALTER TABLE period_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_optional_subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timetable_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notification_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE results_publication ENABLE ROW LEVEL SECURITY;
 
 -- DROP existing policies if any
@@ -1237,12 +1253,35 @@ CREATE POLICY "Parents can update own data"
   ON parents FOR UPDATE
   USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can read all parents"
+  ON parents FOR SELECT
+  TO authenticated
+  USING (
+    true
+  );
+
 CREATE POLICY "Admins can manage parents"
   ON parents FOR ALL
   USING (has_permission('edit_students') OR has_permission('admin_full'));
 
 CREATE POLICY "Service role can insert parents"
   ON parents FOR INSERT
+  WITH CHECK (true);
+
+-- NOTIFICATION_TOKENS
+CREATE POLICY "Users can read all tokens"
+  ON notification_tokens FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Admins can manage notification tokens"
+  ON notification_tokens FOR ALL
+  TO authenticated
+  USING (has_permission('admin_full'))
+  WITH CHECK (has_permission('admin_full'));
+
+CREATE POLICY "Service role can insert notification tokens"
+  ON notification_tokens FOR INSERT
   WITH CHECK (true);
 
 -- Parent access to student data

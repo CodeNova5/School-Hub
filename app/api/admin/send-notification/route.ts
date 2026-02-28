@@ -40,6 +40,25 @@ async function checkIsAdmin() {
     return { authorized: true, user };
 }
 
+// check if user is teacher
+async function checkIsTeacher() {
+    const supabase = createRouteHandlerClient({ cookies });
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+        return { authorized: false, error: "Unauthorized", status: 401, user: null };
+    }
+
+    const { data: isTeacher } = await supabase.rpc("is_teacher");
+
+    if (!isTeacher) {
+        return { authorized: false, error: "Forbidden", status: 403, user: null };
+    }
+
+    return { authorized: true, user };
+}
+
 // Function to log notification to the database
 async function logNotification(
     title: string,
@@ -90,15 +109,18 @@ async function logNotification(
 
 export async function POST(request: NextRequest) {
     try {
-        // Check if user is admin  
+        // Check if user is admin or teacher
         const authCheck = await checkIsAdmin();
         if (!authCheck.authorized) {
-            return NextResponse.json(
-                { error: authCheck.error || "Unauthorized" },
-                { status: authCheck.status || 401 }
-            );
+            const teacherCheck = await checkIsTeacher();
+            if (!teacherCheck.authorized) {
+                return NextResponse.json(
+                    { error: authCheck.error },
+                    { status: authCheck.status }
+                );
+            }
         }
-
+        
         const userId = authCheck.user?.id;
 
         const { title, body, imageUrl, link, target, targetValue, data: customData } =

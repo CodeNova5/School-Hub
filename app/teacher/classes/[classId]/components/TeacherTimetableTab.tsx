@@ -13,12 +13,14 @@ export default function TeacherTimetableTab({
   className,
 }: TeacherTimetableTabProps) {
   return (
-    <Card>
-      <ClassTimetable 
-        classId={classId} 
-        className={className}
-        showExportButtons={true}
-      />
+    <Card className="overflow-hidden">
+      <div className="overflow-x-auto">
+        <ClassTimetable 
+          classId={classId} 
+          className={className}
+          showExportButtons={true}
+        />
+      </div>
     </Card>
   );
 }

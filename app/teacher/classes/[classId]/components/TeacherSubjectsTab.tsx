@@ -193,21 +193,6 @@ export default function TeacherSubjectsTab({
                           {subject.subject.name}
                         </p>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleViewAnalysis(subject)}
-                          >
-                            <BarChart3 className="mr-2 h-4 w-4" />
-                            View Analysis
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </div>
 
                     <div className="space-y-2 py-2 border-y">

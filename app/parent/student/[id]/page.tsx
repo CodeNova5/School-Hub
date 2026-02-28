@@ -293,24 +293,24 @@ export default function ParentStudentDetailPage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 p-4 sm:p-10 bg-muted rounded-none border-b gap-1">
-              <TabsTrigger value="overview" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+            <TabsList className="grid w-full grid-cols-5 p-10 bg-muted rounded-none border-b">
+              <TabsTrigger value="overview" className="flex items-center gap-2">
                 <User className="h-4 w-4" />
                 <span>Overview</span>
               </TabsTrigger>
-              <TabsTrigger value="attendance" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <TabsTrigger value="attendance" className="flex items-center gap-2">
                 <UserCheck className="h-4 w-4" />
                 <span>Attendance</span>
               </TabsTrigger>
-              <TabsTrigger value="results" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <TabsTrigger value="results" className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 <span>Results</span>
               </TabsTrigger>
-              <TabsTrigger value="assignments" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <TabsTrigger value="assignments" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 <span>Assignments</span>
               </TabsTrigger>
-              <TabsTrigger value="timetable" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <TabsTrigger value="timetable" className="flex items-center gap-2">
                 <CalendarDays className="h-4 w-4" />
                 <span>Timetable</span>
               </TabsTrigger>

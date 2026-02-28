@@ -1054,6 +1054,18 @@ CREATE POLICY "Authenticated users can read attendance"
   TO authenticated
   USING (true);
 
+CREATE POLICY "Teachers can manage attendance for their classes"
+  ON attendance FOR ALL
+  TO authenticated
+  USING (
+    class_id IN (
+      SELECT id FROM classes
+      WHERE class_teacher_id = (
+        SELECT id FROM teachers WHERE user_id = auth.uid()
+      )
+    )
+  );
+
 CREATE POLICY "Admins can manage attendance"
   ON attendance FOR ALL
   TO authenticated

@@ -186,11 +186,10 @@ export default function TeacherAttendanceTab({
             console.log(`🔍 Looking up parent account for email: ${student.parent_email}`);
   
             // Find parent user by email
-            const { data: parent, error: parentError } = await supabase
+            const { data: parentArray, error: parentError } = await supabase
               .from("parents")
               .select("user_id, id, is_active")
-              .eq("email", student.parent_email)
-              .single();
+              .eq("email", student.parent_email);
   
             if (parentError) {
               console.error(
@@ -201,13 +200,15 @@ export default function TeacherAttendanceTab({
               continue;
             }
   
-            if (!parent) {
+            if (!parentArray || parentArray.length === 0) {
               console.warn(
                 `⚠️ No parent account found for email ${student.parent_email}. Parent may not be registered.`
               );
               failureCount++;
               continue;
             }
+
+            const parent = parentArray[0];
   
             if (!parent?.user_id) {
               console.warn(

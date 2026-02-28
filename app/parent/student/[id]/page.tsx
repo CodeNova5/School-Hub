@@ -293,26 +293,26 @@ export default function ParentStudentDetailPage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <Card>
-            <TabsList className="grid w-full grid-cols-5 p-10 bg-muted rounded-none border-b">
-              <TabsTrigger value="overview" className="flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 p-4 sm:p-10 bg-muted rounded-none border-b gap-1">
+              <TabsTrigger value="overview" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Overview</span>
+                <span>Overview</span>
               </TabsTrigger>
-              <TabsTrigger value="attendance" className="flex items-center gap-2">
+              <TabsTrigger value="attendance" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <UserCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">Attendance</span>
+                <span>Attendance</span>
               </TabsTrigger>
-              <TabsTrigger value="results" className="flex items-center gap-2">
+              <TabsTrigger value="results" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <TrendingUp className="h-4 w-4" />
-                <span className="hidden sm:inline">Results</span>
+                <span>Results</span>
               </TabsTrigger>
-              <TabsTrigger value="assignments" className="flex items-center gap-2">
+              <TabsTrigger value="assignments" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Assignments</span>
+                <span>Assignments</span>
               </TabsTrigger>
-              <TabsTrigger value="timetable" className="flex items-center gap-2">
+              <TabsTrigger value="timetable" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                 <CalendarDays className="h-4 w-4" />
-                <span className="hidden sm:inline">Timetable</span>
+                <span>Timetable</span>
               </TabsTrigger>
             </TabsList>
           </Card>

@@ -34,6 +34,7 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
   const [isLoading, setIsLoading] = useState(true);
   const [timetable, setTimetable] = useState<Record<string, Record<string, TimetableCell>>>({});
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
+  const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
 
   useEffect(() => {
     if (classId) {
@@ -319,7 +320,91 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="overflow-x-auto border rounded-lg">
+          {/* Mobile Day View */}
+          <div className="md:hidden space-y-4">
+            {/* Day Selector */}
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {DAYS.map((day) => (
+                <button
+                  key={day}
+                  onClick={() => setSelectedDay(day)}
+                  className={`flex-shrink-0 whitespace-nowrap px-4 py-2 rounded-lg font-medium transition-colors ${
+                    selectedDay === day
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {day.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+
+            {/* Day's Schedule */}
+            <div className="space-y-3">
+              {periodSlots
+                .filter((p) => p.day_of_week === selectedDay)
+                .map((period) => {
+                  const cell = timetable[selectedDay]?.[period.id];
+
+                  if (period.is_break) {
+                    return (
+                      <div
+                        key={period.id}
+                        className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center"
+                      >
+                        <div className="font-semibold text-yellow-800">BREAK TIME</div>
+                        <div className="text-sm text-yellow-700 mt-1">
+                          {period.start_time} - {period.end_time}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={period.id}
+                      className={`p-4 border rounded-lg transition-colors ${
+                        cell
+                          ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"
+                          : "bg-gray-50 border-gray-200"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-2">
+                        <div className="text-sm font-semibold text-gray-600">
+                          {period.start_time} - {period.end_time}
+                        </div>
+                        {cell ? (
+                          <div className="space-y-2">
+                            <div className="text-lg font-bold text-gray-900">
+                              {cell.fullSubject}
+                            </div>
+                            <div className="flex items-center gap-2 text-blue-700">
+                              <User className="h-4 w-4" />
+                              <span className="text-sm">{cell.teacher}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-gray-500 italic">Free Period</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {stats.totalPeriods === 0 && (
+              <div className="text-center py-8">
+                <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-600 font-medium">No timetable entries found</p>
+                <p className="text-gray-500 text-sm mt-1">
+                  Student may not be enrolled in any subjects yet.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto border rounded-lg">
             <table className="w-full border-collapse bg-white">
               <thead>
                 <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
@@ -427,7 +512,7 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
           </div>
 
           {stats.totalPeriods === 0 && (
-            <div className="text-center py-12 mt-6">
+            <div className="hidden md:block text-center py-12 mt-6">
               <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Calendar className="h-8 w-8 text-gray-400" />
               </div>

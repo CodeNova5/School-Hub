@@ -86,34 +86,34 @@ export default function TeacherStudentsTab({
   return (
     <>
       <Card>
-        <CardHeader>
-          <CardTitle>Class Students ({students.length})</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="text-lg sm:text-xl">Class Students ({students.length})</CardTitle>
         </CardHeader>
 
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
 
           {/* Summary Stats */}
           {filteredStudents.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-              <div className="p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-600 font-medium">Total</p>
-                <p className="text-2xl font-bold text-blue-900">{filteredStudents.length}</p>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mt-3 sm:mt-6">
+              <div className="p-3 sm:p-4 bg-blue-50 rounded-lg">
+                <p className="text-xs sm:text-sm text-blue-600 font-medium">Total</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-900">{filteredStudents.length}</p>
               </div>
-              <div className="p-4 bg-purple-50 rounded-lg">
-                <p className="text-sm text-purple-600 font-medium">Male</p>
-                <p className="text-2xl font-bold text-purple-900">
+              <div className="p-3 sm:p-4 bg-purple-50 rounded-lg">
+                <p className="text-xs sm:text-sm text-purple-600 font-medium">Male</p>
+                <p className="text-xl sm:text-2xl font-bold text-purple-900">
                   {filteredStudents.filter(s => s.gender === "male").length}
                 </p>
               </div>
-              <div className="p-4 bg-pink-50 rounded-lg">
-                <p className="text-sm text-pink-600 font-medium">Female</p>
-                <p className="text-2xl font-bold text-pink-900">
+              <div className="p-3 sm:p-4 bg-pink-50 rounded-lg">
+                <p className="text-xs sm:text-sm text-pink-600 font-medium">Female</p>
+                <p className="text-xl sm:text-2xl font-bold text-pink-900">
                   {filteredStudents.filter(s => s.gender === "female").length}
                 </p>
               </div>
-              <div className="p-4 bg-green-50 rounded-lg">
-                <p className="text-sm text-green-600 font-medium">Active</p>
-                <p className="text-2xl font-bold text-green-900">
+              <div className="p-3 sm:p-4 bg-green-50 rounded-lg">
+                <p className="text-xs sm:text-sm text-green-600 font-medium">Active</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-900">
                   {filteredStudents.filter(s => s.status === "active").length}
                 </p>
               </div>
@@ -121,18 +121,18 @@ export default function TeacherStudentsTab({
           )}
 
           {/* Search and Filter */}
-          <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <div className="relative flex-1">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-muted-foreground" />
+              <Search className="h-3 w-3 sm:h-4 sm:w-4 absolute left-2.5 sm:left-3 top-2.5 sm:top-3 text-muted-foreground" />
               <Input
-                placeholder="Search by name, ID, or email..."
-                className="pl-9"
+                placeholder="Search by name, ID, email..."
+                className="pl-8 sm:pl-9 h-9 sm:h-10 text-sm"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
             <select
-              className="border rounded-md p-2"
+              className="border rounded-md px-3 py-2 text-xs sm:text-sm h-9 sm:h-10"
               value={genderFilter}
               onChange={(e) => setGenderFilter(e.target.value as any)}
             >
@@ -144,6 +144,8 @@ export default function TeacherStudentsTab({
 
           {/* Students Table */}
           <div className="border rounded-md overflow-hidden">
+            {/* Desktop Table */}
+            <div className="hidden lg:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted">
                 <tr>
@@ -189,7 +191,7 @@ export default function TeacherStudentsTab({
                       <td className="p-3 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -208,6 +210,73 @@ export default function TeacherStudentsTab({
                 )}
               </tbody>
             </table>
+            </div>
+
+            {/* Mobile Card Layout */}
+            <div className="lg:hidden space-y-3 p-3">
+              {filteredStudents.length === 0 && students.length > 0 ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  No students match your search
+                </div>
+              ) : filteredStudents.length === 0 ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  No students in this class
+                </div>
+              ) : (
+                filteredStudents.map((student, i) => (
+                  <div key={student.id} className="border rounded-lg p-4 space-y-3 bg-white shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-gray-600 text-xs font-medium shrink-0">
+                            {i + 1}
+                          </span>
+                          <Badge variant="outline" className="text-xs font-mono shrink-0">
+                            {student.student_id}
+                          </Badge>
+                        </div>
+                        <p className="font-medium text-sm sm:text-base truncate">
+                          {student.first_name} {student.last_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {student.email}
+                        </p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleViewDetails(student)}
+                          >
+                            <User className="mr-2 h-4 w-4" />
+                            View Details
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {student.gender}
+                      </Badge>
+                      {student.status === "active" ? (
+                        <Badge className="bg-green-100 text-green-800 border-green-300 text-xs">
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          {student.status}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
         </CardContent>

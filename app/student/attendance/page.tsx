@@ -4,9 +4,8 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Filter } from "lucide-react";
+import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Filter, Loader } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -193,7 +192,8 @@ export default function StudentAttendancePage() {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-screen">
-          <p className="text-gray-500">Loading attendance records...</p>
+          <Loader className="animate-spin h-8 w-8 text-gray-600" />
+          <span className="ml-2 text-gray-600">Loading attendance data...</span>
         </div>
       </DashboardLayout>
     );

@@ -103,6 +103,242 @@ export default function TeacherAttendanceTab({
     );
   }
 
+  // Get notification message based on attendance status
+  function getNotificationMessage(
+    status: string,
+    studentName: string
+  ): { title: string; body: string } {
+    const statusMessages: Record<string, { title: string; body: string }> = {
+      present: {
+        title: "✅ Student Present",
+        body: `${studentName} was marked present on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}.`,
+      },
+      absent: {
+        title: "❌ Student Absent",
+        body: `${studentName} was marked absent on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}. Please contact the school if this is an error.`,
+      },
+      late: {
+        title: "⏰ Student Late",
+        body: `${studentName} was marked late on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}.`,
+      },
+      excused: {
+        title: "📋 Absence Excused",
+        body: `${studentName}'s absence on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })} has been marked as excused.`,
+      },
+    };
+    return (
+      statusMessages[status] || {
+        title: "Attendance Updated",
+        body: `${studentName}'s attendance has been updated.`,
+      }
+    );
+  }
+
+  // Send notifications to parents
+    async function sendNotificationsToParents(
+      attendanceRecords: Array<{
+        student_id: string;
+        status: string;
+        studentName: string;
+      }>
+    ) {
+      try {
+        console.log(`📱 Starting to send attendance notifications to ${attendanceRecords.length} students...`);
+  
+        let successCount = 0;
+        let failureCount = 0;
+  
+        for (const record of attendanceRecords) {
+          try {
+            // Get student's parent email
+            const { data: student, error: studentError } = await supabase
+              .from("students")
+              .select("parent_email, parent_name")
+              .eq("id", record.student_id)
+              .single();
+  
+            if (studentError) {
+              console.error(`❌ Error fetching student ${record.student_id}:`, studentError);
+              failureCount++;
+              continue;
+            }
+  
+            if (!student?.parent_email) {
+              console.warn(
+                `⚠️ No parent email found for student ${record.student_id} (${record.studentName})`
+              );
+              failureCount++;
+              continue;
+            }
+  
+            console.log(`🔍 Looking up parent account for email: ${student.parent_email}`);
+  
+            // Find parent user by email
+            const { data: parent, error: parentError } = await supabase
+              .from("parents")
+              .select("user_id, id, is_active")
+              .eq("email", student.parent_email)
+              .single();
+  
+            if (parentError) {
+              console.error(
+                `❌ Error finding parent account for ${student.parent_email}:`,
+                parentError.message
+              );
+              failureCount++;
+              continue;
+            }
+  
+            if (!parent) {
+              console.warn(
+                `⚠️ No parent account found for email ${student.parent_email}. Parent may not be registered.`
+              );
+              failureCount++;
+              continue;
+            }
+  
+            if (!parent?.user_id) {
+              console.warn(
+                `⚠️ Parent account exists but has no user_id for ${student.parent_email}`
+              );
+              failureCount++;
+              continue;
+            }
+  
+            if (!parent.is_active) {
+              console.warn(
+                `⚠️ Parent account is inactive for ${student.parent_email}. They need to activate their account.`
+              );
+              failureCount++;
+              continue;
+            }
+  
+            console.log(`👤 Found parent: ${parent.user_id}`);
+  
+            // Get parent's notification tokens
+            const { data: tokens, error: tokensError } = await supabase
+              .from("notification_tokens")
+              .select("token, user_id, device_type, is_active")
+              .eq("user_id", parent.user_id)
+              .eq("is_active", true);
+  
+            if (tokensError) {
+              console.error(
+                `❌ Error fetching tokens for parent ${student.parent_email}:`,
+                tokensError
+              );
+              failureCount++;
+              continue;
+            }
+  
+            if (!tokens || tokens.length === 0) {
+              console.warn(
+                `⚠️ No active notification tokens found for parent ${student.parent_email}. Parent may not have enabled notifications.`
+              );
+              failureCount++;
+              continue;
+            }
+  
+            console.log(
+              `📲 Found ${tokens.length} active notification token(s) for parent ${student.parent_email}`
+            );
+  
+            // Get notification message
+            const { title, body } = getNotificationMessage(
+              record.status,
+              record.studentName
+            );
+  
+            console.log(`📤 Sending notification to parent ${student.parent_email}...`);
+  
+            // Send notification via API
+            const response = await fetch("/api/admin/send-notification", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                title,
+                body,
+                target: "user",
+                targetValue: parent.user_id,
+                data: {
+                  type: "attendance",
+                  studentId: record.student_id,
+                  status: record.status,
+                  date: selectedDate,
+                },
+              }),
+            });
+  
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(
+                `❌ API Error (${response.status}) for parent ${student.parent_email}:`,
+                errorText
+              );
+              failureCount++;
+              continue;
+            }
+  
+            try {
+              const result = await response.json();
+              if (result.success || result.successCount > 0) {
+                console.log(
+                  `✅ Notification sent to parent ${student.parent_email}: ${result.successCount || 1} delivered`
+                );
+                successCount++;
+              } else {
+                console.error(
+                  `❌ API returned error for parent ${student.parent_email}:`,
+                  result
+                );
+                failureCount++;
+              }
+            } catch (parseError) {
+              console.error(
+                `❌ Failed to parse API response for parent ${student.parent_email}:`,
+                parseError
+              );
+              failureCount++;
+            }
+          } catch (error) {
+            console.error(`❌ Unexpected error processing student ${record.student_id}:`, error);
+            failureCount++;
+          }
+        }
+  
+        console.log(
+          `\n📊 Notification Summary:\n✅ Sent: ${successCount}\n❌ Failed: ${failureCount}\n📱 Total: ${attendanceRecords.length}`
+        );
+  
+        if (failureCount > 0) {
+          toast.warning(
+            `${successCount}/${attendanceRecords.length} parent notifications sent. Check browser console for details.`
+          );
+        } else if (successCount > 0) {
+          toast.success(`✅ All ${successCount} parent notifications sent successfully!`);
+        }
+      } catch (error) {
+        console.error("Fatal error in sendNotificationsToParents:", error);
+        toast.error("Failed to send parent notifications. Check console for details.");
+      }
+    }
+  
+  
+
   async function submitAttendance() {
     setAttendanceLoading(true);
     const savingToast = toast.loading("Saving attendance...");
@@ -142,6 +378,23 @@ export default function TeacherAttendanceTab({
         if (insertError) {
           throw insertError;
         }
+      }
+
+      // Send notifications to parents
+      if (attendanceRecords.length > 0) {
+        const notificationRecords = attendanceRecords.map((record) => {
+          const student = attendanceStudents.find((s) => s.id === record.student_id);
+          return {
+            student_id: record.student_id,
+            status: record.status,
+            studentName: student ? `${student.first_name} ${student.last_name}` : "Student",
+          };
+        });
+
+        // Send notifications asynchronously without blocking the save
+        sendNotificationsToParents(notificationRecords).catch((error) =>
+          console.error("Error in notification sending:", error)
+        );
       }
 
       toast.success("Attendance saved successfully!", { id: savingToast });

@@ -142,12 +142,12 @@ export function StudentDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto w-[95vw] max-w-[95vw] md:max-w-5xl p-4 md:p-6">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto w-[98vw] md:w-[95vw] md:max-w-5xl p-3 md:p-6 flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl md:text-2xl">Student Details</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-4 md:space-y-6 flex-1 overflow-y-auto">
           <Card>
             <CardContent className="p-3 md:p-6">
               <div className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6">
@@ -290,7 +290,7 @@ export function StudentDetailsModal({
               </Card>
             </TabsContent>
 
-            <TabsContent value="results" className="space-y-4">
+            <TabsContent value="results" className="space-y-4 overflow-x-hidden">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg md:text-xl">Academic Performance</CardTitle>
@@ -331,7 +331,7 @@ export function StudentDetailsModal({
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-x-auto">
                   <ResultsTable results={studentResults} />
                 </CardContent>
               </Card>

@@ -60,17 +60,17 @@ export function ResultsTable({ results }: ResultsTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border">
-        <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className="min-w-full">
           <TableHeader>
             <TableRow>
-              <TableHead>Subject</TableHead>
-              <TableHead className="text-center">Welcome Test</TableHead>
-              <TableHead className="text-center">Mid-Term</TableHead>
-              <TableHead className="text-center">Vetting</TableHead>
-              <TableHead className="text-center">Exam</TableHead>
-              <TableHead className="text-center">Total</TableHead>
-              <TableHead className="text-center">Grade</TableHead>
+              <TableHead className="text-xs md:text-sm">Subject</TableHead>
+              <TableHead className="text-center text-xs md:text-sm whitespace-nowrap">Welcome Test</TableHead>
+              <TableHead className="text-center text-xs md:text-sm whitespace-nowrap">Mid-Term</TableHead>
+              <TableHead className="text-center text-xs md:text-sm whitespace-nowrap">Vetting</TableHead>
+              <TableHead className="text-center text-xs md:text-sm whitespace-nowrap">Exam</TableHead>
+              <TableHead className="text-center text-xs md:text-sm whitespace-nowrap">Total</TableHead>
+              <TableHead className="text-center text-xs md:text-sm whitespace-nowrap">Grade</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -83,14 +83,14 @@ export function ResultsTable({ results }: ResultsTableProps) {
             ) : (
               results.map((result: Result, index: Key | null | undefined) => (
                 <TableRow key={index}>
-                  <TableCell className="font-medium">{result.subject_name}</TableCell>
-                  <TableCell className="text-center">{result.welcome_test}</TableCell>
-                  <TableCell className="text-center">{result.mid_term_test}</TableCell>
-                  <TableCell className="text-center">{result.vetting}</TableCell>
-                  <TableCell className="text-center">{result.exam}</TableCell>
-                  <TableCell className="text-center font-bold">{result.total}</TableCell>
+                  <TableCell className="font-medium text-xs md:text-sm">{result.subject_name}</TableCell>
+                  <TableCell className="text-center text-xs md:text-sm">{result.welcome_test}</TableCell>
+                  <TableCell className="text-center text-xs md:text-sm">{result.mid_term_test}</TableCell>
+                  <TableCell className="text-center text-xs md:text-sm">{result.vetting}</TableCell>
+                  <TableCell className="text-center text-xs md:text-sm">{result.exam}</TableCell>
+                  <TableCell className="text-center font-bold text-xs md:text-sm">{result.total}</TableCell>
                   <TableCell className="text-center">
-                    <span className={`font-bold ${getGradeColor(String(result.grade || ''))}`}>
+                    <span className={`font-bold text-xs md:text-sm ${getGradeColor(String(result.grade || ''))}`}>
                       {result.grade}
                     </span>
                   </TableCell>
@@ -102,19 +102,19 @@ export function ResultsTable({ results }: ResultsTableProps) {
       </div>
 
       {results.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Total Subjects</p>
-            <p className="text-2xl font-bold">{results.length}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+          <div className="p-3 md:p-4 bg-gray-50 rounded-lg">
+            <p className="text-xs md:text-sm text-gray-600">Total Subjects</p>
+            <p className="text-xl md:text-2xl font-bold">{results.length}</p>
           </div>
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">Average Score</p>
-            <p className="text-2xl font-bold">{calculateTotalGPA()}%</p>
+          <div className="p-3 md:p-4 bg-gray-50 rounded-lg">
+            <p className="text-xs md:text-sm text-gray-600">Average Score</p>
+            <p className="text-xl md:text-2xl font-bold">{calculateTotalGPA()}%</p>
           </div>
           {classPosition && (
-            <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-600 font-medium">Class Position</p>
-              <div className="text-2xl font-bold mt-1">{getPositionDisplay(classPosition)}</div>
+            <div className="p-3 md:p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+              <p className="text-xs md:text-sm text-blue-600 font-medium">Class Position</p>
+              <div className="text-xl md:text-2xl font-bold mt-1">{getPositionDisplay(classPosition)}</div>
             </div>
           )}
         </div>

@@ -19,7 +19,10 @@ import {
   TrendingUp,
   X,
   Bell,
+  Clock
 } from "lucide-react";
+// import periods time icon from lucide-react (if available) or use a suitable alternative
+
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
@@ -92,6 +95,7 @@ export function Sidebar({
     { href: "/admin/sessions", label: "Sessions & Terms", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" /> },
     { href: "/admin/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
+    { href: "/admin/periods", label: "Periods", icon: <Clock className="h-5 w-5" /> },
     { href: "/admin/timetable", label: "Timetable", icon: <FileText className="h-5 w-5" /> },
     { href: "/admin/students", label: "Students", icon: <Users className="h-5 w-5" /> },
     { href: "/admin/teachers", label: "Teachers", icon: <GraduationCap className="h-5 w-5" /> },

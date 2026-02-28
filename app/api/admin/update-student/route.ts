@@ -2,14 +2,56 @@ import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+
+// Middleware to check if user is admin
+async function checkIsAdmin() {
+  const supabase = createRouteHandlerClient({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { authorized: false, error: "Unauthorized", status: 401 };
+  }
+
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+
+  if (!isAdmin) {
+    return { authorized: false, error: "Forbidden", status: 403 };
+  }
+
+  return { authorized: true };
+}
+
+
 export async function POST(req: Request) {
   try {
+    const supabase = createRouteHandlerClient({ cookies });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user is admin
+    const adminCheck = await checkIsAdmin();
+    if (!adminCheck.authorized) {
+      return NextResponse.json(
+        { error: adminCheck.error },
+        { status: adminCheck.status }
+      );
+    }
+
     const { studentId, updates } = await req.json();
 
     if (!studentId) {

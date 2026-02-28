@@ -68,6 +68,12 @@ export default function StudentApplicationPage() {
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle rate limit error specifically
+        if (response.status === 429) {
+          throw new Error(
+            "Too many applications from your IP address. Please try again in 1 hour."
+          );
+        }
         throw new Error(data.error || "Failed to submit application");
       }
 

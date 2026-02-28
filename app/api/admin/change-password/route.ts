@@ -2,6 +2,28 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
+
+// Middleware to check if user is admin
+async function checkIsAdmin() {
+  const supabase = createRouteHandlerClient({ cookies });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { authorized: false, error: "Unauthorized", status: 401 };
+  }
+
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+
+  if (!isAdmin) {
+    return { authorized: false, error: "Forbidden", status: 403 };
+  }
+
+  return { authorized: true };
+}
+
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
@@ -11,6 +33,15 @@ export async function POST(req: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check if user is admin    const adminCheck = await checkIsAdmin();
+    const adminCheck = await checkIsAdmin();
+    if (!adminCheck.authorized) {
+      return NextResponse.json(
+        { error: adminCheck.error },
+        { status: adminCheck.status }
+      );
     }
 
     const { currentPassword, newPassword } = await req.json();

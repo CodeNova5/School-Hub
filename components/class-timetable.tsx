@@ -177,7 +177,7 @@ export function ClassTimetable({
   }
 
   return (
-    <Card>
+    <Card className="overflow-x-auto">
       <CardHeader>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <CardTitle>Class Timetable</CardTitle>

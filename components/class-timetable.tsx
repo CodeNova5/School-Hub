@@ -52,6 +52,7 @@ export function ClassTimetable({
   const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
 
   useEffect(() => {
     if (classId) {
@@ -204,7 +205,92 @@ export function ClassTimetable({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="overflow-x-auto border rounded-lg" id={`class-timetable-${classId}`}>
+        {/* Mobile Day View */}
+        <div className="md:hidden space-y-4">
+          {/* Day Selector */}
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {DAYS.map((day) => (
+              <Button
+                key={day}
+                onClick={() => setSelectedDay(day)}
+                variant={selectedDay === day ? "default" : "outline"}
+                size="sm"
+                className="flex-shrink-0 whitespace-nowrap"
+              >
+                {day.slice(0, 3)}
+              </Button>
+            ))}
+          </div>
+
+          {/* Day's Schedule */}
+          <div className="space-y-3">
+            {periodSlots
+              .filter((p) => p.day_of_week === selectedDay)
+              .map((period, idx) => {
+                const entry = timetableEntries.find(
+                  e => e.period_slot_id === period.id
+                );
+
+                if (period.is_break) {
+                  return (
+                    <div
+                      key={period.id}
+                      className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center"
+                    >
+                      <div className="font-semibold text-yellow-800">BREAK TIME</div>
+                      <div className="text-sm text-yellow-700 mt-1">
+                        {period.start_time} - {period.end_time}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={period.id}
+                    className={`p-4 border rounded-lg transition-colors cursor-pointer ${
+                      entry
+                        ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100"
+                        : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                    }`}
+                    onClick={() => onEntryClick?.(entry || null, period.id, selectedDay)}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="text-sm font-semibold text-gray-600">
+                        Period {idx + 1} • {period.start_time} - {period.end_time}
+                      </div>
+                      {entry && entry.subject_classes ? (
+                        <div className="space-y-2">
+                          <div className="text-lg font-bold text-gray-900">
+                            {entry.subject_classes.subjects?.name || "—"}
+                          </div>
+                          <div className="text-sm text-blue-700">
+                            {entry.subject_classes.teachers
+                              ? `${entry.subject_classes.teachers.first_name} ${entry.subject_classes.teachers.last_name}`
+                              : "No teacher"}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-gray-500 italic flex items-center gap-2">
+                          <Plus className="w-4 h-4 opacity-50" />
+                          <span>{onEntryClick ? "Add Subject" : "Free Period"}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+
+          {periodSlots.length === 0 && (
+            <div className="p-8 text-center text-muted-foreground">
+              No timetable configured yet.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block border rounded-lg overflow-x-auto" id={`class-timetable-${classId}`}>
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-100">

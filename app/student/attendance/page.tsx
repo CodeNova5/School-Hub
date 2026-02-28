@@ -193,6 +193,7 @@ export default function StudentAttendancePage() {
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-screen">
           <Loader className="animate-spin h-8 w-8 text-gray-600" />
+          <br />
           <span className="ml-2 text-gray-600">Loading attendance data...</span>
         </div>
       </DashboardLayout>

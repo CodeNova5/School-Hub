@@ -171,16 +171,12 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
     >
       {/* Avatar */}
       <div className="flex-shrink-0">
-        <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
-          {notification.imageUrl ? (
-            <img
-              src={notification.imageUrl}
-              alt="Avatar"
-              className="h-12 w-12 rounded-full object-cover"
-            />
-          ) : (
-            getInitials(notification.sentBy || "User")
-          )}
+        <div className="relative h-12 w-12 rounded-full bg-white flex items-center justify-center shadow-sm">
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="h-12 w-12 rounded-full object-contain"
+          />
         </div>
       </div>
 

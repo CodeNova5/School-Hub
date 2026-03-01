@@ -104,17 +104,17 @@ export function AdminSendNotificationComponent() {
       // Search in students table
       const { data: students } = await supabase
         .from("students")
-        .select("id, name, email, class")
-        .ilike("name", `%${searchTerm}%`);
+        .select("id, first_name, last_name, email, class_id, classes(name)")
+        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
 
       if (students) {
         results.push(
-          ...students.map((s) => ({
+          ...students.map((s: any) => ({
             id: s.id,
-            name: s.name,
+            name: `${s.first_name} ${s.last_name}`,
             email: s.email,
             role: "student" as const,
-            metadata: s.class,
+            metadata: s.classes?.name || "N/A",
           }))
         );
       }
@@ -122,14 +122,14 @@ export function AdminSendNotificationComponent() {
       // Search in teachers table
       const { data: teachers } = await supabase
         .from("teachers")
-        .select("id, name, email")
-        .ilike("name", `%${searchTerm}%`);
+        .select("id, first_name, last_name, email")
+        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`);
 
       if (teachers) {
         results.push(
-          ...teachers.map((t) => ({
+          ...teachers.map((t: any) => ({
             id: t.id,
-            name: t.name,
+            name: `${t.first_name} ${t.last_name}`,
             email: t.email,
             role: "teacher" as const,
           }))
@@ -144,7 +144,7 @@ export function AdminSendNotificationComponent() {
 
       if (parents) {
         results.push(
-          ...parents.map((p) => ({
+          ...parents.map((p: any) => ({
             id: p.id,
             name: p.name,
             email: p.email,
@@ -153,22 +153,15 @@ export function AdminSendNotificationComponent() {
         );
       }
 
-      // Search in admins table
+      // Search in teachers table for admins (using same table)
       const { data: admins } = await supabase
-        .from("admins")
-        .select("id, name, email")
-        .ilike("name", `%${searchTerm}%`);
+        .from("teachers")
+        .select("id, first_name, last_name, email")
+        .or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%`)
+        .limit(0);
 
-      if (admins) {
-        results.push(
-          ...admins.map((a) => ({
-            id: a.id,
-            name: a.name,
-            email: a.email,
-            role: "admin" as const,
-          }))
-        );
-      }
+      // Note: Admins would be identified through the user_role_links table in your RBAC system
+      // For now, we're not including them in user search unless you have a separate admins table
 
       setUserSearchResults(results);
     } catch (error) {

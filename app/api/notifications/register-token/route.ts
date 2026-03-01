@@ -48,29 +48,39 @@ export async function POST(req: Request) {
       );
     }
 
-    // Use upsert to atomically handle token registration and avoid race conditions
-    const { error: upsertError } = await supabase
+    // 1️⃣ Delete all existing tokens for this user
+    const { error: deleteError } = await supabase
       .from("notification_tokens")
-      .upsert(
-        {
-          token: fcmToken,
-          user_id: userId,
-          role: role || "user",
-          device_type: deviceType || "unknown",
-          is_active: true,
-          last_registered_at: new Date().toISOString(),
-        },
-        { onConflict: "token" } // If token exists, update it
-      );
+      .delete()
+      .eq("user_id", userId);
 
-    if (upsertError) {
-      console.error("Error upserting token:", upsertError);
+    if (deleteError) {
+      console.error("Error deleting old tokens:", deleteError);
       return NextResponse.json(
-        { error: "Failed to register notification token", details: upsertError },
+        { error: "Failed to clean old tokens", details: deleteError },
         { status: 500 }
       );
     }
 
+    // 2️⃣ Insert new token
+    const { error: insertError } = await supabase
+      .from("notification_tokens")
+      .insert({
+        token: fcmToken,
+        user_id: userId,
+        role: role || "user",
+        device_type: deviceType || "unknown",
+        is_active: true,
+        last_registered_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.error("Error inserting token:", insertError);
+      return NextResponse.json(
+        { error: "Failed to register notification token", details: insertError },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
       { success: true, message: "Notification token registered successfully" },
       { status: 200 }

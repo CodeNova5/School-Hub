@@ -94,6 +94,7 @@ export async function GET(request: NextRequest) {
             body: notif.body,
             target: notif.target,
             targetValue: notif.target_value,
+            targetName: notif.target_name,
             successCount: notif.success_count || 0,
             failureCount: notif.failure_count || 0,
             createdAt: notif.created_at,

@@ -26,6 +26,7 @@ interface SendNotificationPayload {
   link?: string;
   target: "all" | "role" | "user" | "class";
   targetValue?: string;
+  targetName?: string;
   data?: Record<string, string>;
 }
 
@@ -174,7 +175,7 @@ export function AdminSendNotificationComponent() {
 
   const handleSelectUser = (user: UserSearchResult) => {
     setSelectedUser(user);
-    setPayload({ ...payload, targetValue: user.id });
+    setPayload({ ...payload, targetValue: user.id, targetName: user.name });
     setUserSearchInput("");
     setUserSearchResults([]);
   };
@@ -243,6 +244,7 @@ export function AdminSendNotificationComponent() {
         title: "",
         body: "",
         target: "all",
+        targetName: undefined,
       });
       setSelectedUser(null);
       setUserSearchInput("");

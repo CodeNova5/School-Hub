@@ -70,7 +70,8 @@ async function logNotification(
     totalRecipients: number,
     sentBy: string,
     imageUrl?: string,
-    link?: string
+    link?: string,
+    targetName?: string
 ) {
     try {
         console.log("📝 Attempting to log notification to database...", { sentBy, target });
@@ -84,6 +85,7 @@ async function logNotification(
                 link,
                 target,
                 target_value: targetValue,
+                target_name: targetName,
                 success_count: successCount,
                 failure_count: failureCount,
                 total_recipients: totalRecipients,
@@ -123,7 +125,7 @@ export async function POST(request: NextRequest) {
         
         const userId = authCheck.user?.id;
 
-        const { title, body, imageUrl, link, target, targetValue, data: customData } =
+        const { title, body, imageUrl, link, target, targetValue, targetName, data: customData } =
             await request.json();
 
         // Validate required fields
@@ -340,7 +342,8 @@ export async function POST(request: NextRequest) {
                 tokensList.length,
                 userId,
                 imageUrl,
-                link
+                link,
+                targetName
             );
             if (!logSuccess) {
                 console.warn("⚠️ Notification was sent but failed to log to database");

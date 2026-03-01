@@ -36,6 +36,7 @@ interface NotificationLog {
   body: string;
   target: string;
   targetValue?: string;
+  targetName?: string;
   successCount: number;
   failureCount: number;
   createdAt: string;
@@ -127,14 +128,14 @@ export default function NotificationsPage() {
     return then.toLocaleDateString();
   };
 
-  const getTargetLabel = (target: string, targetValue?: string) => {
+  const getTargetLabel = (target: string, targetValue?: string, targetName?: string) => {
     switch (target) {
       case 'all':
         return 'All Users';
       case 'role':
         return `${targetValue === 'student' ? 'Students' : targetValue === 'teacher' ? 'Teachers' : targetValue === 'parent' ? 'Parents' : 'Admins'}`;
       case 'user':
-        return `User: ${targetValue}`;
+        return targetName ? `User: ${targetName}` : `User: ${targetValue}`;
       case 'class':
         return `Class: ${targetValue}`;
       default:
@@ -437,7 +438,7 @@ export default function NotificationsPage() {
                             </p>
                           </div>
                           <Badge variant="outline" className="ml-2 flex-shrink-0">
-                            {getTargetLabel(notification.target, notification.targetValue)}
+                            {getTargetLabel(notification.target, notification.targetValue, notification.targetName)}
                           </Badge>
                         </div>
 

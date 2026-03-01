@@ -202,19 +202,57 @@ export async function POST(request: NextRequest) {
             console.log(`Found ${data?.length || 0} active tokens for role '${targetValue}'`);
             tokens = data || [];
         } else if (target === "user") {
-            // Get tokens for specific user - use admin client for server-side calls
+            // Get tokens for specific user - need to resolve profile ID to auth user_id
+            let authUserId = targetValue;
+            
+            // Try to find the user_id from students table
+            const { data: studentData } = await supabaseAdmin
+                .from("students")
+                .select("user_id")
+                .eq("id", targetValue)
+                .single();
+            
+            if (studentData?.user_id) {
+                authUserId = studentData.user_id;
+            } else {
+                // Try teachers table
+                const { data: teacherData } = await supabaseAdmin
+                    .from("teachers")
+                    .select("user_id")
+                    .eq("id", targetValue)
+                    .single();
+                
+                if (teacherData?.user_id) {
+                    authUserId = teacherData.user_id;
+                } else {
+                    // Try parents table
+                    const { data: parentData } = await supabaseAdmin
+                        .from("parents")
+                        .select("user_id")
+                        .eq("id", targetValue)
+                        .single();
+                    
+                    if (parentData?.user_id) {
+                        authUserId = parentData.user_id;
+                    }
+                }
+            }
+
+            console.log(`Resolved user profile '${targetValue}' to auth user '${authUserId}'`);
+
+            // Get tokens for the resolved auth user_id
             const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token")
-                .eq("user_id", targetValue)
+                .eq("user_id", authUserId)
                 .eq("is_active", true);
 
             if (error) {
-                console.error(`Error fetching tokens for user '${targetValue}':`, error);
+                console.error(`Error fetching tokens for user '${targetValue}' (auth: ${authUserId}):`, error);
                 throw error;
             }
             
-            console.log(`Found ${data?.length || 0} active tokens for user '${targetValue}'`);
+            console.log(`Found ${data?.length || 0} active tokens for user '${authUserId}'`);
             tokens = data || [];
         } else if (target === "class") {
             // Get tokens for students in a class

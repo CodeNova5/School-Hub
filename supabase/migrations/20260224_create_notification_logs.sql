@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS public.notification_logs (
   link TEXT,
   target TEXT NOT NULL,
   target_value TEXT,
+  target_name TEXT,
   success_count INTEGER DEFAULT 0,
   failure_count INTEGER DEFAULT 0,
   total_recipients INTEGER DEFAULT 0,
@@ -15,6 +16,9 @@ CREATE TABLE IF NOT EXISTS public.notification_logs (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
   metadata JSONB DEFAULT '{}'::jsonb
 );
+
+-- Add target_name column if it doesn't exist (for existing databases)
+ALTER TABLE IF EXISTS public.notification_logs ADD COLUMN IF NOT EXISTS target_name TEXT;
 
 -- Create indexes for faster queries
 CREATE INDEX IF NOT EXISTS idx_notification_logs_created_at ON public.notification_logs(created_at DESC);

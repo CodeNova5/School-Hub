@@ -15,7 +15,7 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@/components/ui/select";
-import { Bell, Send, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
+import { Bell, Send, AlertCircle, CheckCircle, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
@@ -31,8 +31,16 @@ interface SendNotificationPayload {
 
 interface ClassOption {
   id: string;
-  class_name: string;
+  name: string;
   level: string;
+}
+
+interface UserSearchResult {
+  id: string;
+  name: string;
+  email?: string;
+  role: "student" | "teacher" | "parent" | "admin";
+  metadata?: string;
 }
 
 interface LinkOption {
@@ -45,6 +53,10 @@ export function AdminSendNotificationComponent() {
   const [loading, setLoading] = useState(false);
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [classesLoading, setClassesLoading] = useState(false);
+  const [userSearchInput, setUserSearchInput] = useState("");
+  const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
   const [payload, setPayload] = useState<SendNotificationPayload>({
     title: "",
     body: "",
@@ -61,7 +73,7 @@ export function AdminSendNotificationComponent() {
       
       const { data, error } = await supabase
         .from("classes")
-        .select("id, class_name, level")
+        .select("id, name, level")
         .order("level", { ascending: true });
 
       if (error) {
@@ -77,6 +89,106 @@ export function AdminSendNotificationComponent() {
     } finally {
       setClassesLoading(false);
     }
+  };
+
+  const searchUsers = async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setUserSearchResults([]);
+      return;
+    }
+
+    try {
+      setUserSearchLoading(true);
+      const results: UserSearchResult[] = [];
+
+      // Search in students table
+      const { data: students } = await supabase
+        .from("students")
+        .select("id, name, email, class")
+        .ilike("name", `%${searchTerm}%`);
+
+      if (students) {
+        results.push(
+          ...students.map((s) => ({
+            id: s.id,
+            name: s.name,
+            email: s.email,
+            role: "student" as const,
+            metadata: s.class,
+          }))
+        );
+      }
+
+      // Search in teachers table
+      const { data: teachers } = await supabase
+        .from("teachers")
+        .select("id, name, email")
+        .ilike("name", `%${searchTerm}%`);
+
+      if (teachers) {
+        results.push(
+          ...teachers.map((t) => ({
+            id: t.id,
+            name: t.name,
+            email: t.email,
+            role: "teacher" as const,
+          }))
+        );
+      }
+
+      // Search in parents table
+      const { data: parents } = await supabase
+        .from("parents")
+        .select("id, name, email")
+        .ilike("name", `%${searchTerm}%`);
+
+      if (parents) {
+        results.push(
+          ...parents.map((p) => ({
+            id: p.id,
+            name: p.name,
+            email: p.email,
+            role: "parent" as const,
+          }))
+        );
+      }
+
+      // Search in admins table
+      const { data: admins } = await supabase
+        .from("admins")
+        .select("id, name, email")
+        .ilike("name", `%${searchTerm}%`);
+
+      if (admins) {
+        results.push(
+          ...admins.map((a) => ({
+            id: a.id,
+            name: a.name,
+            email: a.email,
+            role: "admin" as const,
+          }))
+        );
+      }
+
+      setUserSearchResults(results);
+    } catch (error) {
+      console.error("Error searching users:", error);
+      toast.error("Failed to search users");
+    } finally {
+      setUserSearchLoading(false);
+    }
+  };
+
+  const handleSelectUser = (user: UserSearchResult) => {
+    setSelectedUser(user);
+    setPayload({ ...payload, targetValue: user.id });
+    setUserSearchInput("");
+    setUserSearchResults([]);
+  };
+
+  const handleClearUserSelection = () => {
+    setSelectedUser(null);
+    setPayload({ ...payload, targetValue: undefined });
   };
 
   const handleSendNotification = async () => {
@@ -139,6 +251,8 @@ export function AdminSendNotificationComponent() {
         body: "",
         target: "all",
       });
+      setSelectedUser(null);
+      setUserSearchInput("");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to send notification";
@@ -170,9 +284,11 @@ export function AdminSendNotificationComponent() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Send To
           </label>
-          <Select value={payload.target} onValueChange={(value: any) => 
-            setPayload({ ...payload, target: value, targetValue: undefined })
-          }>
+          <Select value={payload.target} onValueChange={(value: any) => {
+            setPayload({ ...payload, target: value, targetValue: undefined });
+            setSelectedUser(null);
+            setUserSearchInput("");
+          }}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -210,15 +326,90 @@ export function AdminSendNotificationComponent() {
         {payload.target === "user" && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              User ID
+              Search User by Name
             </label>
-            <Input
-              placeholder="Enter user ID"
-              value={payload.targetValue || ""}
-              onChange={(e) =>
-                setPayload({ ...payload, targetValue: e.target.value })
-              }
-            />
+            
+            {selectedUser ? (
+              // Selected user display
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900">{selectedUser.name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                      {selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1)}
+                    </span>
+                    {selectedUser.email && (
+                      <span className="text-xs text-gray-600">{selectedUser.email}</span>
+                    )}
+                    {selectedUser.metadata && (
+                      <span className="text-xs text-gray-500">({selectedUser.metadata})</span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearUserSelection}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              // Search input
+              <div className="space-y-2">
+                <Input
+                  placeholder="Type user name to search..."
+                  value={userSearchInput}
+                  onChange={(e) => {
+                    setUserSearchInput(e.target.value);
+                    searchUsers(e.target.value);
+                  }}
+                />
+
+                {/* Search Results */}
+                {userSearchResults.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto bg-white">
+                    {userSearchResults.map((user) => (
+                      <button
+                        key={`${user.role}-${user.id}`}
+                        onClick={() => handleSelectUser(user)}
+                        className="w-full text-left hover:bg-blue-50 px-3 py-2 border-b last:border-b-0 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900">{user.name}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">
+                                {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                              </span>
+                              {user.email && (
+                                <span className="text-xs text-gray-600">{user.email}</span>
+                              )}
+                              {user.metadata && (
+                                <span className="text-xs text-gray-500">({user.metadata})</span>
+                              )}
+                            </div>
+                          </div>
+                          <CheckCircle className="h-4 w-4 text-blue-500 ml-2 flex-shrink-0" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {userSearchLoading && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Searching...
+                  </div>
+                )}
+
+                {userSearchInput && userSearchResults.length === 0 && !userSearchLoading && (
+                  <p className="text-sm text-red-500">No users found matching "{userSearchInput}"</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -236,7 +427,7 @@ export function AdminSendNotificationComponent() {
               <SelectContent>
                 {classes.map((classItem) => (
                   <SelectItem key={classItem.id} value={classItem.id}>
-                    {classItem.class_name} - Level {classItem.level}
+                    {classItem.name} - Level {classItem.level}
                   </SelectItem>
                 ))}
               </SelectContent>

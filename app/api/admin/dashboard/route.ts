@@ -100,9 +100,10 @@ export async function GET(req: NextRequest) {
       value: cls.students?.[0]?.count || 0,
     })) || [];
 
-    // 7. Student Enrollment Trend (last 6 months)
+    // 7. Student Enrollment Trend (last 6 months from student created_at)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    sixMonthsAgo.setDate(1); // Start from first day of month
 
     const { data: enrollmentData } = await supabase
       .from("students")
@@ -110,31 +111,31 @@ export async function GET(req: NextRequest) {
       .gte("created_at", sixMonthsAgo.toISOString())
       .order("created_at");
 
-    // Group by month
-    const enrollmentByMonth: Record<string, number> = {};
-    enrollmentData?.forEach((student) => {
-      const date = new Date(student.created_at);
-      const monthKey = date.toLocaleString("en-US", { month: "short" });
-      enrollmentByMonth[monthKey] = (enrollmentByMonth[monthKey] || 0) + 1;
-    });
-
-    // Calculate cumulative enrollment
+    // Generate last 6 months
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const currentMonth = new Date().getMonth();
+    const today = new Date();
     const last6Months = [];
-    let cumulative = totalStudents || 0;
-
+    
     for (let i = 5; i >= 0; i--) {
-      const monthIndex = (currentMonth - i + 12) % 12;
-      const monthName = months[monthIndex];
-      const newEnrollments = enrollmentByMonth[monthName] || 0;
-      cumulative -= newEnrollments;
+      const date = new Date(today);
+      date.setMonth(date.getMonth() - i);
+      date.setDate(1);
+      
+      const monthName = months[date.getMonth()];
+      const monthStart = new Date(date);
+      const monthEnd = new Date(date);
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      
+      // Count students created up to end of this month
+      const cumulativeCount = enrollmentData?.filter(student => {
+        const studentDate = new Date(student.created_at);
+        return studentDate < monthEnd;
+      }).length || 0;
+      
       last6Months.push({
         month: monthName,
-        students: cumulative + newEnrollments,
-        capacity: Math.ceil((cumulative + newEnrollments) * 1.2), // 20% buffer
+        students: cumulativeCount,
       });
-      cumulative += newEnrollments;
     }
 
     // 8. Academic Performance by Class (current term)

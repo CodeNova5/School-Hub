@@ -63,7 +63,7 @@ interface DashboardData {
     pendingAdmissions: number;
   };
   classDistribution: Array<{ name: string; value: number }>;
-  enrollmentTrend: Array<{ month: string; students: number; capacity: number }>;
+  enrollmentTrend: Array<{ month: string; students: number }>;
   performanceByClass: Array<{ class: string; average: number; target: number }>;
   recentActivities: {
     events: any[];
@@ -323,15 +323,7 @@ export default function AdminDashboard() {
                       strokeWidth={3}
                       dot={{ fill: '#3B82F6', r: 5 }}
                       activeDot={{ r: 7 }}
-                      name="Students"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="capacity"
-                      stroke="#D1D5DB"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      name="Capacity"
+                      name="Students Enrolled"
                     />
                   </LineChart>
                 </ResponsiveContainer>

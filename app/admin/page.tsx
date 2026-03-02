@@ -93,7 +93,8 @@ export default function AdminDashboard() {
 
   const syncTokenOnLoad = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
       if (user) {
         await syncNotificationToken(user.id, "admin");
       }

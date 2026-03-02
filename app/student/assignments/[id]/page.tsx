@@ -20,7 +20,8 @@ export default function StudentAssignmentDetails() {
     useEffect(() => {
         async function loadAssignment() {
             setLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { session } } = await supabase.auth.getSession();
+            const user = session?.user;
             const { data: student } = await supabase.from("students").select("id").eq("user_id", user?.id).single();
 
             const { data: assignmentData } = await supabase

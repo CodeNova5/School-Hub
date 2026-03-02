@@ -33,17 +33,12 @@ export default function TeacherSettingsPage() {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session) {
+      if (!session?.user) {
         router.push('/teacher/login');
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push('/teacher/login');
-        return;
-      }
+      const user = session.user;
 
       // Fetch teacher profile
       const { data: teacherData, error } = await supabase
@@ -77,7 +72,8 @@ export default function TeacherSettingsPage() {
 
     try {
       setResettingPassword(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
 
       if (!user) {
         toast.error('User session not found');

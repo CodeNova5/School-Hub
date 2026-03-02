@@ -43,13 +43,14 @@ export default function StudentAssignmentSubmission() {
     setIsSubmitting(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      // Get user ID from session - already authenticated by middleware
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) throw new Error("Not authenticated");
 
       const { data: student } = await supabase
         .from("students")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", session.user.id)
         .single();
 
       if (!student) throw new Error("Student record not found");

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -28,14 +28,6 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isLoginPage = pathname === "/super-admin/login";
-
-  // Protect from client side too
-  useEffect(() => {
-    if (isLoginPage) return;
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) router.push("/super-admin/login");
-    });
-  }, [router, isLoginPage]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();

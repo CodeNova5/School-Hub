@@ -44,27 +44,8 @@ export default function ClassesPage() {
     fetchTeachers();
   }, []);
 
-  useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
-
-      if (error) {
-        console.error("Error fetching session:", error);
-        toast.error("Error fetching session: " + error.message);
-        return;
-      }
-    };
-
-    getUser();
-  }, []);
-
 
   async function fetchClasses() {
-    const { data: { user } } = await supabase.auth.getUser();
-
     try {
       // ✅ Direct Supabase query - RLS handles permissions via is_admin()
       const { data, error } = await supabase

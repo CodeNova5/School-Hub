@@ -124,7 +124,8 @@ export default function AssignmentDetailsPage() {
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } = await supabase.auth.getSession();
+    const user = session?.user;
 
     const { data: updatedSubmission, error } = await supabase
       .from("assignment_submissions")

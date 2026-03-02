@@ -80,7 +80,8 @@ export default function ParentStudentDetailPage() {
   async function loadData() {
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
 
       if (!user) {
         router.push("/parent/login");

@@ -54,7 +54,8 @@ export default function TeacherClassesPage() {
       setLoading(true);
 
       // Get current user
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      const user = session?.user;
       if (authError || !user) {
         toast.error("Unable to identify user");
         router.push("/teacher/login");

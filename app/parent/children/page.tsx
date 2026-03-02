@@ -53,10 +53,8 @@ export default function ParentChildPage() {
   async function loadData() {
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.push("/parent/login");
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
         return;
       }
 

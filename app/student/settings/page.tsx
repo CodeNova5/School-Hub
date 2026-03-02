@@ -35,17 +35,12 @@ export default function StudentSettingsPage() {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
       
-      if (!session) {
+      if (!session?.user) {
         router.push('/student/login');
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.push('/student/login');
-        return;
-      }
+      const user = session.user;
 
       // Fetch student profile
       const { data: studentData, error } = await supabase
@@ -79,7 +74,8 @@ export default function StudentSettingsPage() {
 
     try {
       setResettingPassword(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      const user = session?.user;
 
       if (!user) {
         toast.error('User session not found');

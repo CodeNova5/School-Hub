@@ -55,14 +55,12 @@ export default function ParentChildPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
-        return;
-      }
 
       // Get parent info
       const { data: parent, error: parentError } = await supabase
         .from("parents")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", user?.id)
         .single();
 
       if (parentError || !parent) {

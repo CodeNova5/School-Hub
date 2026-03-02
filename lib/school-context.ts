@@ -11,13 +11,17 @@
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-const supabase = createClientComponentClient();
+/** Always create a fresh client per-call to avoid module-level `cookies()` access. */
+function getClient() {
+  return createClientComponentClient();
+}
 
 /**
  * Get the school_id for the currently authenticated user.
  * Returns null for super_admin (no school restriction).
  */
 export async function getMySchoolId(): Promise<string | null> {
+  const supabase = getClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -41,6 +45,7 @@ export async function getMySchoolId(): Promise<string | null> {
  * Priority: JWT app_metadata > user_metadata
  */
 export async function getMyRole(): Promise<string | null> {
+  const supabase = getClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -58,6 +63,7 @@ export async function getMyRole(): Promise<string | null> {
  * Returns true when the current user is a super_admin.
  */
 export async function isSuperAdmin(): Promise<boolean> {
+  const supabase = getClient();
   const role = await getMyRole();
   if (role === 'super_admin') return true;
   const { data } = await supabase.rpc('can_access_super_admin');

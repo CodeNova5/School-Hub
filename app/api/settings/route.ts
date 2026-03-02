@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import { uploadFile, fileToBase64 } from "@/lib/github";
+
+async function resolveSchoolId(): Promise<string | null> {
+  const routeClient = createRouteHandlerClient({ cookies });
+  const { data } = await routeClient.rpc("get_my_school_id");
+  return data ?? null;
+}
 
 export async function GET(req: Request) {
   try {
@@ -9,9 +17,15 @@ export async function GET(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    const schoolId = await resolveSchoolId();
+    if (!schoolId) {
+      return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from("school_settings")
-      .select("key, value");
+      .select("key, value")
+      .eq("school_id", schoolId);
 
     if (error) {
       return NextResponse.json(
@@ -67,6 +81,11 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
+
+    const schoolId = await resolveSchoolId();
+    if (!schoolId) {
+      return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
+    }
 
     let school_logo = existingLogoUrl || "";
     let principal_signature = existingSignatureUrl || "";
@@ -126,8 +145,8 @@ export async function POST(req: Request) {
       const { error } = await supabase
         .from("school_settings")
         .upsert(
-          { key: setting.key, value: setting.value, updated_at: new Date().toISOString() },
-          { onConflict: "key" }
+          { key: setting.key, value: setting.value, school_id: schoolId, updated_at: new Date().toISOString() },
+          { onConflict: "school_id,key" }
         );
 
       if (error) {

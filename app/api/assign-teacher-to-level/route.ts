@@ -14,11 +14,21 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 1️⃣ Get all classes in this level
+    // Resolve school_id from calling user
+    const { createRouteHandlerClient } = await import("@supabase/auth-helpers-nextjs");
+    const { cookies } = await import("next/headers");
+    const routeClient = createRouteHandlerClient({ cookies });
+    const { data: schoolId } = await routeClient.rpc("get_my_school_id");
+    if (!schoolId) {
+      return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
+    }
+
+    // 1️⃣ Get all classes in this level (scoped to school)
     const { data: classes, error: classError } = await supabase
       .from("classes")
       .select("id")
-      .eq("education_level", education_level);
+      .eq("education_level", education_level)
+      .eq("school_id", schoolId);
 
     if (classError || !classes?.length) {
       return NextResponse.json({ error: "No classes found for this level" }, { status: 400 });

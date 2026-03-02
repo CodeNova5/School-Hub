@@ -72,6 +72,7 @@ export async function POST(req: Request) {
         device_type: deviceType || "unknown",
         is_active: true,
         last_registered_at: new Date().toISOString(),
+        school_id: user.app_metadata?.school_id ?? null,
       });
 
     if (insertError) {

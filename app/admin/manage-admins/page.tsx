@@ -1,8 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent } from "@/components/ui/card";
+import { ShieldOff } from "lucide-react";
+
+/**
+ * Admin management is now a platform-level operation handled exclusively
+ * by the Super Admin. School admins (principals) no longer have access
+ * to this feature.
+ *
+ * If you arrived here from a saved bookmark, please use the
+ * Super Admin dashboard instead: /super-admin
+ */
+export default function ManageAdminsPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect away after a brief moment so the user sees the message
+    const t = setTimeout(() => router.replace("/admin"), 4000);
+    return () => clearTimeout(t);
+  }, [router]);
+
+  return (
+    <DashboardLayout role="admin">
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-8 pb-8 flex flex-col items-center text-center gap-4">
+            <ShieldOff className="w-12 h-12 text-muted-foreground" />
+            <h2 className="text-xl font-semibold">Access Restricted</h2>
+            <p className="text-muted-foreground text-sm">
+              Managing school administrators is now handled by the platform
+              Super Admin. You will be redirected to your dashboard shortly.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+}
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";

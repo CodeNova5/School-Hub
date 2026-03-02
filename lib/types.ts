@@ -1,3 +1,22 @@
+// ── Multi-tenancy ────────────────────────────────────────────────────────
+
+export type UserRole = 'super_admin' | 'admin' | 'teacher' | 'student' | 'parent';
+
+export interface School {
+  id: string;
+  name: string;
+  subdomain?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  logo_url?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ── Core types ────────────────────────────────────────────────────────────
+
 export interface Session {
   id: string;
   name: string;
@@ -5,6 +24,7 @@ export interface Session {
   end_date: string;
   is_current: boolean;
   created_at: string;
+  school_id?: string;
 }
 
 export interface Term {
@@ -15,6 +35,7 @@ export interface Term {
   end_date: string;
   is_current: boolean;
   created_at: string;
+  school_id?: string;
 }
 
 export interface Class {
@@ -33,6 +54,7 @@ export interface Class {
   teacherName?: string;
   studentCount?: number;
   subjectCount?: number;
+  school_id?: string;
 }
 
 export interface Subject {
@@ -65,6 +87,7 @@ export interface Teacher {
   bio: string;
   status: 'active' | 'on_leave' | 'inactive';
   created_at: string;
+  school_id?: string;
 }
 
 export interface AttendanceEntry {
@@ -109,25 +132,6 @@ export interface Student {
   attendance: AttendanceEntry[];
   average_attendance: number;
   results: Result[];
-  created_at: string;
-}
-
-export interface Session {
-  id: string;
-  name: string;
-  start_date: string;
-  end_date: string;
-  is_current: boolean;
-  created_at: string;
-}
-
-export interface Term {
-  id: string;
-  name: string;
-  session_id: string;
-  start_date: string;
-  end_date: string;
-  is_current: boolean;
   created_at: string;
 }
 

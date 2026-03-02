@@ -46,6 +46,9 @@ export async function POST(req: Request) {
 
     const { applicationId, classId, department, religion } = await req.json();
 
+    // Resolve the school_id of the approving admin to forward to create-student
+    const { data: schoolId } = await supabase.rpc("get_my_school_id");
+
     // Get application details
     const { data: application, error: fetchError } = await supabaseAdmin
       .from("admissions")
@@ -88,6 +91,7 @@ export async function POST(req: Request) {
       department: department || null,
       religion: religion || null,
       admission_date: new Date().toISOString().split("T")[0],
+      school_id: schoolId ?? undefined,
     };
 
     // Call create-student API

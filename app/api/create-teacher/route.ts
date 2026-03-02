@@ -27,6 +27,15 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Resolve school_id for the calling admin
+    const { createRouteHandlerClient } = await import("@supabase/auth-helpers-nextjs");
+    const { cookies } = await import("next/headers");
+    const routeClient = createRouteHandlerClient({ cookies });
+    const { data: schoolId } = await routeClient.rpc("get_my_school_id");
+    if (!schoolId) {
+      return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
+    }
+
     // 1️⃣ Check if teacher already exists
     const { data: existingTeacher } = await supabase
       .from("teachers")
@@ -70,6 +79,7 @@ export async function POST(req: Request) {
         user_id: authData.user.id,
         is_active: false,
         status: "inactive",
+        school_id: schoolId,
       })
       .select()
       .single();
@@ -118,6 +128,7 @@ export async function POST(req: Request) {
         role: roleType,
         teacher_id: teacher.id,
         managed_class_id: selectedClass || null,
+        school_id: schoolId,
       });
 
     if (roleError) {

@@ -91,7 +91,6 @@ export function Sidebar({
 
   const adminNav: NavItem[] = [
     { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: "/admin/manage-admins", label: "Manage Admins", icon: <Users className="h-5 w-5" /> },
     { href: "/admin/sessions", label: "Sessions & Terms", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" /> },
     { href: "/admin/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },

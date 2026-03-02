@@ -46,11 +46,17 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const status = searchParams.get("status") || "all";
 
-        // Build query
+        // Build query - scoped to the admin's school
+        const { data: schoolId } = await supabase.rpc("get_my_school_id");
+
         let query = supabaseAdmin
             .from("admissions")
             .select("*")
             .order("submitted_at", { ascending: false });
+
+        if (schoolId) {
+            query = query.eq("school_id", schoolId);
+        }
 
         // Filter by status if not "all"
         if (status !== "all") {

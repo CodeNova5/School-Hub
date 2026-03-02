@@ -131,6 +131,12 @@ export async function POST(req: NextRequest) {
     // Generate unique application number
     const applicationNumber = await generateApplicationNumber();
 
+    // Resolve school from subdomain header (set by middleware)
+    const schoolId = req.headers.get("x-school-id");
+    if (!schoolId) {
+      return NextResponse.json({ error: "School not found" }, { status: 400 });
+    }
+
     // Insert application into database using service role
     const { data: application, error } = await supabase
       .from("admissions")
@@ -152,6 +158,7 @@ export async function POST(req: NextRequest) {
         status: "pending",
         submitted_at: new Date().toISOString(),
         ip_address: clientIP, // Store IP for fraud detection
+        school_id: schoolId,
       })
       .select()
       .single();

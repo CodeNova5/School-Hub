@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import crypto from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+/**
+ * Resolve the school_id for the admin making the request.
+ * Falls back to the default school id if no school is found.
+ */
+async function getCallerSchoolId(): Promise<string | null> {
+  const routeClient = createRouteHandlerClient({ cookies });
+  const { data: { user } } = await routeClient.auth.getUser();
+  if (!user) return null;
+  const { data } = await routeClient.rpc("get_my_school_id");
+  return data ?? null;
+}
 
 // Function to generate unique student ID
 async function generateUniqueStudentId(): Promise<string> {
@@ -45,6 +59,15 @@ async function generateUniqueStudentId(): Promise<string> {
 export async function POST(req: Request) {
   try {
     const studentData = await req.json();
+
+    // Resolve school_id: prefer explicit body param (internal calls), else from caller session
+    let schoolId: string | null = studentData.school_id ?? null;
+    if (!schoolId) {
+      schoolId = await getCallerSchoolId();
+    }
+    if (!schoolId) {
+      return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
+    }
 
     // Generate unique student ID
     const generatedStudentId = await generateUniqueStudentId();
@@ -118,6 +141,7 @@ export async function POST(req: Request) {
         activation_token_hash: tokenHash,
         activation_expires_at: new Date(Date.now() + 86400000),
         activation_used: false,
+        school_id: schoolId,
       });
 
       // Send activation email to parent
@@ -170,6 +194,7 @@ export async function POST(req: Request) {
       user_id: authUserId, // Will be null if no own email
       is_active: studentIsActive,
       status: "active",
+      school_id: schoolId,
     };
 
     const { data: createdStudent, error: studentError } = await supabase

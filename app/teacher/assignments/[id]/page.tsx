@@ -122,10 +122,7 @@ export default function AssignmentDetailsPage() {
 
     setSavingId(submissionId);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
+    const user = await getCurrentUser();
 
     const { data: updatedSubmission, error } = await supabase
       .from("assignment_submissions")

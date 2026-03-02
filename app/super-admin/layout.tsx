@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   School,
+  UserCog,
   LogOut,
   ChevronLeft,
   Shield,
@@ -19,6 +20,7 @@ import { supabase } from "@/lib/supabase";
 const navItems = [
   { href: "/super-admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
   { href: "/super-admin/schools", label: "Schools", icon: <School className="h-5 w-5" /> },
+  { href: "/super-admin/admins", label: "Admins", icon: <UserCog className="h-5 w-5" /> },
 ];
 
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {

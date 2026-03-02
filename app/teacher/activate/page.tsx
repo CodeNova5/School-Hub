@@ -3,7 +3,7 @@
 // =============================
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
-export default function TeacherActivatePage() {
+function TeacherActivateContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -310,6 +310,14 @@ export default function TeacherActivatePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function TeacherActivatePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <TeacherActivateContent />
+    </Suspense>
   );
 }
 

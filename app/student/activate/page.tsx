@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export default function ActivateStudentAccount() {
+function ActivateStudentAccountContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -125,5 +125,13 @@ export default function ActivateStudentAccount() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ActivateStudentAccount() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <ActivateStudentAccountContent />
+    </Suspense>
   );
 }

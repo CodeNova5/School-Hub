@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import ResultEntry from "@/components/ResultEntry";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 
-export default function ResultEntryPage() {
+function ResultEntryContent() {
   const searchParams = useSearchParams();
   const studentId = searchParams.get("studentId");
   const [isClassTeacher, setIsClassTeacher] = useState(false);
@@ -152,5 +152,13 @@ export default function ResultEntryPage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function ResultEntryPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <ResultEntryContent />
+    </Suspense>
   );
 }

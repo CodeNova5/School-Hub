@@ -102,45 +102,45 @@ ALTER TABLE role_permissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_role_links ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for RBAC tables
-CREATE POLICY "read roles"
+CREATE OR REPLACE POLICY "read roles"
   ON roles FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "only super admin manages roles"
+CREATE OR REPLACE POLICY "only super admin manages roles"
   ON roles FOR ALL
   TO authenticated
   USING (has_permission('manage_admins'))
   WITH CHECK (has_permission('manage_admins'));
 
-CREATE POLICY "read permissions"
+CREATE OR REPLACE POLICY "read permissions"
   ON permissions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "only super admin manages permissions"
+CREATE OR REPLACE POLICY "only super admin manages permissions"
   ON permissions FOR ALL
   TO authenticated
   USING (has_permission('manage_admins'))
   WITH CHECK (has_permission('manage_admins'));
 
-CREATE POLICY "read role permissions"
+CREATE OR REPLACE POLICY "read role permissions"
   ON role_permissions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "only super admin manages role permissions"
+CREATE OR REPLACE POLICY "only super admin manages role permissions"
   ON role_permissions FOR ALL
   TO authenticated
   USING (has_permission('manage_admins'))
   WITH CHECK (has_permission('manage_admins'));
 
-CREATE POLICY "users read their own roles"
+CREATE OR REPLACE POLICY "users read their own roles"
   ON user_role_links FOR SELECT
   TO authenticated
   USING (user_id = auth.uid());
 
-CREATE POLICY "only super admin assigns roles"
+CREATE OR REPLACE POLICY "only super admin assigns roles"
   ON user_role_links FOR ALL
   TO authenticated
   USING (has_permission('manage_admins'))
@@ -969,108 +969,108 @@ DROP POLICY IF EXISTS "Admins can manage admissions" ON admissions;
 
 
 
-CREATE POLICY "Authenticated users can read sessions"
+CREATE OR REPLACE POLICY "Authenticated users can read sessions"
   ON sessions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage sessions"
+CREATE OR REPLACE POLICY "Admins can manage sessions"
   ON sessions FOR ALL
   TO authenticated
   USING (has_permission('edit_sessions') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_sessions') OR has_permission('admin_full'));
 
 -- TERMS
-CREATE POLICY "Authenticated users can read terms"
+CREATE OR REPLACE POLICY "Authenticated users can read terms"
   ON terms FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage terms"
+CREATE OR REPLACE POLICY "Admins can manage terms"
   ON terms FOR ALL
   TO authenticated
   USING (has_permission('edit_terms') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_terms') OR has_permission('admin_full'));
 
 -- TEACHERS
-CREATE POLICY "Authenticated users can read teachers"
+CREATE OR REPLACE POLICY "Authenticated users can read teachers"
   ON teachers FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage teachers"
+CREATE OR REPLACE POLICY "Admins can manage teachers"
   ON teachers FOR ALL
   TO authenticated
   USING (has_permission('edit_teachers') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_teachers') OR has_permission('admin_full'));
 
 -- CLASSES
-CREATE POLICY "Authenticated users can read classes"
+CREATE OR REPLACE POLICY "Authenticated users can read classes"
   ON classes FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage classes"
+CREATE OR REPLACE POLICY "Admins can manage classes"
   ON classes FOR ALL
   TO authenticated
   USING (has_permission('edit_class') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_class') OR has_permission('admin_full'));
 
 -- SUBJECTS
-CREATE POLICY "Authenticated users can read subjects"
+CREATE OR REPLACE POLICY "Authenticated users can read subjects"
   ON subjects FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage subjects"
+CREATE OR REPLACE POLICY "Admins can manage subjects"
   ON subjects FOR ALL
   TO authenticated
   USING (has_permission('edit_subjects') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_subjects') OR has_permission('admin_full'));
 
 -- STUDENTS
-CREATE POLICY "Authenticated users can read students"
+CREATE OR REPLACE POLICY "Authenticated users can read students"
   ON students FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage students"
+CREATE OR REPLACE POLICY "Admins can manage students"
   ON students FOR ALL
   TO authenticated
   USING (has_permission('edit_students') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_students') OR has_permission('admin_full'));
 
 -- SUBJECT_CLASSES
-CREATE POLICY "Authenticated users can read subject_classes"
+CREATE OR REPLACE POLICY "Authenticated users can read subject_classes"
   ON subject_classes FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage subject_classes"
+CREATE OR REPLACE POLICY "Admins can manage subject_classes"
   ON subject_classes FOR ALL
   TO authenticated
   USING (has_permission('edit_subjects') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_subjects') OR has_permission('admin_full'));
 
 -- SUBJECT_ASSIGNMENTS
-CREATE POLICY "Authenticated users can read subject_assignments"
+CREATE OR REPLACE POLICY "Authenticated users can read subject_assignments"
   ON subject_assignments FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage subject_assignments"
+CREATE OR REPLACE POLICY "Admins can manage subject_assignments"
   ON subject_assignments FOR ALL
   TO authenticated
   USING (has_permission('edit_subjects') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_subjects') OR has_permission('admin_full'));
 
 -- ATTENDANCE
-CREATE POLICY "Authenticated users can read attendance"
+CREATE OR REPLACE POLICY "Authenticated users can read attendance"
   ON attendance FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Teachers can manage attendance for their classes"
+CREATE OR REPLACE POLICY "Teachers can manage attendance for their classes"
   ON attendance FOR ALL
   TO authenticated
   USING (
@@ -1082,210 +1082,210 @@ CREATE POLICY "Teachers can manage attendance for their classes"
     )
   );
 
-CREATE POLICY "Admins can manage attendance"
+CREATE OR REPLACE POLICY "Admins can manage attendance"
   ON attendance FOR ALL
   TO authenticated
   USING (has_permission('edit_attendance') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_attendance') OR has_permission('admin_full'));
 
 -- ASSIGNMENTS
-CREATE POLICY "Authenticated users can read assignments"
+CREATE OR REPLACE POLICY "Authenticated users can read assignments"
   ON assignments FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage assignments"
+CREATE OR REPLACE POLICY "Admins can manage assignments"
   ON assignments FOR ALL
   TO authenticated
   USING (has_permission('edit_assignments') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_assignments') OR has_permission('admin_full'));
 
 -- ASSIGNMENT_SUBMISSIONS
-CREATE POLICY "Authenticated users can read assignment_submissions"
+CREATE OR REPLACE POLICY "Authenticated users can read assignment_submissions"
   ON assignment_submissions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage assignment_submissions"
+CREATE OR REPLACE POLICY "Admins can manage assignment_submissions"
   ON assignment_submissions FOR ALL
   TO authenticated
   USING (has_permission('edit_assignments') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_assignments') OR has_permission('admin_full'));
 
 -- SUBMISSIONS (legacy)
-CREATE POLICY "Authenticated users can read submissions"
+CREATE OR REPLACE POLICY "Authenticated users can read submissions"
   ON submissions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage submissions"
+CREATE OR REPLACE POLICY "Admins can manage submissions"
   ON submissions FOR ALL
   TO authenticated
   USING (has_permission('edit_assignments') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_assignments') OR has_permission('admin_full'));
 
 -- RESULTS
-CREATE POLICY "Authenticated users can read results"
+CREATE OR REPLACE POLICY "Authenticated users can read results"
   ON results FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage results"
+CREATE OR REPLACE POLICY "Admins can manage results"
   ON results FOR ALL
   TO authenticated
   USING (has_permission('edit_results') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_results') OR has_permission('admin_full'));
 
 -- STUDENT_SUBJECTS
-CREATE POLICY "Authenticated users can read student_subjects"
+CREATE OR REPLACE POLICY "Authenticated users can read student_subjects"
   ON student_subjects FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage student_subjects"
+CREATE OR REPLACE POLICY "Admins can manage student_subjects"
   ON student_subjects FOR ALL
   TO authenticated
   USING (has_permission('edit_students') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_students') OR has_permission('admin_full'));
 
 -- ADMISSIONS
-CREATE POLICY "Authenticated users can read admissions"
+CREATE OR REPLACE POLICY "Authenticated users can read admissions"
   ON admissions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage admissions"
+CREATE OR REPLACE POLICY "Admins can manage admissions"
   ON admissions FOR ALL
   TO authenticated
   USING (has_permission('edit_admissions') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_admissions') OR has_permission('admin_full'));
 
 -- EVENTS
-CREATE POLICY "Authenticated users can read events"
+CREATE OR REPLACE POLICY "Authenticated users can read events"
   ON events FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage events"
+CREATE OR REPLACE POLICY "Admins can manage events"
   ON events FOR ALL
   TO authenticated
   USING (has_permission('edit_events') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_events') OR has_permission('admin_full'));
 
 -- NEWS
-CREATE POLICY "Authenticated users can read news"
+CREATE OR REPLACE POLICY "Authenticated users can read news"
   ON news FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage news"
+CREATE OR REPLACE POLICY "Admins can manage news"
   ON news FOR ALL
   TO authenticated
   USING (has_permission('edit_news') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_news') OR has_permission('admin_full'));
 
 -- TESTIMONIALS
-CREATE POLICY "Authenticated users can read testimonials"
+CREATE OR REPLACE POLICY "Authenticated users can read testimonials"
   ON testimonials FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage testimonials"
+CREATE OR REPLACE POLICY "Admins can manage testimonials"
   ON testimonials FOR ALL
   TO authenticated
   USING (has_permission('edit_testimonials') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_testimonials') OR has_permission('admin_full'));
 
 -- SCHOOL_SETTINGS
-CREATE POLICY "Authenticated users can read school_settings"
+CREATE OR REPLACE POLICY "Authenticated users can read school_settings"
   ON school_settings FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage school_settings"
+CREATE OR REPLACE POLICY "Admins can manage school_settings"
   ON school_settings FOR ALL
   TO authenticated
   USING (has_permission('edit_settings') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_settings') OR has_permission('admin_full'));
 
 -- PERIOD_SLOTS
-CREATE POLICY "Authenticated users can read period_slots"
+CREATE OR REPLACE POLICY "Authenticated users can read period_slots"
   ON period_slots FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage period_slots"
+CREATE OR REPLACE POLICY "Admins can manage period_slots"
   ON period_slots FOR ALL
   TO authenticated
   USING (has_permission('edit_timetable') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_timetable') OR has_permission('admin_full'));
 
 -- STUDENT_OPTIONAL_SUBJECTS
-CREATE POLICY "Authenticated users can read student_optional_subjects"
+CREATE OR REPLACE POLICY "Authenticated users can read student_optional_subjects"
   ON student_optional_subjects FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage student_optional_subjects"
+CREATE OR REPLACE POLICY "Admins can manage student_optional_subjects"
   ON student_optional_subjects FOR ALL
   TO authenticated
   USING (has_permission('edit_students') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_students') OR has_permission('admin_full'));
 
 -- TIMETABLE_ENTRIES
-CREATE POLICY "Authenticated users can read timetable_entries"
+CREATE OR REPLACE POLICY "Authenticated users can read timetable_entries"
   ON timetable_entries FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage timetable_entries"
+CREATE OR REPLACE POLICY "Admins can manage timetable_entries"
   ON timetable_entries FOR ALL
   TO authenticated
   USING (has_permission('edit_timetable') OR has_permission('admin_full'))
   WITH CHECK (has_permission('edit_timetable') OR has_permission('admin_full'));
 
 -- PARENTS
-CREATE POLICY "Parents can read own data"
+CREATE OR REPLACE POLICY "Parents can read own data"
   ON parents FOR SELECT
   USING (auth.uid() = user_id);
 
-CREATE POLICY "Parents can update own data"
+CREATE OR REPLACE POLICY "Parents can update own data"
   ON parents FOR UPDATE
   USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can read all parents"
+CREATE OR REPLACE POLICY "Users can read all parents"
   ON parents FOR SELECT
   TO authenticated
   USING (
     true
   );
 
-CREATE POLICY "Admins can manage parents"
+CREATE OR REPLACE POLICY "Admins can manage parents"
   ON parents FOR ALL
   USING (has_permission('edit_students') OR has_permission('admin_full'));
 
-CREATE POLICY "Service role can insert parents"
+CREATE OR REPLACE POLICY "Service role can insert parents"
   ON parents FOR INSERT
   WITH CHECK (true);
 
 -- NOTIFICATION_TOKENS
-CREATE POLICY "Users can read all tokens"
+CREATE OR REPLACE POLICY "Users can read all tokens"
   ON notification_tokens FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage notification tokens"
+CREATE OR REPLACE POLICY "Admins can manage notification tokens"
   ON notification_tokens FOR ALL
   TO authenticated
   USING (has_permission('admin_full'))
   WITH CHECK (has_permission('admin_full'));
 
-CREATE POLICY "Service role can insert notification tokens"
+CREATE OR REPLACE POLICY "Service role can insert notification tokens"
   ON notification_tokens FOR INSERT
   WITH CHECK (true);
 
 -- Parent access to student data
-CREATE POLICY "Parents can view their children"
+CREATE OR REPLACE POLICY "Parents can view their children"
   ON students FOR SELECT
   USING (
     parent_email IN (
@@ -1293,7 +1293,7 @@ CREATE POLICY "Parents can view their children"
     )
   );
 
-CREATE POLICY "Parents can view children attendance"
+CREATE OR REPLACE POLICY "Parents can view children attendance"
   ON attendance FOR SELECT
   USING (
     student_id IN (
@@ -1304,7 +1304,7 @@ CREATE POLICY "Parents can view children attendance"
     )
   );
 
-CREATE POLICY "Parents can view children results"
+CREATE OR REPLACE POLICY "Parents can view children results"
   ON results FOR SELECT
   USING (
     student_id IN (
@@ -1315,7 +1315,7 @@ CREATE POLICY "Parents can view children results"
     )
   );
 
-CREATE POLICY "Parents can view children assignments"
+CREATE OR REPLACE POLICY "Parents can view children assignments"
   ON assignments FOR SELECT
   USING (
     subject_id IN (
@@ -1331,7 +1331,7 @@ CREATE POLICY "Parents can view children assignments"
     )
   );
 
-CREATE POLICY "Parents can view children submissions"
+CREATE OR REPLACE POLICY "Parents can view children submissions"
   ON assignment_submissions FOR SELECT
   USING (
     student_id IN (
@@ -1342,7 +1342,7 @@ CREATE POLICY "Parents can view children submissions"
     )
   );
 
-CREATE POLICY "Parents can view children timetable"
+CREATE OR REPLACE POLICY "Parents can view children timetable"
   ON timetable_entries FOR SELECT
   USING (
     class_id IN (
@@ -1353,7 +1353,7 @@ CREATE POLICY "Parents can view children timetable"
     )
   );
 
-CREATE POLICY "Parents can view children teachers"
+CREATE OR REPLACE POLICY "Parents can view children teachers"
   ON teachers FOR SELECT
   USING (
     id IN (
@@ -1369,7 +1369,7 @@ CREATE POLICY "Parents can view children teachers"
     )
   );
 
-CREATE POLICY "Parents can view children subjects"
+CREATE OR REPLACE POLICY "Parents can view children subjects"
   ON student_subjects FOR SELECT
   USING (
     student_id IN (
@@ -1380,7 +1380,7 @@ CREATE POLICY "Parents can view children subjects"
     )
   );
 
-CREATE POLICY "Parents can view children classes"
+CREATE OR REPLACE POLICY "Parents can view children classes"
   ON classes FOR SELECT
   USING (
     id IN (
@@ -1391,7 +1391,7 @@ CREATE POLICY "Parents can view children classes"
     )
   );
 
-CREATE POLICY "Parents can view subjects"
+CREATE OR REPLACE POLICY "Parents can view subjects"
   ON subjects FOR SELECT
   USING (
     id IN (
@@ -1408,11 +1408,11 @@ CREATE POLICY "Parents can view subjects"
   );
 
 -- RESULTS_PUBLICATION
-CREATE POLICY "Admins can manage results publication"
+CREATE OR REPLACE POLICY "Admins can manage results publication"
   ON results_publication FOR ALL
   USING (is_admin());
 
-CREATE POLICY "Authenticated users can view publication settings"
+CREATE OR REPLACE POLICY "Authenticated users can view publication settings"
   ON results_publication FOR SELECT
   TO authenticated
   USING (true);
@@ -1505,26 +1505,26 @@ SELECT * FROM roles;
 DROP POLICY IF EXISTS "only super admin assigns roles" ON user_role_links;
 DROP POLICY IF EXISTS "users read their own roles" ON user_role_links;
 
-CREATE POLICY "users read their own roles"
+CREATE OR REPLACE POLICY "users read their own roles"
 ON user_role_links
 FOR SELECT
 TO authenticated
 USING (user_id = auth.uid() OR has_permission('manage_admins'));
 
-CREATE POLICY "admins can modify roles"
+CREATE OR REPLACE POLICY "admins can modify roles"
 ON user_role_links
 FOR INSERT
 TO authenticated
 WITH CHECK (has_permission('manage_admins'));
 
-CREATE POLICY "admins can update roles"
+CREATE OR REPLACE POLICY "admins can update roles"
 ON user_role_links
 FOR UPDATE
 TO authenticated
 USING (has_permission('manage_admins'))
 WITH CHECK (has_permission('manage_admins'));
 
-CREATE POLICY "admins can delete roles"
+CREATE OR REPLACE POLICY "admins can delete roles"
 ON user_role_links
 FOR DELETE
 TO authenticated

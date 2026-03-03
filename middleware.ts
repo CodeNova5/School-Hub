@@ -181,6 +181,19 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
+  // For admin routes, verify school_id matches subdomain
+  if (config.prefix === "/admin" && !pathname.startsWith("/admin/activate") && !pathname.startsWith("/admin/reset-password")) {
+    const currentSchoolId = req.headers.get("x-school-id");
+    const { data: adminSchoolId } = await supabase.rpc("get_my_school_id");
+
+    if (currentSchoolId && adminSchoolId && currentSchoolId !== adminSchoolId) {
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = "/admin/login";
+      redirectUrl.searchParams.set("error", "school_mismatch");
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
   return res;
 }
 

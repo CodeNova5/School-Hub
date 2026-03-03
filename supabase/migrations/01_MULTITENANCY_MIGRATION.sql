@@ -38,16 +38,7 @@ ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
 -- Only super_admin can manage schools (policies set after helper fns below)
 
 -- ============================================================================
--- STEP 2: ADD school_id TO user_role_links
---   NULL school_id = platform-wide role (super_admin)
---   Non-NULL school_id = school-scoped role (admin, teacher, student, parent)
--- ============================================================================
-
-ALTER TABLE user_role_links
-  ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
-
--- ============================================================================
--- STEP 3: ADD school_id TO ALL CORE TABLES
+-- STEP 2: ADD school_id TO ALL CORE TABLES
 -- ============================================================================
 
 -- Sessions
@@ -309,50 +300,31 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT ul.school_id
-  FROM user_role_links ul
-  WHERE ul.user_id = p_user_id
-    AND ul.school_id IS NOT NULL
-  LIMIT 1;
+  SELECT school_id FROM admins WHERE user_id = p_user_id LIMIT 1;
 $$;
 
--- Updated has_permission to support super_admin bypass
-CREATE OR REPLACE FUNCTION has_permission(p_key text)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-AS $$
-  SELECT
-    is_super_admin()
-    OR EXISTS (
-      SELECT 1
-      FROM user_role_links ul
-      JOIN role_permissions rp ON rp.role_id = ul.role_id
-      JOIN permissions p ON p.id = rp.permission_id
-      WHERE ul.user_id = auth.uid()
-        AND p.key = p_key
-    );
-$$;
-
--- Updated is_admin to be school-aware
+-- Simple is_admin: just check if user is in admins table and is_active
 CREATE OR REPLACE FUNCTION is_admin()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT has_permission('admin_full');
+  SELECT EXISTS (
+    SELECT 1 FROM admins WHERE user_id = auth.uid() AND is_active = true
+  );
 $$;
 
--- Updated can_access_admin (used by middleware)
+-- Simple can_access_admin: check if user is an active admin
 CREATE OR REPLACE FUNCTION can_access_admin()
 RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT has_permission('admin_full');
+  SELECT EXISTS (
+    SELECT 1 FROM admins WHERE user_id = auth.uid() AND is_active = true
+  );
 $$;
 
 -- New: check access to super_admin area (used by middleware)
@@ -402,15 +374,10 @@ AS $$
 $$;
 
 -- ============================================================================
--- STEP 9: JWT CUSTOM CLAIMS
---   Supabase calls auth.jwt() to build the token.
---   We hook into this via a custom_access_token_hook or a trigger on auth.users.
---   The recommended approach for Supabase is the custom_access_token_hook.
---   This function can be called from the Supabase Auth Hook config.
+-- STEP 8: JWT CUSTOM CLAIMS (Simplified)
+--   Add school_id and admin status to JWT token
 -- ============================================================================
 
--- Function that returns app_metadata to be merged into the JWT.
--- Configure this in Supabase Dashboard → Authentication → Hooks → Custom Access Token
 CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -419,45 +386,25 @@ SECURITY DEFINER
 AS $$
 DECLARE
   claims       jsonb;
-  user_role    text;
   user_school  uuid;
+  user_is_admin boolean;
   v_user_id    uuid;
 BEGIN
   v_user_id := (event->>'user_id')::uuid;
   claims    := event->'claims';
 
-  -- Determine primary role
-  SELECT r.name
-  INTO user_role
-  FROM user_role_links ul
-  JOIN roles r ON r.id = ul.role_id
-  WHERE ul.user_id = v_user_id
-  ORDER BY
-    CASE r.name
-      WHEN 'super_admin' THEN 1
-      WHEN 'admin'       THEN 2
-      WHEN 'teacher'     THEN 3
-      WHEN 'student'     THEN 4
-      WHEN 'parent'      THEN 5
-      ELSE 6
-    END
-  LIMIT 1;
-
-  -- Determine school_id (NULL for super_admin)
-  SELECT ul.school_id
-  INTO user_school
-  FROM user_role_links ul
-  WHERE ul.user_id = v_user_id
-    AND ul.school_id IS NOT NULL
-  LIMIT 1;
+  -- Get admin status and school_id from admins table
+  SELECT school_id, is_active
+  INTO user_school, user_is_admin
+  FROM admins WHERE user_id = v_user_id LIMIT 1;
 
   -- Merge into claims
-  claims := jsonb_set(claims, '{user_metadata, role}',       to_jsonb(COALESCE(user_role, '')));
   claims := jsonb_set(claims, '{user_metadata, school_id}',  to_jsonb(user_school));
+  claims := jsonb_set(claims, '{user_metadata, is_admin}',   to_jsonb(COALESCE(user_is_admin, false)));
 
   -- Also stamp app_metadata for server-side checks
-  claims := jsonb_set(claims, '{app_metadata, role}',       to_jsonb(COALESCE(user_role, '')));
   claims := jsonb_set(claims, '{app_metadata, school_id}',  to_jsonb(user_school));
+  claims := jsonb_set(claims, '{app_metadata, is_admin}',   to_jsonb(COALESCE(user_is_admin, false)));
 
   RETURN jsonb_set(event, '{claims}', claims);
 END;
@@ -467,7 +414,7 @@ GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin
 REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, anon;
 
 -- ============================================================================
--- STEP 10: GET SCHOOL BY SUBDOMAIN (used by middleware)
+-- STEP 9: GET SCHOOL BY SUBDOMAIN (used by middleware)
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION get_school_by_subdomain(p_subdomain text)
@@ -482,13 +429,9 @@ $$;
 GRANT EXECUTE ON FUNCTION get_school_by_subdomain TO anon, authenticated;
 
 -- ============================================================================
--- STEP 11: UPDATE RLS POLICIES
+-- STEP 10: UPDATE RLS POLICIES (Simplified)
+--   Pattern: SELECT/ALL with simple school_id checks
 -- ============================================================================
-
--- Helper: drop all old per-table policies and replace with school-filtered ones.
--- Pattern for every table:
---   SELECT: is_super_admin() OR school_id = get_my_school_id() OR <role-specific>
---   ALL (admin): is_super_admin() OR (has_permission(...) AND school_id = get_my_school_id())
 
 -- -------------------- SCHOOLS TABLE --------------------
 DROP POLICY IF EXISTS "super admin reads schools"     ON schools;
@@ -509,6 +452,7 @@ CREATE POLICY "super admin manages schools"
 -- -------------------- SESSIONS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read sessions" ON sessions;
 DROP POLICY IF EXISTS "Admins can manage sessions"            ON sessions;
+DROP POLICY IF EXISTS "School users can read sessions"        ON sessions;
 
 CREATE POLICY "School users can read sessions"
   ON sessions FOR SELECT
@@ -518,12 +462,13 @@ CREATE POLICY "School users can read sessions"
 CREATE POLICY "Admins can manage sessions"
   ON sessions FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- TERMS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read terms" ON terms;
 DROP POLICY IF EXISTS "Admins can manage terms"            ON terms;
+DROP POLICY IF EXISTS "School users can read terms"         ON terms;
 
 CREATE POLICY "School users can read terms"
   ON terms FOR SELECT
@@ -533,13 +478,14 @@ CREATE POLICY "School users can read terms"
 CREATE POLICY "Admins can manage terms"
   ON terms FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- TEACHERS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read teachers" ON teachers;
 DROP POLICY IF EXISTS "Admins can manage teachers"            ON teachers;
 DROP POLICY IF EXISTS "Parents can view children teachers"    ON teachers;
+DROP POLICY IF EXISTS "School users can read teachers"        ON teachers;
 
 CREATE POLICY "School users can read teachers"
   ON teachers FOR SELECT
@@ -553,13 +499,14 @@ CREATE POLICY "School users can read teachers"
 CREATE POLICY "Admins can manage teachers"
   ON teachers FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- CLASSES --------------------
 DROP POLICY IF EXISTS "Authenticated users can read classes" ON classes;
 DROP POLICY IF EXISTS "Admins can manage classes"            ON classes;
 DROP POLICY IF EXISTS "Parents can view children classes"    ON classes;
+DROP POLICY IF EXISTS "School users can read classes"        ON classes;
 
 CREATE POLICY "School users can read classes"
   ON classes FOR SELECT
@@ -574,13 +521,14 @@ CREATE POLICY "School users can read classes"
 CREATE POLICY "Admins can manage classes"
   ON classes FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- SUBJECTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read subjects" ON subjects;
 DROP POLICY IF EXISTS "Admins can manage subjects"            ON subjects;
 DROP POLICY IF EXISTS "Parents can view subjects"             ON subjects;
+DROP POLICY IF EXISTS "School users can read subjects"        ON subjects;
 
 CREATE POLICY "School users can read subjects"
   ON subjects FOR SELECT
@@ -593,13 +541,14 @@ CREATE POLICY "School users can read subjects"
 CREATE POLICY "Admins can manage subjects"
   ON subjects FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- STUDENTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read students" ON students;
 DROP POLICY IF EXISTS "Admins can manage students"            ON students;
 DROP POLICY IF EXISTS "Parents can view their children"       ON students;
+DROP POLICY IF EXISTS "School users can read students"        ON students;
 
 CREATE POLICY "School users can read students"
   ON students FOR SELECT
@@ -614,12 +563,13 @@ CREATE POLICY "School users can read students"
 CREATE POLICY "Admins can manage students"
   ON students FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- SUBJECT_CLASSES --------------------
 DROP POLICY IF EXISTS "Authenticated users can read subject_classes" ON subject_classes;
 DROP POLICY IF EXISTS "Admins can manage subject_classes"            ON subject_classes;
+DROP POLICY IF EXISTS "School users can read subject_classes"        ON subject_classes;
 
 CREATE POLICY "School users can read subject_classes"
   ON subject_classes FOR SELECT
@@ -629,12 +579,13 @@ CREATE POLICY "School users can read subject_classes"
 CREATE POLICY "Admins can manage subject_classes"
   ON subject_classes FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- SUBJECT_ASSIGNMENTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read subject_assignments" ON subject_assignments;
 DROP POLICY IF EXISTS "Admins can manage subject_assignments"            ON subject_assignments;
+DROP POLICY IF EXISTS "School users can read subject_assignments"        ON subject_assignments;
 
 CREATE POLICY "School users can read subject_assignments"
   ON subject_assignments FOR SELECT
@@ -644,14 +595,15 @@ CREATE POLICY "School users can read subject_assignments"
 CREATE POLICY "Admins can manage subject_assignments"
   ON subject_assignments FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- ATTENDANCE --------------------
 DROP POLICY IF EXISTS "Authenticated users can read attendance"              ON attendance;
 DROP POLICY IF EXISTS "Teachers can manage attendance for their classes"     ON attendance;
 DROP POLICY IF EXISTS "Admins can manage attendance"                         ON attendance;
 DROP POLICY IF EXISTS "Parents can view children attendance"                 ON attendance;
+DROP POLICY IF EXISTS "School users can read attendance"                     ON attendance;
 
 CREATE POLICY "School users can read attendance"
   ON attendance FOR SELECT
@@ -680,13 +632,14 @@ CREATE POLICY "Teachers can manage attendance for their classes"
 CREATE POLICY "Admins can manage attendance"
   ON attendance FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- ASSIGNMENTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read assignments"  ON assignments;
 DROP POLICY IF EXISTS "Admins can manage assignments"             ON assignments;
 DROP POLICY IF EXISTS "Parents can view children assignments"     ON assignments;
+DROP POLICY IF EXISTS "School users can read assignments"         ON assignments;
 
 CREATE POLICY "School users can read assignments"
   ON assignments FOR SELECT
@@ -699,13 +652,14 @@ CREATE POLICY "School users can read assignments"
 CREATE POLICY "Admins can manage assignments"
   ON assignments FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- ASSIGNMENT_SUBMISSIONS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read assignment_submissions" ON assignment_submissions;
 DROP POLICY IF EXISTS "Admins can manage assignment_submissions"            ON assignment_submissions;
 DROP POLICY IF EXISTS "Parents can view children submissions"               ON assignment_submissions;
+DROP POLICY IF EXISTS "School users can read assignment_submissions"        ON assignment_submissions;
 
 CREATE POLICY "School users can read assignment_submissions"
   ON assignment_submissions FOR SELECT
@@ -723,12 +677,13 @@ CREATE POLICY "School users can read assignment_submissions"
 CREATE POLICY "Admins can manage assignment_submissions"
   ON assignment_submissions FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- SUBMISSIONS (legacy) --------------------
 DROP POLICY IF EXISTS "Authenticated users can read submissions" ON submissions;
 DROP POLICY IF EXISTS "Admins can manage submissions"            ON submissions;
+DROP POLICY IF EXISTS "School users can read submissions"        ON submissions;
 
 CREATE POLICY "School users can read submissions"
   ON submissions FOR SELECT
@@ -738,13 +693,14 @@ CREATE POLICY "School users can read submissions"
 CREATE POLICY "Admins can manage submissions"
   ON submissions FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- RESULTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read results" ON results;
 DROP POLICY IF EXISTS "Admins can manage results"            ON results;
 DROP POLICY IF EXISTS "Parents can view children results"    ON results;
+DROP POLICY IF EXISTS "School users can read results"        ON results;
 
 CREATE POLICY "School users can read results"
   ON results FOR SELECT
@@ -763,13 +719,14 @@ CREATE POLICY "School users can read results"
 CREATE POLICY "Admins can manage results"
   ON results FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- STUDENT_SUBJECTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read student_subjects" ON student_subjects;
 DROP POLICY IF EXISTS "Admins can manage student_subjects"             ON student_subjects;
 DROP POLICY IF EXISTS "Parents can view children subjects"             ON student_subjects;
+DROP POLICY IF EXISTS "School users can read student_subjects"         ON student_subjects;
 
 CREATE POLICY "School users can read student_subjects"
   ON student_subjects FOR SELECT
@@ -787,12 +744,13 @@ CREATE POLICY "School users can read student_subjects"
 CREATE POLICY "Admins can manage student_subjects"
   ON student_subjects FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- STUDENT_OPTIONAL_SUBJECTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read student_optional_subjects" ON student_optional_subjects;
 DROP POLICY IF EXISTS "Admins can manage student_optional_subjects"             ON student_optional_subjects;
+DROP POLICY IF EXISTS "School users can read student_optional_subjects"         ON student_optional_subjects;
 
 CREATE POLICY "School users can read student_optional_subjects"
   ON student_optional_subjects FOR SELECT
@@ -802,12 +760,13 @@ CREATE POLICY "School users can read student_optional_subjects"
 CREATE POLICY "Admins can manage student_optional_subjects"
   ON student_optional_subjects FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- ADMISSIONS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read admissions" ON admissions;
 DROP POLICY IF EXISTS "Admins can manage admissions"            ON admissions;
+DROP POLICY IF EXISTS "School users can read admissions"        ON admissions;
 
 CREATE POLICY "School users can read admissions"
   ON admissions FOR SELECT
@@ -817,12 +776,13 @@ CREATE POLICY "School users can read admissions"
 CREATE POLICY "Admins can manage admissions"
   ON admissions FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- EVENTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read events" ON events;
 DROP POLICY IF EXISTS "Admins can manage events"            ON events;
+DROP POLICY IF EXISTS "School users can read events"        ON events;
 
 CREATE POLICY "School users can read events"
   ON events FOR SELECT
@@ -832,12 +792,13 @@ CREATE POLICY "School users can read events"
 CREATE POLICY "Admins can manage events"
   ON events FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- NEWS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read news" ON news;
 DROP POLICY IF EXISTS "Admins can manage news"            ON news;
+DROP POLICY IF EXISTS "School users can read news"        ON news;
 
 CREATE POLICY "School users can read news"
   ON news FOR SELECT
@@ -847,12 +808,13 @@ CREATE POLICY "School users can read news"
 CREATE POLICY "Admins can manage news"
   ON news FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- TESTIMONIALS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read testimonials" ON testimonials;
 DROP POLICY IF EXISTS "Admins can manage testimonials"            ON testimonials;
+DROP POLICY IF EXISTS "School users can read testimonials"        ON testimonials;
 
 CREATE POLICY "School users can read testimonials"
   ON testimonials FOR SELECT
@@ -862,12 +824,13 @@ CREATE POLICY "School users can read testimonials"
 CREATE POLICY "Admins can manage testimonials"
   ON testimonials FOR ALL
   TO authenticated
-  USING (is_super_admin() OR has_permission('admin_full'))
-  WITH CHECK (is_super_admin() OR has_permission('admin_full'));
+  USING (is_super_admin() OR is_admin())
+  WITH CHECK (is_super_admin() OR is_admin());
 
 -- -------------------- SCHOOL_SETTINGS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read school_settings" ON school_settings;
 DROP POLICY IF EXISTS "Admins can manage school_settings"            ON school_settings;
+DROP POLICY IF EXISTS "School users can read school_settings"        ON school_settings;
 
 CREATE POLICY "School users can read school_settings"
   ON school_settings FOR SELECT
@@ -877,12 +840,13 @@ CREATE POLICY "School users can read school_settings"
 CREATE POLICY "Admins can manage school_settings"
   ON school_settings FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- PERIOD_SLOTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read period_slots" ON period_slots;
 DROP POLICY IF EXISTS "Admins can manage period_slots"            ON period_slots;
+DROP POLICY IF EXISTS "School users can read period_slots"        ON period_slots;
 
 CREATE POLICY "School users can read period_slots"
   ON period_slots FOR SELECT
@@ -892,13 +856,14 @@ CREATE POLICY "School users can read period_slots"
 CREATE POLICY "Admins can manage period_slots"
   ON period_slots FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- TIMETABLE_ENTRIES --------------------
 DROP POLICY IF EXISTS "Authenticated users can read timetable_entries" ON timetable_entries;
 DROP POLICY IF EXISTS "Admins can manage timetable_entries"            ON timetable_entries;
 DROP POLICY IF EXISTS "Parents can view children timetable"            ON timetable_entries;
+DROP POLICY IF EXISTS "School users can read timetable_entries"        ON timetable_entries;
 
 CREATE POLICY "School users can read timetable_entries"
   ON timetable_entries FOR SELECT
@@ -916,8 +881,8 @@ CREATE POLICY "School users can read timetable_entries"
 CREATE POLICY "Admins can manage timetable_entries"
   ON timetable_entries FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- PARENTS --------------------
 DROP POLICY IF EXISTS "Parents can read own data"       ON parents;
@@ -932,7 +897,7 @@ CREATE POLICY "Parents can read own data"
   USING (
     user_id = auth.uid()
     OR is_super_admin()
-    OR (has_permission('admin_full') AND school_id = get_my_school_id())
+    OR (is_admin() AND school_id = get_my_school_id())
   );
 
 CREATE POLICY "Parents can update own data"
@@ -943,8 +908,8 @@ CREATE POLICY "Parents can update own data"
 CREATE POLICY "Admins can manage parents"
   ON parents FOR ALL
   TO authenticated
-  USING (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (has_permission('admin_full') AND school_id = get_my_school_id()));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 CREATE POLICY "Service role can insert parents"
   ON parents FOR INSERT
@@ -954,6 +919,7 @@ CREATE POLICY "Service role can insert parents"
 DROP POLICY IF EXISTS "Users can read all tokens"                   ON notification_tokens;
 DROP POLICY IF EXISTS "Admins can manage notification tokens"       ON notification_tokens;
 DROP POLICY IF EXISTS "Service role can insert notification tokens" ON notification_tokens;
+DROP POLICY IF EXISTS "Users can read own tokens"                   ON notification_tokens;
 
 CREATE POLICY "Users can read own tokens"
   ON notification_tokens FOR SELECT
@@ -961,14 +927,14 @@ CREATE POLICY "Users can read own tokens"
   USING (
     user_id = auth.uid()
     OR is_super_admin()
-    OR has_permission('admin_full')
+    OR (is_admin() AND school_id = get_my_school_id())
   );
 
 CREATE POLICY "Admins can manage notification tokens"
   ON notification_tokens FOR ALL
   TO authenticated
-  USING (is_super_admin() OR has_permission('admin_full'))
-  WITH CHECK (is_super_admin() OR has_permission('admin_full'));
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 CREATE POLICY "Service role can insert notification tokens"
   ON notification_tokens FOR INSERT
@@ -977,6 +943,7 @@ CREATE POLICY "Service role can insert notification tokens"
 -- -------------------- RESULTS_PUBLICATION --------------------
 DROP POLICY IF EXISTS "Admins can manage results publication"          ON results_publication;
 DROP POLICY IF EXISTS "Authenticated users can view publication settings" ON results_publication;
+DROP POLICY IF EXISTS "School users can view results publication"     ON results_publication;
 
 CREATE POLICY "School users can view results publication"
   ON results_publication FOR SELECT

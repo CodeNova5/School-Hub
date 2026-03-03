@@ -4,9 +4,9 @@
  * Utilities for working with the current school context throughout the app.
  *
  * school_id is determined in this order:
- *   1. JWT app_metadata.school_id  (set by the custom_access_token_hook)
- *   2. user_role_links.school_id   (direct DB query)
- *   3. null (super_admin – can query all schools)
+ *   1. JWT app_metadata.school_id  (set by custom_access_token_hook from admins table)
+ *   2. get_my_school_id() RPC call (queries admins table directly)
+ *   3. null (super_admin – no school restriction)
  */
 
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -35,7 +35,7 @@ export async function getMySchoolId(): Promise<string | null> {
 
   if (fromJwt) return fromJwt;
 
-  // Fallback: query user_role_links directly
+  // Fallback: query admins table directly via RPC
   const { data } = await supabase.rpc('get_my_school_id');
   return data ?? null;
 }

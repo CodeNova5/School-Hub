@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,20 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
 
   const redirectedFrom = searchParams.get("redirectedFrom") ?? "/admin";
+  const errorParam = searchParams.get("error");
+
+  // Display error from query params on page load
+  useEffect(() => {
+    if (errorParam === "unauthorized") {
+      setErrorMsg("Your account is not authorized for admin access.");
+    } else if (errorParam === "school_mismatch") {
+      setErrorMsg(
+        "You are not authorized to access this school portal. Please use your school's login URL."
+      );
+    } else if (errorParam === "error") {
+      setErrorMsg(searchParams.get("message") || "An error occurred. Please try again.");
+    }
+  }, [errorParam, searchParams]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -38,6 +52,7 @@ export default function AdminLoginPage() {
       return;
     }
 
+    // Check if user is an admin
     const { data: canAccess, error: rpcError } = await supabase.rpc("can_access_admin");
     
     if (!canAccess) {
@@ -45,6 +60,44 @@ export default function AdminLoginPage() {
       await supabase.auth.signOut();
       setLoading(false);
       return;
+    }
+
+    // Get admin's assigned school
+    const { data: adminSchoolId, error: schoolError } = await supabase.rpc("get_my_school_id");
+    
+    if (!adminSchoolId) {
+      setErrorMsg("Your account is not assigned to any school.");
+      await supabase.auth.signOut();
+      setLoading(false);
+      return;
+    }
+
+    // Get current school from subdomain
+    const hostname = window.location.hostname;
+    const subdomain = hostname.split(".")[0];
+    
+    // If not localhost, verify school matches current subdomain
+    if (hostname !== "localhost" && subdomain !== "localhost") {
+      try {
+        const schoolResponse = await fetch(
+          `${window.location.origin}/api/school/by-subdomain?subdomain=${subdomain}`
+        );
+        const schoolData = await schoolResponse.json();
+
+        if (!schoolData.school || schoolData.school.id !== adminSchoolId) {
+          setErrorMsg(
+            "You are not authorized to access this school portal. Please use your school's login URL."
+          );
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Error verifying school:", err);
+        setErrorMsg("Unable to verify school access. Please try again.");
+        setLoading(false);
+        return;
+      }
     }
 
     // Force reload so middleware sees session cookie

@@ -96,14 +96,13 @@ export async function POST(req: NextRequest) {
 
     if (authError) throw authError;
 
-    // Create admin record
+    // Create admin record - simple, just insert with school_id
     const { error: adminError } = await supabaseAdmin.from("admins").insert({
       user_id: authData.user.id,
       email,
       name,
       school_id,
       is_active: true,
-      status: "pending",
     });
 
     if (adminError) {
@@ -112,40 +111,23 @@ export async function POST(req: NextRequest) {
       throw adminError;
     }
 
-    // Get 'admin' role
-    const { data: adminRole } = await supabaseAdmin
-      .from("roles")
-      .select("id")
-      .eq("name", "admin")
-      .single();
+    // Send activation email
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      try {
+        const rawToken = crypto.randomBytes(32).toString("hex");
+        const tokenHash = crypto
+          .createHash("sha256")
+          .update(rawToken)
+          .digest("hex");
 
-    if (adminRole) {
-      // Add 'admin' role to user for the specific school
-      await supabaseAdmin.from("user_role_links").insert({
-        user_id: authData.user.id,
-        role_id: adminRole.id,
-        school_id: school_id,
-      });
-    }
+        await supabaseAdmin
+          .from("admins")
+          .update({
+            activation_token_hash: tokenHash,
+            activation_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+          })
+          .eq("user_id", authData.user.id);
 
-    // Activation logic
-    try {
-      const rawToken = crypto.randomBytes(32).toString("hex");
-      const tokenHash = crypto
-        .createHash("sha256")
-        .update(rawToken)
-        .digest("hex");
-
-      await supabaseAdmin
-        .from("admins")
-        .update({
-          activation_token_hash: tokenHash,
-          activation_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
-          activation_used: false,
-        })
-        .eq("user_id", authData.user.id);
-
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
         const transporter = nodemailer.createTransport({
           service: "gmail",
           auth: {
@@ -175,21 +157,21 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
           success: true,
-          message: "Admin created and email sent.",
+          message: "Admin created and email sent",
         });
-      } else {
+      } catch (err: any) {
+        console.error("Email sending error:", err);
         return NextResponse.json({
           success: true,
-          message: "Admin created but email not configured.",
+          message: "Admin created but failed to send email",
         });
       }
-    } catch (err: any) {
-      console.error("Email sending error:", err);
-      return NextResponse.json({
-        success: true,
-        message: "Admin created but failed to send activation email.",
-      });
     }
+
+    return NextResponse.json({
+      success: true,
+      message: "Admin created",
+    });
   } catch (error: any) {
     console.error("Error creating admin:", error);
     return NextResponse.json(
@@ -212,12 +194,6 @@ export async function DELETE(req: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: "User ID required" }, { status: 400 });
     }
-
-    // Delete role links
-    await supabaseAdmin
-      .from("user_role_links")
-      .delete()
-      .eq("user_id", userId);
 
     // Delete admin record
     await supabaseAdmin

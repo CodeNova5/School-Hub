@@ -37,8 +37,7 @@ BEGIN
   -- Execute the query with parameters
   -- Note: This uses EXECUTE with proper parameter binding
   FOR query_result IN 
-    EXECUTE query_text
-    USING VARIADIC query_params
+    EXECUTE query_text USING query_params
   LOOP
     results := array_append(results, row_to_json(query_result)::jsonb);
   END LOOP;

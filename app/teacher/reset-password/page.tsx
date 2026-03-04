@@ -1,9 +1,9 @@
-export const dynamic = "force-dynamic";
+"use client";
 
 // =============================
 // /teacher/reset-password/page.tsx
 // =============================
-"use client";
+export const dynamic = "force-dynamic";
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";

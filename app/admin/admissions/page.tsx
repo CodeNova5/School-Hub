@@ -39,6 +39,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import {
   Loader2,
   Eye,
@@ -84,6 +85,7 @@ interface Class {
 }
 
 export default function AdminAdmissionsPage() {
+  const { schoolId } = useSchoolContext();
   const router = useRouter();
   const { toast } = useToast();
   const [applications, setApplications] = useState<Application[]>([]);
@@ -113,9 +115,11 @@ export default function AdminAdmissionsPage() {
   const supabase = createClientComponentClient();
 
   useEffect(() => {
-    fetchApplications();
-    fetchClasses();
-  }, [statusFilter]);
+    if (schoolId) {
+      fetchApplications();
+      fetchClasses();
+    }
+  }, [statusFilter, schoolId]);
 
   const fetchApplications = async () => {
     try {
@@ -144,10 +148,12 @@ export default function AdminAdmissionsPage() {
   };
 
   const fetchClasses = async () => {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("classes")
-        .select("id, name, level, education_level, department");
+        .select("id, name, level, education_level, department")
+        .eq("school_id", schoolId);
 
       if (error) throw error;
       setClasses(data || []);

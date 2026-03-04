@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,6 +53,7 @@ type Teacher = {
 };
 
 export default function ClassPage() {
+  const { schoolId } = useSchoolContext();
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -78,13 +80,15 @@ export default function ClassPage() {
     router.push(`?${params.toString()}`);
   };
   useEffect(() => {
-    fetchClass();
-    fetchTeachers();
-    fetchSessions();
-    fetchTerms();
-    fetchAllClasses();
-    fetchAvailableStudents();
-  }, []);
+    if (schoolId) {
+      fetchClass();
+      fetchTeachers();
+      fetchSessions();
+      fetchTerms();
+      fetchAllClasses();
+      fetchAvailableStudents();
+    }
+  }, [schoolId]);
 
   useEffect(() => {
     if (classData?.id) {
@@ -94,10 +98,12 @@ export default function ClassPage() {
   }, [classData?.id]);
 
   async function fetchClass() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("classes")
         .select("*")
+        .eq("school_id", schoolId)
         .eq("id", classId)
         .single();
       if (!error && data) {
@@ -111,11 +117,13 @@ export default function ClassPage() {
   }
 
   async function fetchClassSubjects() {
+    if (!schoolId) return;
     setSubjectsLoading(true);
     try {
       const { data, error } = await supabase
         .from("subject_classes")
         .select(`id, subject_code, subjects:subject_id(id, name, is_optional, religion, department), teachers:teacher_id(id, first_name, last_name)`)
+        .eq("school_id", schoolId)
         .eq("class_id", classId);
       if (!error && data) {
         const formatted: SubjectClass[] = (data || []).map((item: any) => ({
@@ -134,11 +142,13 @@ export default function ClassPage() {
   }
 
   async function fetchStudents() {
+    if (!schoolId) return;
     setStudentsLoading(true);
     try {
       const { data, error } = await supabase
         .from("students")
         .select("*")
+        .eq("school_id", schoolId)
         .eq("class_id", classId);
       if (!error && data) setStudents(data || []);
     } catch (error) {
@@ -149,10 +159,12 @@ export default function ClassPage() {
   }
 
   async function fetchSessions() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("sessions")
-        .select("*");
+        .select("*")
+        .eq("school_id", schoolId);
       if (!error && data) setSessions(data || []);
     } catch (error) {
       toast.error("Error fetching sessions");
@@ -160,10 +172,12 @@ export default function ClassPage() {
   }
 
   async function fetchTerms() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("terms")
-        .select("*");
+        .select("*")
+        .eq("school_id", schoolId);
       if (!error && data) setTerms(data || []);
     } catch (error) {
       toast.error("Error fetching terms");
@@ -171,10 +185,12 @@ export default function ClassPage() {
   }
 
   async function fetchAllClasses() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("classes")
         .select("*")
+        .eq("school_id", schoolId)
         .order("level", { ascending: true });
       if (!error && data) setAllClasses(data || []);
     } catch (error) {
@@ -183,10 +199,12 @@ export default function ClassPage() {
   }
 
   async function fetchAvailableStudents() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("students")
         .select("*")
+        .eq("school_id", schoolId)
         .is("class_id", null)
         .eq("status", "active")
         .order("first_name", { ascending: true });
@@ -197,10 +215,12 @@ export default function ClassPage() {
   }
 
   async function fetchTeachers() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("teachers")
-        .select("id, first_name, last_name");
+        .select("id, first_name, last_name")
+        .eq("school_id", schoolId);
       if (!error && data) setTeachers(data || []);
     } catch (error) {
       toast.error("Error fetching teachers");
@@ -230,6 +250,7 @@ export default function ClassPage() {
       await supabase
         .from("subject_classes")
         .update({ subject_code: newCode })
+        .eq("school_id", schoolId)
         .eq("id", sc.id);
     });
 
@@ -247,6 +268,7 @@ export default function ClassPage() {
       await supabase
         .from("subject_classes")
         .update({ teacher_id: teacherId })
+        .eq("school_id", schoolId)
         .eq("id", subjectClassId);
       toast.success("Teacher assigned");
       fetchClassSubjects();
@@ -260,6 +282,7 @@ export default function ClassPage() {
       await supabase
         .from("subject_classes")
         .delete()
+        .eq("school_id", schoolId)
         .eq("id", subjectClassId);
       toast.success("Subject removed from class");
       fetchClassSubjects();
@@ -275,24 +298,28 @@ export default function ClassPage() {
       await supabase
         .from("results")
         .delete()
+        .eq("school_id", schoolId)
         .eq("student_id", studentId);
 
       // Delete student subject assignments
       await supabase
         .from("student_subjects")
         .delete()
+        .eq("school_id", schoolId)
         .eq("student_id", studentId);
 
       // Delete optional subject selections
       await supabase
         .from("student_optional_subjects")
         .delete()
+        .eq("school_id", schoolId)
         .eq("student_id", studentId);
 
       // Remove from class
       await supabase
         .from("students")
         .update({ class_id: null })
+        .eq("school_id", schoolId)
         .eq("id", studentId);
 
       toast.success("Student removed from class");
@@ -313,23 +340,26 @@ export default function ClassPage() {
       await supabase
         .from("results")
         .delete()
+        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       // Delete student subject assignments
       await supabase
         .from("student_subjects")
         .delete()
+        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       // Delete optional subject selections
       await supabase
         .from("student_optional_subjects")
         .delete()
+        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       // Remove from class
       const updates = studentIds.map(id =>
-        supabase.from("students").update({ class_id: null }).eq("id", id)
+        supabase.from("students").update({ class_id: null }).eq("school_id", schoolId).eq("id", id)
       );
       await Promise.all(updates);
 
@@ -350,21 +380,24 @@ export default function ClassPage() {
       await supabase
         .from("results")
         .delete()
+        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       await supabase
         .from("student_subjects")
         .delete()
+        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       await supabase
         .from("student_optional_subjects")
         .delete()
+        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       // Add to new class
       const updates = studentIds.map(id =>
-        supabase.from("students").update({ class_id: classId }).eq("id", id)
+        supabase.from("students").update({ class_id: classId }).eq("school_id", schoolId).eq("id", id)
       );
       await Promise.all(updates);
 

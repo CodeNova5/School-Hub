@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { Session, Class } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import * as XLSX from "xlsx-js-style";
 
@@ -108,6 +109,7 @@ const QUERY_MODES: QueryMode[] = [
 ];
 
 export default function HistoryPage() {
+  const { schoolId } = useSchoolContext();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [history, setHistory] = useState<ClassHistoryRecord[]>([]);
@@ -124,8 +126,10 @@ export default function HistoryPage() {
   const [educationLevelFilter, setEducationLevelFilter] = useState("all");
 
   useEffect(() => {
-    fetchMetadata();
-  }, []);
+    if (schoolId) {
+      fetchMetadata();
+    }
+  }, [schoolId]);
 
   useEffect(() => {
     fetchHistory();
@@ -141,8 +145,8 @@ export default function HistoryPage() {
   async function fetchMetadata() {
     try {
       const [sessionsRes, classesRes] = await Promise.all([
-        supabase.from("sessions").select("*").order("created_at", { ascending: false }),
-        supabase.from("classes").select("*").order("name"),
+        supabase.from("sessions").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }),
+        supabase.from("classes").select("*").eq("school_id", schoolId).order("name"),
       ]);
 
       if (sessionsRes.error) throw sessionsRes.error;

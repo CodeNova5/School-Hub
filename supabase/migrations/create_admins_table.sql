@@ -20,26 +20,13 @@ CREATE TABLE IF NOT EXISTS admins (
 -- Enable RLS
 ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for admins table
-CREATE POLICY "Authenticated users can read admins"
-  ON admins FOR SELECT
+-- RLS Policies for admins table, only super admin can manage admins
+CREATE POLICY "Admins: Super Admin Access" ON admins
+  FOR ALL
   TO authenticated
-  USING (true);
-
-CREATE POLICY "Admins can manage admins table"
-  ON admins FOR ALL
-  TO authenticated
-  USING (has_permission('manage_admins') OR has_permission('admin_full'))
-  WITH CHECK (has_permission('manage_admins') OR has_permission('admin_full'));
-
-CREATE POLICY "Service role can insert admins"
-  ON admins FOR INSERT
-  WITH CHECK (true);
-
--- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_admins_user_id ON admins(user_id);
-CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);
-CREATE INDEX IF NOT EXISTS idx_admins_activation_token ON admins(activation_token_hash);
+  USING (
+    is_super_admin()
+  );
 
 -- Create updated_at trigger
 CREATE OR REPLACE FUNCTION update_admins_updated_at()

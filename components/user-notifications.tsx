@@ -41,7 +41,6 @@ interface UserNotificationsProps {
 
 export function UserNotificationsComponent({ role }: UserNotificationsProps) {
   const [loading, setLoading] = useState(true);
-  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   const [notifications, setNotifications] = useState<GroupedNotifications>({
     today: [],
     thisWeek: [],

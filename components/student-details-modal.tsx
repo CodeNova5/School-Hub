@@ -46,11 +46,13 @@ export function StudentDetailsModal({
  
 
   useEffect(() => {
+    if (!student?.id) return; // Guard clause to prevent undefined queries
+
     async function loadAttendance() {
       const { data } = await supabase
         .from("attendance")
         .select("*")
-        .eq("student_id", student?.id);
+        .eq("student_id", student.id);
 
       setRealAttendance(data || []);
     }

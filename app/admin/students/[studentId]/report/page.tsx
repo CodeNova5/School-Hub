@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import ResultEntry from "@/components/ResultEntry";
 import { Button } from "@/components/ui/button";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ export default function StudentReportPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const studentId = params.studentId as string;
   const termId = searchParams.get("term");
   const sessionId = searchParams.get("session");
@@ -34,58 +36,65 @@ export default function StudentReportPage() {
   const [selectedTermId, setSelectedTermId] = useState(termId || "");
 
   useEffect(() => {
-    async function loadStudentData() {
-      setLoading(true);
-      try {
-        // Fetch student details
-        const { data: studentData, error: studentError } = await supabase
-          .from("students")
-          .select("first_name, last_name")
-          .eq("id", studentId)
-          .single();
-
-        if (studentError || !studentData) {
-          toast.error("Student not found");
-          router.push("/admin/students");
-          return;
-        }
-
-        setStudentName(`${studentData.first_name} ${studentData.last_name}`);
-
-        // Fetch all sessions and terms
-        const { data: sessionsData } = await supabase
-          .from("sessions")
-          .select("*")
-          .order("name", { ascending: false });
-
-        const { data: termsData } = await supabase
-          .from("terms")
-          .select("*")
-          .order("start_date", { ascending: false });
-
-        setSessions(sessionsData || []);
-        setTerms(termsData || []);
-
-        // If no session/term provided, fetch current ones
-        if (!sessionId || !termId) {
-          const currentSession = sessionsData?.find((s) => s.is_current);
-          const currentTerm = termsData?.find((t) => t.is_current);
-
-          if (currentSession) setSelectedSessionId(currentSession.id);
-          if (currentTerm) setSelectedTermId(currentTerm.id);
-        }
-      } catch (error) {
-        console.error("Error loading student data:", error);
-        toast.error("Failed to load student data");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    if (studentId) {
+    if (schoolId && studentId) {
       loadStudentData();
     }
-  }, [studentId, sessionId, termId, router]);
+  }, [schoolId, studentId, sessionId, termId]);
+
+  async function loadStudentData() {
+    setLoading(true);
+    try {
+      if (!schoolId) {
+        throw new Error('School ID not available');
+      }
+
+      // Fetch student details - filtered by school_id
+      const { data: studentData, error: studentError } = await supabase
+        .from("students")
+        .select("first_name, last_name")
+        .eq("school_id", schoolId)
+        .eq("id", studentId)
+        .single();
+
+      if (studentError || !studentData) {
+        toast.error("Student not found");
+        router.push("/admin/students");
+        return;
+      }
+
+      setStudentName(`${studentData.first_name} ${studentData.last_name}`);
+
+      // Fetch all sessions and terms - filtered by school_id
+      const { data: sessionsData } = await supabase
+        .from("sessions")
+        .select("*")
+        .eq("school_id", schoolId)
+        .order("name", { ascending: false });
+
+      const { data: termsData } = await supabase
+        .from("terms")
+        .select("*")
+        .eq("school_id", schoolId)
+        .order("start_date", { ascending: false });
+
+      setSessions(sessionsData || []);
+      setTerms(termsData || []);
+
+      // If no session/term provided, fetch current ones
+      if (!sessionId || !termId) {
+        const currentSession = sessionsData?.find((s) => s.is_current);
+        const currentTerm = termsData?.find((t) => t.is_current);
+
+        if (currentSession) setSelectedSessionId(currentSession.id);
+        if (currentTerm) setSelectedTermId(currentTerm.id);
+      }
+    } catch (error) {
+      console.error("Error loading student data:", error);
+      toast.error("Failed to load student data");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // When session changes, reset term selection or auto-select first term of new session
   useEffect(() => {
@@ -101,11 +110,24 @@ export default function StudentReportPage() {
     }
   }, [selectedSessionId, terms]);
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="admin">
         <div className="flex items-center justify-center h-96">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (schoolError || !schoolId) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
+            <p className="text-gray-600 text-sm mt-2">Please contact your administrator or try logging in again.</p>
+          </div>
         </div>
       </DashboardLayout>
     );

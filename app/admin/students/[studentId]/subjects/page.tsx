@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Loader2, Save, BookOpen, CheckCircle2, Circle, GraduationCap, Edit3 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -48,6 +49,7 @@ interface StudentSubject {
 export default function StudentSubjectsPage() {
   const params = useParams();
   const router = useRouter();
+  const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const studentId = params.studentId as string;
 
   const [loading, setLoading] = useState(true);
@@ -63,13 +65,19 @@ export default function StudentSubjectsPage() {
   const [isChangingDepartment, setIsChangingDepartment] = useState(false);
 
   useEffect(() => {
-    loadStudentData();
-  }, [studentId]);
+    if (schoolId && studentId) {
+      loadStudentData();
+    }
+  }, [schoolId, studentId]);
 
   async function loadStudentData() {
     setLoading(true);
     try {
-      // Fetch student details
+      if (!schoolId) {
+        throw new Error('School ID not available');
+      }
+
+      // Fetch student details - filtered by school_id
       const { data: studentData, error: studentError } = await supabase
         .from("students")
         .select(`
@@ -87,6 +95,7 @@ export default function StudentSubjectsPage() {
             department
           )
         `)
+        .eq("school_id", schoolId)
         .eq("id", studentId)
         .single();
 
@@ -100,7 +109,7 @@ export default function StudentSubjectsPage() {
       setStudentClass(studentData.classes);
       setStudentDepartment(studentData.department);
 
-      // Fetch available departments from all subjects for this class
+      // Fetch available departments from all subjects for this class - filtered by school_id
       const { data: allSubjectClassesData } = await supabase
         .from("subject_classes")
         .select(`
@@ -108,6 +117,7 @@ export default function StudentSubjectsPage() {
             department
           )
         `)
+        .eq("school_id", schoolId)
         .eq("class_id", studentData.class_id);
 
       const departments = new Set<string>();
@@ -118,7 +128,7 @@ export default function StudentSubjectsPage() {
       });
       setAvailableDepartments(Array.from(departments).sort());
 
-      // Fetch available subject_classes for the student's class
+      // Fetch available subject_classes for the student's class - filtered by school_id
       const { data: subjectClassesData, error: subjectClassesError } = await supabase
         .from("subject_classes")
         .select(`
@@ -140,6 +150,7 @@ export default function StudentSubjectsPage() {
             last_name
           )
         `)
+        .eq("school_id", schoolId)
         .eq("class_id", studentData.class_id);
 
       if (subjectClassesError) {
@@ -277,10 +288,11 @@ export default function StudentSubjectsPage() {
 
     setIsChangingDepartment(true);
     try {
-      // Update student's department
+      // Update student's department - filtered by school_id
       const { error: updateError } = await supabase
         .from("students")
         .update({ department: newDepartment })
+        .eq("school_id", schoolId)
         .eq("id", studentId);
 
       if (updateError) throw updateError;
@@ -312,11 +324,24 @@ export default function StudentSubjectsPage() {
     }
   }
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="admin">
         <div className="flex items-center justify-center h-96">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (schoolError || !schoolId) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
+            <p className="text-gray-600 text-sm mt-2">Please contact your administrator or try logging in again.</p>
+          </div>
         </div>
       </DashboardLayout>
     );

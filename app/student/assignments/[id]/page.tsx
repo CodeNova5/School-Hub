@@ -8,26 +8,35 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, FileText } from "lucide-react";
+import { Calendar, FileText, Loader2 } from "lucide-react";
 import { Download } from "lucide-react";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 export default function StudentAssignmentDetails() {
     const { id } = useParams();
     const [assignment, setAssignment] = useState<any>(null);
     const [submission, setSubmission] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
     useEffect(() => {
-        async function loadAssignment() {
+        if (!schoolLoading && schoolId) {
+            loadAssignment();
+        }
+    }, [id, schoolId, schoolLoading]);
+
+    async function loadAssignment() {
+            if (!schoolId) return;
             setLoading(true);
             const { data: { session } } = await supabase.auth.getSession();
             const user = session?.user;
-            const { data: student } = await supabase.from("students").select("id").eq("user_id", user?.id).single();
+            const { data: student } = await supabase.from("students").select("id").eq("user_id", user?.id).eq("school_id", schoolId).single();
 
             const { data: assignmentData } = await supabase
                 .from("assignments")
                 .select("*, classes(name), subjects(name)")
                 .eq("id", id)
+                .eq("school_id", schoolId)
                 .single();
 
             if (assignmentData && student) {
@@ -36,6 +45,7 @@ export default function StudentAssignmentDetails() {
                     .select("*")
                     .eq("assignment_id", assignmentData.id)
                     .eq("student_id", student.id)
+                    .eq("school_id", schoolId)
                     .single();
                 setSubmission(submissionData);
             }
@@ -44,8 +54,6 @@ export default function StudentAssignmentDetails() {
             setLoading(false);
         }
 
-        loadAssignment();
-    }, [id]);
 
     function getGradeStyles(marksObtained: number, totalMarks: number) {
         if (!totalMarks || totalMarks === 0) {
@@ -94,11 +102,14 @@ export default function StudentAssignmentDetails() {
     }
 
 
-    if (loading) {
+    if (loading || schoolLoading) {
         return (
             <DashboardLayout role="student">
-                <div className="flex items-center justify-center h-96 text-muted-foreground">
-                    Loading assignment...
+                <div className="flex items-center justify-center h-96">
+                    <div className="text-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-4" />
+                        <p className="text-muted-foreground">Loading assignment...</p>
+                    </div>
                 </div>
             </DashboardLayout>
         );

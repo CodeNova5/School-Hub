@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Lock, Mail, User } from 'lucide-react';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 interface StudentProfile {
   id: string;
@@ -25,12 +26,16 @@ export default function StudentSettingsPage() {
   const [student, setStudent] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    fetchStudentProfile();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      fetchStudentProfile();
+    }
+  }, [schoolId, schoolLoading]);
 
   async function fetchStudentProfile() {
+    if (!schoolId) return;
     try {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
@@ -47,6 +52,7 @@ export default function StudentSettingsPage() {
         .from('students')
         .select('id, first_name, last_name, email, phone, student_id, class_id')
         .eq('user_id', user.id)
+        .eq('school_id', schoolId)
         .single();
 
       if (error || !studentData) {
@@ -120,7 +126,7 @@ export default function StudentSettingsPage() {
     }
   }
 
-  if (loading) {
+  if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center min-h-screen">

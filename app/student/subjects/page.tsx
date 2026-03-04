@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 interface SubjectWithResults {
   id: string;
@@ -32,6 +33,7 @@ export default function StudentSubjectsPage() {
   const [currentTerm, setCurrentTerm] = useState<string>("");
   const [publishSettings, setPublishSettings] = useState<any>(null);
   const [maxScore, setMaxScore] = useState(0);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   const GRADE_COLORS: Record<string, string> = {
     A1: "#16a34a",
@@ -46,10 +48,13 @@ export default function StudentSubjectsPage() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      loadData();
+    }
+  }, [schoolId, schoolLoading]);
 
   async function loadData() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -79,6 +84,7 @@ export default function StudentSubjectsPage() {
           )
         `)
         .eq("user_id", user.id)
+        .eq("school_id", schoolId)
         .single();
 
       if (studentError || !studentData) {
@@ -93,6 +99,7 @@ export default function StudentSubjectsPage() {
         .from("terms")
         .select("*")
         .eq("is_current", true)
+        .eq("school_id", schoolId)
         .single();
 
       if (termData) setCurrentTerm(termData.id);
@@ -102,6 +109,7 @@ export default function StudentSubjectsPage() {
         .from("sessions")
         .select("id")
         .eq("is_current", true)
+        .eq("school_id", schoolId)
         .single();
 
       if (sessionData && termData) {
@@ -113,6 +121,7 @@ export default function StudentSubjectsPage() {
           .eq("class_id", classData.id)
           .eq("session_id", sessionData.id)
           .eq("term_id", termData.id)
+          .eq("school_id", schoolId)
           .single();
 
         setPublishSettings(pubSettings);
@@ -137,6 +146,7 @@ export default function StudentSubjectsPage() {
   }
 
   async function loadSubjectsAndResults(studentData: any, sessionId: string, termId: string) {
+    if (!schoolId) return;
     try {
       // Get student's enrolled subjects
       const { data: studentSubjects, error: subjectsError } = await supabase
@@ -163,7 +173,8 @@ export default function StudentSubjectsPage() {
             )
           )
         `)
-        .eq("student_id", studentData.id);
+        .eq("student_id", studentData.id)
+        .eq("school_id", schoolId);
 
       if (subjectsError) {
         console.error("Error fetching subjects:", subjectsError);
@@ -191,6 +202,7 @@ export default function StudentSubjectsPage() {
           .eq("subject_class_id", ss.subject_class_id)
           .eq("session_id", sessionId)
           .eq("term_id", termId)
+          .eq("school_id", schoolId)
           .single();
 
         // Calculate percentage based on published components
@@ -237,6 +249,7 @@ export default function StudentSubjectsPage() {
             .eq("subject_class_id", ss.subject_class_id)
             .eq("session_id", sessionId)
             .neq("term_id", termId)
+            .eq("school_id", schoolId)
             .order("term_id", { ascending: false })
             .limit(1)
             .single();
@@ -273,7 +286,7 @@ export default function StudentSubjectsPage() {
     }
   }
 
-  if (loading) {
+  if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-96">

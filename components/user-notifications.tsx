@@ -51,10 +51,13 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    fetchNotifications();
-  }, [role, schoolId]);
+    if (!schoolLoading && schoolId) {
+      fetchNotifications();
+    }
+  }, [role, schoolId, schoolLoading]);
 
   const groupNotificationsByTime = (
     notifications: NotificationItem[]
@@ -239,8 +242,8 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
 
   if (schoolLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <RefreshCw className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <Skeleton className="h-12 w-12 rounded-full" />
       </div>
     );
   }

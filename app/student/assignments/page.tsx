@@ -15,9 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, FileText, Calendar } from "lucide-react";
+import { Search, FileText, Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 interface Assignment {
   id: string;
@@ -40,16 +41,20 @@ export default function StudentAssignmentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [subjectFilter, setSubjectFilter] = useState("all");
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      loadData();
+    }
+  }, [schoolId, schoolLoading]);
 
   useEffect(() => {
     applyFilters();
   }, [assignments, searchTerm, statusFilter, subjectFilter]);
 
   async function loadData() {
+    if (!schoolId) return;
     setIsLoading(true);
     try {
       const user = await getCurrentUser();
@@ -62,6 +67,7 @@ export default function StudentAssignmentsPage() {
         .from("students")
         .select("id, class_id")
         .eq("user_id", user.id)
+        .eq("school_id", schoolId)
         .single();
         
       if (!student) {
@@ -74,12 +80,14 @@ export default function StudentAssignmentsPage() {
         .from("sessions")
         .select("id")
         .eq("is_current", true)
+        .eq("school_id", schoolId)
         .single();
 
       const { data: currentTerm } = await supabase
         .from("terms")
         .select("id")
         .eq("is_current", true)
+        .eq("school_id", schoolId)
         .single();
 
       let query = supabase
@@ -96,7 +104,8 @@ export default function StudentAssignmentsPage() {
         )
       `
         )
-        .eq("class_id", student.class_id);
+        .eq("class_id", student.class_id)
+        .eq("school_id", schoolId);
 
       // Apply session and term filters
       if (currentSession) {
@@ -174,11 +183,14 @@ export default function StudentAssignmentsPage() {
     return { label: `Due in ${days} days`, color: "bg-green-100 text-green-700" };
   }
 
-  if (isLoading) {
+  if (isLoading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading assignments...</p>
+          <div className="text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-500">Loading assignments...</p>
+          </div>
         </div>
       </DashboardLayout>
     );

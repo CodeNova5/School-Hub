@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Filter, Loader } from "lucide-react";
+import { Calendar, CheckCircle, XCircle, Clock, AlertCircle, Filter, Loader, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { AttendanceEntry } from "@/lib/types";
 
 interface AttendanceStats {
@@ -36,16 +37,20 @@ export default function StudentAttendancePage() {
   const [studentName, setStudentName] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [searchMonth, setSearchMonth] = useState<string>("");
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    loadAttendanceData();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      loadAttendanceData();
+    }
+  }, [schoolId, schoolLoading]);
 
   useEffect(() => {
     applyFilters();
   }, [attendance, filterStatus, searchMonth]);
 
   async function loadAttendanceData() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -62,6 +67,7 @@ export default function StudentAttendancePage() {
         .from("students")
         .select("id, first_name, last_name")
         .eq("user_id", user.id)
+        .eq("school_id", schoolId)
         .single();
 
       if (studentError || !studentData) {
@@ -76,6 +82,7 @@ export default function StudentAttendancePage() {
         .from("attendance")
         .select("date, status")
         .eq("student_id", studentData.id)
+        .eq("school_id", schoolId)
         .order("date", { ascending: false });
 
       if (attendanceError) {
@@ -188,13 +195,14 @@ export default function StudentAttendancePage() {
     return Array.from(months).sort().reverse();
   };
 
-  if (loading) {
+  if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-screen">
-          <Loader className="animate-spin h-8 w-8 text-gray-600" />
-          <br />
-          <span className="ml-2 text-gray-600">Loading attendance data...</span>
+          <div className="text-center">
+            <Loader2 className="animate-spin h-10 w-10 text-blue-600 mx-auto mb-4" />
+            <span className="text-gray-600">Loading attendance data...</span>
+          </div>
         </div>
       </DashboardLayout>
     );

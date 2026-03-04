@@ -2,9 +2,10 @@
 
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, MapPin, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, MapPin, Filter, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 import { Event, AttendanceEntry } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -21,16 +22,20 @@ export default function StudentCalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [studentId, setStudentId] = useState('');
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    loadStudentData();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      loadStudentData();
+    }
+  }, [schoolId, schoolLoading]);
 
   useEffect(() => {
     applyFilters();
   }, [events, searchTerm, filterType, selectedDate]);
 
   async function loadStudentData() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -47,6 +52,7 @@ export default function StudentCalendarPage() {
         .from("students")
         .select("id")
         .eq("user_id", user.id)
+        .eq("school_id", schoolId)
         .single();
 
       if (studentError || !studentData) {
@@ -60,6 +66,7 @@ export default function StudentCalendarPage() {
       const { data: eventsData } = await supabase
         .from('events')
         .select('*')
+        .eq("school_id", schoolId)
         .order('start_date', { ascending: true });
 
       if (eventsData) {
@@ -188,11 +195,14 @@ export default function StudentCalendarPage() {
     );
   };
 
-  if (loading) {
+  if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-screen">
-          <p className="text-gray-500">Loading calendar...</p>
+          <div className="text-center">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-500">Loading calendar...</p>
+          </div>
         </div>
       </DashboardLayout>
     );

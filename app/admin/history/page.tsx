@@ -156,7 +156,7 @@ export default function HistoryPage() {
       setClasses(classesRes.data || []);
 
       // Auto-select current session
-      const currentSession = sessionsRes.data?.find((s) => s.is_current);
+      const currentSession = sessionsRes.data?.find((s: any) => s.is_current);
       if (currentSession) {
         setSelectedSessionId(currentSession.id);
       }

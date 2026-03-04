@@ -953,10 +953,10 @@ export default function TimetablePage() {
     });
 
     const tempGroup: Record<string, any[]> = {};
-    data.forEach((entry) => {
+    data.forEach((entry: any) => {
       const periodSlot = Array.isArray(entry.period_slots)
-        ? entry.period_slots[0]
-        : entry.period_slots;
+      ? entry.period_slots[0]
+      : entry.period_slots;
 
       if (!periodSlot) return;
 
@@ -1049,7 +1049,7 @@ export default function TimetablePage() {
     if (!data) return;
 
     // Filter entries where this teacher is teaching
-    const teacherEntries = data.filter((entry) => {
+    const teacherEntries = data.filter((entry: any) => {
       const subjectClass = Array.isArray(entry.subject_classes)
         ? entry.subject_classes[0]
         : entry.subject_classes;

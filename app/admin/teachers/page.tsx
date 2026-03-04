@@ -45,6 +45,7 @@ type TeacherWithDetails = Teacher & {
 };
 
 type Class = {
+  class_teacher_id: any;
   id: string;
   name: string;
   level: string;
@@ -56,6 +57,7 @@ type Subject = {
 };
 
 type SubjectClass = {
+  teacher_id: any;
   id: string;
   subject_id: string;
   class_id: string;
@@ -114,9 +116,9 @@ export default function TeachersPage() {
       // Build teacher details
       const teachersWithDetails = (teachersData || []).map((teacher: any) => {
         // Assigned class
-        const assignedClassObj = (allClasses || []).find(c => c.class_teacher_id === teacher.id);
+        const assignedClassObj = (allClasses || []).find((c: Class) => c.class_teacher_id === teacher.id);
         // Assigned subject_classes with full details
-        const assignedSubjectClasses = (allSubjectClasses || []).filter(sc => sc.teacher_id === teacher.id) as any[];
+        const assignedSubjectClasses = (allSubjectClasses || []).filter((sc: SubjectClass) => sc.teacher_id === teacher.id) as any[];
         
         // Group subjects by class
         const subjectsByClass: { [key: string]: SubjectAssignment } = {};

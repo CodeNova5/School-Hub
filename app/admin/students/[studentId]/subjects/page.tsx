@@ -197,8 +197,8 @@ export default function StudentSubjectsPage() {
       if (studentSubjectsError) {
         console.error("Error fetching student subjects:", studentSubjectsError);
       } else {
-        const subjectClassIds = new Set(
-          studentSubjectsData?.map((ss) => ss.subject_class_id) || []
+        const subjectClassIds = new Set<string>(
+          studentSubjectsData?.map((ss: any) => ss.subject_class_id) || []
         );
         
         // Automatically select all compulsory subjects

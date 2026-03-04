@@ -252,7 +252,9 @@ export default function ResultEntry({
       }
 
       const { data: optionalSubjectRows, error: optError } = await optQuery;
-      const optionalSubjectIds = (optionalSubjectRows || []).map(row => row.subject_id);
+      const optionalSubjectIds = (optionalSubjectRows || [])
+        .map((row: { subject_id: string }) => row.subject_id)
+        .filter((row: string) => row);
 
       if (scError || !subjectClasses || subjectClasses.length === 0) {
         toast.error("No subjects assigned to this class");
@@ -360,7 +362,8 @@ export default function ResultEntry({
 
       const { data: enrolledClassSubjects } = await enrolledClassSubjectsQuery;
 
-      const enrolledSubjectClassIds = enrolledClassSubjects?.map(sc => sc.id) || [];
+      const enrolledSubjectClassIds = enrolledClassSubjects?.map((sc: { id: string }) => sc.id) || [];
+      ;
 
       let existingResultsQuery = supabase
         .from("results")

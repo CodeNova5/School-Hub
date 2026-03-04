@@ -1,9 +1,8 @@
-"use client";
 
 // =============================
 // /teacher/login/page.tsx
 // =============================
-export const dynamic = "force-dynamic";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";

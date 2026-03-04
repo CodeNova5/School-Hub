@@ -3,8 +3,7 @@
  * Provides AI-powered insights for teachers
  */
 
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { supabase } from '@/lib/supabase';
 import { redirect } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import AIAssistantChat from '@/components/ai-assistant-chat';
@@ -15,8 +14,6 @@ export const metadata = {
 };
 
 export default async function TeacherAIAssistantPage() {
-    const supabase = createServerComponentClient({ cookies });
-
     const {
         data: { session },
     } = await supabase.auth.getSession();

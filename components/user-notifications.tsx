@@ -116,7 +116,19 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
         throw new Error(fetchError.message || "Failed to fetch notifications");
       }
 
-      const formatted = (notificationsData || []).map((n) => ({
+      interface NotificationRow {
+        id: string;
+        title: string;
+        body: string;
+        image_url?: string;
+        link?: string;
+        target: string;
+        target_value?: string;
+        created_at: string;
+        sent_by: string;
+      }
+
+      const formatted = (notificationsData as NotificationRow[] || []).map((n: NotificationRow) => ({
         id: n.id,
         title: n.title,
         body: n.body,

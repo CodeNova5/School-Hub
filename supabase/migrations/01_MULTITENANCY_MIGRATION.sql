@@ -279,52 +279,82 @@ AS $$
 $$;
 
 -- Get the school_id of the currently authenticated user.
--- Returns NULL for super_admin (they have access to all schools).
+-- Returns NULL for super_admin or if user has no school assignment.
 CREATE OR REPLACE FUNCTION get_my_school_id()
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT ul.school_id
-  FROM user_role_links ul
-  WHERE ul.user_id = auth.uid()
-    AND ul.school_id IS NOT NULL
+DECLARE
+  result uuid;
+BEGIN
+  -- Try to get from admins table first (for admins)
+  SELECT school_id INTO result FROM admins WHERE user_id = auth.uid() LIMIT 1;
+  
+  IF result IS NOT NULL THEN
+    RETURN result;
+  END IF;
+
+  -- Fallback to user_role_links for other roles (teachers, students, etc.)
+  SELECT school_id INTO result 
+  FROM user_role_links 
+  WHERE user_id = auth.uid() AND school_id IS NOT NULL 
   LIMIT 1;
+  
+  RETURN result;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END;
 $$;
 
 -- Lookup school_id for a given user_id (used in API routes via service role)
 CREATE OR REPLACE FUNCTION get_school_id_for_user(p_user_id uuid)
 RETURNS uuid
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT school_id FROM admins WHERE user_id = p_user_id LIMIT 1;
+DECLARE
+  result uuid;
+BEGIN
+  SELECT school_id INTO result FROM admins WHERE user_id = p_user_id LIMIT 1;
+  RETURN result;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NULL;
+END;
 $$;
 
 -- Simple is_admin: just check if user is in admins table and is_active
 CREATE OR REPLACE FUNCTION is_admin()
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM admins WHERE user_id = auth.uid() AND is_active = true
   );
+EXCEPTION WHEN OTHERS THEN
+  RETURN false;
+END;
 $$;
 
 -- Simple can_access_admin: check if user is an active admin
 CREATE OR REPLACE FUNCTION can_access_admin()
 RETURNS boolean
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 AS $$
-  SELECT EXISTS (
+BEGIN
+  RETURN EXISTS (
     SELECT 1 FROM admins WHERE user_id = auth.uid() AND is_active = true
   );
+EXCEPTION WHEN OTHERS THEN
+  RETURN false;
+END;
 $$;
 
 -- New: check access to super_admin area (used by middleware)
@@ -393,18 +423,30 @@ BEGIN
   v_user_id := (event->>'user_id')::uuid;
   claims    := event->'claims';
 
-  -- Get admin status and school_id from admins table
-  SELECT school_id, is_active
-  INTO user_school, user_is_admin
-  FROM admins WHERE user_id = v_user_id LIMIT 1;
+  -- Initialize defaults
+  user_school := NULL;
+  user_is_admin := false;
 
-  -- Merge into claims
-  claims := jsonb_set(claims, '{user_metadata, school_id}',  to_jsonb(user_school));
-  claims := jsonb_set(claims, '{user_metadata, is_admin}',   to_jsonb(COALESCE(user_is_admin, false)));
+  -- Safely try to get admin status and school_id from admins table
+  BEGIN
+    SELECT school_id, is_active
+    INTO user_school, user_is_admin
+    FROM admins WHERE user_id = v_user_id LIMIT 1;
+  EXCEPTION WHEN OTHERS THEN
+    -- Table might not exist yet or query fails - use defaults
+    user_school := NULL;
+    user_is_admin := false;
+  END;
 
-  -- Also stamp app_metadata for server-side checks
-  claims := jsonb_set(claims, '{app_metadata, school_id}',  to_jsonb(user_school));
-  claims := jsonb_set(claims, '{app_metadata, is_admin}',   to_jsonb(COALESCE(user_is_admin, false)));
+  -- Only merge if we have valid values
+  IF user_school IS NOT NULL THEN
+    claims := jsonb_set(claims, '{user_metadata, school_id}',  to_jsonb(user_school));
+    claims := jsonb_set(claims, '{app_metadata, school_id}',   to_jsonb(user_school));
+  END IF;
+
+  -- Always stamp is_admin status
+  claims := jsonb_set(claims, '{user_metadata, is_admin}',   to_jsonb(user_is_admin));
+  claims := jsonb_set(claims, '{app_metadata, is_admin}',    to_jsonb(user_is_admin));
 
   RETURN jsonb_set(event, '{claims}', claims);
 END;

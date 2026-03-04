@@ -55,6 +55,8 @@ export default function AdminLoginPage() {
     // Check if user is an admin
     const { data: canAccess, error: rpcError } = await supabase.rpc("can_access_admin");
     
+    console.log("can_access_admin result:", { canAccess, rpcError });
+    
     if (!canAccess) {
       setErrorMsg("Your account is not authorized for admin access.");
       await supabase.auth.signOut();
@@ -64,6 +66,8 @@ export default function AdminLoginPage() {
 
     // Get admin's assigned school
     const { data: adminSchoolId, error: schoolError } = await supabase.rpc("get_my_school_id");
+    
+    console.log("get_my_school_id result:", { adminSchoolId, schoolError });
     
     if (!adminSchoolId) {
       setErrorMsg("Your account is not assigned to any school.");
@@ -76,15 +80,22 @@ export default function AdminLoginPage() {
     const hostname = window.location.hostname;
     const subdomain = hostname.split(".")[0];
     
+    
     // If not localhost, verify school matches current subdomain
     if (hostname !== "localhost" && subdomain !== "localhost") {
       try {
-        const schoolResponse = await fetch(
-          `${window.location.origin}/api/school/by-subdomain?subdomain=${subdomain}`
+        // Use Supabase RPC to get school by subdomain
+        const { data: schoolData, error: schoolQueryError } = await supabase.rpc(
+          "get_school_by_subdomain",
+          { p_subdomain: subdomain }
         );
-        const schoolData = await schoolResponse.json();
 
-        if (!schoolData.school || schoolData.school.id !== adminSchoolId) {
+        console.log("School data:", { schoolData, schoolQueryError, adminSchoolId });
+
+        // schoolData is an array (RPC returns TABLE), get first result
+        const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
+
+        if (schoolQueryError || !school || school.id !== adminSchoolId) {
           setErrorMsg(
             "You are not authorized to access this school portal. Please use your school's login URL."
           );

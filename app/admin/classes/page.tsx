@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, Edit, Trash2, Users, BookOpen, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { Class, Teacher } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,6 +29,7 @@ const EDUCATION_LEVELS = {
 };
 
 export default function ClassesPage() {
+  const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const [classes, setClasses] = useState<Class[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,17 +42,20 @@ export default function ClassesPage() {
   const [filterLevel, setFilterLevel] = useState("");
 
   useEffect(() => {
-    fetchClasses();
-    fetchTeachers();
-  }, []);
+    if (schoolId) {
+      fetchClasses();
+      fetchTeachers();
+    }
+  }, [schoolId]);
 
 
   async function fetchClasses() {
+    if (!schoolId) return;
     try {
-      // ✅ Direct Supabase query - RLS handles permissions via is_admin()
       const { data, error } = await supabase
         .from("classes")
         .select("*")
+        .eq("school_id", schoolId)
         .order("level", { ascending: true });
 
       if (error) {
@@ -67,6 +72,7 @@ export default function ClassesPage() {
             const { data: teacher } = await supabase
               .from("teachers")
               .select("first_name, last_name")
+              .eq("school_id", schoolId)
               .eq("id", cls.class_teacher_id)
               .single();
 
@@ -76,8 +82,8 @@ export default function ClassesPage() {
           }
 
           const [studentsRes, subjectsRes] = await Promise.all([
-            supabase.from("students").select("id", { count: "exact" }).eq("class_id", cls.id),
-            supabase.from("subject_classes").select("id", { count: "exact" }).eq("class_id", cls.id),
+            supabase.from("students").select("id", { count: "exact" }).eq("school_id", schoolId).eq("class_id", cls.id),
+            supabase.from("subject_classes").select("id", { count: "exact" }).eq("school_id", schoolId).eq("class_id", cls.id),
           ]);
 
           return {
@@ -96,11 +102,12 @@ export default function ClassesPage() {
   }
 
   async function fetchTeachers() {
+    if (!schoolId) return;
     try {
-      // ✅ Direct Supabase query - RLS handles permissions via is_admin()
       const { data, error } = await supabase
         .from("teachers")
         .select("*")
+        .eq("school_id", schoolId)
         .eq("status", "active")
         .order("first_name", { ascending: true });
 
@@ -139,51 +146,51 @@ export default function ClassesPage() {
       : selectedLevel;
 
     const classData: any = {
+      school_id: schoolId,
       level: selectedLevel,
       name: className,
       education_level: selectedEducationLevel,
-      stream: normalizedStream || null,   // ✅ ADD THIS
+      stream: normalizedStream || null,
       class_teacher_id: (formData.get("class_teacher_id") as string) || null,
     };
 
-    try {
-      if (editingClass) {
-        // ✅ Direct Supabase update - RLS handles permissions via is_admin()
-        const { error } = await supabase
-          .from("classes")
-          .update(classData)
-          .eq("id", editingClass.id);
+      try {
+        if (editingClass) {
+          const { error } = await supabase
+            .from("classes")
+            .update(classData)
+            .eq("school_id", schoolId)
+            .eq("id", editingClass.id);
 
-        if (error) throw new Error(error.message);
+          if (error) throw new Error(error.message);
 
-        toast.success("Class updated");
-        closeDialog();
-        fetchClasses();
-      } else {
-        // Check if class already exists
-        const exists = classes.some(
-          c =>
-            c.education_level === selectedEducationLevel &&
-            c.level === selectedLevel &&
-            c.stream === normalizedStream
-        );
-        if (exists) {
-          toast.error("This class already exists");
-          return;
+          toast.success("Class updated");
+          closeDialog();
+          fetchClasses();
+        } else {
+          // Check if class already exists
+          const exists = classes.some(
+            c =>
+              c.education_level === selectedEducationLevel &&
+              c.level === selectedLevel &&
+              c.stream === normalizedStream
+          );
+          if (exists) {
+            toast.error("This class already exists");
+            return;
+          }
+
+          const { error } = await supabase
+            .from("classes")
+            .insert(classData);
+
+          if (error) throw new Error(error.message);
+
+          toast.success("Class created");
+          closeDialog();
+          fetchClasses();
         }
-
-        // ✅ Direct Supabase insert - RLS handles permissions via is_admin()
-        const { error } = await supabase
-          .from("classes")
-          .insert(classData);
-
-        if (error) throw new Error(error.message);
-
-        toast.success("Class created");
-        closeDialog();
-        fetchClasses();
-      }
-    } catch (error: any) {
+      } catch (error: any) {
       console.error("Error:", error);
       toast.error(error.message || "Failed to save class");
     }
@@ -193,10 +200,10 @@ export default function ClassesPage() {
     if (!confirm("Are you sure you want to delete this class?")) return;
 
     try {
-      // ✅ Direct Supabase delete - RLS handles permissions via is_admin()
       const { error } = await supabase
         .from("classes")
         .delete()
+        .eq("school_id", schoolId)
         .eq("id", id);
 
       if (error) throw new Error(error.message);
@@ -245,6 +252,20 @@ export default function ClassesPage() {
 
   return (
     <DashboardLayout role="admin">
+      {schoolLoading && (
+        <div className="flex items-center justify-center h-96">
+          <p className="text-gray-500">Loading classes...</p>
+        </div>
+      )}
+
+      {schoolError || !schoolId ? (
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
+            <p className="text-gray-600 text-sm mt-2">Please contact your administrator or try logging in again.</p>
+          </div>
+        </div>
+      ) : (
       <div className="space-y-8">
         {/* HEADER */}
         <div className="flex items-center justify-between">
@@ -471,7 +492,8 @@ export default function ClassesPage() {
             <p className="text-gray-500 text-lg">No classes found</p>
           </div>
         )}
-      </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 import { Session, Term } from '@/lib/types';
 import {
   Dialog,
@@ -19,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 
 export default function SessionsPage() {
+  const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
@@ -35,12 +37,14 @@ export default function SessionsPage() {
 
 
   useEffect(() => {
-    async function init() {
-      await fetchSessions();
-      await fetchTerms();
+    if (schoolId) {
+      const init = async () => {
+        await fetchSessions();
+        await fetchTerms();
+      };
+      init();
     }
-    init();
-  }, []);
+  }, [schoolId]);
 
   // Update current term when currentSessionId changes
   useEffect(() => {
@@ -71,10 +75,12 @@ export default function SessionsPage() {
   const viewingSessionTerms = terms.filter(t => t.session_id === viewingSessionId);
 
   async function fetchSessions() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from('sessions')
         .select('*')
+        .eq('school_id', schoolId)
         .order('name', { ascending: true });
       if (error) {
         console.error('Error fetching sessions:', error.message);
@@ -90,10 +96,12 @@ export default function SessionsPage() {
   }
 
   async function fetchTerms() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from('terms')
         .select('*')
+        .eq('school_id', schoolId)
         .order('start_date', { ascending: false });
       if (error) {
         console.error('Error fetching terms:', error.message);
@@ -118,6 +126,7 @@ export default function SessionsPage() {
       const { data: existing } = await supabase
         .from('sessions')
         .select('id')
+        .eq('school_id', schoolId)
         .eq('name', name)
         .limit(1);
 
@@ -188,6 +197,7 @@ export default function SessionsPage() {
       const { data: sessionResult, error: sessionError } = await supabase
         .from('sessions')
         .insert({
+          school_id: schoolId,
           name,
           start_date: t1Start,
           end_date: t3End,
@@ -205,18 +215,21 @@ export default function SessionsPage() {
       // Create 3 terms
       const terms = [
         {
+          school_id: schoolId,
           session_id: session.id,
           name: "First Term",
           start_date: t1Start,
           end_date: t1End,
         },
         {
+          school_id: schoolId,
           session_id: session.id,
           name: "Second Term",
           start_date: t2Start,
           end_date: t2End,
         },
         {
+          school_id: schoolId,
           session_id: session.id,
           name: "Third Term",
           start_date: t3Start,
@@ -269,6 +282,7 @@ export default function SessionsPage() {
       }
 
       const { error } = await supabase.from('terms').insert({
+        school_id: schoolId,
         session_id: selectedSession,
         name: formData.get('name') as string,
         start_date: startDate,
@@ -424,7 +438,7 @@ export default function SessionsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
+      await supabase.from('sessions').update({ is_current: false }).eq('school_id', schoolId);
       await supabase.from('sessions').update({ is_current: true }).eq('id', sessionId);
       setCurrentSessionId(sessionId);
       await updateCurrentSessionAndTerm(sessionId);
@@ -468,7 +482,7 @@ export default function SessionsPage() {
       }
       
       // Clear all terms' is_current flag
-      await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
+      await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
       // Set the selected term as current
       await supabase.from('terms').update({ is_current: true }).eq('id', termId);
       // Refresh terms to reflect changes
@@ -497,6 +511,7 @@ export default function SessionsPage() {
     let query = supabase
       .from("sessions")
       .select("id")
+      .eq("school_id", schoolId)
       .or(`and(start_date.lte.${end},end_date.gte.${start})`);
 
     if (excludeId) query = query.neq("id", excludeId);
@@ -509,6 +524,7 @@ export default function SessionsPage() {
     let query = supabase
       .from("terms")
       .select("id")
+      .eq("school_id", schoolId)
       .eq("session_id", sessionId)
       .or(`and(start_date.lte.${end},end_date.gte.${start})`);
 
@@ -529,6 +545,7 @@ export default function SessionsPage() {
         const { data: sessionData } = await supabase
           .from('sessions')
           .select('*')
+          .eq('school_id', schoolId)
           .eq('id', targetSessionId)
           .single();
 
@@ -537,6 +554,7 @@ export default function SessionsPage() {
           const { data: nextSessions } = await supabase
             .from('sessions')
             .select('*')
+            .eq('school_id', schoolId)
             .gt('start_date', sessionData.end_date)
             .order('start_date', { ascending: true })
             .limit(1);
@@ -544,16 +562,17 @@ export default function SessionsPage() {
           if (nextSessions && nextSessions.length > 0) {
             const nextSession = nextSessions[0];
             // Set the next session as current
-            await supabase.from('sessions').update({ is_current: false }).not('id', 'is', null);
+            await supabase.from('sessions').update({ is_current: false }).eq('school_id', schoolId);
             await supabase.from('sessions').update({ is_current: true }).eq('id', nextSession.id);
             
             // Set all terms to inactive
-            await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
+            await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
             
             // Get the first term of the next session
             const { data: firstTerms } = await supabase
               .from('terms')
               .select('*')
+              .eq('school_id', schoolId)
               .eq('session_id', nextSession.id)
               .order('start_date', { ascending: true })
               .limit(1);
@@ -570,12 +589,13 @@ export default function SessionsPage() {
       }
 
       // Set all terms is_current = false
-      await supabase.from('terms').update({ is_current: false }).not('id', 'is', null);
+      await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
       // Set current term for current session based on today's date
       if (targetSessionId) {
         const { data: termsData } = await supabase
           .from('terms')
           .select('*')
+          .eq('school_id', schoolId)
           .eq('session_id', targetSessionId)
           .lte('start_date', today)
           .gte('end_date', today)
@@ -589,6 +609,7 @@ export default function SessionsPage() {
           const { data: upcomingTerms } = await supabase
             .from('terms')
             .select('*')
+            .eq('school_id', schoolId)
             .eq('session_id', targetSessionId)
             .gt('start_date', today)
             .order('start_date', { ascending: true })
@@ -607,6 +628,30 @@ export default function SessionsPage() {
   }
 
 
+
+
+  if (schoolLoading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <p className="text-gray-500">Loading sessions...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (schoolError || !schoolId) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
+            <p className="text-gray-600 text-sm mt-2">Please contact your administrator or try logging in again.</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">

@@ -154,7 +154,7 @@ export default function PromotionsPage() {
       setSessions(data || []);
 
       // Auto-select current session
-      const currentSession = data?.find((s) => s.is_current);
+      const currentSession = (data as Session[] || []).find((s) => s.is_current);
       if (currentSession) {
         setSelectedSessionId(currentSession.id);
       }

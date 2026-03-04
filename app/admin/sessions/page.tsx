@@ -88,7 +88,7 @@ export default function SessionsPage() {
       }
       setSessions(data || []);
       // Set current session id
-      const current = (data || []).find((s) => s.is_current);
+      const current = ((data || []) as Session[]).find((s) => s.is_current);
       setCurrentSessionId(current?.id || '');
     } catch (error) {
       console.error('Error fetching sessions:', error);

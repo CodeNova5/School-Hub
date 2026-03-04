@@ -49,6 +49,7 @@ import {
 import { toast } from "sonner";
 import { Session } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 
 interface PromotionSettings {
@@ -86,6 +87,7 @@ interface NextClass {
 }
 
 export default function PromotionsPage() {
+  const { schoolId } = useSchoolContext();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [settings, setSettings] = useState<PromotionSettings>({
@@ -127,20 +129,24 @@ export default function PromotionsPage() {
   ).length;
 
   useEffect(() => {
-    fetchSessions();
-  }, []);
+    if (schoolId) {
+      fetchSessions();
+    }
+  }, [schoolId]);
 
   useEffect(() => {
-    if (selectedSessionId) {
+    if (selectedSessionId && schoolId) {
       fetchPromotionData();
     }
-  }, [selectedSessionId]);
+  }, [selectedSessionId, schoolId]);
 
   async function fetchSessions() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("sessions")
         .select("*")
+        .eq("school_id", schoolId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -257,12 +263,14 @@ export default function PromotionsPage() {
 
 
   async function handlePromote() {
+    if (!schoolId) return;
     setProcessing(true);
     try {
       // Get next class for each student
       const { data: allClasses, error: classesError } = await supabase
         .from("classes")
-        .select("*");
+        .select("*")
+        .eq("school_id", schoolId);
 
       if (classesError) throw classesError;
 

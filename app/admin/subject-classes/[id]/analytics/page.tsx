@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -10,6 +11,7 @@ import { Users, TrendingUp, TrendingDown, Award, } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 export default function SubjectAnalyticsPage({ params }: any) {
+    const { schoolId } = useSchoolContext();
     const subjectClassId = params.id;
 
     const [sessions, setSessions] = useState<any[]>([]);
@@ -47,17 +49,21 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
 
     useEffect(() => {
-        loadInitial();
-    }, []);
+        if (schoolId) {
+            loadInitial();
+        }
+    }, [schoolId]);
 
     async function loadInitial() {
+        if (!schoolId) return;
         setIsLoading(true);
 
-        const { data: sessionData } = await supabase.from("sessions").select("*").order("name");
-        const { data: termData } = await supabase.from("terms").select("*").order("name");
+        const { data: sessionData } = await supabase.from("sessions").select("*").eq("school_id", schoolId).order("name");
+        const { data: termData } = await supabase.from("terms").select("*").eq("school_id", schoolId).order("name");
         const { data: subjectClass } = await supabase
             .from("subject_classes")
             .select(`id, subject_code,  subject:subjects ( id, name ), class:classes ( id, name, level)`)
+            .eq("school_id", schoolId)
             .eq("id", subjectClassId)
             .single();
 
@@ -80,12 +86,14 @@ export default function SubjectAnalyticsPage({ params }: any) {
     }
 
     async function loadStudentBreakdown(subjectClassId: string, sessionId: string, termId: string) {
+        if (!schoolId) return;
         const { data } = await supabase
             .from("results")
             .select(`
             *,
             students (first_name, last_name, student_id, gender, photo_url)
         `)
+            .eq("school_id", schoolId)
             .eq("subject_class_id", subjectClassId)
             .eq("session_id", sessionId)
             .eq("term_id", termId);
@@ -114,9 +122,11 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
 
     async function loadResults(subjectClassId: string, sessionId?: string, termId?: string) {
+        if (!schoolId) return;
         let query: any = supabase
             .from("results")
             .select(`*, students(first_name, last_name, student_id, gender, photo_url)`)
+            .eq("school_id", schoolId)
             .eq("subject_class_id", subjectClassId);
 
         if (sessionId) query = query.eq("session_id", sessionId);
@@ -129,6 +139,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
         const { data: allSessions } = await supabase
             .from("results")
             .select(`session_id, total, sessions(name)`)
+            .eq("school_id", schoolId)
             .eq("subject_class_id", subjectClassId);
 
         const grouped = allSessions?.reduce((acc: any, r: any) => {
@@ -149,6 +160,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             const { data: termResults } = await supabase
                 .from("results")
                 .select(`*, terms(name), students(first_name, last_name, student_id)`)
+                .eq("school_id", schoolId)
                 .eq("subject_class_id", subjectClassId)
                 .eq("session_id", sessionId);
 
@@ -167,6 +179,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
             const { data: termData } = await supabase
                 .from("results")
                 .select(`term_id, total, terms(name)`)
+                .eq("school_id", schoolId)
                 .eq("subject_class_id", subjectClassId)
                 .eq("session_id", sessionId);
 
@@ -200,12 +213,14 @@ export default function SubjectAnalyticsPage({ params }: any) {
     }
 
     async function loadGenderComparison(subjectClassId: string) {
+        if (!schoolId) return;
         const { data } = await supabase
             .from("results")
             .select(`
             total,
             students (gender)
         `)
+            .eq("school_id", schoolId)
             .eq("subject_class_id", subjectClassId);
 
         if (!data) return;

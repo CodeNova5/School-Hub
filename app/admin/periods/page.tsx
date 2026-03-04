@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, AlertCircle, Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ interface PeriodSlot {
 }
 
 export default function PeriodsPage() {
+  const { schoolId } = useSchoolContext();
   const [periods, setPeriods] = useState<PeriodSlot[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,15 +58,19 @@ export default function PeriodsPage() {
   const [formIsBreak, setFormIsBreak] = useState(false);
 
   useEffect(() => {
-    fetchPeriods();
-  }, []);
+    if (schoolId) {
+      fetchPeriods();
+    }
+  }, [schoolId]);
 
   async function fetchPeriods() {
+    if (!schoolId) return;
     try {
       setIsLoading(true);
       const { data, error } = await supabase
         .from('period_slots')
         .select('*')
+        .eq('school_id', schoolId)
         .order('day_of_week', { ascending: true })
         .order('period_number', { ascending: true });
 
@@ -147,6 +153,7 @@ export default function PeriodsPage() {
 
     try {
       const payload = {
+        school_id: schoolId,
         day_of_week: formDay,
         period_number: parseInt(formPeriodNumber),
         start_time: formStartTime,
@@ -159,6 +166,7 @@ export default function PeriodsPage() {
         const { error } = await supabase
           .from('period_slots')
           .update(payload)
+          .eq('school_id', schoolId)
           .eq('id', editingPeriod.id);
 
         if (error) throw error;
@@ -190,6 +198,7 @@ export default function PeriodsPage() {
       const { error } = await supabase
         .from('period_slots')
         .delete()
+        .eq('school_id', schoolId)
         .eq('id', id);
 
       if (error) throw error;

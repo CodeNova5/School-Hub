@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx-js-style";
@@ -21,6 +22,7 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 
 export default function TimetablePage() {
+  const { schoolId } = useSchoolContext();
   const [entries, setEntries] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [subjectClasses, setSubjectClasses] = useState<any[]>([]);
@@ -55,13 +57,17 @@ export default function TimetablePage() {
   const [teachers, setTeachers] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchAll();
-  }, []);
+    if (schoolId) {
+      fetchAll();
+    }
+  }, [schoolId]);
 
   async function updatePeriodSlot(id: number, start: string, end: string) {
+    if (!schoolId) return;
     const { error } = await supabase
       .from("period_slots")
       .update({ start_time: start, end_time: end })
+      .eq("school_id", schoolId)
       .eq("id", id);
 
     if (error) toast.error("Failed to update period slot");
@@ -73,6 +79,7 @@ export default function TimetablePage() {
   }
 
   async function fetchAll() {
+    if (!schoolId) return;
     const [timetableRes, classRes, subjectClassRes, teacherRes] = await Promise.all([
       supabase
         .from("timetable_entries")
@@ -87,20 +94,24 @@ export default function TimetablePage() {
             teachers ( first_name, last_name )
           )
         `)
+        .eq("school_id", schoolId)
         .order("period_number", { ascending: true }),
-      supabase.from("classes").select("*").order("name"),
+      supabase.from("classes").select("*").eq("school_id", schoolId).order("name"),
       supabase.from("subject_classes").select(`
         *,
         subjects ( name, department, religion ),
         teachers ( first_name, last_name ),
         classes ( name, level )
-      `).order("subject_code"),
-      supabase.from("teachers").select("*").order("first_name, last_name"),
+      `)
+      .eq("school_id", schoolId)
+      .order("subject_code"),
+      supabase.from("teachers").select("*").eq("school_id", schoolId).order("first_name, last_name"),
     ]);
 
     const { data: periodSlots } = await supabase
       .from("period_slots")
       .select("*")
+      .eq("school_id", schoolId)
       .order("day_of_week, period_number");
 
     if (periodSlots) setPeriodSlots(periodSlots);
@@ -304,7 +315,7 @@ export default function TimetablePage() {
     classId: string,
     ignoreId?: string
   ) {
-    if (teacherIds.length === 0) return null;
+    if (!schoolId || teacherIds.length === 0) return null;
 
     // Get the period slot info
     const targetSlot = periodSlots.find(s => s.id === periodSlotId);
@@ -331,6 +342,7 @@ export default function TimetablePage() {
           teachers ( first_name, last_name )
         )
       `)
+      .eq("school_id", schoolId)
       .eq("period_slot_id", periodSlotId);
 
     if (error || !data) return null;
@@ -394,6 +406,7 @@ export default function TimetablePage() {
         const inserts: any[] = [];
         if (formScienceSubjectClassId)
           inserts.push({
+            school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formScienceSubjectClassId,
@@ -402,6 +415,7 @@ export default function TimetablePage() {
 
         if (formArtsSubjectClassId)
           inserts.push({
+            school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formArtsSubjectClassId,
@@ -410,6 +424,7 @@ export default function TimetablePage() {
 
         if (formCommercialSubjectClassId)
           inserts.push({
+            school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formCommercialSubjectClassId,
@@ -477,6 +492,7 @@ export default function TimetablePage() {
         let del = supabase
           .from("timetable_entries")
           .delete()
+          .eq("school_id", schoolId)
           .eq("period_slot_id", editingEntry.period_slot_id)
           .eq("class_id", editingEntry.class_id)
           .not("religion", "is", null);
@@ -487,6 +503,7 @@ export default function TimetablePage() {
         const inserts: any[] = [];
         if (formChristianSubjectClassId)
           inserts.push({
+            school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formChristianSubjectClassId,
@@ -494,6 +511,7 @@ export default function TimetablePage() {
           });
         if (formMuslimSubjectClassId)
           inserts.push({
+            school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formMuslimSubjectClassId,
@@ -560,6 +578,7 @@ export default function TimetablePage() {
       const { error } = await supabase
         .from("timetable_entries")
         .update(payload)
+        .eq("school_id", schoolId)
         .eq("id", editingEntry.id);
 
       if (error) toast.error("Failed to update entry");
@@ -575,6 +594,7 @@ export default function TimetablePage() {
 
     if (!departmentalMode && !religionMode) {
       const payload: any = {
+        school_id: schoolId,
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formSubjectClassId || null,
@@ -652,6 +672,7 @@ export default function TimetablePage() {
       const inserts: any[] = [];
       if (formChristianSubjectClassId)
         inserts.push({
+          school_id: schoolId,
           period_slot_id: formPeriodSlotId,
           class_id: formClassId,
           subject_class_id: formChristianSubjectClassId,
@@ -659,6 +680,7 @@ export default function TimetablePage() {
         });
       if (formMuslimSubjectClassId)
         inserts.push({
+          school_id: schoolId,
           period_slot_id: formPeriodSlotId,
           class_id: formClassId,
           subject_class_id: formMuslimSubjectClassId,
@@ -723,6 +745,7 @@ export default function TimetablePage() {
     const inserts: any[] = [];
     if (formScienceSubjectClassId)
       inserts.push({
+        school_id: schoolId,
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formScienceSubjectClassId,
@@ -730,6 +753,7 @@ export default function TimetablePage() {
       });
     if (formArtsSubjectClassId)
       inserts.push({
+        school_id: schoolId,
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formArtsSubjectClassId,
@@ -737,6 +761,7 @@ export default function TimetablePage() {
       });
     if (formCommercialSubjectClassId)
       inserts.push({
+        school_id: schoolId,
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formCommercialSubjectClassId,
@@ -898,6 +923,7 @@ export default function TimetablePage() {
   }, [entries]);
 
   async function showTimetable(classId: string) {
+    if (!schoolId) return;
     setSelectedClass(classId);
 
     const { data } = await supabase
@@ -914,6 +940,7 @@ export default function TimetablePage() {
           teachers ( first_name, last_name )
         )
       `)
+      .eq("school_id", schoolId)
       .eq("class_id", classId);
 
     if (!data) return;
@@ -999,6 +1026,7 @@ export default function TimetablePage() {
   }
 
   async function showTeacherTimetable(teacherId: string) {
+    if (!schoolId) return;
     setSelectedTeacher(teacherId);
 
     const { data } = await supabase
@@ -1015,7 +1043,8 @@ export default function TimetablePage() {
           subjects ( name, department, religion ),
           teachers ( first_name, last_name )
         )
-      `);
+      `)
+      .eq("school_id", schoolId);
 
     if (!data) return;
 

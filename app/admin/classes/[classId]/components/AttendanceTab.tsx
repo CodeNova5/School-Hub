@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,7 @@ interface AttendanceTabProps {
 }
 
 export function AttendanceTab({ classId, className }: AttendanceTabProps) {
+  const { schoolId } = useSchoolContext();
   const [attendanceStudents, setAttendanceStudents] = useState<StudentAttendance[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
@@ -34,16 +36,19 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
 
 
   useEffect(() => {
-    fetchAttendance(selectedDate);
+    if (schoolId) {
+      fetchAttendance(selectedDate);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [schoolId]);
 
   async function fetchAttendance(date: string) {
+    if (!schoolId) return;
     setAttendanceLoading(true);
     try {
       const [{ data: studentsData, error: studentsError }, { data: attendanceData, error: attendanceError }] = await Promise.all([
-        supabase.from("students").select("* ").eq("class_id", classId),
-        supabase.from("attendance").select("*").eq("class_id", classId).eq("date", date),
+        supabase.from("students").select("* ").eq("school_id", schoolId).eq("class_id", classId),
+        supabase.from("attendance").select("*").eq("school_id", schoolId).eq("class_id", classId).eq("date", date),
       ]);
 
       if (studentsError || attendanceError) throw new Error("Failed to fetch attendance data");
@@ -341,6 +346,7 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
       const attendanceRecords = attendanceStudents
         .filter((s) => s.attendanceStatus !== "not_marked")
         .map((student) => ({
+          school_id: schoolId,
           student_id: student.id,
           class_id: classId,
           date: selectedDate,
@@ -354,7 +360,7 @@ export function AttendanceTab({ classId, className }: AttendanceTabProps) {
       if (existingRecords.length > 0) {
         const deleteIds = existingRecords.map((s) => s.attendanceId).filter(Boolean);
         if (deleteIds.length > 0) {
-          await supabase.from("attendance").delete().in("id", deleteIds);
+          await supabase.from("attendance").delete().eq("school_id", schoolId).in("id", deleteIds);
         }
       }
 

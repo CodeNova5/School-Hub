@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Search, Edit, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -30,6 +31,7 @@ const periods = [
 ];
 
 export default function TimetablePage() {
+  const { schoolId } = useSchoolContext();
   const [classes, setClasses] = useState<any[]>([]);
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [timetableEntries, setTimetableEntries] = useState<any[]>([]);
@@ -37,20 +39,25 @@ export default function TimetablePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchClasses();
-  }, []);
+    if (schoolId) {
+      fetchClasses();
+    }
+  }, [schoolId]);
 
   async function fetchClasses() {
-    const { data } = await supabase.from("classes").select("*").order("level");
+    if (!schoolId) return;
+    const { data } = await supabase.from("classes").select("*").eq("school_id", schoolId).order("level");
     if (data) setClasses(data);
   }
 
   async function showTimetable(classId: string) {
+    if (!schoolId) return;
     setSelectedClass(classId);
 
     const { data } = await supabase
       .from("timetable_entries")
       .select("*, subjects(name), teachers(first_name,last_name)")
+      .eq("school_id", schoolId)
       .eq("class_id", classId);
 
     if (!data) return;

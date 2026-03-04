@@ -107,6 +107,7 @@ const PREDEFINED_SUBJECTS = {
 };
 
 export default function SubjectsPage() {
+  const { schoolId } = useSchoolContext();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -125,30 +126,34 @@ export default function SubjectsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchSubjects();
-  }, []);
-
-  useEffect(() => {
-    async function fetchTeachers() {
-      try {
-        const { data, error } = await supabase
-          .from('teachers')
-          .select('id, first_name, last_name');
-        if (error) throw error;
-        setTeachers(data as Teacher[]);
-      } catch (error) {
-        toast.error('Error fetching teachers');
-      }
+    if (schoolId) {
+      fetchSubjects();
+      fetchTeachers();
     }
-    fetchTeachers();
-  }, []);
+  }, [schoolId]);
+
+  async function fetchTeachers() {
+    if (!schoolId) return;
+    try {
+      const { data, error } = await supabase
+        .from('teachers')
+        .select('id, first_name, last_name')
+        .eq('school_id', schoolId);
+      if (error) throw error;
+      setTeachers(data as Teacher[]);
+    } catch (error) {
+      toast.error('Error fetching teachers');
+    }
+  }
 
 
   async function fetchSubjects() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from('subjects')
         .select('*')
+        .eq('school_id', schoolId)
         .order('education_level', { ascending: true })
         .order('name', { ascending: true });
       if (error) throw error;
@@ -206,6 +211,7 @@ export default function SubjectsPage() {
     }
 
     const subjectData = {
+      school_id: schoolId,
       name: subjectName,
       education_level: selectedLevel,
       department: selectedLevel === 'SSS' ? (selectedDepartment || null) : null,
@@ -222,6 +228,7 @@ export default function SubjectsPage() {
         const { error: updateError } = await supabase
           .from('subjects')
           .update(subjectData)
+          .eq('school_id', schoolId)
           .eq('id', editingSubject.id);
 
         if (updateError) {
@@ -238,6 +245,7 @@ export default function SubjectsPage() {
         const { data: emptyClasses } = await supabase
           .from("classes")
           .select("id")
+          .eq("school_id", schoolId)
           .eq("education_level", selectedLevel)
           .is("class_teacher_id", null);
 
@@ -246,6 +254,7 @@ export default function SubjectsPage() {
             await supabase
               .from('subject_classes')
               .update({ teacher_id: selectedTeacher || null })
+              .eq('school_id', schoolId)
               .eq('subject_id', editingSubject.id)
               .eq('class_id', c.id);
           }
@@ -289,6 +298,7 @@ export default function SubjectsPage() {
       const { data: classes, error: classesError } = await supabase
         .from('classes')
         .select('id, name')
+        .eq('school_id', schoolId)
         .eq('education_level', selectedLevel)
         .order('name', { ascending: true });
 
@@ -307,6 +317,7 @@ export default function SubjectsPage() {
 
       // Create subject_classes rows with subject_code
       const subjectClasses = classes.map((c: any) => ({
+        school_id: schoolId,
         class_id: c.id,
         subject_id: newSubject.id,
         subject_code: generateSubjectCode(newSubject.name, c.name),
@@ -328,6 +339,7 @@ export default function SubjectsPage() {
         const { data: emptyClasses } = await supabase
           .from("classes")
           .select("id")
+          .eq("school_id", schoolId)
           .eq("education_level", selectedLevel)
           .is("class_teacher_id", null);
 
@@ -336,6 +348,7 @@ export default function SubjectsPage() {
             await supabase
               .from('subject_classes')
               .update({ teacher_id: selectedTeacher })
+              .eq('school_id', schoolId)
               .eq('subject_id', newSubject.id)
               .eq('class_id', c.id);
           }
@@ -361,12 +374,14 @@ export default function SubjectsPage() {
       await supabase
         .from('subject_classes')
         .delete()
+        .eq('school_id', schoolId)
         .eq('subject_id', id);
 
       // Then delete the subject
       const { error } = await supabase
         .from('subjects')
         .delete()
+        .eq('school_id', schoolId)
         .eq('id', id);
 
       if (error) throw error;
@@ -392,6 +407,7 @@ export default function SubjectsPage() {
     const { data } = await supabase
       .from("subject_classes")
       .select("teacher_id")
+      .eq("school_id", schoolId)
       .eq("subject_id", subject.id)
       .not("teacher_id", "is", null)
       .limit(1)

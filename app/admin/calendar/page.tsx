@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 type EventFormData = {
   title: string;
@@ -25,6 +26,7 @@ type EventFormData = {
 };
 
 export default function AdminCalendarPage() {
+  const { schoolId } = useSchoolContext();
   const [events, setEvents] = useState<Event[]>([]);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,17 +51,21 @@ export default function AdminCalendarPage() {
   });
 
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    if (schoolId) {
+      fetchEvents();
+    }
+  }, [schoolId]);
 
   useEffect(() => {
     applyFilters();
   }, [events, searchTerm, filterType, selectedDate]);
 
   async function fetchEvents() {
+    if (!schoolId) return;
     const { data } = await supabase
       .from('events')
       .select('*')
+      .eq('school_id', schoolId)
       .order('start_date', { ascending: true });
     if (data) {
       setEvents(data);
@@ -148,6 +154,7 @@ export default function AdminCalendarPage() {
             location: formData.location,
             is_all_day: formData.is_all_day,
           })
+          .eq('school_id', schoolId)
           .eq('id', editingEvent.id);
 
         if (error) throw error;
@@ -160,6 +167,7 @@ export default function AdminCalendarPage() {
         const { error } = await supabase
           .from('events')
           .insert([{
+            school_id: schoolId,
             title: formData.title,
             description: formData.description,
             event_type: formData.event_type,
@@ -189,12 +197,13 @@ export default function AdminCalendarPage() {
     }
   };
   const handleDelete = async () => {
-    if (!eventToDelete) return;
+    if (!eventToDelete || !schoolId) return;
 
     try {
       const { error } = await supabase
         .from('events')
         .delete()
+        .eq('school_id', schoolId)
         .eq('id', eventToDelete.id);
 
       if (error) throw error;

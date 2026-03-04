@@ -345,8 +345,8 @@ export default function SessionsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      await supabase.from('terms').delete().eq('session_id', id);
-      await supabase.from('sessions').delete().eq('id', id);
+      await supabase.from('terms').delete().eq('school_id', schoolId).eq('session_id', id);
+      await supabase.from('sessions').delete().eq('school_id', schoolId).eq('id', id);
 
       await fetchSessions();
       await fetchTerms();
@@ -419,7 +419,7 @@ export default function SessionsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      await supabase.from('terms').delete().eq('id', id);
+      await supabase.from('terms').delete().eq('school_id', schoolId).eq('id', id);
       await fetchTerms();
     } catch (err) {
       setError('Failed to delete term');
@@ -439,7 +439,7 @@ export default function SessionsPage() {
       setIsLoading(true);
       setError(null);
       await supabase.from('sessions').update({ is_current: false }).eq('school_id', schoolId);
-      await supabase.from('sessions').update({ is_current: true }).eq('id', sessionId);
+      await supabase.from('sessions').update({ is_current: true }).eq('school_id', schoolId).eq('id', sessionId);
       setCurrentSessionId(sessionId);
       await updateCurrentSessionAndTerm(sessionId);
       await fetchSessions();
@@ -484,7 +484,7 @@ export default function SessionsPage() {
       // Clear all terms' is_current flag
       await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
       // Set the selected term as current
-      await supabase.from('terms').update({ is_current: true }).eq('id', termId);
+      await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', termId);
       // Refresh terms to reflect changes
       await fetchTerms();
     } catch (err) {
@@ -563,7 +563,7 @@ export default function SessionsPage() {
             const nextSession = nextSessions[0];
             // Set the next session as current
             await supabase.from('sessions').update({ is_current: false }).eq('school_id', schoolId);
-            await supabase.from('sessions').update({ is_current: true }).eq('id', nextSession.id);
+            await supabase.from('sessions').update({ is_current: true }).eq('school_id', schoolId).eq('id', nextSession.id);
             
             // Set all terms to inactive
             await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
@@ -578,7 +578,7 @@ export default function SessionsPage() {
               .limit(1);
 
             if (firstTerms && firstTerms.length > 0) {
-              await supabase.from('terms').update({ is_current: true }).eq('id', firstTerms[0].id);
+              await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', firstTerms[0].id);
             }
 
             await fetchSessions();
@@ -603,7 +603,7 @@ export default function SessionsPage() {
 
         if (termsData && termsData.length > 0) {
           // Found a term that includes today's date
-          await supabase.from('terms').update({ is_current: true }).eq('id', termsData[0].id);
+          await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', termsData[0].id);
         } else {
           // No term includes today, fall back to the next upcoming term
           const { data: upcomingTerms } = await supabase
@@ -616,7 +616,7 @@ export default function SessionsPage() {
             .limit(1);
 
           if (upcomingTerms && upcomingTerms.length > 0) {
-            await supabase.from('terms').update({ is_current: true }).eq('id', upcomingTerms[0].id);
+            await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', upcomingTerms[0].id);
           }
         }
       }

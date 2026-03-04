@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, Edit, Trash2, MoreVertical, Eye, UserCog, BookOpen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 import { Teacher } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -63,6 +64,7 @@ type SubjectClass = {
 };
 
 export default function TeachersPage() {
+  const { schoolId } = useSchoolContext();
   const [teachers, setTeachers] = useState<TeacherWithDetails[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -78,30 +80,36 @@ export default function TeachersPage() {
   const [selectedClassForSubject, setSelectedClassForSubject] = useState<string>('');
 
   useEffect(() => {
-    fetchTeachers();
-    fetchClasses();
-    fetchSubjects();
-    fetchSubjectClasses();
-  }, []);
+    if (schoolId) {
+      fetchTeachers();
+      fetchClasses();
+      fetchSubjects();
+      fetchSubjectClasses();
+    }
+  }, [schoolId]);
 
   async function fetchTeachers() {
+    if (!schoolId) return;
     try {
       // Fetch all teachers
       const { data: teachersData, error: teachersError } = await supabase
         .from('teachers')
         .select('*')
+        .eq('school_id', schoolId)
         .order('created_at', { ascending: false });
       if (teachersError) throw teachersError;
 
       // Fetch all classes (for assignments)
       const { data: allClasses } = await supabase
         .from('classes')
-        .select('id, name, class_teacher_id');
+        .select('id, name, class_teacher_id')
+        .eq('school_id', schoolId);
 
       // Fetch all subject_classes with related data (for assignments)
       const { data: allSubjectClasses } = await supabase
         .from('subject_classes')
-        .select('id, subject_id, class_id, teacher_id, subjects(id, name), classes(id, name)');
+        .select('id, subject_id, class_id, teacher_id, subjects(id, name), classes(id, name)')
+        .eq('school_id', schoolId);
 
       // Build teacher details
       const teachersWithDetails = (teachersData || []).map((teacher: any) => {
@@ -144,10 +152,12 @@ export default function TeachersPage() {
   }
 
   async function fetchClasses() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from('classes')
         .select('id, name, level')
+        .eq('school_id', schoolId)
         .order('name', { ascending: true });
       if (error) throw error;
       setClasses(data || []);
@@ -157,10 +167,12 @@ export default function TeachersPage() {
   }
 
   async function fetchSubjects() {
+    if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from('subjects')
         .select('id, name')
+        .eq('school_id', schoolId)
         .order('name', { ascending: true });
       if (error) throw error;
       setSubjects(data || []);
@@ -170,11 +182,13 @@ export default function TeachersPage() {
   }
 
   async function fetchSubjectClasses() {
+    if (!schoolId) return;
     try {
       // Join with subjects and classes for display
       const { data, error } = await supabase
         .from('subject_classes')
-        .select('id, subject_id, class_id, subjects(name), classes(name)');
+        .select('id, subject_id, class_id, subjects(name), classes(name)')
+        .eq('school_id', schoolId);
       if (error) throw error;
       setSubjectClasses(data || []);
     } catch (error) {
@@ -284,7 +298,7 @@ export default function TeachersPage() {
   async function handleDelete(id: string, userId?: string) {
     if (!confirm('Are you sure you want to delete this teacher?')) return;
 
-    const { error } = await supabase.from('teachers').delete().eq('id', id);
+    const { error } = await supabase.from('teachers').delete().eq('school_id', schoolId).eq('id', id);
 
     if (error) {
       toast.error('Failed to delete teacher');
@@ -323,12 +337,14 @@ export default function TeachersPage() {
     await supabase
       .from('classes')
       .update({ class_teacher_id: null })
+      .eq('school_id', schoolId)
       .eq('class_teacher_id', assigningTeacher.id);
 
     // Then assign to the new class (this will also remove any previous teacher from this class)
     const { error } = await supabase
       .from('classes')
       .update({ class_teacher_id: assigningTeacher.id })
+      .eq('school_id', schoolId)
       .eq('id', classId);
 
     if (error) {
@@ -368,6 +384,7 @@ export default function TeachersPage() {
     const { error } = await supabase
       .from('subject_classes')
       .update({ teacher_id: assigningTeacher.id })
+      .eq('school_id', schoolId)
       .eq('id', subjectClass.id);
 
     if (error) {

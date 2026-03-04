@@ -76,12 +76,42 @@ export default function ResultEntry({
   async function loadData() {
     setIsLoading(true);
     try {
+      // Get current user and teacher info if needed
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const user = authSession?.user;
+
+      // Get school_id from teacher or student profile
+      let schoolId = null;
+      if (user) {
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('school_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (teacherData) {
+          schoolId = teacherData.school_id;
+        } else {
+          const { data: studentData } = await supabase
+            .from('students')
+            .select('school_id')
+            .eq('user_id', user.id)
+            .single();
+          if (studentData) schoolId = studentData.school_id;
+        }
+      }
+
       // 1. Student
-      const { data: studentData } = await supabase
+      let studentQuery = supabase
         .from("students")
         .select("*")
-        .eq("id", studentId)
-        .single();
+        .eq("id", studentId);
+
+      if (schoolId) {
+        studentQuery = studentQuery.eq("school_id", schoolId);
+      }
+
+      const { data: studentData } = await studentQuery.single();
 
       if (!studentData) {
         toast.error("Student not found");
@@ -92,11 +122,16 @@ export default function ResultEntry({
       setStudent(studentData);
 
       // 2. Class
-      const { data: classData } = await supabase
+      let classQuery = supabase
         .from("classes")
         .select("*")
-        .eq("id", studentData.class_id)
-        .single();
+        .eq("id", studentData.class_id);
+
+      if (schoolId) {
+        classQuery = classQuery.eq("school_id", schoolId);
+      }
+
+      const { data: classData } = await classQuery.single();
 
       if (classData) setStudentClass(classData);
 
@@ -104,33 +139,37 @@ export default function ResultEntry({
       let sessionData: Session | null = null;
       let termData: Term | null = null;
       if (sessionId) {
-        const { data } = await supabase
+        let sQuery = supabase
           .from("sessions")
           .select("*")
-          .eq("id", sessionId)
-          .single();
+          .eq("id", sessionId);
+        if (schoolId) sQuery = sQuery.eq("school_id", schoolId);
+        const { data } = await sQuery.single();
         sessionData = data;
       } else {
-        const { data } = await supabase
+        let sQuery = supabase
           .from("sessions")
           .select("*")
-          .eq("is_current", true)
-          .single();
+          .eq("is_current", true);
+        if (schoolId) sQuery = sQuery.eq("school_id", schoolId);
+        const { data } = await sQuery.single();
         sessionData = data;
       }
       if (termId) {
-        const { data } = await supabase
+        let tQuery = supabase
           .from("terms")
           .select("*")
-          .eq("id", termId)
-          .single();
+          .eq("id", termId);
+        if (schoolId) tQuery = tQuery.eq("school_id", schoolId);
+        const { data } = await tQuery.single();
         termData = data;
       } else {
-        const { data } = await supabase
+        let tQuery = supabase
           .from("terms")
           .select("*")
-          .eq("is_current", true)
-          .single();
+          .eq("is_current", true);
+        if (schoolId) tQuery = tQuery.eq("school_id", schoolId);
+        const { data } = await tQuery.single();
         termData = data;
       }
 
@@ -146,13 +185,18 @@ export default function ResultEntry({
       // 3.5 Load publication settings (for students and parents)
       let currentCalculationMode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all' = 'all';
       if (role === 'student' || role === 'parent') {
-        const { data: pubSettings } = await supabase
+        let pubQuery = supabase
           .from("results_publication")
           .select("*")
           .eq("class_id", studentData.class_id)
           .eq("session_id", sessionData.id)
-          .eq("term_id", termData!.id)
-          .single();
+          .eq("term_id", termData!.id);
+
+        if (schoolId) {
+          pubQuery = pubQuery.eq("school_id", schoolId);
+        }
+
+        const { data: pubSettings } = await pubQuery.single();
 
         if (pubSettings) {
           setPublicationSettings(pubSettings);
@@ -177,25 +221,37 @@ export default function ResultEntry({
       }
 
       // 4. Load subject_classes for this student's class
-      const { data: subjectClasses, error: scError } = await supabase
+      let scQuery = supabase
         .from("subject_classes")
         .select(`
-    id,
-    subjects (
-        id,
-        name,
-        is_optional,
-        religion,
-        department
-      )
-  `)
+          id,
+          subjects (
+              id,
+              name,
+              is_optional,
+              religion,
+              department
+            )
+        `)
         .eq("class_id", studentData.class_id);
 
+      if (schoolId) {
+        scQuery = scQuery.eq("school_id", schoolId);
+      }
+
+      const { data: subjectClasses, error: scError } = await scQuery;
+
       // 4b. Get optional subjects for this student
-      const { data: optionalSubjectRows, error: optError } = await supabase
+      let optQuery = supabase
         .from("student_optional_subjects")
         .select("subject_id")
         .eq("student_id", studentId);
+
+      if (schoolId) {
+        optQuery = optQuery.eq("school_id", schoolId);
+      }
+
+      const { data: optionalSubjectRows, error: optError } = await optQuery;
       const optionalSubjectIds = (optionalSubjectRows || []).map(row => row.subject_id);
 
       if (scError || !subjectClasses || subjectClasses.length === 0) {
@@ -246,11 +302,16 @@ export default function ResultEntry({
       let nextTermDateValue = "";
       try {
         if (termData) {
-          const { data: allTerms } = await supabase
+          let allTermsQuery = supabase
             .from("terms")
             .select("*")
-            .eq("session_id", sessionData.id)
-            .order("start_date", { ascending: true });
+            .eq("session_id", sessionData.id);
+
+          if (schoolId) {
+            allTermsQuery = allTermsQuery.eq("school_id", schoolId);
+          }
+
+          const { data: allTerms } = await allTermsQuery.order("start_date", { ascending: true });
 
           const currentTermIdx = allTerms?.findIndex((t: any) => t.id === termData!.id);
 
@@ -261,10 +322,16 @@ export default function ResultEntry({
               nextTermDateValue = nextTerm?.start_date || "";
             } else {
               // Last term in session, get first term that starts after this term ends
-              const { data: nextTerms } = await supabase
+              let nextTermsQuery = supabase
                 .from("terms")
                 .select("*")
-                .gt("start_date", termData.end_date || termData.start_date)
+                .gt("start_date", termData.end_date || termData.start_date);
+
+              if (schoolId) {
+                nextTermsQuery = nextTermsQuery.eq("school_id", schoolId);
+              }
+
+              const { data: nextTerms } = await nextTermsQuery
                 .order("start_date", { ascending: true })
                 .limit(1);
 
@@ -282,20 +349,32 @@ export default function ResultEntry({
 
       // 7. Load existing results - filtered by this student's enrolled class
       // Get subject_class_ids for the student's enrolled class
-      const { data: enrolledClassSubjects } = await supabase
+      let enrolledClassSubjectsQuery = supabase
         .from("subject_classes")
         .select("id")
         .eq("class_id", studentData.class_id);
 
+      if (schoolId) {
+        enrolledClassSubjectsQuery = enrolledClassSubjectsQuery.eq("school_id", schoolId);
+      }
+
+      const { data: enrolledClassSubjects } = await enrolledClassSubjectsQuery;
+
       const enrolledSubjectClassIds = enrolledClassSubjects?.map(sc => sc.id) || [];
 
-      const { data: existingResults } = await supabase
+      let existingResultsQuery = supabase
         .from("results")
         .select("*")
         .eq("student_id", studentId)
         .eq("session_id", sessionData.id)
         .eq("term_id", termData!.id)
         .in("subject_class_id", enrolledSubjectClassIds);
+
+      if (schoolId) {
+        existingResultsQuery = existingResultsQuery.eq("school_id", schoolId);
+      }
+
+      const { data: existingResults } = await existingResultsQuery;
 
       if (existingResults && existingResults.length > 0) {
         const first = existingResults[0];
@@ -340,29 +419,47 @@ export default function ResultEntry({
       // 8. Attendance - try with session/term filters first, fallback to just student_id
       let attendanceCount = 0;
       try {
-        const { count: countWithFilters } = await supabase
+        let attendanceQuery = supabase
           .from("attendance")
           .select("*", { count: "exact", head: true })
           .eq("student_id", studentId)
           .eq("session_id", sessionData.id)
           .eq("term_id", termData!.id);
 
+        if (schoolId) {
+          attendanceQuery = attendanceQuery.eq("school_id", schoolId);
+        }
+
+        const { count: countWithFilters } = await attendanceQuery;
+
         if (countWithFilters !== null && countWithFilters > 0) {
           attendanceCount = countWithFilters;
         } else {
           // Fallback: count all attendance for this student (some schemas might not have session/term)
-          const { count: countAll } = await supabase
+          let allAttendanceQuery = supabase
             .from("attendance")
             .select("*", { count: "exact", head: true })
             .eq("student_id", studentId);
+
+          if (schoolId) {
+            allAttendanceQuery = allAttendanceQuery.eq("school_id", schoolId);
+          }
+
+          const { count: countAll } = await allAttendanceQuery;
           attendanceCount = countAll || 0;
         }
       } catch (e) {
         // If query fails, try basic count
-        const { count } = await supabase
+        let basicAttendanceQuery = supabase
           .from("attendance")
           .select("*", { count: "exact", head: true })
           .eq("student_id", studentId);
+
+        if (schoolId) {
+          basicAttendanceQuery = basicAttendanceQuery.eq("school_id", schoolId);
+        }
+
+        const { count } = await basicAttendanceQuery;
         attendanceCount = count || 0;
       }
 
@@ -642,6 +739,19 @@ export default function ResultEntry({
     if (!canEdit || isReadOnly || !student || !session || !term) return;
     setIsSaving(true);
     try {
+      // Get schoolId again just to be sure
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const user = authSession?.user;
+      let schoolId: string | null = null;
+      if (user) {
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('school_id')
+          .eq('user_id', user.id)
+          .single();
+        if (teacherData) schoolId = teacherData.school_id;
+      }
+
       // Save each subject's result separately using Supabase upsert
       const saveDataArray = scores.map(score => ({
         student_id: student.id,
@@ -662,13 +772,14 @@ export default function ResultEntry({
         class_position: classPosition,
         total_students: totalStudents,
         class_average: classAverage,
+        school_id: schoolId,
       }));
 
       // Upsert all results at once
       const { error } = await supabase
         .from("results")
         .upsert(saveDataArray, {
-          onConflict: "student_id,session_id,term_id,subject_class_id",
+          onConflict: "student_id,session_id,term_id,subject_class_id,school_id",
         });
 
       if (error) {

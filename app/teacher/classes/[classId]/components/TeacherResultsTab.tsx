@@ -79,9 +79,10 @@ interface ResultsTabProps {
     classId: string;
     className: string;
     students: Student[];
+    schoolId?: string | null;
 }
 
-export default function ResultsTab({ classId, className, students }: ResultsTabProps) {
+export default function ResultsTab({ classId, className, students, schoolId }: ResultsTabProps) {
 
     const [sessions, setSessions] = useState<Session[]>([]);
     const [terms, setTerms] = useState<Term[]>([]);
@@ -143,15 +144,27 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
     async function fetchSessionsAndTerms() {
         try {
             // Fetch sessions
-            const { data: sessionsData, error: sessionsError } = await supabase
+            let sessionsQuery = supabase
                 .from("sessions")
                 .select("*");
+
+            if (schoolId) {
+                sessionsQuery = sessionsQuery.eq("school_id", schoolId);
+            }
+
+            const { data: sessionsData, error: sessionsError } = await sessionsQuery;
             if (sessionsError) throw sessionsError;
 
             // Fetch terms
-            const { data: termsData, error: termsError } = await supabase
+            let termsQuery = supabase
                 .from("terms")
                 .select("*");
+
+            if (schoolId) {
+                termsQuery = termsQuery.eq("school_id", schoolId);
+            }
+
+            const { data: termsData, error: termsError } = await termsQuery;
             if (termsError) throw termsError;
 
             setSessions(sessionsData || []);
@@ -183,10 +196,16 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
             }
 
             // Get subject_class_ids for this class to filter results correctly
-            const { data: subjectClasses, error: scError } = await supabase
+            let scQuery = supabase
                 .from("subject_classes")
                 .select("id")
                 .eq("class_id", classId);
+
+            if (schoolId) {
+                scQuery = scQuery.eq("school_id", schoolId);
+            }
+
+            const { data: subjectClasses, error: scError } = await scQuery;
 
             if (scError) throw scError;
 
@@ -199,13 +218,19 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
             }
 
             // Fetch results for each student - filtered by this class's subject_classes
-            const { data: resultsData, error: resultsError } = await supabase
+            let resultsQuery = supabase
                 .from("results")
                 .select("*")
                 .eq("term_id", selectedTermId)
                 .eq("session_id", selectedSessionId)
                 .in("student_id", currentStudentIds)
                 .in("subject_class_id", subjectClassIds);
+
+            if (schoolId) {
+                resultsQuery = resultsQuery.eq("school_id", schoolId);
+            }
+
+            const { data: resultsData, error: resultsError } = await resultsQuery;
 
             if (resultsError) {
                 console.error("Error fetching results:", resultsError);
@@ -309,10 +334,16 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
             }
 
             // Get subject_classes for this class to filter results
-            const { data: subjectClasses, error: scError } = await supabase
+            let scQuery = supabase
                 .from("subject_classes")
                 .select("id")
                 .eq("class_id", classId);
+
+            if (schoolId) {
+                scQuery = scQuery.eq("school_id", schoolId);
+            }
+
+            const { data: subjectClasses, error: scError } = await scQuery;
 
             if (scError) throw scError;
 
@@ -324,12 +355,18 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
             }
 
             // Fetch results for all terms in this session for this class only
-            const { data: allSessionResults, error } = await supabase
+            let sessionResultsQuery = supabase
                 .from("results")
                 .select("*")
                 .eq("session_id", selectedSessionId)
                 .in("student_id", currentStudentIds)
                 .in("subject_class_id", subjectClassIds);
+
+            if (schoolId) {
+                sessionResultsQuery = sessionResultsQuery.eq("school_id", schoolId);
+            }
+
+            const { data: allSessionResults, error } = await sessionResultsQuery;
 
             if (error) throw error;
 
@@ -621,10 +658,16 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
             }
 
             // Get subject_class_ids for this class to update positions for this class only
-            const { data: classSubjectClasses, error: classScError } = await supabase
+            let classScQuery = supabase
                 .from("subject_classes")
                 .select("id")
                 .eq("class_id", classId);
+
+            if (schoolId) {
+                classScQuery = classScQuery.eq("school_id", schoolId);
+            }
+
+            const { data: classSubjectClasses, error: classScError } = await classScQuery;
 
             if (classScError) throw classScError;
 
@@ -639,7 +682,7 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
             // Update all results for each student with their position - ONLY for this class
             const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
                 // Update all results for this student in this term and session for THIS CLASS ONLY
-                await supabase
+                let updateQuery = supabase
                     .from("results")
                     .update({
                         class_position: position,
@@ -650,6 +693,12 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                     .eq("term_id", selectedTermId)
                     .eq("session_id", selectedSessionId)
                     .in("subject_class_id", classSubjectClassIds);
+
+                if (schoolId) {
+                    updateQuery = updateQuery.eq("school_id", schoolId);
+                }
+
+                await updateQuery;
             });
 
             await Promise.all(updatePromises);
@@ -1251,10 +1300,16 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                                                                 if (studentObj) {
                                                                     try {
                                                                         // Fetch attendance for this student using Supabase
-                                                                        const { data: attendance, error } = await supabase
+                                                                    let attendanceQuery = supabase
                                                                             .from("attendance")
                                                                             .select("*")
                                                                             .eq("student_id", result.student_id);
+
+                                                                    if (schoolId) {
+                                                                        attendanceQuery = attendanceQuery.eq("school_id", schoolId);
+                                                                    }
+
+                                                                    const { data: attendance, error } = await attendanceQuery;
 
                                                                         if (error) throw error;
 
@@ -1337,10 +1392,16 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                                                             const studentObj = students.find(s => s.id === result.student_id);
                                                             if (studentObj) {
                                                                 try {
-                                                                    const { data: attendance, error } = await supabase
+                                                                    let attendanceQuery = supabase
                                                                         .from("attendance")
                                                                         .select("*")
                                                                         .eq("student_id", result.student_id);
+
+                                                                    if (schoolId) {
+                                                                        attendanceQuery = attendanceQuery.eq("school_id", schoolId);
+                                                                    }
+
+                                                                    const { data: attendance, error } = await attendanceQuery;
 
                                                                     if (error) throw error;
 
@@ -1470,6 +1531,7 @@ export default function ResultsTab({ classId, className, students }: ResultsTabP
                 sessionId={selectedSessionId}
                 termId={selectedTermId}
                 onPublish={fetchStudentResults}
+                schoolId={schoolId}
             />
         </Card>
 

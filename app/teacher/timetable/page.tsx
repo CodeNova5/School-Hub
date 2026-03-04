@@ -11,6 +11,7 @@ import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { Calendar, Clock, BookOpen, GraduationCap, Download, Loader2 } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -39,12 +40,14 @@ export default function TeacherTimetablePage() {
   const [timetable, setTimetable] = useState<Record<string, Record<string, TimetableCell>>>({});
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
   const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     loadTimetable();
-  }, []);
+  }, [schoolId]);
 
   async function loadTimetable() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -78,7 +81,8 @@ export default function TeacherTimetablePage() {
             subjects ( name, department, religion ),
             teachers ( first_name, last_name )
           )
-        `);
+        `)
+        .eq('school_id', schoolId);
 
       if (error) {
         console.error("Error fetching timetable:", error);
@@ -103,6 +107,7 @@ export default function TeacherTimetablePage() {
       const { data: slotsData } = await supabase
         .from("period_slots")
         .select("*")
+        .eq('school_id', schoolId)
         .order("day_of_week, period_number");
 
       if (slotsData) {
@@ -304,7 +309,7 @@ export default function TeacherTimetablePage() {
     };
   }, [timetable]);
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="flex items-center justify-center min-h-[60vh]">

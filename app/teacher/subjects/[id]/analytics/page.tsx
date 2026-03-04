@@ -9,6 +9,7 @@ import { Bar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { Users, TrendingUp, TrendingDown, Award, } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { useSchoolContext } from "@/hooks/use-school-context";
 export default function SubjectAnalyticsPage({ params }: any) {
     const subjectClassId = params.id;
 
@@ -28,6 +29,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
     const [genderFilter, setGenderFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [highestPerTerm, setHighestPerTerm] = useState<any[]>([]);
+    const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
     // NEW STATES
     const [historyData, setHistoryData] = useState<any[]>([]);
@@ -48,17 +50,19 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
     useEffect(() => {
         loadInitial();
-    }, []);
+    }, [schoolId]);
 
     async function loadInitial() {
+        if (!schoolId) return;
         setIsLoading(true);
 
-        const { data: sessionData } = await supabase.from("sessions").select("*").order("name");
-        const { data: termData } = await supabase.from("terms").select("*").order("name");
+        const { data: sessionData } = await supabase.from("sessions").select("*").eq('school_id', schoolId).order("name");
+        const { data: termData } = await supabase.from("terms").select("*").eq('school_id', schoolId).order("name");
         const { data: subjectClass } = await supabase
             .from("subject_classes")
             .select(`id, subject_code,  subject:subjects ( id, name ), class:classes ( id, name, level)`)
             .eq("id", subjectClassId)
+            .eq('school_id', schoolId)
             .single();
 
         setSubject(subjectClass);
@@ -80,6 +84,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
     }
 
     async function loadStudentBreakdown(subjectClassId: string, sessionId: string, termId: string) {
+        if (!schoolId) return;
         const { data } = await supabase
             .from("results")
             .select(`
@@ -88,7 +93,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
         `)
             .eq("subject_class_id", subjectClassId)
             .eq("session_id", sessionId)
-            .eq("term_id", termId);
+            .eq("term_id", termId)
+            .eq('school_id', schoolId);
 
         if (!data) return;
 
@@ -114,10 +120,12 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
 
     async function loadResults(subjectClassId: string, sessionId?: string, termId?: string) {
+        if (!schoolId) return;
         let query: any = supabase
             .from("results")
             .select(`*, students(first_name, last_name, student_id, gender, photo_url)`)
-            .eq("subject_class_id", subjectClassId);
+            .eq("subject_class_id", subjectClassId)
+            .eq('school_id', schoolId);
 
         if (sessionId) query = query.eq("session_id", sessionId);
         if (termId) query = query.eq("term_id", termId);
@@ -129,7 +137,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
         const { data: allSessions } = await supabase
             .from("results")
             .select(`session_id, total, sessions(name)`)
-            .eq("subject_class_id", subjectClassId);
+            .eq("subject_class_id", subjectClassId)
+            .eq('school_id', schoolId);
 
         const grouped = allSessions?.reduce((acc: any, r: any) => {
             if (!acc[r.session_id]) acc[r.session_id] = { name: r.sessions.name, scores: [] };
@@ -150,7 +159,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 .from("results")
                 .select(`*, terms(name), students(first_name, last_name, student_id)`)
                 .eq("subject_class_id", subjectClassId)
-                .eq("session_id", sessionId);
+                .eq("session_id", sessionId)
+                .eq('school_id', schoolId);
 
             const byTerm: any = {};
             termResults?.forEach((r: any) => {
@@ -168,7 +178,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
                 .from("results")
                 .select(`term_id, total, terms(name)`)
                 .eq("subject_class_id", subjectClassId)
-                .eq("session_id", sessionId);
+                .eq("session_id", sessionId)
+                .eq('school_id', schoolId);
 
             const groupedTerms = termData?.reduce((acc: any, r: any) => {
                 if (!acc[r.term_id]) acc[r.term_id] = { name: r.terms.name, scores: [] };
@@ -200,13 +211,15 @@ export default function SubjectAnalyticsPage({ params }: any) {
     }
 
     async function loadGenderComparison(subjectClassId: string) {
+        if (!schoolId) return;
         const { data } = await supabase
             .from("results")
             .select(`
             total,
             students (gender)
         `)
-            .eq("subject_class_id", subjectClassId);
+            .eq("subject_class_id", subjectClassId)
+            .eq('school_id', schoolId);
 
         if (!data) return;
 
@@ -252,6 +265,16 @@ export default function SubjectAnalyticsPage({ params }: any) {
         grade: g,
         count: results.filter((r) => r.grade === g).length,
     }));
+
+    if (schoolLoading || isLoading) {
+        return (
+            <DashboardLayout role="teacher">
+                <div className="flex items-center justify-center min-h-[400px]">
+                    <p className="text-gray-500">Loading analytics...</p>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout role="teacher">

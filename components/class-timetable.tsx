@@ -39,6 +39,7 @@ interface ClassTimetableProps {
   className?: string;
   showExportButtons?: boolean;
   onEntryClick?: (entry: TimetableEntry | null, periodSlotId: string, day: string) => void;
+  schoolId?: string | null;
 }
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -48,6 +49,7 @@ export function ClassTimetable({
   className,
   showExportButtons = true,
   onEntryClick,
+  schoolId,
 }: ClassTimetableProps) {
   const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
@@ -62,7 +64,7 @@ export function ClassTimetable({
 
   async function fetchTimetable() {
     setLoading(true);
-    const { data: entries } = await supabase
+    let query = supabase
       .from("timetable_entries")
       .select(`
         *,
@@ -75,7 +77,13 @@ export function ClassTimetable({
           teachers ( first_name, last_name )
         )
       `)
-      .eq("class_id", classId)
+      .eq("class_id", classId);
+
+    if (schoolId) {
+      query = query.eq("school_id", schoolId);
+    }
+
+    const { data: entries } = await query;
       
     // Extract unique period slots from entries
     const slots: PeriodSlot[] = [];

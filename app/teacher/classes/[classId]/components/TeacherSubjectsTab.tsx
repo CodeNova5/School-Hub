@@ -37,12 +37,14 @@ interface TeacherSubjectsTabProps {
   classId: string;
   subjects: SubjectClass[];
   onRefresh: () => void;
+  schoolId?: string | null;
 }
 
 export default function TeacherSubjectsTab({
   classId,
   subjects,
   onRefresh,
+  schoolId,
 }: TeacherSubjectsTabProps) {
   const [search, setSearch] = useState("");
 

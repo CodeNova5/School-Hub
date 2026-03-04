@@ -14,9 +14,10 @@ interface StudentSubjectsModalProps {
   student: Student | null;
   open: boolean;
   onClose: () => void;
+  schoolId?: string | null;
 }
 
-export function StudentSubjectsModal({ student, open, onClose }: StudentSubjectsModalProps) {
+export function StudentSubjectsModal({ student, open, onClose, schoolId }: StudentSubjectsModalProps) {
   const [requiredSubjects, setRequiredSubjects] = useState<Subject[]>([]);
   const [optionalSubjects, setOptionalSubjects] = useState<Subject[]>([]);
   const [religionSubject, setReligionSubject] = useState<Subject | null>(null);
@@ -54,10 +55,16 @@ export function StudentSubjectsModal({ student, open, onClose }: StudentSubjects
       setReligionSubject(religion || null);
 
       // 2. Load previously selected optional subjects
-      const { data: optionalSelected } = await supabase
+      let query = supabase
         .from("student_optional_subjects")
         .select("subject_id")
         .eq("student_id", student.id);
+
+      if (schoolId) {
+        query = query.eq("school_id", schoolId);
+      }
+
+      const { data: optionalSelected } = await query;
 
       if (optionalSelected) {
         setSelectedOptional(optionalSelected.map((s) => s.subject_id));
@@ -83,15 +90,22 @@ export function StudentSubjectsModal({ student, open, onClose }: StudentSubjects
     setIsSaving(true);
     try {
       // clear old optional selections
-      await supabase
+      let deleteQuery = supabase
         .from("student_optional_subjects")
         .delete()
         .eq("student_id", student.id);
+
+      if (schoolId) {
+        deleteQuery = deleteQuery.eq("school_id", schoolId);
+      }
+
+      await deleteQuery;
 
       // save new selections
       const records = selectedOptional.map((subjectId) => ({
         student_id: student.id,
         subject_id: subjectId,
+        school_id: schoolId,
       }));
 
       if (records.length > 0) {

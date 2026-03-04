@@ -33,6 +33,7 @@ interface ResultsPublicationDialogProps {
   sessionId: string;
   termId: string;
   onPublish?: () => void;
+  schoolId?: string | null;
 }
 
 interface PublicationSettings {
@@ -62,6 +63,7 @@ export function ResultsPublicationDialog({
   sessionId,
   termId,
   onPublish,
+  schoolId,
 }: ResultsPublicationDialogProps) {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -86,12 +88,18 @@ export function ResultsPublicationDialog({
   async function loadPublicationSettings() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("results_publication")
         .select("*")
         .eq("class_id", classId)
         .eq("session_id", sessionId)
         .eq("term_id", termId);
+
+      if (schoolId) {
+        query = query.eq("school_id", schoolId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -109,10 +117,16 @@ export function ResultsPublicationDialog({
     setChecking(true);
     try {
       // Get all students in this class
-      const { data: students, error: studentsError } = await supabase
+      let studentsQuery = supabase
         .from("students")
         .select("id, student_id, first_name, last_name")
         .eq("class_id", classId);
+
+      if (schoolId) {
+        studentsQuery = studentsQuery.eq("school_id", schoolId);
+      }
+
+      const { data: students, error: studentsError } = await studentsQuery;
 
       if (studentsError) throw studentsError;
 
@@ -122,7 +136,7 @@ export function ResultsPublicationDialog({
       }
 
       // Get all results for this class/session/term
-      const { data: results, error: resultsError } = await supabase
+      let resultsQuery = supabase
         .from("results")
         .select(`
           student_id,
@@ -134,6 +148,12 @@ export function ResultsPublicationDialog({
         `)
         .eq("session_id", sessionId)
         .eq("term_id", termId);
+
+      if (schoolId) {
+        resultsQuery = resultsQuery.eq("school_id", schoolId);
+      }
+
+      const { data: results, error: resultsError } = await resultsQuery;
 
       if (resultsError) throw resultsError;
 
@@ -357,12 +377,13 @@ export function ResultsPublicationDialog({
         is_published_to_parents: settings.is_published_to_parents,
         calculation_mode: settings.calculation_mode,
         published_at: settings.is_published ? new Date().toISOString() : null,
+        school_id: schoolId,
       };
 
       const { error } = await supabase
         .from("results_publication")
         .upsert(publicationData, {
-          onConflict: 'class_id,session_id,term_id'
+          onConflict: 'class_id,session_id,term_id,school_id'
         });
 
       if (error) throw error;
@@ -385,10 +406,16 @@ export function ResultsPublicationDialog({
 
   async function recalculatePositions() {
     // Get all students in this class
-    const { data: students, error: studentsError } = await supabase
+    let studentsQuery = supabase
       .from("students")
       .select("id")
       .eq("class_id", classId);
+
+    if (schoolId) {
+      studentsQuery = studentsQuery.eq("school_id", schoolId);
+    }
+
+    const { data: students, error: studentsError } = await studentsQuery;
 
     if (studentsError) throw studentsError;
 
@@ -397,11 +424,17 @@ export function ResultsPublicationDialog({
     }
 
     // Fetch actual results data to calculate scores based on mode
-    const { data: resultsData, error: resultsError } = await supabase
+    let resultsQuery = supabase
       .from("results")
       .select("student_id, welcome_test, mid_term_test, vetting, exam, subject_class:subject_classes!inner(class_id)")
       .eq("term_id", termId)
       .eq("session_id", sessionId);
+
+    if (schoolId) {
+      resultsQuery = resultsQuery.eq("school_id", schoolId);
+    }
+
+    const { data: resultsData, error: resultsError } = await resultsQuery;
 
     if (resultsError) throw resultsError;
 
@@ -484,7 +517,7 @@ export function ResultsPublicationDialog({
 
     // Update all results for each student with their position
     const updatePromises = positionUpdates.map(async ({ studentId, position }) => {
-      const { error } = await supabase
+      let updateQuery = supabase
         .from("results")
         .update({
           class_position: position,
@@ -494,6 +527,12 @@ export function ResultsPublicationDialog({
         .eq("student_id", studentId)
         .eq("term_id", termId)
         .eq("session_id", sessionId);
+
+      if (schoolId) {
+        updateQuery = updateQuery.eq("school_id", schoolId);
+      }
+
+      const { error } = await updateQuery;
 
       if (error) throw error;
     });

@@ -13,6 +13,7 @@ import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon } f
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 export default function TeacherStudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -25,6 +26,7 @@ export default function TeacherStudentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
@@ -48,7 +50,7 @@ export default function TeacherStudentsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -105,6 +107,7 @@ export default function TeacherStudentsPage() {
   }, [applyFilters]);
 
   async function loadData() {
+    if (!schoolId) return;
     setIsLoading(true);
     try {
       const user = await getCurrentUser();
@@ -123,7 +126,8 @@ export default function TeacherStudentsPage() {
       const { data: subjectClasses, error: scErr } = await supabase
         .from("subject_classes")
         .select("id, class_id")
-        .eq("teacher_id", teacher.id);
+        .eq("teacher_id", teacher.id)
+        .eq("school_id", schoolId);
 
       if (!subjectClasses || subjectClasses.length === 0) {
         toast.error("No subjects assigned to you");
@@ -139,7 +143,8 @@ export default function TeacherStudentsPage() {
       const { data: studentSubjects, error: ssErr } = await supabase
         .from("student_subjects")
         .select("student_id")
-        .in("subject_class_id", subjectClassIds);
+        .in("subject_class_id", subjectClassIds)
+        .eq("school_id", schoolId);
 
       if (!studentSubjects || studentSubjects.length === 0) {
         toast.error("No students enrolled in your subjects");
@@ -154,10 +159,11 @@ export default function TeacherStudentsPage() {
           .from('students')
           .select('*')
           .in('id', studentIds)
+          .eq('school_id', schoolId)
           .order('first_name'),
-        supabase.from('sessions').select('*').order('name', { ascending: false }),
-        supabase.from('terms').select('*').order('start_date', { ascending: false }),
-        supabase.from('classes').select('*').order('name'),
+        supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
+        supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
+        supabase.from('classes').select('*').eq('school_id', schoolId).order('name'),
       ]);
       if (studentsRes.data) setStudents(studentsRes.data);
 
@@ -169,7 +175,8 @@ export default function TeacherStudentsPage() {
         const { data, error } = await supabase
           .from("attendance")
           .select("*")
-          .in("student_id", studentIds);
+          .in("student_id", studentIds)
+          .eq("school_id", schoolId);
 
         if (error) throw error;
         attendance = data;
@@ -237,7 +244,7 @@ export default function TeacherStudentsPage() {
 
   const uniqueDepartments = Array.from(new Set(students.map((s) => s.department).filter(Boolean)));
 
-  if (isLoading) {
+  if (schoolLoading || isLoading) {
     return (
       <DashboardLayout role="teacher">
         <div className="flex items-center justify-center h-96">

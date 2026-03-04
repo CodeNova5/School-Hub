@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Session, Term } from "@/lib/types";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 export default function TeacherStudentReportPage() {
   const params = useParams();
@@ -34,9 +35,11 @@ export default function TeacherStudentReportPage() {
   const [selectedTermId, setSelectedTermId] = useState(termId || "");
   const [canEdit, setCanEdit] = useState(false);
   const [isStudentInTeacherClass, setIsStudentInTeacherClass] = useState(false);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     async function loadStudentData() {
+      if (!schoolId) return;
       setLoading(true);
       try {
         // Get current teacher
@@ -59,6 +62,7 @@ export default function TeacherStudentReportPage() {
           .from("students")
           .select("first_name, last_name, class_id")
           .eq("id", studentId)
+          .eq("school_id", schoolId)
           .single();
 
         if (studentError || !studentData) {
@@ -73,7 +77,8 @@ export default function TeacherStudentReportPage() {
         const { data: teacherClasses, error: classError } = await supabase
           .from("classes")
           .select("id")
-          .eq("class_teacher_id", teacher.id);
+          .eq("class_teacher_id", teacher.id)
+          .eq("school_id", schoolId);
 
         if (classError) {
           console.error("Error fetching teacher classes:", classError);
@@ -98,6 +103,7 @@ export default function TeacherStudentReportPage() {
           .from("sessions")
           .select("*")
           .eq("is_current", true)
+          .eq("school_id", schoolId)
           .single();
 
         if (!sessionsData) {
@@ -112,6 +118,7 @@ export default function TeacherStudentReportPage() {
           .from("terms")
           .select("*")
           .eq("session_id", sessionsData.id)
+          .eq("school_id", schoolId)
           .order("start_date", { ascending: false });
 
         setTerms(termsData || []);
@@ -134,9 +141,9 @@ export default function TeacherStudentReportPage() {
     if (studentId) {
       loadStudentData();
     }
-  }, [studentId, sessionId, termId, router]);
+  }, [studentId, sessionId, termId, router, schoolId]);
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="flex items-center justify-center h-96">

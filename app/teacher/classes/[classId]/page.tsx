@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ArrowLeft, Users, BookOpen, UserCheck, BarChart3, Loader2, CalendarDays } from "lucide-react";
 import { Student as StudentType, Session, Term } from "@/lib/types";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import TeacherSubjectsTab from "./components/TeacherSubjectsTab";
 import TeacherStudentsTab from "./components/TeacherStudentsTab";
 import TeacherAttendanceTab from "./components/TeacherAttendanceTab";
@@ -78,18 +79,20 @@ export default function TeacherClassManagement({ params }: PageProps) {
   const [subjectsLoading, setSubjectsLoading] = useState(false);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("subjects");
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     loadInitialData();
-  }, [classId]);
+  }, [classId, schoolId]);
 
   async function loadInitialData() {
+    if (!schoolId) return;
     try {
       setLoading(true);
       const [classResult, sessionsResult, termsResult] = await Promise.all([
-        supabase.from('classes').select('*').eq('id', classId).single(),
-        supabase.from('sessions').select('*'),
-        supabase.from('terms').select('*')
+        supabase.from('classes').select('*').eq('id', classId).eq('school_id', schoolId).single(),
+        supabase.from('sessions').select('*').eq('school_id', schoolId),
+        supabase.from('terms').select('*').eq('school_id', schoolId)
       ]);
 
       if (classResult.data) setClassData(classResult.data);
@@ -105,11 +108,13 @@ export default function TeacherClassManagement({ params }: PageProps) {
           supabase
             .from('subject_classes')
             .select(`id, subject_code, subject:subjects(id, name, is_optional, religion, department), teacher:teachers(id, first_name, last_name)`)
-            .eq('class_id', classId),
+            .eq('class_id', classId)
+            .eq('school_id', schoolId),
           supabase
             .from('students')
             .select('*')
             .eq('class_id', classId)
+            .eq('school_id', schoolId)
         ]);
 
         if (subjectsResult.data) {
@@ -138,12 +143,14 @@ export default function TeacherClassManagement({ params }: PageProps) {
   }
 
   async function fetchClassSubjects() {
+    if (!schoolId) return;
     setSubjectsLoading(true);
     try {
       const { data, error } = await supabase
         .from('subject_classes')
         .select(`id, subject_code, subject:subjects(id, name, is_optional, religion, department), teacher:teachers(id, first_name, last_name)`)
-        .eq('class_id', classId);
+        .eq('class_id', classId)
+        .eq('school_id', schoolId);
       const formatted: SubjectClass[] = (data || []).map((item: any) => ({
         id: item.id,
         subject_code: item.subject_code,
@@ -158,7 +165,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
     }
   }
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="space-y-8">
@@ -287,6 +294,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
                   classId={classId}
                   subjects={subjects}
                   onRefresh={fetchClassSubjects}
+                  schoolId={schoolId}
                 />
               )}
             </TabsContent>
@@ -306,6 +314,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
                   students={students}
                   sessions={sessions}
                   terms={terms}
+                  schoolId={schoolId!}
                 />
               )}
             </TabsContent>
@@ -313,6 +322,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
             <TeacherTimetableTab
               classId={classId}
               className={classData.name}
+              schoolId={schoolId!}
             />
           </TabsContent>
 
@@ -321,6 +331,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
               classId={classId}
               className={classData.name}
               students={students}
+              schoolId={schoolId!}
             />
           </TabsContent>
 
@@ -329,6 +340,7 @@ export default function TeacherClassManagement({ params }: PageProps) {
               classId={classId}
               className={classData.name}
               students={students}
+              schoolId={schoolId!}
             />
           </TabsContent>
         </Tabs>

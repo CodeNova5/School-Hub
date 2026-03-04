@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import ResultEntry from "@/components/ResultEntry";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 function ResultEntryContent() {
   const searchParams = useSearchParams();
@@ -16,9 +17,11 @@ function ResultEntryContent() {
   const [terms, setTerms] = useState<any[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [selectedTermId, setSelectedTermId] = useState("");
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     async function checkClassTeacher() {
+      if (!schoolId) return;
       setLoading(true);
       const user = await getCurrentUser();
       if (!user || user.user_metadata?.role !== "teacher") {
@@ -39,8 +42,9 @@ function ResultEntryContent() {
         .from("classes")
         .select("id")
         .eq("class_teacher_id", teacher.id)
+        .eq("school_id", schoolId);
 
-      if (classData) {
+      if (classData && classData.length > 0) {
         setIsClassTeacher(true);
         setTeacherName(teacher.first_name + " " + teacher.last_name);
       } else {
@@ -49,13 +53,16 @@ function ResultEntryContent() {
       setLoading(false);
     }
     async function fetchSessionsAndTerms() {
+      if (!schoolId) return;
       const { data: sessionsData } = await supabase
         .from("sessions")
         .select("*")
+        .eq("school_id", schoolId)
         .order("name", { ascending: false });
       const { data: termsData } = await supabase
         .from("terms")
         .select("*")
+        .eq("school_id", schoolId)
         .order("start_date", { ascending: false });
       setSessions(sessionsData || []);
       setTerms(termsData || []);
@@ -69,7 +76,7 @@ function ResultEntryContent() {
       checkClassTeacher();
       fetchSessionsAndTerms();
     }
-  }, [studentId]);
+  }, [studentId, schoolId]);
 
   if (!studentId) {
     return (
@@ -81,7 +88,7 @@ function ResultEntryContent() {
     );
   }
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="flex items-center justify-center h-96">

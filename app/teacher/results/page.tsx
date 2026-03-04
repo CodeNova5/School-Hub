@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { Save, Loader2, ArrowLeft, BookOpen, Users, GraduationCap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 interface SubjectClass {
   id: string;
@@ -43,10 +44,11 @@ export default function SubjectResultEntryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [teacherName, setTeacherName] = useState('');
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     loadTeacherSubjects();
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => {
     if (selectedSubjectClassId) {
@@ -69,6 +71,7 @@ export default function SubjectResultEntryPage() {
 
 
   async function loadTeacherSubjects() {
+    if (!schoolId) return;
     setIsLoading(true);
     try {
       const user = await getCurrentUser();
@@ -88,7 +91,8 @@ export default function SubjectResultEntryPage() {
           subjects (name, is_optional, department), 
           classes (name)
         `)
-        .eq('teacher_id', teacher.id);
+        .eq('teacher_id', teacher.id)
+        .eq('school_id', schoolId);
       if (!subjectClassesData || subjectClassesData.length === 0) {
         toast.error('No subject assignments found for you.');
         setIsLoading(false);
@@ -111,6 +115,7 @@ export default function SubjectResultEntryPage() {
   }
 
   async function loadStudentsForSubjectClass(subjectClassId: string) {
+    if (!schoolId) return;
     setIsLoading(true);
     try {
       // Get subject_class info
@@ -123,6 +128,7 @@ export default function SubjectResultEntryPage() {
         .select('*')
         .eq('class_id', subjectClass.class_id)
         .eq('status', 'active')
+        .eq('school_id', schoolId)
         .order('first_name');
 
       // Get optional subjects enrollment if needed
@@ -131,7 +137,8 @@ export default function SubjectResultEntryPage() {
         const { data: optionalSubjectRows } = await supabase
           .from('student_optional_subjects')
           .select('student_id')
-          .eq('subject_id', subjectClass.subject_id);
+          .eq('subject_id', subjectClass.subject_id)
+          .eq('school_id', schoolId);
         optionalSubjectIds = (optionalSubjectRows || []).map(row => row.student_id);
       }
 
@@ -154,11 +161,13 @@ export default function SubjectResultEntryPage() {
         .from('sessions')
         .select('*')
         .eq('is_current', true)
+        .eq('school_id', schoolId)
         .single();
       const { data: termData } = await supabase
         .from('terms')
         .select('*')
         .eq('is_current', true)
+        .eq('school_id', schoolId)
         .single();
       let existingResults: any[] = [];
       if (sessionData && termData) {
@@ -167,7 +176,8 @@ export default function SubjectResultEntryPage() {
           .select('*')
           .eq('subject_class_id', subjectClassId)
           .eq('session_id', sessionData.id)
-          .eq('term_id', termData.id);
+          .eq('term_id', termData.id)
+          .eq('school_id', schoolId);
         existingResults = resultsData || [];
       }
       // Build student scores
@@ -247,7 +257,7 @@ export default function SubjectResultEntryPage() {
   }
 
   async function handleSave() {
-    if (!selectedSubjectClassId) return;
+    if (!selectedSubjectClassId || !schoolId) return;
     setIsSaving(true);
     try {
       const user = await getCurrentUser();
@@ -256,11 +266,13 @@ export default function SubjectResultEntryPage() {
         .from('sessions')
         .select('*')
         .eq('is_current', true)
+        .eq('school_id', schoolId)
         .single();
       const { data: termData } = await supabase
         .from('terms')
         .select('*')
         .eq('is_current', true)
+        .eq('school_id', schoolId)
         .single();
       if (!sessionData || !termData) {
         toast.error('No active session or term');
@@ -281,9 +293,10 @@ export default function SubjectResultEntryPage() {
         remark: s.remark,
         class_teacher_name: teacherName,
         entered_by: teacher?.id,
+        school_id: schoolId,
       }));
       const { error } = await supabase.from('results').upsert(records, {
-        onConflict: 'student_id,subject_class_id,session_id,term_id',
+        onConflict: 'student_id,subject_class_id,session_id,term_id,school_id',
       });
       if (error) throw error;
       toast.success('Subject results saved successfully');

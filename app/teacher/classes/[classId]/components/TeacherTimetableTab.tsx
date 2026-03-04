@@ -6,11 +6,13 @@ import { Card } from "@/components/ui/card";
 interface TeacherTimetableTabProps {
   classId: string;
   className: string;
+  schoolId?: string | null;
 }
 
 export default function TeacherTimetableTab({
   classId,
   className,
+  schoolId,
 }: TeacherTimetableTabProps) {
   return (
     <Card className="overflow-hidden">
@@ -19,6 +21,7 @@ export default function TeacherTimetableTab({
           classId={classId} 
           className={className}
           showExportButtons={true}
+          schoolId={schoolId}
         />
       </div>
     </Card>

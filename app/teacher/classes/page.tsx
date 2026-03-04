@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ChevronRight, AlertCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 type ClassData = {
   id: string;
   name: string;
@@ -44,12 +45,14 @@ export default function TeacherClassesPage() {
   const [teacherId, setTeacherId] = useState<string | null>(null);
   const [assignedClasses, setAssignedClasses] = useState<ClassData[]>([]);
   const [loading, setLoading] = useState(true);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     fetchTeacherAndClasses();
-  }, []);
+  }, [schoolId]);
 
   async function fetchTeacherAndClasses() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -67,6 +70,7 @@ export default function TeacherClassesPage() {
         .from('teachers')
         .select('id')
         .eq('user_id', user.id)
+        .eq('school_id', schoolId)
         .single();
 
       if (teacherError || !teacherData?.id) {
@@ -82,6 +86,7 @@ export default function TeacherClassesPage() {
         .from('classes')
         .select('*')
         .eq('class_teacher_id', teacherData.id)
+        .eq('school_id', schoolId)
         .order('name', { ascending: true });
 
       if (classesError || !classes || classes.length === 0) {
@@ -99,7 +104,7 @@ export default function TeacherClassesPage() {
   }
 
   // Loading state
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="space-y-8">

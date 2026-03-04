@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 "use client";
 
 import { useState } from "react";
@@ -8,8 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Shield, Loader2 } from "lucide-react";
-
-export const dynamic = "force-dynamic";
 
 export default function AdminActivatePage() {
   const router = useRouter();

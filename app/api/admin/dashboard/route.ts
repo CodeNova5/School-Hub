@@ -1,79 +1,66 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-
-// Middleware to check if user is admin
-async function checkIsAdmin() {
-  const supabase = createRouteHandlerClient({ cookies });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { authorized: false, error: "Unauthorized", status: 401 };
-  }
-
-  const { data: isAdmin } = await supabase.rpc("is_admin");
-
-  if (!isAdmin) {
-    return { authorized: false, error: "Forbidden", status: 403 };
-  }
-
-  return { authorized: true };
-}
+import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
 
 // GET: Fetch dashboard statistics
 export async function GET(req: NextRequest) {
-  const permission = await checkIsAdmin();
+  const permission = await checkIsAdminWithSchool();
   if (!permission.authorized) {
-    return NextResponse.json(
-      { error: permission.error },
-      { status: permission.status }
-    );
+    return errorResponse(permission.error || "Unauthorized", permission.status || 401);
   }
+
+  const schoolId = permission.schoolId;
 
   try {
     const supabase = createRouteHandlerClient({ cookies });
 
-    // Get current session and term
+    // Get current session and term (filtered by school)
     const { data: currentSession } = await supabase
       .from("sessions")
       .select("*")
+      .eq("school_id", schoolId)
       .eq("is_current", true)
       .single();
 
     const { data: currentTerm } = await supabase
       .from("terms")
       .select("*")
+      .eq("school_id", schoolId)
       .eq("is_current", true)
       .single();
 
-    // 1. Total Students
+    // 1. Total Students (filtered by school)
     const { count: totalStudents } = await supabase
       .from("students")
       .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId)
       .eq("status", "active");
 
-    // 2. Active Teachers
+    // 2. Active Teachers (filtered by school)
     const { count: totalTeachers } = await supabase
       .from("teachers")
       .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId)
       .eq("status", "active");
 
-    // 3. Total Classes
+    // 3. Total Classes (filtered by school)
     const { count: totalClasses } = await supabase
       .from("classes")
-      .select("*", { count: "exact", head: true });
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId);
 
-    // 4. Total Subjects
+    // 4. Total Subjects (filtered by school)
     const { count: totalSubjects } = await supabase
       .from("subjects")
-      .select("*", { count: "exact", head: true });
+      .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId);
 
-    // 5. Attendance Rate (current term)
+    // 5. Attendance Rate (current term, filtered by school)
     const { data: attendanceData } = await supabase
       .from("attendance")
       .select("status")
+      .eq("school_id", schoolId)
       .eq("term_id", currentTerm?.id || "");
 
     const totalAttendance = attendanceData?.length || 0;
@@ -83,7 +70,7 @@ export async function GET(req: NextRequest) {
     const attendanceRate =
       totalAttendance > 0 ? (presentCount / totalAttendance) * 100 : 0;
 
-    // 6. Class Distribution (students per class)
+    // 6. Class Distribution (students per class, filtered by school)
     const { data: classDistribution } = await supabase
       .from("classes")
       .select(`
@@ -93,6 +80,7 @@ export async function GET(req: NextRequest) {
         education_level,
         students:students(count)
       `)
+      .eq("school_id", schoolId)
       .order("level");
 
     const classDistributionData = classDistribution?.map((cls) => ({
@@ -100,7 +88,7 @@ export async function GET(req: NextRequest) {
       value: cls.students?.[0]?.count || 0,
     })) || [];
 
-    // 7. Student Enrollment Trend (last 6 months from student created_at)
+    // 7. Student Enrollment Trend (last 6 months from student created_at, filtered by school)
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     sixMonthsAgo.setDate(1); // Start from first day of month
@@ -108,6 +96,7 @@ export async function GET(req: NextRequest) {
     const { data: enrollmentData } = await supabase
       .from("students")
       .select("created_at")
+      .eq("school_id", schoolId)
       .gte("created_at", sixMonthsAgo.toISOString())
       .order("created_at");
 
@@ -138,7 +127,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 8. Academic Performance by Class (current term)
+    // 8. Academic Performance by Class (current term, filtered by school)
     const { data: resultsData } = await supabase
       .from("results")
       .select(`
@@ -146,6 +135,7 @@ export async function GET(req: NextRequest) {
         student_id,
         students!inner(class_id, classes(name, level))
       `)
+      .eq("school_id", schoolId)
       .eq("term_id", currentTerm?.id || "");
 
     // Group by class and calculate averages
@@ -167,29 +157,33 @@ export async function GET(req: NextRequest) {
       })
     );
 
-    // 9. Recent Activities (last 10 events + admissions)
+    // 9. Recent Activities (last 10 events + admissions, filtered by school)
     const { data: recentEvents } = await supabase
       .from("events")
       .select("*")
+      .eq("school_id", schoolId)
       .order("created_at", { ascending: false })
       .limit(5);
 
     const { data: recentAdmissions } = await supabase
       .from("admissions")
       .select("*")
+      .eq("school_id", schoolId)
       .order("created_at", { ascending: false })
       .limit(5);
 
     const { data: recentStudents } = await supabase
       .from("students")
       .select("first_name, last_name, created_at, classes(name)")
+      .eq("school_id", schoolId)
       .order("created_at", { ascending: false })
       .limit(5);
 
-    // 10. System Status
+    // 10. System Status (filtered by school)
     const { data: todayAttendance } = await supabase
       .from("attendance")
       .select("status")
+      .eq("school_id", schoolId)
       .gte("date", new Date().toISOString().split("T")[0]);
 
     const absentToday =
@@ -197,16 +191,18 @@ export async function GET(req: NextRequest) {
     const lateToday =
       todayAttendance?.filter((a) => a.status === "late").length || 0;
 
-    // 11. Pending Admissions
+    // 11. Pending Admissions (filtered by school)
     const { count: pendingAdmissions } = await supabase
       .from("admissions")
       .select("*", { count: "exact", head: true })
+      .eq("school_id", schoolId)
       .eq("status", "pending");
 
-    // 12. Average Performance (current term)
+    // 12. Average Performance (current term, filtered by school)
     const { data: allResults } = await supabase
       .from("results")
       .select("total")
+      .eq("school_id", schoolId)
       .eq("term_id", currentTerm?.id || "");
 
     const totalScores = allResults?.reduce((sum, r) => sum + (r.total || 0), 0) || 0;
@@ -215,7 +211,7 @@ export async function GET(req: NextRequest) {
         ? Math.round((totalScores / allResults.length) * 10) / 10
         : 0;
 
-    // 13. Pass Rate (students with total >= 50)
+    // 13. Pass Rate (students with total >= 50, filtered by school)
     const passCount =
       allResults?.filter((r) => (r.total || 0) >= 50).length || 0;
     const passRate =
@@ -223,41 +219,35 @@ export async function GET(req: NextRequest) {
         ? Math.round((passCount / allResults.length) * 100 * 10) / 10
         : 0;
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        stats: {
-          totalStudents: totalStudents || 0,
-          totalTeachers: totalTeachers || 0,
-          totalClasses: totalClasses || 0,
-          totalSubjects: totalSubjects || 0,
-          attendanceRate: Math.round(attendanceRate * 10) / 10,
-          averagePerformance,
-          passRate,
-          pendingAdmissions: pendingAdmissions || 0,
-        },
-        classDistribution: classDistributionData,
-        enrollmentTrend: last6Months,
-        performanceByClass: performanceData,
-        recentActivities: {
-          events: recentEvents || [],
-          admissions: recentAdmissions || [],
-          students: recentStudents || [],
-        },
-        systemStatus: {
-          absentToday,
-          lateToday,
-          attendanceRate: Math.round(attendanceRate * 10) / 10,
-        },
-        currentSession,
-        currentTerm,
+    return successResponse({
+      stats: {
+        totalStudents: totalStudents || 0,
+        totalTeachers: totalTeachers || 0,
+        totalClasses: totalClasses || 0,
+        totalSubjects: totalSubjects || 0,
+        attendanceRate: Math.round(attendanceRate * 10) / 10,
+        averagePerformance,
+        passRate,
+        pendingAdmissions: pendingAdmissions || 0,
       },
+      classDistribution: classDistributionData,
+      enrollmentTrend: last6Months,
+      performanceByClass: performanceData,
+      recentActivities: {
+        events: recentEvents || [],
+        admissions: recentAdmissions || [],
+        students: recentStudents || [],
+      },
+      systemStatus: {
+        absentToday,
+        lateToday,
+        attendanceRate: Math.round(attendanceRate * 10) / 10,
+      },
+      currentSession,
+      currentTerm,
     });
   } catch (error: any) {
     console.error("Dashboard API Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch dashboard data" },
-      { status: 500 }
-    );
+    return errorResponse(error.message || "Failed to fetch dashboard data", 500);
   }
 }

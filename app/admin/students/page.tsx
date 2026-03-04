@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 import { Student, Session, Term, Class } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
@@ -24,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 
 export default function AdminStudentsPage() {
+  const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -82,8 +84,10 @@ export default function AdminStudentsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (schoolId) {
+      loadData();
+    }
+  }, [schoolId]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -142,12 +146,16 @@ export default function AdminStudentsPage() {
   async function loadData() {
     setIsLoading(true);
     try {
-      // Use Supabase client instead of API
+      if (!schoolId) {
+        throw new Error('School ID not available');
+      }
+
+      // Use Supabase client instead of API - ALL queries now filter by school_id
       const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }] = await Promise.all([
-        supabase.from('students').select('*').order('first_name', { ascending: true }),
-        supabase.from('sessions').select('*').order('name', { ascending: false }),
-        supabase.from('terms').select('*').order('start_date', { ascending: false }),
-        supabase.from('classes').select('*').order('name', { ascending: true }),
+        supabase.from('students').select('*').eq('school_id', schoolId).order('first_name', { ascending: true }),
+        supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
+        supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
+        supabase.from('classes').select('*').eq('school_id', schoolId).order('name', { ascending: true }),
       ]);
 
       if (studentsError || sessionsError || termsError || classesError) {
@@ -167,6 +175,7 @@ export default function AdminStudentsPage() {
         const { data: attendanceRes, error: attendanceError } = await supabase
           .from('attendance')
           .select('*')
+          .eq('school_id', schoolId)
           .in('student_id', studentIds);
 
         if (attendanceError) throw attendanceError;
@@ -212,10 +221,11 @@ export default function AdminStudentsPage() {
 
   async function handleViewDetails(student: Student) {
     try {
-      // Fetch attendance data for this student
+      // Fetch attendance data for this student - filtered by school_id
       const { data: attendance, error } = await supabase
         .from('attendance')
         .select('*')
+        .eq('school_id', schoolId)
         .eq('student_id', student.id);
 
       if (error) throw error;
@@ -458,11 +468,24 @@ export default function AdminStudentsPage() {
 
   const uniqueDepartments = Array.from(new Set(students.map((s) => s.department).filter(Boolean)));
 
-  if (isLoading) {
+  if (schoolLoading || isLoading) {
     return (
       <DashboardLayout role="admin">
         <div className="flex items-center justify-center h-96">
           <p className="text-gray-500">Loading students...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (schoolError || !schoolId) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
+            <p className="text-gray-600 text-sm mt-2">Please contact your administrator or try logging in again.</p>
+          </div>
         </div>
       </DashboardLayout>
     );

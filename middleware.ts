@@ -143,20 +143,9 @@ export async function middleware(req: NextRequest) {
   const isResetPasswordRoute = pathname === `${config.prefix}/reset-password`;
 
   // Allow unauthenticated access to login, activate, and reset-password
+  // Don't check session here to avoid cookie access in middleware for these public routes
+  // Client-side will handle redirects if user is already authenticated
   if (isLoginRoute || isActivateRoute || isResetPasswordRoute) {
-    const {
-      data: { session: loginSession },
-    } = await supabase.auth.getSession();
-
-    if (loginSession) {
-      const { data: canAccess } = await supabase.rpc(config.rpc);
-      if (canAccess) {
-        const redirectUrl = req.nextUrl.clone();
-        redirectUrl.pathname = config.dashboard;
-        redirectUrl.searchParams.delete("redirectedFrom");
-        return NextResponse.redirect(redirectUrl);
-      }
-    }
     return res;
   }
 

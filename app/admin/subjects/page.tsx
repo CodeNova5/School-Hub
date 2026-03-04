@@ -19,6 +19,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 const PREDEFINED_SUBJECTS = {
   'Pre-Primary': [

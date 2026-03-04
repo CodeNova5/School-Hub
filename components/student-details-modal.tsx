@@ -52,7 +52,7 @@ export function StudentDetailsModal({
       const { data } = await supabase
         .from("attendance")
         .select("*")
-        .eq("student_id", student.id);
+        .eq("student_id", student?.id);
 
       setRealAttendance(data || []);
     }

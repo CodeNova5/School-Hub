@@ -68,12 +68,19 @@ export default function TimetablePage() {
       if (!p.break) map[p.id] = { mon: null, tue: null, wed: null, thu: null, fri: null };
     });
 
-    data.forEach((entry) => {
+    interface TimetableEntry {
+      day_of_week: string;
+      period_number: number | string;
+      subjects?: { name: string };
+      teachers?: { first_name: string; last_name: string };
+    }
+
+    (data as TimetableEntry[]).forEach((entry) => {
       const dayKey = entry.day_of_week.toLowerCase().slice(0, 3); // mon, tue, ...
       if (!map[entry.period_number]) map[entry.period_number] = {};
       map[entry.period_number][dayKey] = {
-        subject: entry.subjects?.name,
-        teacher: entry.teachers ? `${entry.teachers.first_name} ${entry.teachers.last_name}` : null,
+      subject: entry.subjects?.name,
+      teacher: entry.teachers ? `${entry.teachers.first_name} ${entry.teachers.last_name}` : null,
       };
     });
 

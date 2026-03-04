@@ -30,6 +30,7 @@ import { getCurrentUser } from "@/lib/auth";
 import Link from "next/link";
 import { NotificationPermissionComponent } from "@/components/notification-permission";
 import { useNotificationSetup } from "@/hooks/use-notification-setup";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 interface StudentStats {
   totalAttendance: number;
@@ -64,11 +65,14 @@ export default function StudentDashboardPage() {
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [greeting, setGreeting] = useState("");
   const { syncNotificationToken } = useNotificationSetup({ role: "student" });
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    loadDashboardData();
+    if (!schoolLoading && schoolId) {
+      loadDashboardData();
+    }
     setGreeting(getGreeting());
-  }, []);
+  }, [schoolId, schoolLoading]);
 
   function getGreeting() {
     const hour = new Date().getHours();
@@ -78,6 +82,7 @@ export default function StudentDashboardPage() {
   }
 
   async function loadDashboardData() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -97,6 +102,7 @@ export default function StudentDashboardPage() {
         .from("terms")
         .select("id")
         .eq("is_current", true)
+        .eq("school_id", schoolId)
         .single();
         
       if (termError || !termData) {
@@ -119,6 +125,7 @@ export default function StudentDashboardPage() {
           )
         `)
         .eq("user_id", user.id)
+        .eq("school_id", schoolId)
         .single();
 
       if (studentError || !studentData) {
@@ -140,7 +147,8 @@ export default function StudentDashboardPage() {
       const { data: attendanceData } = await supabase
         .from("attendance")
         .select("status")
-        .eq("student_id", studentData.id);
+        .eq("student_id", studentData.id)
+        .eq("school_id", schoolId);
 
       let presentPercentage = 0;
       if (attendanceData && attendanceData.length > 0) {
@@ -156,6 +164,7 @@ export default function StudentDashboardPage() {
       const { data: eventsData } = await supabase
         .from("events")
         .select("*")
+        .eq("school_id", schoolId)
         .gt("start_date", new Date().toISOString());
 
       // Fetch assignments (upcoming)
@@ -163,6 +172,7 @@ export default function StudentDashboardPage() {
         .from("assignments")
         .select("*")
         .eq("class_id", classData?.id)
+        .eq("school_id", schoolId)
         .gt("due_date", new Date().toISOString());
 
       // Fetch results for average score - use termData.id directly, not state
@@ -174,13 +184,15 @@ export default function StudentDashboardPage() {
           .select("*")
           .eq("class_id", classData.id)
           .eq("term_id", termData.id)
+          .eq("school_id", schoolId)
           .single();
 
         const { data: resultsData, error: resultsError } = await supabase
           .from("results")
           .select("welcome_test, mid_term_test, vetting, exam")
           .eq("student_id", studentData.id)
-          .eq("term_id", termData.id);
+          .eq("term_id", termData.id)
+          .eq("school_id", schoolId);
         
         if (resultsError) {
           console.error("Error fetching results:", resultsError);
@@ -278,7 +290,7 @@ export default function StudentDashboardPage() {
     });
   };
 
-  if (loading) {
+  if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-screen">

@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 import { Session, Term } from "@/lib/types";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 export default function StudentResultPage() {
   const [loading, setLoading] = useState(true);
@@ -31,18 +32,22 @@ export default function StudentResultPage() {
   const [hasResults, setHasResults] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
   const [classId, setClassId] = useState<string>("");
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    loadStudentData();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      loadStudentData();
+    }
+  }, [schoolId, schoolLoading]);
 
   useEffect(() => {
-    if (studentId && selectedSessionId && selectedTermId) {
+    if (studentId && selectedSessionId && selectedTermId && schoolId) {
       checkForResults();
     }
-  }, [studentId, selectedSessionId, selectedTermId]);
+  }, [studentId, selectedSessionId, selectedTermId, schoolId]);
 
   async function loadStudentData() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -69,6 +74,7 @@ export default function StudentResultPage() {
           )
         `)
         .eq("user_id", user.id)
+        .eq("school_id", schoolId)
         .single();
 
       if (studentError || !studentData) {
@@ -87,11 +93,13 @@ export default function StudentResultPage() {
       const { data: sessionsData } = await supabase
         .from("sessions")
         .select("*")
+        .eq("school_id", schoolId)
         .order("name", { ascending: false });
 
       const { data: termsData } = await supabase
         .from("terms")
         .select("*")
+        .eq("school_id", schoolId)
         .order("start_date", { ascending: false });
 
       setSessions(sessionsData || []);
@@ -113,6 +121,7 @@ export default function StudentResultPage() {
   }
 
   async function checkForResults() {
+    if (!schoolId) return;
     try {
       // Check if results exist
       const { data: results } = await supabase
@@ -121,6 +130,7 @@ export default function StudentResultPage() {
         .eq("student_id", studentId)
         .eq("session_id", selectedSessionId)
         .eq("term_id", selectedTermId)
+        .eq("school_id", schoolId)
         .limit(1);
 
       setHasResults((results && results.length > 0) || false);
@@ -133,6 +143,7 @@ export default function StudentResultPage() {
           .eq("class_id", classId)
           .eq("session_id", selectedSessionId)
           .eq("term_id", selectedTermId)
+          .eq("school_id", schoolId)
           .single();
 
         setIsPublished(publication?.is_published || false);
@@ -146,7 +157,7 @@ export default function StudentResultPage() {
     }
   }
 
-  if (loading) {
+  if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center h-96">

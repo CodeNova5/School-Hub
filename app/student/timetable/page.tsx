@@ -11,6 +11,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { Calendar, Clock, BookOpen, GraduationCap, Download, Loader2, User } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -39,12 +40,16 @@ export default function StudentTimetablePage() {
   const [timetable, setTimetable] = useState<Record<string, Record<string, TimetableCell>>>({});
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
   const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    loadTimetable();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      loadTimetable();
+    }
+  }, [schoolId, schoolLoading]);
 
   async function loadTimetable() {
+    if (!schoolId) return;
     try {
       setLoading(true);
 
@@ -71,6 +76,7 @@ export default function StudentTimetablePage() {
           )
         `)
         .eq("user_id", user.id)
+        .eq("school_id", schoolId)
         .single();
 
       if (studentError || !student) {
@@ -86,7 +92,8 @@ export default function StudentTimetablePage() {
       const { data: studentSubjects, error: studentSubjectsError } = await supabase
         .from("student_subjects")
         .select("subject_class_id")
-        .eq("student_id", student.id);
+        .eq("student_id", student.id)
+        .eq("school_id", schoolId);
 
       if (studentSubjectsError) {
         console.error("Error fetching student subjects:", studentSubjectsError);
@@ -116,7 +123,8 @@ export default function StudentTimetablePage() {
             teachers ( first_name, last_name )
           )
         `)
-        .eq("class_id", student.class_id);
+        .eq("class_id", student.class_id)
+        .eq("school_id", schoolId);
 
       if (timetableError) {
         console.error("Error fetching timetable:", timetableError);
@@ -141,6 +149,7 @@ export default function StudentTimetablePage() {
       const { data: slotsData } = await supabase
         .from("period_slots")
         .select("*")
+        .eq("school_id", schoolId)
         .order("day_of_week, period_number");
 
       if (slotsData) {
@@ -339,7 +348,7 @@ export default function StudentTimetablePage() {
     };
   }, [timetable]);
 
-  if (loading) {
+  if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
         <div className="flex items-center justify-center min-h-[60vh]">

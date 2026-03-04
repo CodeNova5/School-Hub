@@ -7,9 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Upload, FileText, Calendar, Clock } from "lucide-react";
+import { Upload, FileText, Calendar, Clock, Loader2 } from "lucide-react";
 import GoogleDocsStyleEditor from "./GoogleDocsStyleEditor";
 import { FilePreview } from "./file-preview";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 export default function StudentAssignmentSubmission() {
   const { id } = useParams();
@@ -19,15 +20,19 @@ export default function StudentAssignmentSubmission() {
   const [content, setContent] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    supabase
-      .from("assignments")
-      .select("*")
-      .eq("id", id)
-      .single()
-      .then(({ data }) => setAssignment(data));
-  }, [id]);
+    if (!schoolLoading && schoolId) {
+      supabase
+        .from("assignments")
+        .select("*")
+        .eq("id", id)
+        .eq("school_id", schoolId)
+        .single()
+        .then(({ data }) => setAssignment(data));
+    }
+  }, [id, schoolId, schoolLoading]);
 
   async function handleSubmit() {
     if (assignment.submission_type !== "file" && !content.trim()) {
@@ -51,6 +56,7 @@ export default function StudentAssignmentSubmission() {
         .from("students")
         .select("id")
         .eq("user_id", session.user.id)
+        .eq("school_id", schoolId)
         .single();
 
       if (!student) throw new Error("Student record not found");
@@ -73,6 +79,7 @@ export default function StudentAssignmentSubmission() {
       await supabase.from("assignment_submissions").upsert({
         assignment_id: assignment.id,
         student_id: student.id,
+        school_id: schoolId,
         submission_text: assignment.submission_type !== "file" ? content : null,
         file_url: fileUrl,
       });
@@ -86,7 +93,13 @@ export default function StudentAssignmentSubmission() {
     }
   }
 
-  if (!assignment) return null;
+  if (schoolLoading || !assignment) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 pb-6 sm:pb-10">

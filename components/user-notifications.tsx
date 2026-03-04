@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 interface NotificationItem {
   id: string;
@@ -49,10 +50,13 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    fetchNotifications();
-  }, [role]);
+    if (!schoolLoading && schoolId) {
+      fetchNotifications();
+    }
+  }, [role, schoolId, schoolLoading]);
 
   const groupNotificationsByTime = (
     notifications: NotificationItem[]
@@ -94,6 +98,7 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
   };
 
   const fetchNotifications = async () => {
+    if (!schoolId) return;
     try {
       setLoading(true);
       setError(null);
@@ -101,6 +106,7 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
       const { data: notificationsData, error: fetchError } = await supabase
         .from("notification_logs")
         .select("*")
+        .eq("school_id", schoolId)
         .or(
           `and(target.eq.all),and(target.eq.role,target_value.eq.${role})`
         )
@@ -232,6 +238,14 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
       </div>
     );
   };
+
+  if (schoolLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <Skeleton className="h-12 w-12 rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 import { Loader2, Lock, Mail } from 'lucide-react';
 
 interface TeacherProfile {
@@ -23,12 +24,14 @@ export default function TeacherSettingsPage() {
   const [teacher, setTeacher] = useState<TeacherProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [resettingPassword, setResettingPassword] = useState(false);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     fetchTeacherProfile();
-  }, []);
+  }, [schoolId]);
 
   async function fetchTeacherProfile() {
+    if (!schoolId) return;
     try {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
@@ -45,6 +48,7 @@ export default function TeacherSettingsPage() {
         .from('teachers')
         .select('id, first_name, last_name, email, phone')
         .eq('user_id', user.id)
+        .eq('school_id', schoolId)
         .single();
 
       if (error || !teacherData) {
@@ -118,7 +122,7 @@ export default function TeacherSettingsPage() {
     }
   }
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="flex items-center justify-center min-h-screen">

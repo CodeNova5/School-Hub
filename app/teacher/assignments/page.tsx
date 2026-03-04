@@ -23,8 +23,10 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Loader2,
 } from "lucide-react";
 import { AssignmentFilters } from "@/components/AssignmentFilters";
+import { useSchoolContext } from "@/hooks/use-school-context";
 /* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -93,6 +95,7 @@ export default function AssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [filtered, setFiltered] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -139,7 +142,7 @@ export default function AssignmentsPage() {
   /* -------------------- Load assignments -------------------- */
 
   async function loadAssignments({ revalidate = true } = {}) {
-    if (!teacherId) return;
+    if (!teacherId || !schoolId) return;
 
     const cacheKey = getCacheKey(teacherId, page, filters);
     const cached = assignmentsCache.get(cacheKey);
@@ -162,12 +165,14 @@ export default function AssignmentsPage() {
         .from("sessions")
         .select("id")
         .eq("is_current", true)
+        .eq("school_id", schoolId)
         .single();
 
       const { data: currentTerm } = await supabase
         .from("terms")
         .select("id")
         .eq("is_current", true)
+        .eq("school_id", schoolId)
         .single();
 
       let query = supabase
@@ -181,7 +186,8 @@ export default function AssignmentsPage() {
       `,
           { count: "exact" }
         )
-        .eq("teacher_id", teacherId);
+        .eq("teacher_id", teacherId)
+        .eq("school_id", schoolId);
 
       /* -------------------- SERVER-SIDE FILTERS -------------------- */
       if (currentSession) {
@@ -248,7 +254,7 @@ export default function AssignmentsPage() {
 
   useEffect(() => {
     loadAssignments();
-  }, [page, teacherId, filters]);
+  }, [page, teacherId, filters, schoolId]);
 
 
   /* ---------------------------------------------------------------------- */
@@ -326,7 +332,8 @@ export default function AssignmentsPage() {
     const { error } = await supabase
       .from("assignments")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("school_id", schoolId);
 
     if (error) {
       // 4️⃣ Rollback on failure
@@ -351,6 +358,17 @@ export default function AssignmentsPage() {
     overdue: assignments.filter(a => a.isOverdue).length,
     noSubmissions: assignments.filter(a => a.submissionCount === 0).length,
   };
+
+  if (schoolLoading || loading) {
+    return (
+      <DashboardLayout role="teacher">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="ml-2 text-lg text-gray-600">Loading assignments...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="teacher">

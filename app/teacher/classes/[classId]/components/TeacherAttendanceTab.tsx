@@ -25,12 +25,14 @@ interface TeacherAttendanceTabProps {
   classId: string;
   className: string;
   students: Student[];
+  schoolId?: string | null;
 }
 
 export default function TeacherAttendanceTab({
   classId,
   className,
   students,
+  schoolId,
 }: TeacherAttendanceTabProps) {
   const [attendanceStudents, setAttendanceStudents] = useState<StudentAttendance[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -45,11 +47,17 @@ export default function TeacherAttendanceTab({
   async function fetchAttendance(date: string) {
     setAttendanceLoading(true);
     try {
-      const { data: attendanceData, error } = await supabase
+      let query = supabase
         .from("attendance")
         .select("*")
         .eq("class_id", classId)
         .eq("date", date);
+
+      if (schoolId) {
+        query = query.eq("school_id", schoolId);
+      }
+
+      const { data: attendanceData, error } = await query;
 
       const studentsWithAttendance: StudentAttendance[] = (students || []).map((student: any) => {
         const attendance = (Array.isArray(attendanceData) ? attendanceData : []).find(
@@ -163,11 +171,16 @@ export default function TeacherAttendanceTab({
         for (const record of attendanceRecords) {
           try {
             // Get student's parent email
-            const { data: student, error: studentError } = await supabase
+          let studentQuery = supabase
               .from("students")
               .select("parent_email, parent_name")
-              .eq("id", record.student_id)
-              .single();
+            .eq("id", record.student_id);
+
+          if (schoolId) {
+            studentQuery = studentQuery.eq("school_id", schoolId);
+          }
+
+          const { data: student, error: studentError } = await studentQuery.single();
   
             if (studentError) {
               console.error(`❌ Error fetching student ${record.student_id}:`, studentError);
@@ -186,10 +199,16 @@ export default function TeacherAttendanceTab({
             console.log(`🔍 Looking up parent account for email: ${student.parent_email}`);
   
             // Find parent user by email
-            const { data: parentArray, error: parentError } = await supabase
+            let parentQuery = supabase
               .from("parents")
               .select("user_id, id, is_active")
               .eq("email", student.parent_email);
+
+            if (schoolId) {
+              parentQuery = parentQuery.eq("school_id", schoolId);
+            }
+
+            const { data: parentArray, error: parentError } = await parentQuery;
   
             if (parentError) {
               console.error(
@@ -353,6 +372,7 @@ export default function TeacherAttendanceTab({
           date: selectedDate,
           status: student.attendanceStatus,
           marked_by: null,
+          school_id: schoolId,
         }));
 
       const existingRecords = attendanceStudents.filter((s) => s.attendanceId);
@@ -361,10 +381,16 @@ export default function TeacherAttendanceTab({
       if (existingRecords.length > 0) {
         const deleteIds = existingRecords.map((s) => s.attendanceId).filter(Boolean);
         if (deleteIds.length > 0) {
-          const { error: deleteError } = await supabase
+          let deleteQuery = supabase
             .from("attendance")
             .delete()
             .in("id", deleteIds);
+
+          if (schoolId) {
+            deleteQuery = deleteQuery.eq("school_id", schoolId);
+          }
+
+          const { error: deleteError } = await deleteQuery;
           if (deleteError) {
             throw deleteError;
           }

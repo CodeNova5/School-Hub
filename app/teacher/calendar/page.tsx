@@ -2,9 +2,10 @@
 
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar as CalendarIcon, Clock, MapPin, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, MapPin, Filter, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useSchoolContext } from '@/hooks/use-school-context';
 import { Event } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -17,24 +18,30 @@ export default function TeacherCalendarPage() {
   const [filterType, setFilterType] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [schoolId]);
 
   useEffect(() => {
     applyFilters();
   }, [events, searchTerm, filterType, selectedDate]);
 
   async function fetchEvents() {
+    if (!schoolId) return;
+    setIsLoading(true);
     const { data } = await supabase
       .from('events')
       .select('*')
+      .eq('school_id', schoolId)
       .order('start_date', { ascending: true });
     if (data) {
       setEvents(data);
       setFilteredEvents(data);
     }
+    setIsLoading(false);
   }
 
   function applyFilters() {
@@ -149,6 +156,18 @@ export default function TeacherCalendarPage() {
       selectedDate.getFullYear() === year
     );
   };
+
+  if (schoolLoading || isLoading) {
+    return (
+      <DashboardLayout role="teacher">
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="ml-2 text-gray-500">Loading calendar...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
 return (
   <DashboardLayout role="teacher">
     <div className="space-y-6 overflow-x-hidden">

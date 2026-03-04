@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { NotificationPermissionComponent } from "@/components/notification-permission";
 import { useNotificationSetup } from '@/hooks/use-notification-setup';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 interface TeacherStats {
   totalStudents: number;
@@ -83,10 +84,12 @@ export default function TeacherDashboard() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [teacherName, setTeacherName] = useState('');
   const { syncNotificationToken } = useNotificationSetup({ role: "teacher" });
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   // Load critical data first (header, stats, today's classes)
   useEffect(() => {
     async function fetchCriticalData() {
+      if (!schoolId) return;
       try {
         setLoading(true);
 
@@ -115,11 +118,13 @@ export default function TeacherDashboard() {
           supabase
             .from('classes')
             .select('id, name')
-            .eq('class_teacher_id', teacher.id),
+            .eq('class_teacher_id', teacher.id)
+            .eq('school_id', schoolId),
           supabase
             .from('students')
             .select('id, class_id')
             .eq('status', 'active')
+            .eq('school_id', schoolId)
         ]);
 
         if (classError) throw classError;
@@ -135,9 +140,10 @@ export default function TeacherDashboard() {
           supabase
             .from('subject_classes')
             .select(`id, subject_id, class_id, subjects(name), classes(name)`)
-            .eq('teacher_id', teacher.id),
-          supabase.from("sessions").select("id").eq("is_current", true).single(),
-          supabase.from("terms").select("id").eq("is_current", true).single()
+            .eq('teacher_id', teacher.id)
+            .eq('school_id', schoolId),
+          supabase.from("sessions").select("id").eq("is_current", true).eq('school_id', schoolId).single(),
+          supabase.from("terms").select("id").eq("is_current", true).eq('school_id', schoolId).single()
         ]);
 
         if (subjectError) throw subjectError;
@@ -146,7 +152,8 @@ export default function TeacherDashboard() {
         let assignmentQuery = supabase
           .from('assignments')
           .select(`id, title, due_date, subjects(name), assignment_submissions(id, grade)`)
-          .eq('teacher_id', teacher.id);
+          .eq('teacher_id', teacher.id)
+          .eq('school_id', schoolId);
 
         if (currentSession) {
           assignmentQuery = assignmentQuery.eq('session_id', currentSession.id);
@@ -193,6 +200,7 @@ export default function TeacherDashboard() {
           .from('period_slots')
           .select('id, start_time, end_time, day_of_week')
           .eq('day_of_week', today)
+          .eq('school_id', schoolId)
           .order('start_time', { ascending: true });
 
         if (periodSlotsError) throw periodSlotsError;
@@ -237,6 +245,7 @@ export default function TeacherDashboard() {
             ),
             period_slots(start_time, end_time)
           `)
+          .eq('school_id', schoolId)
           .in('period_slot_id', relevantPeriodIds);
 
         if (timetableError) throw timetableError;
@@ -282,7 +291,7 @@ export default function TeacherDashboard() {
     }
 
     fetchCriticalData();
-  }, []);
+  }, [schoolId]);
 
   // Load background data (events, activities, attendance) without blocking initial render
   const fetchBackgroundData = async (
@@ -291,12 +300,14 @@ export default function TeacherDashboard() {
     currentSession: any,
     currentTerm: any
   ) => {
+    if (!schoolId) return;
     try {
       // Fetch events
       setEventsLoading(true);
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
+        .eq('school_id', schoolId)
         .gte('start_date', new Date().toISOString())
         .order('start_date', { ascending: true })
         .limit(5);
@@ -329,6 +340,7 @@ export default function TeacherDashboard() {
           assignment_submissions(id)
         `)
         .eq('teacher_id', teacherId)
+        .eq('school_id', schoolId)
         .order('created_at', { ascending: false })
         .limit(4);
 
@@ -376,6 +388,7 @@ export default function TeacherDashboard() {
         const { data: attendanceData, error: attendanceError } = await supabase
           .from('attendance')
           .select('student_id, status')
+          .eq('school_id', schoolId)
           .in('class_id', classIds);
 
         if (!attendanceError && attendanceData) {
@@ -451,7 +464,7 @@ export default function TeacherDashboard() {
     }
   };
 
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="space-y-8">

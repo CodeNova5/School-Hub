@@ -22,6 +22,7 @@ interface TeacherStudentsTabProps {
   students: Student[];
   sessions: Session[];
   terms: Term[];
+  schoolId?: string | null;
 }
 
 export default function TeacherStudentsTab({
@@ -29,6 +30,7 @@ export default function TeacherStudentsTab({
   students,
   sessions,
   terms,
+  schoolId,
 }: TeacherStudentsTabProps) {
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState<"all" | "male" | "female">("all");
@@ -52,10 +54,16 @@ export default function TeacherStudentsTab({
   async function handleViewDetails(student: Student) {
     try {
       // Fetch attendance for this student
-      const { data: studentAttendance, error } = await supabase
+      let query = supabase
         .from("attendance")
         .select("*")
         .eq("student_id", student.id);
+
+      if (schoolId) {
+        query = query.eq("school_id", schoolId);
+      }
+
+      const { data: studentAttendance, error } = await query;
 
       if (error) {
         throw error;

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, BookOpen, Users, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 interface SubjectWithClasses extends Subject {
   applicableClasses: Class[];
@@ -26,11 +27,14 @@ export default function TeacherSubjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filterDepartment, setFilterDepartment] = useState('');
   const [filterOptional, setFilterOptional] = useState('');
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
+
   useEffect(() => {
     loadData();
-  }, []);
+  }, [schoolId]);
 
   async function loadData() {
+    if (!schoolId) return;
     setIsLoading(true);
     try {
       const user = await getCurrentUser();
@@ -56,7 +60,8 @@ export default function TeacherSubjectsPage() {
           subjects(id, name, education_level, department, religion, is_optional),
           classes(id, name, level, education_level, department)
         `)
-        .eq('teacher_id', teacher.id);
+        .eq('teacher_id', teacher.id)
+        .eq('school_id', schoolId);
 
       if (!subjectClassesData || subjectClassesData.length === 0) {
         toast.error('No subjects assigned to you');
@@ -96,7 +101,8 @@ export default function TeacherSubjectsPage() {
       const { data: teachersData } = await supabase
         .from('teachers')
         .select('*')
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .eq('school_id', schoolId);
       if (teachersData) setTeachers(teachersData);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
@@ -143,7 +149,7 @@ export default function TeacherSubjectsPage() {
     return acc;
   }, {} as Record<string, SubjectWithClasses[]>);
 
-  if (isLoading) {
+  if (schoolLoading || isLoading) {
     return (
       <DashboardLayout role="teacher">
         <div className="flex items-center justify-center h-96">

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { SubmissionModal } from "@/components/SubmissionModal";
 import { AssignmentModal } from "@/components/assignment-modal";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 /* ============================= PAGE ============================= */
 
@@ -27,6 +28,7 @@ export default function AssignmentDetailsPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   /* ===== Filters ===== */
   const [statusFilter, setStatusFilter] = useState<"all" | "graded" | "ungraded">("all");
@@ -38,12 +40,14 @@ export default function AssignmentDetailsPage() {
   const [openEditModal, setOpenEditModal] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (!schoolId) return;
     setLoading(true);
 
     const { data: assignmentData, error } = await supabase
       .from("assignments")
       .select("*, classes(name), subjects(name)")
       .eq("id", assignmentId)
+      .eq("school_id", schoolId)
       .single();
 
     if (error) {
@@ -55,12 +59,13 @@ export default function AssignmentDetailsPage() {
     const { data: submissionsData } = await supabase
       .from("assignment_submissions")
       .select("*, students(id, first_name, last_name)")
-      .eq("assignment_id", assignmentId);
+      .eq("assignment_id", assignmentId)
+      .eq("school_id", schoolId);
 
     setAssignment(assignmentData);
     setSubmissions(submissionsData || []);
     setLoading(false);
-  }, [assignmentId]);
+  }, [assignmentId, schoolId]);
 
   useEffect(() => {
     loadData();
@@ -114,6 +119,7 @@ export default function AssignmentDetailsPage() {
 
 
   async function saveGrade(submissionId: string) {
+    if (!schoolId) return;
     const entry = grading[submissionId];
     if (!entry?.grade) {
       toast.error("Enter a grade");
@@ -133,6 +139,7 @@ export default function AssignmentDetailsPage() {
         graded_by: user?.id,
       })
       .eq("id", submissionId)
+      .eq("school_id", schoolId)
       .select("*, students(id, first_name, last_name)")
       .single();
 
@@ -163,7 +170,7 @@ export default function AssignmentDetailsPage() {
     assignmentFileUrl
   )}&embedded=true`;
   
-  if (loading) {
+  if (schoolLoading || loading) {
     return (
       <DashboardLayout role="teacher">
         <div className="h-96 flex items-center justify-center text-muted-foreground">

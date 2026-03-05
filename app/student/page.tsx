@@ -153,7 +153,7 @@ export default function StudentDashboardPage() {
       let presentPercentage = 0;
       if (attendanceData && attendanceData.length > 0) {
         const present = attendanceData.filter(
-          (a) => a.status === "present" || a.status === "late"
+          (a: { status: string; }) => a.status === "present" || a.status === "late"
         ).length;
         presentPercentage = Math.round(
           ((present) / attendanceData.length) * 100
@@ -240,7 +240,7 @@ export default function StudentDashboardPage() {
 
       // Add recent assignments
       if (assignmentsData && assignmentsData.length > 0) {
-        assignmentsData.slice(0, 2).forEach((assignment) => {
+        assignmentsData.slice(0, 2).forEach((assignment: { id: any; title: any; due_date: any; }) => {
           activities.push({
             id: assignment.id,
             title: assignment.title,
@@ -254,7 +254,7 @@ export default function StudentDashboardPage() {
 
       // Add upcoming events
       if (eventsData && eventsData.length > 0) {
-        eventsData.slice(0, 2).forEach((event) => {
+        eventsData.slice(0, 2).forEach((event: { id: any; title: any; start_date: any; }) => {
           activities.push({
             id: event.id,
             title: event.title,

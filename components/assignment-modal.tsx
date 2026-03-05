@@ -131,7 +131,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
 
     const subjectsData = data
       .map((item: any) => item.subjects)
-      .filter((s): s is Subject => s !== null);
+      .filter((s: any): s is Subject => s !== null);
 
     setSubjects(subjectsData);
   }

@@ -209,7 +209,7 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
 
             if (scError) throw scError;
 
-            const subjectClassIds = subjectClasses?.map(sc => sc.id) || [];
+            const subjectClassIds = subjectClasses?.map((sc: any) => sc.id) || [];
 
             if (subjectClassIds.length === 0) {
                 setStudentResults([]);
@@ -347,7 +347,7 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
 
             if (scError) throw scError;
 
-            const subjectClassIds = subjectClasses?.map(sc => sc.id) || [];
+            const subjectClassIds = subjectClasses?.map((sc: any) => sc.id) || [];
 
             if (subjectClassIds.length === 0) {
                 setCumulativeResults([]);
@@ -671,7 +671,7 @@ export default function ResultsTab({ classId, className, students, schoolId }: R
 
             if (classScError) throw classScError;
 
-            const classSubjectClassIds = classSubjectClasses?.map(sc => sc.id) || [];
+            const classSubjectClassIds = classSubjectClasses?.map((sc: any) => sc.id) || [];
 
             if (classSubjectClassIds.length === 0) {
                 toast.error("No subject classes found for this class");

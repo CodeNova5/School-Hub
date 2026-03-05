@@ -106,8 +106,8 @@ export default function StudentResultPage() {
       setTerms(termsData || []);
 
       // Set current session and term as default
-      const currentSession = sessionsData?.find((s) => s.is_current);
-      const currentTerm = termsData?.find((t) => t.is_current);
+      const currentSession = sessionsData?.find((s: Session) => s.is_current);
+      const currentTerm = termsData?.find((t: Term) => t.is_current);
 
       if (currentSession) setSelectedSessionId(currentSession.id);
       if (currentTerm) setSelectedTermId(currentTerm.id);

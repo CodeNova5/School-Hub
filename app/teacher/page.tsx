@@ -130,7 +130,7 @@ export default function TeacherDashboard() {
         if (classError) throw classError;
         if (studentError) throw studentError;
 
-        const classIds = classes?.map(c => c.id) || [];
+        const classIds = classes?.map((c: { id: string }) => c.id) || [];
         const totalClasses = classIds.length;
         const students = studentsData || [];
         const totalStudents = students.length;
@@ -166,17 +166,17 @@ export default function TeacherDashboard() {
         if (assignmentError) throw assignmentError;
 
         const pendingAssignments = assignments?.filter(
-          a => new Date(a.due_date) > new Date()
+          (a: any) => new Date(a.due_date) > new Date()
         ).length || 0;
 
         const completedSubmissions = assignments?.reduce(
-          (sum, a) => sum + (a.assignment_submissions?.length || 0),
+          (sum: number, a: any) => sum + (a.assignment_submissions?.length || 0),
           0
         ) || 0;
 
         let totalScore = 0;
         let scoreCount = 0;
-        assignments?.forEach(a => {
+        assignments?.forEach((a: any) => {
           a.assignment_submissions?.forEach((sub: any) => {
             if (sub.grade !== null) {
               totalScore += sub.grade;
@@ -232,7 +232,7 @@ export default function TeacherDashboard() {
         const maxPeriodIndex = Math.min(currentPeriodIndex + 6, allPeriodSlots?.length || 0);
         const relevantPeriodIds = allPeriodSlots
           ?.slice(currentPeriodIndex, maxPeriodIndex)
-          .map(slot => slot.id) || [];
+          .map((slot: any) => slot.id) || [];
 
         const { data: timetableData, error: timetableError } = await supabase
           .from('timetable_entries')
@@ -260,7 +260,7 @@ export default function TeacherDashboard() {
             if (subjectClass?.teachers?.id === teacher.id) {
               const classData = entry.classes;
               const studentCount = students?.filter(
-                s => s.class_id === classData.id
+                (s: any) => s.class_id === classData.id
               ).length || 0;
 
               const startTime = entry.period_slots?.start_time || '';

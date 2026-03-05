@@ -71,8 +71,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
         setTerms(termData || []);
         setSubject(subjectClass || null);
 
-        const currentSession = sessionData?.find((s) => s.is_current);
-        const currentTerm = termData?.find((t) => t.is_current);
+        const currentSession = sessionData?.find((s: any) => s.is_current);
+        const currentTerm = termData?.find((t: any) => t.is_current);
 
         setSelectedSession(currentSession?.id || "");
         setSelectedTerm(currentTerm?.id || "");

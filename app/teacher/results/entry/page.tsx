@@ -67,8 +67,8 @@ function ResultEntryContent() {
       setSessions(sessionsData || []);
       setTerms(termsData || []);
       // Auto-select current session and term if available
-      const currentSession = sessionsData?.find((s) => s.is_current);
-      const currentTerm = termsData?.find((t) => t.is_current);
+      const currentSession = sessionsData?.find((s: any) => s.is_current);
+      const currentTerm = termsData?.find((t: any) => t.is_current);
       if (currentSession) setSelectedSessionId(currentSession.id);
       if (currentTerm) setSelectedTermId(currentTerm.id);
     }

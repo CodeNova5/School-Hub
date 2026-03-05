@@ -96,7 +96,7 @@ export default function TeacherTimetablePage() {
       }
 
       // Filter entries where this teacher is teaching
-      const teacherEntries = data.filter((entry) => {
+      const teacherEntries = data.filter((entry: any) => {
         const subjectClass = Array.isArray(entry.subject_classes)
           ? entry.subject_classes[0]
           : entry.subject_classes;

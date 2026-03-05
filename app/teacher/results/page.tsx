@@ -139,7 +139,7 @@ export default function SubjectResultEntryPage() {
           .select('student_id')
           .eq('subject_id', subjectClass.subject_id)
           .eq('school_id', schoolId);
-        optionalSubjectIds = (optionalSubjectRows || []).map(row => row.student_id);
+        optionalSubjectIds = (optionalSubjectRows || []).map((row: any) => row.student_id);
       }
 
       // Filter students based on department and optional enrollment

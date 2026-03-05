@@ -135,8 +135,8 @@ export default function TeacherStudentsPage() {
         return;
       }
 
-      const subjectClassIds = subjectClasses.map(sc => sc.id);
-      const classIds = Array.from(new Set(subjectClasses.map(sc => sc.class_id)));
+      const subjectClassIds = subjectClasses.map((sc: any) => sc.id);
+      const classIds = Array.from(new Set(subjectClasses.map((sc: any) => sc.class_id))) as string[];
       setTeacherClasses(classIds);
 
       // Get students who are taking the teacher's subjects
@@ -152,7 +152,7 @@ export default function TeacherStudentsPage() {
         return;
       }
 
-      let studentIds = Array.from(new Set(studentSubjects.map(ss => ss.student_id)));
+      let studentIds = Array.from(new Set(studentSubjects.map((ss: any) => ss.student_id)));
 
       const [studentsRes, sessionsRes, termsRes, classesRes] = await Promise.all([
         supabase
@@ -168,7 +168,7 @@ export default function TeacherStudentsPage() {
       if (studentsRes.data) setStudents(studentsRes.data);
 
       const studentList = studentsRes.data || [];
-      studentIds = studentList.map(s => s.id).filter(Boolean);
+      studentIds = studentList.map((s: any) => s.id).filter(Boolean);
 
       let attendance: any[] = [];
       if (studentIds.length > 0) {
@@ -182,7 +182,7 @@ export default function TeacherStudentsPage() {
         attendance = data;
       }
 
-      const studentsWithAttendance = studentList.map(student => {
+      const studentsWithAttendance = studentList.map((student: any) => {
         const records = attendance.filter(a => a.student_id === student.id) || [];
         const total = records.length;
         const present = records.filter(

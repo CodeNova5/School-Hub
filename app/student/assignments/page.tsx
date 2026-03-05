@@ -121,9 +121,9 @@ export default function StudentAssignmentsPage() {
 
       if (assignmentData) {
         setAssignments(assignmentData as any);
-        const uniqueSubjects = Array.from(new Set(assignmentData.map(a => a.subjects?.id)))
+        const uniqueSubjects = Array.from(new Set(assignmentData.map((a: { subjects: { id: any; }; }) => a.subjects?.id)))
           .map(id => {
-            return assignmentData.find(a => a.subjects?.id === id)?.subjects
+            return assignmentData.find((a: { subjects: { id: unknown; }; }) => a.subjects?.id === id)?.subjects
           })
           .filter(Boolean);
         setSubjects(uniqueSubjects as any);

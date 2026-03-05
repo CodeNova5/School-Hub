@@ -85,64 +85,64 @@ export default function ParentChildPage() {
 
       // Fetch additional data for each child
       const enrichedStudents = await Promise.all(
-        (students || []).map(async (student) => {
+        (students || []).map(async (student: Student) => {
           // Get attendance
           const { data: attendance } = await supabase
-            .from("attendance")
-            .select("status")
-            .eq("student_id", student.id);
+        .from("attendance")
+        .select("status")
+        .eq("student_id", student.id);
 
           const totalRecords = attendance?.length || 0;
           const presentRecords = attendance?.filter(
-            (a) => a.status === "present" || a.status === "late" || a.status === "excused"
+        (a: { status: string }) => a.status === "present" || a.status === "late" || a.status === "excused"
           ).length || 0;
 
           const average_attendance = totalRecords === 0 ? 0 : Math.round((presentRecords / totalRecords) * 100);
 
           // Get pending assignments
           const { data: studentSubjects } = await supabase
-            .from("student_subjects")
-            .select("subject_class_id")
-            .eq("student_id", student.id);
+        .from("student_subjects")
+        .select("subject_class_id")
+        .eq("student_id", student.id);
 
-          const subjectClassIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
+          const subjectClassIds = (studentSubjects as Array<{ subject_class_id: string }>)?.map(ss => ss.subject_class_id) || [];
 
           let pending_assignments = 0;
           if (subjectClassIds.length > 0) {
-            // Get subject IDs from subject_classes
-            const { data: subjectClasses } = await supabase
-              .from("subject_classes")
-              .select("subject_id")
-              .in("id", subjectClassIds);
+        // Get subject IDs from subject_classes
+        const { data: subjectClasses } = await supabase
+          .from("subject_classes")
+          .select("subject_id")
+          .in("id", subjectClassIds);
 
-            const subjectIds = subjectClasses?.map(sc => sc.subject_id) || [];
+        const subjectIds = (subjectClasses as Array<{ subject_id: string }>)?.map(sc => sc.subject_id) || [];
 
-            if (subjectIds.length > 0) {
-              const { data: assignments } = await supabase
-                .from("assignments")
-                .select("id")
-                .in("subject_id", subjectIds)
-                .gte("due_date", new Date().toISOString());
+        if (subjectIds.length > 0) {
+          const { data: assignments } = await supabase
+            .from("assignments")
+            .select("id")
+            .in("subject_id", subjectIds)
+            .gte("due_date", new Date().toISOString());
 
-              const assignmentIds = assignments?.map(a => a.id) || [];
+          const assignmentIds = (assignments as Array<{ id: string }>)?.map(a => a.id) || [];
 
-              if (assignmentIds.length > 0) {
-                const { data: submissions } = await supabase
-                  .from("assignment_submissions")
-                  .select("assignment_id")
-                  .eq("student_id", student.id)
-                  .in("assignment_id", assignmentIds);
+          if (assignmentIds.length > 0) {
+            const { data: submissions } = await supabase
+          .from("assignment_submissions")
+          .select("assignment_id")
+          .eq("student_id", student.id)
+          .in("assignment_id", assignmentIds);
 
-                const submittedIds = submissions?.map(s => s.assignment_id) || [];
-                pending_assignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
-              }
-            }
+            const submittedIds = (submissions as Array<{ assignment_id: string }>)?.map(s => s.assignment_id) || [];
+            pending_assignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+          }
+        }
           }
 
           return {
-            ...student,
-            average_attendance,
-            pending_assignments,
+        ...student,
+        average_attendance,
+        pending_assignments,
           };
         })
       );

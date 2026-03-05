@@ -52,7 +52,7 @@ export default function ParentStudentAssignmentsTab({ studentId }: ParentStudent
         .select("subject_class_id")
         .eq("student_id", studentId);
 
-      const subjectClassIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
+      const subjectClassIds = studentSubjects?.map((ss: any) => ss.subject_class_id) || [];
 
       // Get subject IDs from subject_classes
       let subjectIds: string[] = [];
@@ -62,7 +62,7 @@ export default function ParentStudentAssignmentsTab({ studentId }: ParentStudent
           .select("subject_id")
           .in("id", subjectClassIds);
         
-        subjectIds = subjectClasses?.map(sc => sc.subject_id) || [];
+        subjectIds = subjectClasses?.map((sc: any) => sc.subject_id) || [];
       }
 
       if (subjectIds.length === 0) {
@@ -82,7 +82,7 @@ export default function ParentStudentAssignmentsTab({ studentId }: ParentStudent
 
       // Get submissions for each assignment
       const enrichedAssignments = await Promise.all(
-        (assignmentsData || []).map(async (assignment) => {
+        (assignmentsData || []).map(async (assignment: { id: any; }) => {
           const { data: submissions } = await supabase
             .from("assignment_submissions")
             .select("*")

@@ -60,7 +60,7 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
         return;
       }
 
-      const enrolledSubjectClassIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
+      const enrolledSubjectClassIds = studentSubjects?.map((ss: { subject_class_id: any; }) => ss.subject_class_id) || [];
 
       if (enrolledSubjectClassIds.length === 0) {
         setIsLoading(false);
@@ -95,7 +95,7 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
       }
 
       // Filter entries to only include subjects the student is enrolled in
-      const studentTimetableEntries = timetableData.filter((entry) => {
+      const studentTimetableEntries = timetableData.filter((entry: { subject_classes: any[] }): boolean => {
         const subjectClass = Array.isArray(entry.subject_classes)
           ? entry.subject_classes[0]
           : entry.subject_classes;

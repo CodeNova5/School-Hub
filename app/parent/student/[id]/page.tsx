@@ -124,7 +124,7 @@ export default function ParentStudentDetailPage() {
 
       const totalRecords = attendance?.length || 0;
       const presentRecords = attendance?.filter(
-        a => a.status === "present" || a.status === "late" || a.status === "excused"
+        (a: any) => a.status === "present" || a.status === "late" || a.status === "excused"
       ).length || 0;
 
       const attendanceRate = totalRecords === 0 ? 0 : Math.round((presentRecords / totalRecords) * 100);
@@ -135,7 +135,7 @@ export default function ParentStudentDetailPage() {
         .select("subject_class_id")
         .eq("student_id", studentId);
 
-      const subjectClassIds = subjects?.map(s => s.subject_class_id) || [];
+      const subjectClassIds = subjects?.map((s: any) => s.subject_class_id) || [];
       const totalSubjects = subjectClassIds.length;
 
       // Get pending assignments
@@ -147,7 +147,7 @@ export default function ParentStudentDetailPage() {
           .select("subject_id")
           .in("id", subjectClassIds);
 
-        const subjectIds = subjectClasses?.map(sc => sc.subject_id) || [];
+        const subjectIds = subjectClasses?.map((sc: any) => sc.subject_id) || [];
 
         if (subjectIds.length > 0) {
           const { data: assignments } = await supabase
@@ -156,7 +156,7 @@ export default function ParentStudentDetailPage() {
             .in("subject_id", subjectIds)
             .gte("due_date", new Date().toISOString());
 
-          const assignmentIds = assignments?.map(a => a.id) || [];
+          const assignmentIds = assignments?.map((a: any) => a.id) || [];
 
           if (assignmentIds.length > 0) {
             const { data: submissions } = await supabase
@@ -165,8 +165,8 @@ export default function ParentStudentDetailPage() {
               .eq("student_id", studentId)
               .in("assignment_id", assignmentIds);
 
-            const submittedIds = submissions?.map(s => s.assignment_id) || [];
-            pendingAssignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+            const submittedIds = (submissions as Array<{ assignment_id: string }>)?.map((s: { assignment_id: string }) => s.assignment_id) || [];
+            pendingAssignments = assignmentIds.filter((id: string) => !submittedIds.includes(id)).length;
           }
         }
       }
@@ -194,7 +194,7 @@ export default function ParentStudentDetailPage() {
       });
 
       const averageScore = publishedResults.length > 0
-        ? Math.round(publishedResults.reduce((sum, r: any) => sum + r.total, 0) / publishedResults.length)
+        ? Math.round(publishedResults.reduce((sum: any, r: any) => sum + r.total, 0) / publishedResults.length)
         : 0;
 
       setStats({

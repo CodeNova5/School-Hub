@@ -112,7 +112,7 @@ export function StudentDetailsModal({
         .from("student_optional_subjects")
         .select("subject_id")
         .eq("student_id", student.id);
-      const optionalSubjectIds = (optionalSubjectRows || []).map(row => row.subject_id);
+      const optionalSubjectIds = (optionalSubjectRows || []).map((row: { subject_id: string }) => row.subject_id);
 
       if (error) {
         console.error("Error fetching results:", error);

@@ -30,7 +30,7 @@ export default function StudentAssignmentSubmission() {
         .eq("id", id)
         .eq("school_id", schoolId)
         .single()
-        .then(({ data }) => setAssignment(data));
+        .then(({ data }: { data: any }) => setAssignment(data));
     }
   }, [id, schoolId, schoolLoading]);
 

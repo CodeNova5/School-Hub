@@ -485,7 +485,7 @@ export function ResultsPublicationDialog({
     const studentsWithScores = students.map((student: any) => ({
       student_id: student.id,
       calculatedScore: studentScoresMap.get(student.id) || 0,
-    })).sort((a, b) => b.calculatedScore - a.calculatedScore);
+    })).sort((a: { student_id: string; calculatedScore: number }, b: { student_id: string; calculatedScore: number }) => b.calculatedScore - a.calculatedScore);
 
     // Assign positions (handle ties)
     let currentPosition = 1;
@@ -513,7 +513,7 @@ export function ResultsPublicationDialog({
     }
 
     // Calculate class average
-    const classAvg = studentsWithScores.reduce((sum, s) => sum + s.calculatedScore, 0) / studentsWithScores.length;
+    const classAvg = studentsWithScores.reduce((sum: number, s: { student_id: string; calculatedScore: number }) => sum + s.calculatedScore, 0) / studentsWithScores.length;
 
     // Update all results for each student with their position
     const updatePromises = positionUpdates.map(async ({ studentId, position }) => {

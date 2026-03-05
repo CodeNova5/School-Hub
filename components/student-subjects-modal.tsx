@@ -67,7 +67,7 @@ export function StudentSubjectsModal({ student, open, onClose, schoolId }: Stude
       const { data: optionalSelected } = await query;
 
       if (optionalSelected) {
-        setSelectedOptional(optionalSelected.map((s) => s.subject_id));
+        setSelectedOptional(optionalSelected.map((s: { subject_id: string }) => s.subject_id));
       }
     } catch (err: any) {
       toast.error("Failed to load subjects: " + err.message);

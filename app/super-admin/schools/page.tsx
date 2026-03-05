@@ -87,7 +87,7 @@ export default function SchoolsManagementPage() {
       if (error) throw error;
 
       const enriched: SchoolWithStats[] = await Promise.all(
-        (data ?? []).map(async (school) => {
+        (data ?? []).map(async (school: SchoolType) => {
           const [{ count: studentCount }, { count: teacherCount }] = await Promise.all([
             supabase.from("students").select("*", { count: "exact", head: true }).eq("school_id", school.id),
             supabase.from("teachers").select("*", { count: "exact", head: true }).eq("school_id", school.id),

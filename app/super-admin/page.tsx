@@ -56,7 +56,7 @@ export default function SuperAdminDashboard() {
 
       // Fetch aggregate counts per school
       const enriched: SchoolWithStats[] = await Promise.all(
-        (schoolsData ?? []).map(async (school) => {
+        (schoolsData ?? []).map(async (school: SchoolType) => {
           const [{ count: studentCount }, { count: teacherCount }] = await Promise.all([
             supabase
               .from("students")

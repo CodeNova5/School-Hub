@@ -13,7 +13,7 @@ export interface QueryPlan {
   error?: string;
 }
 
-const APIFREELLM_API_KEY = process.env.APIFREELLM_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
 /**
  * Generate a SQL query plan from a natural language question
@@ -23,13 +23,13 @@ export async function generateQueryPlan(
   userRole: 'student' | 'teacher' | 'admin' | 'parent',
   userId?: string
 ): Promise<QueryPlan> {
-  if (!APIFREELLM_API_KEY) {
+  if (!GROQ_API_KEY) {
     return {
       query: '',
       values: [],
       explanation: '',
       tables: [],
-      error: 'APIFreeLLM API key not configured'
+      error: 'Groq API key not configured'
     };
   }
 
@@ -40,20 +40,21 @@ export async function generateQueryPlan(
   try {
     const message = `${systemPrompt}\n\nUser Question: ${userPrompt}`;
     
-    const response = await fetch('https://apifreellm.com/api/v1/chat', {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${APIFREELLM_API_KEY}`
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        message: message
+        model: 'openai/gpt-oss-20b',
+        messages: [{ role: 'user', content: message }]
       })
     });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('APIFreeLLM API error:', error);
+      console.error('Groq API error:', error);
       return {
         query: '',
         values: [],
@@ -65,11 +66,11 @@ export async function generateQueryPlan(
 
     const data = await response.json();
     
-    // Handle APIFreeLLM response format
-    let content = data.reply || data.message || data.response || data.text;
+    // Handle Groq response format (OpenAI-compatible)
+    let content = data.choices?.[0]?.message?.content;
     
     if (!content) {
-      console.error('Unexpected APIFreeLLM response:', data);
+      console.error('Unexpected Groq response:', data);
       return {
         query: '',
         values: [],

@@ -40,20 +40,32 @@ export async function executeQueryPlan(
       };
     }
 
-    // Replace placeholder values
-    const values = queryPlan.values.map(val => {
-      if (val === '<school_id>') return schoolId;
-      if (val === '<user_id>') return userId;
-      return val;
+    // Replace placeholder values with actual values
+    let finalQuery = queryPlan.query;
+    queryPlan.values.forEach((val, index) => {
+      let replacementValue = val;
+      if (val === '<school_id>') {
+        replacementValue = schoolId;
+      } else if (val === '<user_id>') {
+        replacementValue = userId;
+      }
+
+      // Escape values for SQL
+      const escapedValue = typeof replacementValue === 'string' 
+        ? `'${replacementValue.replace(/'/g, "''")}'` 
+        : replacementValue;
+
+      // Replace $1, $2, etc. with actual values
+      const placeholder = `$${index + 1}`;
+      finalQuery = finalQuery.replace(new RegExp(`\\${placeholder}`, 'g'), String(escapedValue));
     });
 
-    // Create Supabase client with service role for RPC
+    // Create Supabase client with service role
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Execute query using Supabase's rpc function
+    // Execute query using the RPC function without parameters
     const { data, error } = await supabase.rpc('execute_ai_query', {
-      query_text: queryPlan.query,
-      query_params: values
+      p_query: finalQuery
     });
 
     if (error) {
@@ -64,10 +76,28 @@ export async function executeQueryPlan(
       };
     }
 
+    // Parse results - handle both RECORD and JSON formats
+    let parsedData = data || [];
+    if (Array.isArray(parsedData) && parsedData.length > 0) {
+      // If results are wrapped in 'result' key, unwrap them
+      if (parsedData[0]?.result) {
+        parsedData = parsedData.map(item => {
+          if (typeof item.result === 'string') {
+            try {
+              return JSON.parse(item.result);
+            } catch {
+              return item.result;
+            }
+          }
+          return item.result;
+        });
+      }
+    }
+
     return {
       success: true,
-      data: data || [],
-      rowCount: data?.length || 0
+      data: parsedData,
+      rowCount: parsedData?.length || 0
     };
   } catch (error) {
     console.error('Error executing query:', error);

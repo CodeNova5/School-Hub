@@ -86,7 +86,7 @@ export default function TeacherStudentReportPage() {
           return;
         }
 
-        const teacherClassIds = teacherClasses?.map((c) => c.id) || [];
+        const teacherClassIds = teacherClasses?.map((c: { id: string }) => c.id) || [];
         const studentInTeacherClass = teacherClassIds.includes(studentData.class_id);
         
         setIsStudentInTeacherClass(studentInTeacherClass);
@@ -124,7 +124,7 @@ export default function TeacherStudentReportPage() {
         setTerms(termsData || []);
 
         // Auto-select current term or first term
-        const currentTerm = termsData?.find((t) => t.is_current);
+        const currentTerm = termsData?.find((t: { is_current: boolean }) => t.is_current);
         if (currentTerm) {
           setSelectedTermId(currentTerm.id);
         } else if (termsData && termsData.length > 0) {

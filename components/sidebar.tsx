@@ -19,7 +19,9 @@ import {
   TrendingUp,
   X,
   Bell,
-  Clock
+  Clock,
+  Sparkles
+
 } from "lucide-react";
 // import periods time icon from lucide-react (if available) or use a suitable alternative
 
@@ -90,6 +92,7 @@ export function Sidebar({
 
   const adminNav: NavItem[] = [
     { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: "/admin/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/admin/sessions", label: "Sessions & Terms", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" /> },
     { href: "/admin/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
@@ -111,6 +114,7 @@ export function Sidebar({
       ? [{ href: "/teacher/classes", label: "Class", icon: <School className="h-5 w-5" /> }]
       : []),
     { href: "/teacher/students", label: "Students", icon: <Users className="h-5 w-5" /> },
+    { href: "/teacher/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/teacher/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
     { href: "/teacher/results", label: "Results", icon: <GraduationCap className="h-5 w-5" /> },
     { href: "/teacher/assignments", label: "Assignments", icon: <FileText className="h-5 w-5" /> },
@@ -121,6 +125,7 @@ export function Sidebar({
 
   const studentNav: NavItem[] = [
     { href: "/student", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: "/student/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/student/timetable", label: "Timetable", icon: <Calendar className="h-5 w-5" /> },
     { href: "/student/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
     { href: "/student/results", label: "Results", icon: <GraduationCap className="h-5 w-5" /> },
@@ -134,6 +139,7 @@ export function Sidebar({
   const parentNav: NavItem[] = [
     { href: "/parent", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/parent/children", label: "My Children", icon: <Users className="h-5 w-5" /> },
+    { href: "/parent/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/parent/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/parent/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
     { href: "/parent/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> },

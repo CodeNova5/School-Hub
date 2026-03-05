@@ -3,8 +3,7 @@
  * Converts query results into natural language responses
  */
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+const APIFREELLM_API_KEY = process.env.APIFREELLM_API_KEY;
 
 export interface SummaryResult {
   summary: string;
@@ -19,10 +18,10 @@ export async function summarizeResults(
   queryResults: any[],
   queryExplanation: string
 ): Promise<SummaryResult> {
-  if (!OPENAI_API_KEY) {
+  if (!APIFREELLM_API_KEY) {
     return {
       summary: '',
-      error: 'OpenAI API key not configured'
+      error: 'APIFreeLLM API key not configured'
     };
   }
 
@@ -37,26 +36,22 @@ export async function summarizeResults(
   const userPrompt = buildSummaryUserPrompt(question, queryResults, queryExplanation);
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const message = `${systemPrompt}\n\nUser Query: ${userPrompt}`;
+    
+    const response = await fetch('https://apifreellm.com/api/v1/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
+        'Authorization': `Bearer ${APIFREELLM_API_KEY}`
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 500
+        message: message
       })
     });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('OpenAI API error:', error);
+      console.error('APIFreeLLM API error:', error);
       return {
         summary: '',
         error: 'Failed to generate summary'
@@ -64,9 +59,12 @@ export async function summarizeResults(
     }
 
     const data = await response.json();
-    const summary = data.choices[0]?.message?.content?.trim();
+    
+    // Handle APIFreeLLM response format
+    const summary = (data.reply || data.message || data.response || data.text || '')?.trim();
 
     if (!summary) {
+      console.error('Unexpected APIFreeLLM response:', data);
       return {
         summary: '',
         error: 'No summary generated'

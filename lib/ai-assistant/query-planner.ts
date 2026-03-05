@@ -13,8 +13,7 @@ export interface QueryPlan {
   error?: string;
 }
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo';
+const APIFREELLM_API_KEY = process.env.APIFREELLM_API_KEY;
 
 /**
  * Generate a SQL query plan from a natural language question
@@ -24,13 +23,13 @@ export async function generateQueryPlan(
   userRole: 'student' | 'teacher' | 'admin' | 'parent',
   userId?: string
 ): Promise<QueryPlan> {
-  if (!OPENAI_API_KEY) {
+  if (!APIFREELLM_API_KEY) {
     return {
       query: '',
       values: [],
       explanation: '',
       tables: [],
-      error: 'OpenAI API key not configured'
+      error: 'APIFreeLLM API key not configured'
     };
   }
 
@@ -39,26 +38,22 @@ export async function generateQueryPlan(
   const userPrompt = buildUserPrompt(question, userId);
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const message = `${systemPrompt}\n\nUser Question: ${userPrompt}`;
+    
+    const response = await fetch('https://apifreellm.com/api/v1/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
+        'Authorization': `Bearer ${APIFREELLM_API_KEY}`
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.2,
-        max_tokens: 1000
+        message: message
       })
     });
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('OpenAI API error:', error);
+      console.error('APIFreeLLM API error:', error);
       return {
         query: '',
         values: [],
@@ -69,9 +64,12 @@ export async function generateQueryPlan(
     }
 
     const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-
+    
+    // Handle APIFreeLLM response format
+    let content = data.reply || data.message || data.response || data.text;
+    
     if (!content) {
+      console.error('Unexpected APIFreeLLM response:', data);
       return {
         query: '',
         values: [],

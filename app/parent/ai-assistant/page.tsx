@@ -1,25 +1,50 @@
+"use client";
+
 /**
  * Parent AI Assistant Page
  * Provides AI-powered insights for parents
  */
 
 import { supabase } from '@/lib/supabase';
-import { redirect } from 'next/navigation';
-import { DashboardLayout }  from '@/components/dashboard-layout';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { DashboardLayout } from '@/components/dashboard-layout';
 import AIAssistantChat from '@/components/ai-assistant-chat';
+import { Loader2 } from 'lucide-react';
 
-export const metadata = {
-  title: 'AI Assistant - Parent Portal',
-  description: 'Ask questions about your children\'s academics',
-};
+export default function ParentAIAssistantPage() {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
-export default async function ParentAIAssistantPage() {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-  if (!session) {
-    redirect('/parent/login');
+        if (!session) {
+          router.push('/parent/login');
+          return;
+        }
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error checking session:', error);
+        router.push('/parent/login');
+      }
+    }
+
+    checkSession();
+  }, [router]);
+
+  if (isLoading) {
+    return (
+      <DashboardLayout role="parent">
+        <div className="flex items-center justify-center h-96">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
   }
 
   // Suggested questions for parents

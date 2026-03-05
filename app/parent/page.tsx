@@ -112,7 +112,7 @@ export default function ParentDashboardPage() {
 
       // Fetch additional data for each child
       const enrichedStudents = await Promise.all(
-        (students || []).map(async (student) => {
+        (students || []).map(async (student: Student) => {
           // Get attendance
           const { data: attendance } = await supabase
             .from("attendance")
@@ -121,7 +121,7 @@ export default function ParentDashboardPage() {
 
           const totalRecords = attendance?.length || 0;
           const presentRecords = attendance?.filter(
-            (a) => a.status === "present" || a.status === "late" || a.status === "excused"
+            (a: any) => a.status === "present" || a.status === "late" || a.status === "excused"
           ).length || 0;
 
           const average_attendance = totalRecords === 0 ? 0 : Math.round((presentRecords / totalRecords) * 100);
@@ -132,7 +132,7 @@ export default function ParentDashboardPage() {
             .select("subject_class_id")
             .eq("student_id", student.id);
 
-          const subjectClassIds = studentSubjects?.map(ss => ss.subject_class_id) || [];
+          const subjectClassIds = studentSubjects?.map((ss: any) => ss.subject_class_id) || [];
 
           let pending_assignments = 0;
           if (subjectClassIds.length > 0) {
@@ -142,7 +142,7 @@ export default function ParentDashboardPage() {
               .in("subject_id", subjectClassIds)
               .gte("due_date", new Date().toISOString());
 
-            const assignmentIds = assignments?.map(a => a.id) || [];
+            const assignmentIds = assignments?.map((a: any) => a.id) || [];
 
             if (assignmentIds.length > 0) {
               const { data: submissions } = await supabase
@@ -151,8 +151,8 @@ export default function ParentDashboardPage() {
                 .eq("student_id", student.id)
                 .in("assignment_id", assignmentIds);
 
-              const submittedIds = submissions?.map(s => s.assignment_id) || [];
-              pending_assignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+              const submittedIds = submissions?.map((s: any) => s.assignment_id) || [];
+              pending_assignments = assignmentIds.filter((id: string) => !submittedIds.includes(id)).length;
             }
           }
 

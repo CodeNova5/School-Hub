@@ -7,7 +7,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import { Loader2, Plus, MessageSquare, Trash2, Clock } from 'lucide-react';
@@ -78,7 +78,7 @@ export default function AdminAIAssistantPage() {
     checkSession();
   }, [router]);
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     const newSessionId = 'session-' + Date.now();
     const newSession: ChatSession = {
       id: newSessionId,
@@ -90,9 +90,9 @@ export default function AdminAIAssistantPage() {
     
     setSessions((prev) => [newSession, ...prev]);
     setCurrentSessionId(newSessionId);
-  };
+  }, []);
 
-  const handleMessagesUpdate = (newMessages: Message[]) => {
+  const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
     setSessions((prev) =>
       prev.map((session) =>
         session.id === currentSessionId
@@ -107,17 +107,24 @@ export default function AdminAIAssistantPage() {
           : session
       )
     );
-  };
+  }, [currentSessionId]);
 
-  const handleDeleteSession = (id: string) => {
-    setSessions((prev) => prev.filter((session) => session.id !== id));
-    if (currentSessionId === id) {
-      setCurrentSessionId(sessions[0]?.id || '');
-      if (sessions.length <= 1) {
-        handleNewChat();
+  const handleDeleteSession = useCallback((id: string) => {
+    setSessions((prev) => {
+      const filtered = prev.filter((session) => session.id !== id);
+      
+      if (currentSessionId === id) {
+        const nextSessionId = filtered.length > 0 ? filtered[0].id : null;
+        setCurrentSessionId(nextSessionId || '');
+        
+        if (filtered.length === 0) {
+          handleNewChat();
+        }
       }
-    }
-  };
+      
+      return filtered;
+    });
+  }, [currentSessionId, handleNewChat]);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 
@@ -132,7 +139,6 @@ export default function AdminAIAssistantPage() {
   }
 
   return (
-    <DashboardLayout role="admin">
       <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
         {/* Premium Sidebar */}
         <div className={`${showSidebar ? 'w-80' : 'w-0'} bg-gradient-to-b from-slate-800 to-slate-900 border-r border-slate-700 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
@@ -271,6 +277,5 @@ export default function AdminAIAssistantPage() {
           </div>
         </div>
       </div>
-    </DashboardLayout>
   );
 }

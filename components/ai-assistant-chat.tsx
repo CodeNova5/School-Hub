@@ -65,7 +65,7 @@ export default function AIAssistantChat({
 
   // Notify parent of message updates
   useEffect(() => {
-    if (onMessagesUpdate) {
+    if (onMessagesUpdate && messages.length > 1) {
       onMessagesUpdate(messages);
     }
   }, [messages, onMessagesUpdate]);

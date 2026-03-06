@@ -7,8 +7,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Bot, User, AlertCircle, Info, Copy, Check } from 'lucide-react';
+import { Send, Loader2, Bot, User, AlertCircle, Info, Copy, Check, Mic, MicOff, Volume2, VolumeX, Pause, Play } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { recordAudio, playAudio, getMicrophoneStream, stopAudioStream, formatDuration, checkMicrophonePermission } from '@/lib/audio-utils';
 
 interface Message {
   id: string;
@@ -31,6 +32,8 @@ interface AIAssistantChatProps {
   onMessagesUpdate?: (messages: Message[]) => void;
   sessionId?: string;
   onSessionIdChange?: (sessionId: string) => void;
+  enableSpeech?: boolean;
+  autoPlayResponses?: boolean;
 }
 
 export default function AIAssistantChat({
@@ -41,6 +44,8 @@ export default function AIAssistantChat({
   onMessagesUpdate,
   sessionId: propSessionId,
   onSessionIdChange,
+  enableSpeech = true,
+  autoPlayResponses = false,
 }: AIAssistantChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(propSessionId || null);
@@ -51,6 +56,15 @@ export default function AIAssistantChat({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Speech-related state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [isSpeechEnabled, setIsSpeechEnabled] = useState(enableSpeech);
+  const [isPlaying, setIsPlaying] = useState<string | null>(null);
+  const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'prompt' | null>(null);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Load chat history on mount or when sessionId changes
   useEffect(() => {
@@ -150,6 +164,13 @@ export default function AIAssistantChat({
 
     loadChatHistory();
 
+    // Check microphone permission
+    if (enableSpeech) {
+      checkMicrophonePermission().then(setMicPermission).catch(() => {
+        setMicPermission('prompt');
+      });
+    }
+
     return () => {
       isMounted = false;
     };
@@ -159,6 +180,172 @@ export default function AIAssistantChat({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+      if (mediaStreamRef.current) {
+        stopAudioStream(mediaStreamRef.current);
+      }
+    };
+  }, []);
+
+  // Update recording time
+  useEffect(() => {
+    if (!isRecording) return;
+
+    recordingIntervalRef.current = setInterval(() => {
+      setRecordingTime((prev) => prev + 1);
+    }, 1000);
+
+    return () => {
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    };
+  }, [isRecording]);
+
+  // Handle starting voice input
+  const handleStartRecording = async () => {
+    if (isRecording) return;
+
+    try {
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      // Request microphone access and start recording
+      const stream = await getMicrophoneStream();
+      mediaStreamRef.current = stream;
+
+      // Start actual recording after stream is ready
+      // The recording will be handled by the recordAudio utility
+    } catch (error) {
+      setIsRecording(false);
+      console.error('Failed to start recording:', error);
+      alert('Failed to access microphone. Please check your browser permissions.');
+    }
+  };
+
+  // Handle stopping voice input and sending
+  const handleStopRecording = async () => {
+    if (!isRecording) return;
+
+    setIsRecording(false);
+
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+    }
+
+    if (mediaStreamRef.current) {
+      stopAudioStream(mediaStreamRef.current);
+      mediaStreamRef.current = null;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Allow time for recording to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Record audio - use a custom recording function that uses the existing stream
+      const audioRecorder = new Promise<string>((resolve, reject) => {
+        const chunks: BlobPart[] = [];
+        const stream = mediaStreamRef.current;
+        
+        if (!stream) {
+          reject(new Error('No audio stream available'));
+          return;
+        }
+
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm;codecs=opus',
+        });
+
+        mediaRecorder.ondataavailable = (event) => {
+          chunks.push(event.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          try {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const arrayBuffer = await blob.arrayBuffer();
+            const base64 = btoa(
+              String.fromCharCode.apply(null, Array.from(new Uint8Array(arrayBuffer)))
+            );
+            resolve(base64);
+          } catch (error) {
+            reject(new Error('Failed to process audio data'));
+          }
+        };
+
+        mediaRecorder.start();
+        setTimeout(() => mediaRecorder.stop(), recordingTime * 1000 + 100);
+      });
+
+      const audioBase64 = await audioRecorder;
+
+      // Send to speech-to-text API
+      const sttResponse = await fetch('/api/ai-assistant/speech-to-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audio: audioBase64 }),
+      });
+
+      if (!sttResponse.ok) {
+        throw new Error('Failed to transcribe audio');
+      }
+
+      const { text } = await sttResponse.json();
+
+      if (text && text.trim()) {
+        setInput(text);
+        // Auto-send the transcribed text
+        setTimeout(() => {
+          setInput(text);
+          // Trigger send in next render
+        }, 50);
+      }
+    } catch (error) {
+      console.error('Error processing voice input:', error);
+      alert('Failed to process voice. Please try again.');
+    } finally {
+      setIsLoading(false);
+      setRecordingTime(0);
+    }
+  };
+
+  // Handle text-to-speech for response
+  const handlePlayResponse = async (messageId: string, content: string) => {
+    if (isPlaying) return;
+
+    try {
+      setIsPlaying(messageId);
+
+      // Call TTS API
+      const ttsResponse = await fetch('/api/ai-assistant/text-to-speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: content, voice: 'nova' }),
+      });
+
+      if (!ttsResponse.ok) {
+        throw new Error('Failed to generate speech');
+      }
+
+      const { audio } = await ttsResponse.json();
+
+      // Play audio
+      await playAudio(audio);
+    } catch (error) {
+      console.error('Error playing response:', error);
+      alert('Failed to play audio. Please try again.');
+    } finally {
+      setIsPlaying(null);
+    }
+  };
 
   // Notify parent of message updates
   useEffect(() => {
@@ -404,10 +591,24 @@ export default function AIAssistantChat({
                       <p className="text-sm leading-relaxed">{message.content}</p>
                     )}
                   </div>
-                  {message.role === 'assistant' && !message.error && (
+                  <div className="flex gap-2 items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {message.role === 'assistant' && !message.error && isSpeechEnabled && (
+                      <button
+                        onClick={() => handlePlayResponse(message.id, message.content)}
+                        disabled={isPlaying !== null}
+                        className="flex-shrink-0 p-1.5 hover:bg-slate-600/50 rounded disabled:opacity-50"
+                        title="Play audio response"
+                      >
+                        {isPlaying === message.id ? (
+                          <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                        ) : (
+                          <Volume2 className="h-4 w-4 text-emerald-400 hover:text-emerald-300" />
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleCopy(message.content, message.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1.5 hover:bg-slate-600/50 rounded"
+                      className="opacity-100 flex-shrink-0 p-1.5 hover:bg-slate-600/50 rounded"
                     >
                       {copiedId === message.id ? (
                         <Check className="h-4 w-4 text-emerald-400" />
@@ -415,7 +616,7 @@ export default function AIAssistantChat({
                         <Copy className="h-4 w-4 text-slate-300 hover:text-white" />
                       )}
                     </button>
-                  )}
+                  </div>
                 </div>
 
                 {/* Timestamp & Query Info */}
@@ -498,7 +699,44 @@ export default function AIAssistantChat({
 
       {/* Premium Input Area */}
       <div className="px-6 pb-6 border-t border-slate-700">
-        <div className="flex gap-3">
+        {/* Recording Status Bar */}
+        {isRecording && (
+          <div className="mb-3 px-4 py-2 bg-red-900/30 border border-red-700/50 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse" />
+              <span className="text-sm text-red-100">Recording...</span>
+              <span className="text-xs text-red-200 ml-2 font-mono">{formatDuration(recordingTime)}</span>
+            </div>
+            <button
+              onClick={handleStopRecording}
+              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
+            >
+              Stop
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          {/* Mic Button */}
+          {isSpeechEnabled && (
+            <button
+              onClick={isRecording ? handleStopRecording : handleStartRecording}
+              disabled={isLoading}
+              className={`flex-shrink-0 px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-slate-800 transition-all font-medium ${
+                isRecording
+                  ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl'
+                  : 'bg-slate-700 hover:bg-slate-600 text-slate-200 focus:ring-red-500'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+              title={isRecording ? 'Stop recording' : 'Start voice input'}
+            >
+              {isRecording ? (
+                <MicOff className="h-5 w-5" />
+              ) : (
+                <Mic className="h-5 w-5" />
+              )}
+            </button>
+          )}
+
           <textarea
             ref={inputRef}
             value={input}

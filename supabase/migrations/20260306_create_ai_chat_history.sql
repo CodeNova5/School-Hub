@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS ai_chat_sessions (
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   school_id uuid NOT NULL,
   title text,
+  is_pinned boolean DEFAULT false,
+  is_archived boolean DEFAULT false,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   deleted_at timestamptz

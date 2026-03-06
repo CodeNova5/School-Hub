@@ -7,7 +7,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Bot, User, AlertCircle, Info, Copy, Check, Mic, MicOff, Volume2, VolumeX, Pause, Play } from 'lucide-react';
+import { Send, Loader2, Bot, User, AlertCircle, Info, Copy, Check, Mic, MicOff, Volume2, VolumeX, Pause, Play, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { recordAudio, playAudio, getMicrophoneStream, stopAudioStream, formatDuration, checkMicrophonePermission, speakText, stopSpeech } from '@/lib/audio-utils';
 
@@ -22,6 +22,14 @@ interface Message {
     resultCount?: number;
   };
   error?: boolean;
+}
+
+interface ErrorNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'error' | 'warning' | 'info';
+  duration?: number;
 }
 
 interface AIAssistantChatProps {
@@ -54,6 +62,7 @@ export default function AIAssistantChat({
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [expandedQueryInfoId, setExpandedQueryInfoId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [errors, setErrors] = useState<ErrorNotification[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -68,7 +77,29 @@ export default function AIAssistantChat({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Error notification handler
+  const showError = (title: string, message: string, duration: number = 5000) => {
+    const id = Date.now().toString();
+    const notification: ErrorNotification = {
+      id,
+      title,
+      message,
+      type: 'error',
+      duration,
+    };
 
+    setErrors((prev) => [...prev, notification]);
+
+    if (duration > 0) {
+      setTimeout(() => {
+        removeError(id);
+      }, duration);
+    }
+  };
+
+  const removeError = (id: string) => {
+    setErrors((prev) => prev.filter((err) => err.id !== id));
+  };
   // Load chat history on mount or when sessionId changes
   useEffect(() => {
     let isMounted = true;
@@ -270,7 +301,10 @@ export default function AIAssistantChat({
     } catch (error) {
       setIsRecording(false);
       console.error('Failed to start recording:', error);
-      alert('Failed to access microphone. Please check your browser permissions.');
+      showError(
+        'Microphone Access Failed',
+        'Unable to access your microphone. Please check your browser permissions and try again.'
+      );
     }
   };
 
@@ -384,7 +418,10 @@ export default function AIAssistantChat({
       });
     } catch (error) {
       console.error('Error playing response:', error);
-      alert('Failed to play audio. Your browser may not support text-to-speech.');
+      showError(
+        'Audio Playback Failed',
+        'Unable to play audio response. Your browser may not support text-to-speech.'
+      );
     } finally {
       setIsPlaying(null);
     }
@@ -562,6 +599,32 @@ export default function AIAssistantChat({
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800">
+      {/* Error Notifications */}
+      <div className="fixed top-4 right-4 z-50 space-y-3 max-w-sm">
+        {errors.map((error) => (
+          <div
+            key={error.id}
+            className="bg-red-900/95 border border-red-700 border-l-4 border-l-red-500 rounded-lg px-4 py-3 shadow-lg backdrop-blur-sm animate-in fade-in slide-in-from-right-4 duration-300"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 flex-1">
+                <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-red-100 text-sm">{error.title}</h3>
+                  <p className="text-red-200/80 text-xs mt-1 leading-relaxed">{error.message}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => removeError(error.id)}
+                className="flex-shrink-0 text-red-300 hover:text-red-100 transition-colors p-0.5"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
         {isLoadingHistory ? (

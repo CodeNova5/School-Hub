@@ -7,9 +7,9 @@
 
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import AIAssistantChat from '@/components/ai-assistant-chat';
-import { Loader2, Plus, MessageSquare, Trash2, Clock } from 'lucide-react';
+import { Loader2, Plus, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -31,6 +31,8 @@ interface ChatSession {
   title: string;
   createdAt: Date;
   updatedAt: Date;
+  isPinned?: boolean;
+  isArchived?: boolean;
 }
 
 export default function AdminAIAssistantPage() {
@@ -40,6 +42,18 @@ export default function AdminAIAssistantPage() {
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  
+  // Dropdown menu state
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Rename modal state
+  const [renameSessionId, setRenameSessionId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [isRenamingSession, setIsRenamingSession] = useState(false);
+  
+  // Action loading states
+  const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -61,8 +75,10 @@ export default function AdminAIAssistantPage() {
         // Load existing sessions from database
         const { data: dbSessions, error } = await supabase
           .from('ai_chat_sessions')
-          .select('id, title, created_at, updated_at, deleted_at')
+          .select('id, title, created_at, updated_at, is_pinned, is_archived, deleted_at')
           .is('deleted_at', null)
+          .is('is_archived', false)
+          .order('is_pinned', { ascending: false })
           .order('updated_at', { ascending: false })
           .limit(50);
 
@@ -74,6 +90,8 @@ export default function AdminAIAssistantPage() {
             title: s.title || 'Untitled Conversation',
             createdAt: new Date(s.created_at),
             updatedAt: new Date(s.updated_at),
+            isPinned: s.is_pinned || false,
+            isArchived: s.is_archived || false,
           }));
           setSessions(formattedSessions);
           setCurrentSessionId(formattedSessions[0].id);
@@ -232,12 +250,169 @@ export default function AdminAIAssistantPage() {
     }
   }, [currentSessionId]);
 
+  const handlePermanentDelete = useCallback(async (id: string) => {
+    if (!confirm('Are you sure you want to permanently delete this conversation? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setLoadingActionId(id);
+      // Permanently delete from database
+      await supabase
+        .from('ai_chat_sessions')
+        .delete()
+        .eq('id', id);
+
+      setSessions((prev) => {
+        const wasCurrentSession = currentSessionId === id;
+        const filtered = prev.filter((session) => session.id !== id);
+        
+        if (wasCurrentSession) {
+          if (filtered.length > 0) {
+            setCurrentSessionId(filtered[0].id);
+          } else {
+            setCurrentSessionId('');
+          }
+        }
+        
+        return filtered;
+      });
+      setOpenDropdownId(null);
+    } catch (error) {
+      console.error('Error permanently deleting session:', error);
+      alert('Failed to delete session. Please try again.');
+    } finally {
+      setLoadingActionId(null);
+    }
+  }, [currentSessionId]);
+
+  const handleRenameSession = useCallback(async (id: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+
+    setIsRenamingSession(true);
+    try {
+      await supabase
+        .from('ai_chat_sessions')
+        .update({
+          title: newTitle.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === id
+            ? {
+                ...session,
+                title: newTitle.trim(),
+                updatedAt: new Date(),
+              }
+            : session
+        )
+      );
+      setRenameSessionId(null);
+      setRenameValue('');
+      setOpenDropdownId(null);
+    } catch (error) {
+      console.error('Error renaming session:', error);
+    } finally {
+      setIsRenamingSession(false);
+    }
+  }, []);
+
+  const handlePinSession = useCallback(async (id: string, isPinned: boolean) => {
+    try {
+      setLoadingActionId(id);
+      await supabase
+        .from('ai_chat_sessions')
+        .update({
+          is_pinned: !isPinned,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      setSessions((prev) => {
+        const updated = prev.map((session) =>
+          session.id === id
+            ? {
+                ...session,
+                isPinned: !isPinned,
+                updatedAt: new Date(),
+              }
+            : session
+        );
+        
+        // Re-sort with pinned items first
+        return updated.sort((a, b) => {
+          if (a.isPinned !== b.isPinned) {
+            return (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0);
+          }
+          return b.updatedAt.getTime() - a.updatedAt.getTime();
+        });
+      });
+      setOpenDropdownId(null);
+    } catch (error) {
+      console.error('Error pinning session:', error);
+      alert('Failed to pin session. Please try again.');
+    } finally {
+      setLoadingActionId(null);
+    }
+  }, []);
+
+  const handleArchiveSession = useCallback(async (id: string) => {
+    try {
+      setLoadingActionId(id);
+      await supabase
+        .from('ai_chat_sessions')
+        .update({
+          is_archived: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      setSessions((prev) => {
+        const wasCurrentSession = currentSessionId === id;
+        const filtered = prev.filter((session) => session.id !== id);
+        
+        if (wasCurrentSession) {
+          if (filtered.length > 0) {
+            setCurrentSessionId(filtered[0].id);
+          } else {
+            setCurrentSessionId('');
+          }
+        }
+        
+        return filtered;
+      });
+      setOpenDropdownId(null);
+    } catch (error) {
+      console.error('Error archiving session:', error);
+      alert('Failed to archive session. Please try again.');
+    } finally {
+      setLoadingActionId(null);
+    }
+  }, [currentSessionId]);
+
   // Auto-create new session when all are deleted
   useEffect(() => {
     if (sessions.length === 0 && !isLoading && !isCreatingSession) {
       handleNewChat();
     }
   }, [sessions.length, isLoading, isCreatingSession, handleNewChat]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdownId(null);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 
@@ -271,67 +446,196 @@ export default function AdminAIAssistantPage() {
                 <p className="text-sm text-slate-400 text-center py-8">No conversations yet</p>
               ) : (
                 sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    onClick={() => setCurrentSessionId(session.id)}
-                    className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                      currentSessionId === session.id
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'
-                        : 'bg-slate-700 hover:bg-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2 justify-between">
-                      <div className="flex items-start gap-2 flex-1 min-w-0">
-                        <MessageSquare
-                          className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
-                            currentSessionId === session.id
-                              ? 'text-white'
-                              : 'text-slate-400'
-                          }`}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <h3
-                            className={`text-sm font-medium truncate ${
-                              currentSessionId === session.id
-                                ? 'text-white'
-                                : 'text-slate-200'
-                            }`}
-                          >
-                            {session.title}
-                          </h3>
-                          <div
-                            className={`text-xs flex items-center gap-1 mt-1 flex-shrink-0 ${
-                              currentSessionId === session.id
-                                ? 'text-blue-100'
-                                : 'text-slate-400'
-                            }`}
-                          >
-                            <Clock className="h-3 w-3 flex-shrink-0" />
-                            <span className="whitespace-nowrap">
-                              {session.updatedAt instanceof Date
-                                ? session.updatedAt.toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: false,
-                                  })
-                                : new Date(session.updatedAt).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: false,
-                                  })}
-                            </span>
+                  <div key={session.id} className="relative">
+                    {/* Rename Modal */}
+                    {renameSessionId === session.id && (
+                      <div className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3" onClick={() => {
+                        setRenameSessionId(null);
+                        setRenameValue('');
+                      }}>
+                        <div className="bg-slate-800 rounded-lg p-4 w-full max-w-sm border border-slate-700 shadow-xl z-50" onClick={(e) => e.stopPropagation()}>
+                          <h2 className="text-white font-semibold mb-3">Rename Conversation</h2>
+                          <input
+                            autoFocus
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRenameSession(session.id, renameValue);
+                              } else if (e.key === 'Escape') {
+                                setRenameSessionId(null);
+                                setRenameValue('');
+                              }
+                            }}
+                            placeholder="New name..."
+                            className="w-full bg-slate-700 border border-slate-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleRenameSession(session.id, renameValue)}
+                              disabled={isRenamingSession || !renameValue.trim()}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                            >
+                              {isRenamingSession ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRenameSessionId(null);
+                                setRenameValue('');
+                              }}
+                              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition-colors font-medium"
+                            >
+                              Cancel
+                            </button>
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSession(session.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="h-4 w-4 text-red-400 hover:text-red-300" />
-                      </button>
+                    )}
+
+                    {/* Session Item */}
+                    <div
+                      onClick={() => {
+                        setCurrentSessionId(session.id);
+                        setOpenDropdownId(null);
+                      }}
+                      className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                        currentSessionId === session.id
+                          ? 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'
+                          : 'bg-slate-700 hover:bg-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2 justify-between">
+                        <div className="flex items-start gap-2 flex-1 min-w-0">
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <MessageSquare
+                              className={`h-4 w-4 flex-shrink-0 ${
+                                currentSessionId === session.id
+                                  ? 'text-white'
+                                  : 'text-slate-400'
+                              }`}
+                            />
+                            {session.isPinned && (
+                              <Pin
+                                className={`h-3 w-3 flex-shrink-0 ${
+                                  currentSessionId === session.id
+                                    ? 'text-yellow-300'
+                                    : 'text-yellow-400'
+                                }`}
+                                fill="currentColor"
+                              />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3
+                              className={`text-sm font-medium truncate ${
+                                currentSessionId === session.id
+                                  ? 'text-white'
+                                  : 'text-slate-200'
+                              }`}
+                            >
+                              {session.title}
+                            </h3>
+                            <div
+                              className={`text-xs flex items-center gap-1 mt-1 flex-shrink-0 ${
+                                currentSessionId === session.id
+                                  ? 'text-blue-100'
+                                  : 'text-slate-400'
+                              }`}
+                            >
+                              <Clock className="h-3 w-3 flex-shrink-0" />
+                              <span className="whitespace-nowrap">
+                                {session.updatedAt instanceof Date
+                                  ? session.updatedAt.toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: false,
+                                    })
+                                  : new Date(session.updatedAt).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: false,
+                                    })}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dropdown Menu Button */}
+                        <div ref={dropdownRef} className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenDropdownId(openDropdownId === session.id ? null : session.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded"
+                          >
+                            <MoreVertical className={`h-4 w-4 ${
+                              currentSessionId === session.id
+                                ? 'text-blue-100'
+                                : 'text-slate-300'
+                            }`} />
+                          </button>
+
+                          {/* Dropdown Menu */}
+                          {openDropdownId === session.id && (
+                            <div className="absolute right-0 mt-1 w-48 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-50 overflow-hidden">
+                              {/* Rename */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRenameSessionId(session.id);
+                                  setRenameValue(session.title);
+                                }}
+                                disabled={loadingActionId === session.id}
+                                className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                                {loadingActionId === session.id ? 'Processing...' : 'Rename'}
+                              </button>
+
+                              {/* Pin/Unpin */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePinSession(session.id, session.isPinned || false);
+                                }}
+                                disabled={loadingActionId === session.id}
+                                className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Pin className={`h-4 w-4 ${session.isPinned ? 'text-yellow-400' : ''}`} />
+                                {loadingActionId === session.id ? 'Processing...' : session.isPinned ? 'Unpin' : 'Pin'}
+                              </button>
+
+                              {/* Archive */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleArchiveSession(session.id);
+                                }}
+                                disabled={loadingActionId === session.id}
+                                className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Archive className="h-4 w-4" />
+                                {loadingActionId === session.id ? 'Processing...' : 'Archive'}
+                              </button>
+
+                              {/* Permanent Delete */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePermanentDelete(session.id);
+                                }}
+                                disabled={loadingActionId === session.id}
+                                className="w-full px-4 py-2 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Trash className="h-4 w-4" />
+                                {loadingActionId === session.id ? 'Processing...' : 'Delete Permanently'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))

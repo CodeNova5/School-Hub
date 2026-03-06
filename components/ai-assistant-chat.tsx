@@ -284,6 +284,15 @@ export default function AIAssistantChat({
     }
   };
 
+  // Helper to safely format timestamp
+  const formatTimestamp = (timestamp: Date | string): string => {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    return date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   // Handle suggested question click
   const handleSuggestedQuestion = (question: string) => {
     setInput(question);
@@ -392,10 +401,7 @@ export default function AIAssistantChat({
                       message.role === 'user' ? 'text-blue-100' : 'text-slate-400'
                     }`}
                   >
-                    {message.timestamp.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {formatTimestamp(message.timestamp)}
                   </p>
                   
                   {message.queryInfo && (

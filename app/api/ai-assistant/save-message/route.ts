@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { checkIsAdminWithSchool, errorResponse } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,12 @@ interface SaveMessageRequest {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if user is admin and get school_id
+    const permission = await checkIsAdminWithSchool();
+    if (!permission.authorized) {
+      return errorResponse(permission.error || 'Unauthorized', permission.status || 401);
+    }
+
     const supabase = createRouteHandlerClient({ cookies });
 
     // Get authenticated user
@@ -39,33 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.id;
-
-    // Get user's school_id from their profile
-    const { data: userProfile, error: profileError } = await supabase
-      .from('teachers')
-      .select('school_id')
-      .eq('user_id', userId)
-      .single();
-
-    if (profileError || !userProfile) {
-      // Try getting from students table for student users
-      const { data: studentProfile, error: studentError } = await supabase
-        .from('students')
-        .select('school_id')
-        .eq('user_id', userId)
-        .single();
-
-      if (studentError || !studentProfile) {
-        return NextResponse.json(
-          { error: 'User profile not found' },
-          { status: 403 }
-        );
-      }
-
-      var schoolId = studentProfile.school_id;
-    } else {
-      var schoolId = userProfile.school_id;
-    }
+    const schoolId = permission.schoolId;
 
     const body: SaveMessageRequest = await request.json();
     const { sessionId, role, content, queryPlan, error: isError = false } = body;

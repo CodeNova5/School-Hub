@@ -288,22 +288,26 @@ export default function AdminAIAssistantPage() {
                             {session.title}
                           </h3>
                           <div
-                            className={`text-xs flex items-center gap-1 mt-1 ${
+                            className={`text-xs flex items-center gap-1 mt-1 flex-shrink-0 ${
                               currentSessionId === session.id
                                 ? 'text-blue-100'
                                 : 'text-slate-400'
                             }`}
                           >
-                            <Clock className="h-3 w-3" />
-                            {session.updatedAt instanceof Date
-                              ? session.updatedAt.toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })
-                              : new Date(session.updatedAt).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
+                            <Clock className="h-3 w-3 flex-shrink-0" />
+                            <span className="whitespace-nowrap">
+                              {session.updatedAt instanceof Date
+                                ? session.updatedAt.toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: false,
+                                  })
+                                : new Date(session.updatedAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: false,
+                                  })}
+                            </span>
                           </div>
                         </div>
                       </div>

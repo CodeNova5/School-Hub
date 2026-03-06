@@ -116,6 +116,8 @@ export default function AdminAIAssistantPage() {
     if (isCreatingSession) return; // Prevent duplicate creation
 
     setIsCreatingSession(true);
+    setCurrentSessionId(''); // Unmount old chat to prevent stale updates
+    
     try {
       const {
         data: { session },
@@ -176,15 +178,20 @@ export default function AdminAIAssistantPage() {
 
       const newTitle = firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '');
 
-      // Update session in database with new title
-      supabase
-        .from('ai_chat_sessions')
-        .update({
-          title: newTitle,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', currentSessionId)
-        .catch((error: any) => console.error('Error updating session title:', error));
+      // Update session in database with new title (fire and forget)
+      (async () => {
+        try {
+          await supabase
+            .from('ai_chat_sessions')
+            .update({
+              title: newTitle,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', currentSessionId);
+        } catch (error: any) {
+          console.error('Error updating session title:', error);
+        }
+      })();
 
       return prevSessions.map((session) =>
         session.id === currentSessionId
@@ -200,8 +207,6 @@ export default function AdminAIAssistantPage() {
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {
-      const wasCurrentSession = currentSessionId === id;
-      
       // Delete session from database (soft delete)
       await supabase
         .from('ai_chat_sessions')
@@ -209,6 +214,7 @@ export default function AdminAIAssistantPage() {
         .eq('id', id);
 
       setSessions((prev) => {
+        const wasCurrentSession = currentSessionId === id;
         const filtered = prev.filter((session) => session.id !== id);
         
         if (wasCurrentSession) {
@@ -221,22 +227,17 @@ export default function AdminAIAssistantPage() {
         
         return filtered;
       });
-
-      // Create new session if all were deleted
-      if (wasCurrentSession) {
-        setTimeout(() => {
-          setSessions((prev) => {
-            if (prev.length === 0) {
-              handleNewChat();
-            }
-            return prev;
-          });
-        }, 0);
-      }
     } catch (error) {
       console.error('Error deleting session:', error);
     }
-  }, [currentSessionId, handleNewChat]);
+  }, [currentSessionId]);
+
+  // Auto-create new session when all are deleted
+  useEffect(() => {
+    if (sessions.length === 0 && !isLoading && !isCreatingSession) {
+      handleNewChat();
+    }
+  }, [sessions.length, isLoading, isCreatingSession, handleNewChat]);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 

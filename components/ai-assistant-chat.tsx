@@ -635,6 +635,8 @@ export default function AIAssistantChat({
               <div className="h-3 w-3 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}} />
             </div>
           </div>
+        ) : messages.filter(m => m.role === 'user').length === 0 ? (
+          <div />
         ) : (
           messages.map((message) => (
           <div
@@ -762,7 +764,8 @@ export default function AIAssistantChat({
               </div>
             </div>
           </div>
-        )))}
+        ))
+        )}
 
         {/* Loading Indicator */}
         {isLoading && (
@@ -785,21 +788,10 @@ export default function AIAssistantChat({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested Questions */}
-      {!isLoadingHistory && suggestedQuestions.length > 0 && messages.filter(m => m.role === 'user').length === 0 && (
-        <div className="px-6 pb-6">
-          <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wide">💡 Try asking:</p>
-          <div className="grid grid-cols-1 gap-2">
-            {suggestedQuestions.map((question, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestedQuestion(question)}
-                className="text-sm px-4 py-2.5 bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-slate-100 font-medium rounded-lg transition-all duration-200 border border-slate-600 hover:border-slate-500 hover:shadow-lg text-left"
-              >
-                {question}
-              </button>
-            ))}
-          </div>
+      {/* Help Prompt */}
+      {!isLoadingHistory && messages.filter(m => m.role === 'user').length === 0 && (
+        <div className="flex-1 flex items-center justify-center pb-20">
+          <p className="text-2xl font-semibold text-slate-400">What can I help with</p>
         </div>
       )}
 

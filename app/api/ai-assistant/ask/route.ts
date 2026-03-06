@@ -92,14 +92,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate query plan using AI
+    // Detect if this is a data-related question
+    const isDataQuestion = await detectDataQuestion(question);
+
+    // If not a data question, answer directly using AI
+    if (!isDataQuestion) {
+      const directResponse = await generateDirectResponse(question);
+
+      if (directResponse.error || !directResponse.response) {
+        return NextResponse.json(
+          {
+            error: directResponse.error || 'No response generated',
+            success: false
+          },
+          { status: 400 }
+        );
+      }
+
+      const responseText = directResponse.response;
+
+      // Cache the response
+      if (useCache) {
+        setCachedQuery(question, schoolId, responseText, userId);
+      }
+
+      return NextResponse.json({
+        success: true,
+        response: responseText,
+        cached: false,
+        sessionId: currentSessionId,
+      });
+    }
+
+    // Generate query plan using AI for data questions
     const queryPlan = await generateQueryPlan(question, userRole, userId);
 
     if (queryPlan.error) {
       return NextResponse.json(
-        { 
+        {
           error: queryPlan.error,
-          success: false 
+          success: false
         },
         { status: 400 }
       );
@@ -109,9 +141,9 @@ export async function POST(request: NextRequest) {
     const validation = validateQuery(queryPlan.query);
     if (!validation.isValid) {
       return NextResponse.json(
-        { 
+        {
           error: `Query validation failed: ${validation.error}`,
-          success: false 
+          success: false
         },
         { status: 400 }
       );
@@ -122,9 +154,9 @@ export async function POST(request: NextRequest) {
 
     if (!queryResult.success) {
       return NextResponse.json(
-        { 
+        {
           error: queryResult.error,
-          success: false 
+          success: false
         },
         { status: 500 }
       );
@@ -132,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     // Generate natural language response
     let response: string;
-    
+
     try {
       const summaryResult = await summarizeResults(
         question,
@@ -173,9 +205,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('AI Assistant error:', error);
     return NextResponse.json(
-      { 
+      {
         error: error instanceof Error ? error.message : 'Internal server error',
-        success: false 
+        success: false
       },
       { status: 500 }
     );
@@ -286,5 +318,102 @@ async function getUserRole(
   } catch (error) {
     console.error('Error getting user role:', error);
     return null;
+  }
+}
+
+/**
+ * Detect if a question is data-related or general
+ * Returns true if the question requires database queries
+ */
+async function detectDataQuestion(question: string): Promise<boolean> {
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-oss-20b',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a classifier that determines if a question is about school data/database queries or a general question.
+
+Respond with ONLY "DATA" or "GENERAL".
+
+DATA questions: Questions about students, grades, attendance, classes, teachers, schedules, results, marks, etc. that would require database queries.
+GENERAL questions: Common knowledge, advice, explanations, definitions, how-to questions, etc.`,
+          },
+          {
+            role: 'user',
+            content: question,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 5,
+      }),
+    });
+
+    const data = await response.json();
+    const classification = data.choices?.[0]?.message?.content?.trim().toUpperCase();
+
+    return classification === 'DATA';
+  } catch (error) {
+    console.error('Error detecting question type:', error);
+    // Default to data question if detection fails
+    return true;
+  }
+}
+
+/**
+ * Generate a direct response to a general question using AI
+ */
+async function generateDirectResponse(
+  question: string
+): Promise<{ response?: string; error?: string }> {
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-oss-20b',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a helpful AI assistant for a school management system. 
+Answer the user's question concisely and helpfully.
+Keep responses to 2-3 paragraphs max.
+Use markdown formatting for better readability.`,
+          },
+          {
+            role: 'user',
+            content: question,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 500,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return { error: error.error?.message || 'Failed to generate response' };
+    }
+
+    const data = await response.json();
+    const message = data.choices?.[0]?.message?.content;
+
+    if (!message) {
+      return { error: 'No response generated' };
+    }
+
+    return { response: message };
+  } catch (error) {
+    console.error('Error generating direct response:', error);
+    return { error: error instanceof Error ? error.message : 'Failed to generate response' };
   }
 }

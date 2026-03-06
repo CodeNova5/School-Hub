@@ -230,7 +230,13 @@ export default function AIAssistantChat({
         throw new Error(data.error || 'Failed to get response');
       }
 
-      // Add assistant response
+      // Update session ID
+      const finalSessionId = data.sessionId || currentSessionId;
+      if (data.sessionId) {
+        setSessionId(data.sessionId);
+      }
+
+      // Add assistant response to UI
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -244,9 +250,27 @@ export default function AIAssistantChat({
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-      // Update sessionId from response
-      if (data.sessionId) {
-        setSessionId(data.sessionId);
+
+      // Save assistant message to database
+      try {
+        await fetch('/api/ai-assistant/save-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sessionId: finalSessionId,
+            role: 'assistant',
+            content: data.response,
+            queryPlan: data.queryPlan ? {
+              explanation: data.queryPlan.explanation,
+              tables: data.queryPlan.tables,
+              resultCount: data.resultCount,
+            } : undefined,
+          }),
+        });
+      } catch (saveError) {
+        console.error('Error saving assistant message:', saveError);
       }
     } catch (error) {
       console.error('Error asking question:', error);

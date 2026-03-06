@@ -77,17 +77,48 @@ export default function AdminAIAssistantPage() {
           setSessions(formattedSessions);
           setCurrentSessionId(formattedSessions[0].id);
         } else {
-          // No sessions, create one
-          const newSessionId = 'session-' + Date.now();
-          const initialSession: ChatSession = {
-            id: newSessionId,
-            title: 'New Conversation',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          };
-          
-          setSessions([initialSession]);
-          setCurrentSessionId(newSessionId);
+          // No sessions exist, proactively create one in the database
+          // First, get the user's school_id
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('school_id')
+            .eq('user_id', session.user.id)
+            .single();
+
+          if (!isMounted) return;
+
+          if (adminData?.school_id) {
+            const { data: newSession, error: createError } = await supabase
+              .from('ai_chat_sessions')
+              .insert({
+                user_id: session.user.id,
+                school_id: adminData.school_id,
+                title: 'New Conversation',
+              })
+              .select()
+              .single();
+
+            if (!isMounted) return;
+
+            if (!createError && newSession) {
+              const initialSession: ChatSession = {
+                id: newSession.id,
+                title: newSession.title,
+                createdAt: new Date(newSession.created_at),
+                updatedAt: new Date(newSession.updated_at),
+              };
+              
+              setSessions([initialSession]);
+              setCurrentSessionId(newSession.id);
+            } else {
+              // Fallback: start with empty sessions, let first message create one
+              setSessions([]);
+              setCurrentSessionId('');
+            }
+          } else {
+            setSessions([]);
+            setCurrentSessionId('');
+          }
         }
         
         setIsLoading(false);

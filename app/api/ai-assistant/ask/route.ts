@@ -156,33 +156,8 @@ export async function POST(request: NextRequest) {
       setCachedQuery(question, schoolId, response, userId);
     }
 
-    // Save user message to database
-    if (currentSessionId) {
-      await supabase.rpc('save_chat_message', {
-        p_session_id: currentSessionId,
-        p_user_id: userId,
-        p_school_id: schoolId,
-        p_role: 'user',
-        p_content: question,
-        p_query_plan: null,
-        p_error: false,
-      });
-
-      // Save assistant response to database
-      await supabase.rpc('save_chat_message', {
-        p_session_id: currentSessionId,
-        p_user_id: userId,
-        p_school_id: schoolId,
-        p_role: 'assistant',
-        p_content: response,
-        p_query_plan: JSON.stringify({
-          explanation: queryPlan.explanation,
-          tables: queryPlan.tables,
-          resultCount: queryResult.rowCount,
-        }),
-        p_error: false,
-      });
-    }
+    // NOTE: Messages are saved by the client component via save-message endpoint
+    // to avoid duplicate insertions and maintain single source of truth for persistence
 
     return NextResponse.json({
       success: true,

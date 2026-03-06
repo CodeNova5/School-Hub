@@ -39,11 +39,11 @@ export default function AdminAIAssistantPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [showSidebar, setShowSidebar] = useState(true);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
-    let retryCount = 0;
-    const maxRetries = 2;
+    let retryTimeoutId: NodeJS.Timeout | null = null;
 
     async function checkSession() {
       try {
@@ -61,7 +61,8 @@ export default function AdminAIAssistantPage() {
         // Load existing sessions from database
         const { data: dbSessions, error } = await supabase
           .from('ai_chat_sessions')
-          .select('id, title, created_at, updated_at')
+          .select('id, title, created_at, updated_at, deleted_at')
+          .is('deleted_at', null)
           .order('updated_at', { ascending: false })
           .limit(50);
 
@@ -77,70 +78,29 @@ export default function AdminAIAssistantPage() {
           setSessions(formattedSessions);
           setCurrentSessionId(formattedSessions[0].id);
         } else {
-          // No sessions exist, proactively create one in the database
-          // First, get the user's school_id
-          const { data: adminData } = await supabase
-            .from('admins')
-            .select('school_id')
-            .eq('user_id', session.user.id)
-            .single();
-
-          if (!isMounted) return;
-
-          if (adminData?.school_id) {
-            const { data: newSession, error: createError } = await supabase
-              .from('ai_chat_sessions')
-              .insert({
-                user_id: session.user.id,
-                school_id: adminData.school_id,
-                title: 'New Conversation',
-              })
-              .select()
-              .single();
-
-            if (!isMounted) return;
-
-            if (!createError && newSession) {
-              const initialSession: ChatSession = {
-                id: newSession.id,
-                title: newSession.title,
-                createdAt: new Date(newSession.created_at),
-                updatedAt: new Date(newSession.updated_at),
-              };
-              
-              setSessions([initialSession]);
-              setCurrentSessionId(newSession.id);
-            } else {
-              // Fallback: start with empty sessions, let first message create one
-              setSessions([]);
-              setCurrentSessionId('');
-            }
-          } else {
-            setSessions([]);
-            setCurrentSessionId('');
-          }
+          // No sessions exist, start with empty state and let user create first chat
+          setSessions([]);
+          setCurrentSessionId('');
         }
         
         setIsLoading(false);
-        retryCount = 0; // Reset retry count on success
       } catch (error: any) {
         console.error('Error checking session:', error);
         
         if (!isMounted) return;
         
-        // Don't retry on auth errors or if we've hit max retries
-        if (error?.status === 429 || retryCount >= maxRetries) {
-          console.warn('Max retries reached or rate limited, redirecting to login');
+        // Don't retry on auth errors
+        if (error?.status === 401 || error?.status === 403) {
           router.push('/admin/login');
           return;
         }
-        
-        // Exponential backoff: wait before retrying
-        retryCount++;
-        const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-        setTimeout(() => {
-          if (isMounted) checkSession();
-        }, backoffDelay);
+
+        // Retry once with exponential backoff for network errors
+        retryTimeoutId = setTimeout(() => {
+          if (isMounted) {
+            checkSession();
+          }
+        }, 1000);
       }
     }
 
@@ -148,10 +108,14 @@ export default function AdminAIAssistantPage() {
 
     return () => {
       isMounted = false;
+      if (retryTimeoutId) clearTimeout(retryTimeoutId);
     };
   }, [router]);
 
   const handleNewChat = useCallback(async () => {
+    if (isCreatingSession) return; // Prevent duplicate creation
+
+    setIsCreatingSession(true);
     try {
       const {
         data: { session },
@@ -192,47 +156,52 @@ export default function AdminAIAssistantPage() {
       }
     } catch (error) {
       console.error('Error creating new chat:', error);
+    } finally {
+      setIsCreatingSession(false);
     }
-  }, []);
+  }, [isCreatingSession]);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
-    // Only update title once - if current session has default title
-    const currentSession = sessions.find((s) => s.id === currentSessionId);
-    if (!currentSession || currentSession.title === 'New Conversation') {
-      const firstUserMessage = newMessages.find((m) => m.role === 'user');
-      if (firstUserMessage && currentSessionId) {
-        const title = firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '');
-
-        // Update session in database with new title
-        supabase
-          .from('ai_chat_sessions')
-          .update({
-            title,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentSessionId)
-          .then(({ error }: { error: any }) => {
-            if (!error) {
-              setSessions((prev) =>
-                prev.map((session) =>
-                  session.id === currentSessionId
-                    ? {
-                        ...session,
-                        title,
-                        updatedAt: new Date(),
-                      }
-                    : session
-                )
-              );
-            }
-          })
-          .catch((error: any) => console.error('Error updating session title:', error));
+    // Only update title once - if current session has default title and there's a first user message
+    setSessions((prevSessions) => {
+      const currentSession = prevSessions.find((s) => s.id === currentSessionId);
+      if (!currentSession || currentSession.title !== 'New Conversation') {
+        return prevSessions; // No need to update
       }
-    }
-  }, [currentSessionId, sessions]);
+
+      const firstUserMessage = newMessages.find((m) => m.role === 'user');
+      if (!firstUserMessage || !currentSessionId) {
+        return prevSessions;
+      }
+
+      const newTitle = firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '');
+
+      // Update session in database with new title
+      supabase
+        .from('ai_chat_sessions')
+        .update({
+          title: newTitle,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', currentSessionId)
+        .catch((error: any) => console.error('Error updating session title:', error));
+
+      return prevSessions.map((session) =>
+        session.id === currentSessionId
+          ? {
+              ...session,
+              title: newTitle,
+              updatedAt: new Date(),
+            }
+          : session
+      );
+    });
+  }, [currentSessionId]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {
+      const wasCurrentSession = currentSessionId === id;
+      
       // Delete session from database (soft delete)
       await supabase
         .from('ai_chat_sessions')
@@ -242,17 +211,28 @@ export default function AdminAIAssistantPage() {
       setSessions((prev) => {
         const filtered = prev.filter((session) => session.id !== id);
         
-        if (currentSessionId === id) {
-          const nextSessionId = filtered.length > 0 ? filtered[0].id : null;
-          setCurrentSessionId(nextSessionId || '');
-          
-          if (filtered.length === 0) {
-            handleNewChat();
+        if (wasCurrentSession) {
+          if (filtered.length > 0) {
+            setCurrentSessionId(filtered[0].id);
+          } else {
+            setCurrentSessionId('');
           }
         }
         
         return filtered;
       });
+
+      // Create new session if all were deleted
+      if (wasCurrentSession) {
+        setTimeout(() => {
+          setSessions((prev) => {
+            if (prev.length === 0) {
+              handleNewChat();
+            }
+            return prev;
+          });
+        }, 0);
+      }
     } catch (error) {
       console.error('Error deleting session:', error);
     }

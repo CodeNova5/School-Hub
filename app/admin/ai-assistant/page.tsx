@@ -8,13 +8,10 @@
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import { Loader2, Plus, MessageSquare, Trash2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 
 interface Message {
   id: string;
@@ -32,7 +29,6 @@ interface Message {
 interface ChatSession {
   id: string;
   title: string;
-  messages: Message[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,101 +41,204 @@ export default function AdminAIAssistantPage() {
   const [showSidebar, setShowSidebar] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 2;
+
     async function checkSession() {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
+        if (!isMounted) return;
+
         if (!session) {
           router.push('/admin/login');
           return;
         }
         
-        // Initialize with first chat session
-        const firstSessionId = 'session-' + Date.now();
-        const initialSession: ChatSession = {
-          id: firstSessionId,
-          title: 'New Conversation',
-          messages: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
+        // Load existing sessions from database
+        const { data: dbSessions, error } = await supabase
+          .from('ai_chat_sessions')
+          .select('id, title, created_at, updated_at')
+          .order('updated_at', { ascending: false })
+          .limit(50);
+
+        if (!isMounted) return;
+
+        if (!error && dbSessions && dbSessions.length > 0) {
+          const formattedSessions = dbSessions.map((s: any) => ({
+            id: s.id,
+            title: s.title || 'Untitled Conversation',
+            createdAt: new Date(s.created_at),
+            updatedAt: new Date(s.updated_at),
+          }));
+          setSessions(formattedSessions);
+          setCurrentSessionId(formattedSessions[0].id);
+        } else {
+          // No sessions, create one
+          const newSessionId = 'session-' + Date.now();
+          const initialSession: ChatSession = {
+            id: newSessionId,
+            title: 'New Conversation',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          
+          setSessions([initialSession]);
+          setCurrentSessionId(newSessionId);
+        }
         
-        setSessions([initialSession]);
-        setCurrentSessionId(firstSessionId);
         setIsLoading(false);
-      } catch (error) {
+        retryCount = 0; // Reset retry count on success
+      } catch (error: any) {
         console.error('Error checking session:', error);
-        router.push('/admin/login');
+        
+        if (!isMounted) return;
+        
+        // Don't retry on auth errors or if we've hit max retries
+        if (error?.status === 429 || retryCount >= maxRetries) {
+          console.warn('Max retries reached or rate limited, redirecting to login');
+          router.push('/admin/login');
+          return;
+        }
+        
+        // Exponential backoff: wait before retrying
+        retryCount++;
+        const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+        setTimeout(() => {
+          if (isMounted) checkSession();
+        }, backoffDelay);
       }
     }
 
     checkSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
-  const handleNewChat = useCallback(() => {
-    const newSessionId = 'session-' + Date.now();
-    const newSession: ChatSession = {
-      id: newSessionId,
-      title: 'New Conversation',
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    
-    setSessions((prev) => [newSession, ...prev]);
-    setCurrentSessionId(newSessionId);
+  const handleNewChat = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) return;
+
+      // Get user's school_id
+      const { data: userProfile } = await supabase
+        .from('admins')
+        .select('school_id')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!userProfile) return;
+
+      // Create new session in database
+      const { data: newSession, error } = await supabase
+        .from('ai_chat_sessions')
+        .insert({
+          user_id: session.user.id,
+          school_id: userProfile.school_id,
+          title: 'New Conversation',
+        })
+        .select()
+        .single();
+
+      if (!error && newSession) {
+        const sessionData: ChatSession = {
+          id: newSession.id,
+          title: newSession.title,
+          createdAt: new Date(newSession.created_at),
+          updatedAt: new Date(newSession.updated_at),
+        };
+
+        setSessions((prev) => [sessionData, ...prev]);
+        setCurrentSessionId(newSession.id);
+      }
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+    }
   }, []);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
-    setSessions((prev) =>
-      prev.map((session) =>
-        session.id === currentSessionId
-          ? {
-              ...session,
-              messages: newMessages,
-              updatedAt: new Date(),
-              title: newMessages.length > 1
-                ? newMessages[1]?.content.substring(0, 50) + '...'
-                : 'New Conversation',
-            }
-          : session
-      )
-    );
-  }, [currentSessionId]);
+    // Only update title once - if current session has default title
+    const currentSession = sessions.find((s) => s.id === currentSessionId);
+    if (!currentSession || currentSession.title === 'New Conversation') {
+      const firstUserMessage = newMessages.find((m) => m.role === 'user');
+      if (firstUserMessage && currentSessionId) {
+        const title = firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '');
 
-  const handleDeleteSession = useCallback((id: string) => {
-    setSessions((prev) => {
-      const filtered = prev.filter((session) => session.id !== id);
-      
-      if (currentSessionId === id) {
-        const nextSessionId = filtered.length > 0 ? filtered[0].id : null;
-        setCurrentSessionId(nextSessionId || '');
-        
-        if (filtered.length === 0) {
-          handleNewChat();
-        }
+        // Update session in database with new title
+        supabase
+          .from('ai_chat_sessions')
+          .update({
+            title,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentSessionId)
+          .then(({ error }: { error: any }) => {
+            if (!error) {
+              setSessions((prev) =>
+                prev.map((session) =>
+                  session.id === currentSessionId
+                    ? {
+                        ...session,
+                        title,
+                        updatedAt: new Date(),
+                      }
+                    : session
+                )
+              );
+            }
+          })
+          .catch((error: any) => console.error('Error updating session title:', error));
       }
-      
-      return filtered;
-    });
+    }
+  }, [currentSessionId, sessions]);
+
+  const handleDeleteSession = useCallback(async (id: string) => {
+    try {
+      // Delete session from database (soft delete)
+      await supabase
+        .from('ai_chat_sessions')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+
+      setSessions((prev) => {
+        const filtered = prev.filter((session) => session.id !== id);
+        
+        if (currentSessionId === id) {
+          const nextSessionId = filtered.length > 0 ? filtered[0].id : null;
+          setCurrentSessionId(nextSessionId || '');
+          
+          if (filtered.length === 0) {
+            handleNewChat();
+          }
+        }
+        
+        return filtered;
+      });
+    } catch (error) {
+      console.error('Error deleting session:', error);
+    }
   }, [currentSessionId, handleNewChat]);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 
   if (isLoading) {
     return (
-      <DashboardLayout role="admin">
-        <div className="flex items-center justify-center h-96">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </DashboardLayout>
+      <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
     );
   }
 
   return (
-      <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+    <div className="flex h-screen w-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
         {/* Premium Sidebar */}
         <div className={`${showSidebar ? 'w-80' : 'w-0'} bg-gradient-to-b from-slate-800 to-slate-900 border-r border-slate-700 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
           {/* Sidebar Header */}
@@ -196,10 +295,15 @@ export default function AdminAIAssistantPage() {
                             }`}
                           >
                             <Clock className="h-3 w-3" />
-                            {session.updatedAt.toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {session.updatedAt instanceof Date
+                              ? session.updatedAt.toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : new Date(session.updatedAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
                           </div>
                         </div>
                       </div>
@@ -259,10 +363,9 @@ export default function AdminAIAssistantPage() {
 
           {/* Chat Container */}
           <div className="flex-1 overflow-hidden">
-            {currentSession && (
+            {currentSessionId && currentSession ? (
               <AIAssistantChat
-                key={currentSession.id}
-                initialMessages={currentSession.messages}
+                sessionId={currentSessionId}
                 onMessagesUpdate={handleMessagesUpdate}
                 welcomeMessage="👋 Welcome to School Hub AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more."
                 placeholder="Ask me anything about your school data..."
@@ -273,6 +376,10 @@ export default function AdminAIAssistantPage() {
                   'Which teacher has the most classes assigned?',
                 ]}
               />
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-400">
+                <p>Loading chat...</p>
+              </div>
             )}
           </div>
         </div>

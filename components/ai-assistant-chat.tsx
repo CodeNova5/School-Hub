@@ -29,6 +29,8 @@ interface AIAssistantChatProps {
   suggestedQuestions?: string[];
   initialMessages?: Message[];
   onMessagesUpdate?: (messages: Message[]) => void;
+  sessionId?: string;
+  onSessionIdChange?: (sessionId: string) => void;
 }
 
 export default function AIAssistantChat({
@@ -37,9 +39,11 @@ export default function AIAssistantChat({
   suggestedQuestions = [],
   initialMessages = [],
   onMessagesUpdate,
+  sessionId: propSessionId,
+  onSessionIdChange,
 }: AIAssistantChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(propSessionId || null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -48,48 +52,108 @@ export default function AIAssistantChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load chat history on mount
+  // Load chat history on mount or when sessionId changes
   useEffect(() => {
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 2;
+
     const loadChatHistory = async () => {
       try {
-        const response = await fetch('/api/ai-assistant/history');
-        const data = await response.json();
+        setIsLoadingHistory(true);
+        
+        // If sessionId is provided, load that specific session
+        if (propSessionId) {
+          const response = await fetch(`/api/ai-assistant/history?sessionId=${propSessionId}`);
+          
+          if (!isMounted) return;
+          
+          const data = await response.json();
 
-        if (data.success && data.messages.length > 0) {
-          // Load existing messages from database
-          setMessages(data.messages);
-          setSessionId(data.sessionId);
+          if (data.success && data.messages.length > 0) {
+            setMessages(data.messages);
+            setSessionId(propSessionId);
+            if (onSessionIdChange) {
+              onSessionIdChange(propSessionId);
+            }
+          } else {
+            // Empty session, show welcome
+            const welcomeMsg: Message = {
+              id: '0',
+              role: 'assistant',
+              content: welcomeMessage,
+              timestamp: new Date(),
+            };
+            setMessages([welcomeMsg]);
+          }
         } else {
-          // No history, show welcome message
-          const welcomeMsg: Message = {
-            id: '0',
-            role: 'assistant',
-            content: welcomeMessage,
-            timestamp: new Date(),
-          };
-          setMessages([welcomeMsg]);
+          // Load latest session (first time or no session specified)
+          const response = await fetch('/api/ai-assistant/history');
+          
+          if (!isMounted) return;
+          
+          const data = await response.json();
+
+          if (data.success && data.messages.length > 0) {
+            setMessages(data.messages);
+            setSessionId(data.sessionId);
+            if (onSessionIdChange && data.sessionId) {
+              onSessionIdChange(data.sessionId);
+            }
+          } else {
+            // No history, show welcome message
+            const welcomeMsg: Message = {
+              id: '0',
+              role: 'assistant',
+              content: welcomeMessage,
+              timestamp: new Date(),
+            };
+            setMessages([welcomeMsg]);
+          }
         }
-      } catch (error) {
+        retryCount = 0; // Reset on success
+      } catch (error: any) {
         console.error('Error loading chat history:', error);
-        // Fallback to initial messages or welcome message
-        if (initialMessages.length > 0) {
-          setMessages(initialMessages);
+        
+        if (!isMounted) return;
+        
+        // Don't retry on 429 rate limit
+        if (error?.status === 429 || retryCount >= maxRetries) {
+          console.warn('Max retries reached or rate limited');
+          // Fallback to initial messages or welcome message
+          if (initialMessages.length > 0) {
+            setMessages(initialMessages);
+          } else {
+            const welcomeMsg: Message = {
+              id: '0',
+              role: 'assistant',
+              content: welcomeMessage,
+              timestamp: new Date(),
+            };
+            setMessages([welcomeMsg]);
+          }
         } else {
-          const welcomeMsg: Message = {
-            id: '0',
-            role: 'assistant',
-            content: welcomeMessage,
-            timestamp: new Date(),
-          };
-          setMessages([welcomeMsg]);
+          // Exponential backoff retry
+          retryCount++;
+          const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+          setTimeout(() => {
+            if (isMounted) loadChatHistory();
+          }, backoffDelay);
+          return; // Don't call setIsLoadingHistory(false) yet
         }
       } finally {
-        setIsLoadingHistory(false);
+        if (isMounted) {
+          setIsLoadingHistory(false);
+        }
       }
     };
 
     loadChatHistory();
-  }, [welcomeMessage, initialMessages]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [propSessionId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

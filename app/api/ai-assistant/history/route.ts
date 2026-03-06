@@ -6,11 +6,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { checkIsAdminWithSchool, errorResponse } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    // Check if user is admin and get school_id
+    const permission = await checkIsAdminWithSchool();
+    if (!permission.authorized) {
+      return errorResponse(permission.error || 'Unauthorized', permission.status || 401);
+    }
+
     const supabase = createRouteHandlerClient({ cookies });
 
     // Get authenticated user
@@ -27,38 +34,12 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = session.user.id;
+    const schoolId = permission.schoolId;
 
     // Get session ID from query params (optional)
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
     const limit = parseInt(searchParams.get('limit') || '100', 10);
-
-    // Get user's school_id
-    const { data: userProfile, error: profileError } = await supabase
-      .from('teachers')
-      .select('school_id')
-      .eq('user_id', userId)
-      .single();
-
-    let schoolId: string;
-    if (profileError || !userProfile) {
-      const { data: studentProfile, error: studentError } = await supabase
-        .from('students')
-        .select('school_id')
-        .eq('user_id', userId)
-        .single();
-
-      if (studentError || !studentProfile) {
-        return NextResponse.json(
-          { error: 'User profile not found' },
-          { status: 403 }
-        );
-      }
-
-      schoolId = studentProfile.school_id;
-    } else {
-      schoolId = userProfile.school_id;
-    }
 
     let query = supabase
       .from('ai_chat_messages')

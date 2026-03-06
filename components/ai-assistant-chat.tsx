@@ -47,7 +47,7 @@ export default function AIAssistantChat({
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
-  const [showQueryInfo, setShowQueryInfo] = useState(false);
+  const [expandedQueryInfoId, setExpandedQueryInfoId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -430,7 +430,7 @@ export default function AIAssistantChat({
                   
                   {message.queryInfo && (
                     <button
-                      onClick={() => setShowQueryInfo(!showQueryInfo)}
+                      onClick={() => setExpandedQueryInfoId(expandedQueryInfoId === message.id ? null : message.id)}
                       className="text-xs text-emerald-400 hover:text-emerald-300 mt-1 flex items-center gap-1"
                     >
                       <Info className="h-3 w-3" />
@@ -440,11 +440,13 @@ export default function AIAssistantChat({
                 </div>
 
                 {/* Query Info Details */}
-                {message.queryInfo && showQueryInfo && (
+                {message.queryInfo && expandedQueryInfoId === message.id && (
                   <div className="mt-3 pt-3 border-t border-slate-600/30 text-xs text-slate-300 bg-slate-800/50 -mx-5 -my-3.5 px-5 py-3.5 rounded-lg">
                     <p className="font-semibold text-emerald-400 mb-2">Query Information:</p>
                     <p className="mb-2"><strong>Explanation:</strong> {message.queryInfo.explanation}</p>
-                    <p><strong>Tables:</strong> {message.queryInfo.tables.join(', ')}</p>
+                    {message.queryInfo.tables && (
+                      <p><strong>Tables:</strong> {Array.isArray(message.queryInfo.tables) ? message.queryInfo.tables.join(', ') : message.queryInfo.tables}</p>
+                    )}
                     {message.queryInfo.resultCount && (
                       <p className="mt-1"><strong>Results:</strong> {message.queryInfo.resultCount} records</p>
                     )}

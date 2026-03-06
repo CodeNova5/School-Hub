@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 interface TextToSpeechRequest {
   text: string;
-  voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+  voice?: 'autumn' | 'diana' | 'hannah' | 'austin' | 'daniel' | 'troy';
   language?: string;
 }
 
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json() as TextToSpeechRequest;
-    const { text, voice = 'nova', language = 'en' } = body;
+    const { text, voice = 'diana', language = 'en' } = body;
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
@@ -69,9 +69,10 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'distil-whisper-large-v3-en', // Groq TTS model
+          model: 'canopylabs/orpheus-v1-english', // Use available model
           input: text,
           voice: voice,
+          response_format: 'wav',
         }),
       }
     );
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       audio: base64Audio,
-      contentType: 'audio/mpeg',
+      contentType: 'audio/wav',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

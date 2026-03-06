@@ -95,7 +95,7 @@ export function playAudio(base64Audio: string): Promise<void> {
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
-      const blob = new Blob([bytes], { type: 'audio/mpeg' });
+      const blob = new Blob([bytes], { type: 'audio/wav' });
 
       // Create audio element
       const audio = new Audio();
@@ -231,5 +231,69 @@ export async function requestMicrophoneAccess(): Promise<boolean> {
   } catch (error) {
     console.error('Microphone access failed:', error);
     return false;
+  }
+}
+
+/**
+ * Speak text using Web Speech Synthesis API
+ * Free, no API credits needed
+ */
+export function speakText(
+  text: string,
+  options?: {
+    rate?: number;
+    pitch?: number;
+    volume?: number;
+    voice?: string;
+  }
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Check if Web Speech Synthesis API is available
+    const speechSynthesisAPI = window.speechSynthesis;
+    if (!speechSynthesisAPI) {
+      reject(new Error('Web Speech Synthesis API not supported in this browser'));
+      return;
+    }
+
+    // Cancel any ongoing speech
+    speechSynthesisAPI.cancel();
+
+    // Create utterance
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = options?.rate ?? 1.0;
+    utterance.pitch = options?.pitch ?? 1.0;
+    utterance.volume = options?.volume ?? 1.0;
+
+    // Set voice if specified
+    if (options?.voice) {
+      const voices = speechSynthesisAPI.getVoices();
+      const selectedVoice = voices.find(
+        (v) => v.name.toLowerCase().includes(options.voice!.toLowerCase())
+      );
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
+    }
+
+    // Set event handlers
+    utterance.onend = () => {
+      resolve();
+    };
+
+    utterance.onerror = (event) => {
+      reject(new Error(`Speech synthesis error: ${event.error}`));
+    };
+
+    // Speak
+    speechSynthesisAPI.speak(utterance);
+  });
+}
+
+/**
+ * Stop text-to-speech
+ */
+export function stopSpeech(): void {
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
   }
 }

@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Bot, User, AlertCircle, Info, Copy, Check, Mic, MicOff, Volume2, VolumeX, Pause, Play } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { recordAudio, playAudio, getMicrophoneStream, stopAudioStream, formatDuration, checkMicrophonePermission } from '@/lib/audio-utils';
+import { recordAudio, playAudio, getMicrophoneStream, stopAudioStream, formatDuration, checkMicrophonePermission, speakText, stopSpeech } from '@/lib/audio-utils';
 
 interface Message {
   id: string;
@@ -65,6 +65,9 @@ export default function AIAssistantChat({
   const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'prompt' | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load chat history on mount or when sessionId changes
   useEffect(() => {
@@ -184,12 +187,28 @@ export default function AIAssistantChat({
   // Cleanup recording on unmount
   useEffect(() => {
     return () => {
+      // Stop recorder
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+
+      // Clear timeout
+      if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+      }
+
+      // Clear interval
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
       }
+
+      // Stop stream
       if (mediaStreamRef.current) {
         stopAudioStream(mediaStreamRef.current);
       }
+
+      // Stop any ongoing speech
+      stopSpeech();
     };
   }, []);
 
@@ -215,13 +234,39 @@ export default function AIAssistantChat({
     try {
       setIsRecording(true);
       setRecordingTime(0);
+      recordedChunksRef.current = []; // Reset chunks
 
-      // Request microphone access and start recording
+      // Request microphone access
       const stream = await getMicrophoneStream();
       mediaStreamRef.current = stream;
 
-      // Start actual recording after stream is ready
-      // The recording will be handled by the recordAudio utility
+      // Create MediaRecorder immediately
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+      });
+
+      // Handle data available
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      // Handle errors
+      mediaRecorder.onerror = (event) => {
+        console.error('Recording error:', event.error);
+        setIsRecording(false);
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+
+      // Auto-stop after 30 seconds
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current && isRecording) {
+          handleStopRecording();
+        }
+      }, 30000);
     } catch (error) {
       setIsRecording(false);
       console.error('Failed to start recording:', error);
@@ -235,63 +280,62 @@ export default function AIAssistantChat({
 
     setIsRecording(false);
 
-    if (recordingIntervalRef.current) {
-      clearInterval(recordingIntervalRef.current);
+    // Clear timeout
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
 
-    if (mediaStreamRef.current) {
-      stopAudioStream(mediaStreamRef.current);
-      mediaStreamRef.current = null;
+    // Clear interval
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+      recordingIntervalRef.current = null;
     }
 
     try {
       setIsLoading(true);
-      
-      // Allow time for recording to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Record audio - use a custom recording function that uses the existing stream
-      const audioRecorder = new Promise<string>((resolve, reject) => {
-        const chunks: BlobPart[] = [];
-        const stream = mediaStreamRef.current;
-        
-        if (!stream) {
-          reject(new Error('No audio stream available'));
-          return;
-        }
-
-        const mediaRecorder = new MediaRecorder(stream, {
-          mimeType: 'audio/webm;codecs=opus',
-        });
-
-        mediaRecorder.ondataavailable = (event) => {
-          chunks.push(event.data);
-        };
-
-        mediaRecorder.onstop = async () => {
-          try {
-            const blob = new Blob(chunks, { type: 'audio/webm' });
-            const arrayBuffer = await blob.arrayBuffer();
-            const base64 = btoa(
-              String.fromCharCode.apply(null, Array.from(new Uint8Array(arrayBuffer)))
-            );
-            resolve(base64);
-          } catch (error) {
-            reject(new Error('Failed to process audio data'));
+      // Stop the recorder
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        await new Promise<void>((resolve) => {
+          if (!mediaRecorderRef.current) {
+            resolve();
+            return;
           }
-        };
 
-        mediaRecorder.start();
-        setTimeout(() => mediaRecorder.stop(), recordingTime * 1000 + 100);
-      });
+          mediaRecorderRef.current.onstop = () => {
+            resolve();
+          };
+          mediaRecorderRef.current.stop();
+        });
+      }
 
-      const audioBase64 = await audioRecorder;
+      // Process the recorded chunks
+      const chunks = recordedChunksRef.current;
+      if (chunks.length === 0) {
+        throw new Error('No audio data captured');
+      }
 
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      const arrayBuffer = await blob.arrayBuffer();
+
+      // Convert to base64
+      const base64 = btoa(
+        String.fromCharCode(...Array.from(new Uint8Array(arrayBuffer)))
+      );
+
+      // Stop the stream
+      if (mediaStreamRef.current) {
+        stopAudioStream(mediaStreamRef.current);
+        mediaStreamRef.current = null;
+      }
+      // Stop any ongoing speech
+      stopSpeech();
       // Send to speech-to-text API
       const sttResponse = await fetch('/api/ai-assistant/speech-to-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audio: audioBase64 }),
+        body: JSON.stringify({ audio: base64 }),
       });
 
       if (!sttResponse.ok) {
@@ -302,11 +346,6 @@ export default function AIAssistantChat({
 
       if (text && text.trim()) {
         setInput(text);
-        // Auto-send the transcribed text
-        setTimeout(() => {
-          setInput(text);
-          // Trigger send in next render
-        }, 50);
       }
     } catch (error) {
       console.error('Error processing voice input:', error);
@@ -314,34 +353,38 @@ export default function AIAssistantChat({
     } finally {
       setIsLoading(false);
       setRecordingTime(0);
+      mediaRecorderRef.current = null;
     }
   };
 
-  // Handle text-to-speech for response
+  // Handle text-to-speech for response using Web Speech Synthesis API
   const handlePlayResponse = async (messageId: string, content: string) => {
     if (isPlaying) return;
 
     try {
       setIsPlaying(messageId);
 
-      // Call TTS API
-      const ttsResponse = await fetch('/api/ai-assistant/text-to-speech', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: content, voice: 'nova' }),
+      // Strip markdown formatting for speech
+      const plainText = content
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+        .replace(/__(.*?)__/g, '$1') // Remove bold (alternative)
+        .replace(/\*(.*?)\*/g, '$1') // Remove italic
+        .replace(/_(.*?)_/g, '$1') // Remove italic (alternative)
+        .replace(/`(.*?)`/g, '$1') // Remove code
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links
+        .replace(/^#{1,6}\s+/gm, '') // Remove headers
+        .replace(/^\s*[-*+]\s+/gm, '') // Remove list markers
+        .replace(/^\s*\d+\.\s+/gm, ''); // Remove ordered list markers
+
+      // Use Web Speech Synthesis API (no API credits needed)
+      await speakText(plainText, {
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0,
       });
-
-      if (!ttsResponse.ok) {
-        throw new Error('Failed to generate speech');
-      }
-
-      const { audio } = await ttsResponse.json();
-
-      // Play audio
-      await playAudio(audio);
     } catch (error) {
       console.error('Error playing response:', error);
-      alert('Failed to play audio. Please try again.');
+      alert('Failed to play audio. Your browser may not support text-to-speech.');
     } finally {
       setIsPlaying(null);
     }

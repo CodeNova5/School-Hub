@@ -16,6 +16,7 @@ export const dynamic = 'force-dynamic';
 interface AskRequest {
   question: string;
   useCache?: boolean;
+  sessionId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -56,13 +57,27 @@ export async function POST(request: NextRequest) {
 
     // Parse request
     const body: AskRequest = await request.json();
-    const { question, useCache = true } = body;
+    const { question, useCache = true, sessionId } = body;
 
     if (!question || question.trim().length === 0) {
       return NextResponse.json(
         { error: 'Question is required' },
         { status: 400 }
       );
+    }
+
+    // Get or create chat session
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      const { data: newSession, error: sessionError } = await supabase
+        .rpc('get_or_create_chat_session', {
+          p_user_id: userId,
+          p_school_id: schoolId,
+        });
+
+      if (!sessionError && newSession) {
+        currentSessionId = newSession;
+      }
     }
 
     // Check cache first
@@ -141,6 +156,34 @@ export async function POST(request: NextRequest) {
       setCachedQuery(question, schoolId, response, userId);
     }
 
+    // Save user message to database
+    if (currentSessionId) {
+      await supabase.rpc('save_chat_message', {
+        p_session_id: currentSessionId,
+        p_user_id: userId,
+        p_school_id: schoolId,
+        p_role: 'user',
+        p_content: question,
+        p_query_plan: null,
+        p_error: false,
+      });
+
+      // Save assistant response to database
+      await supabase.rpc('save_chat_message', {
+        p_session_id: currentSessionId,
+        p_user_id: userId,
+        p_school_id: schoolId,
+        p_role: 'assistant',
+        p_content: response,
+        p_query_plan: JSON.stringify({
+          explanation: queryPlan.explanation,
+          tables: queryPlan.tables,
+          resultCount: queryResult.rowCount,
+        }),
+        p_error: false,
+      });
+    }
+
     return NextResponse.json({
       success: true,
       response,
@@ -150,6 +193,7 @@ export async function POST(request: NextRequest) {
       },
       resultCount: queryResult.rowCount,
       cached: false,
+      sessionId: currentSessionId,
     });
   } catch (error) {
     console.error('AI Assistant error:', error);

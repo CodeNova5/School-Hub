@@ -38,25 +38,58 @@ export default function AIAssistantChat({
   initialMessages = [],
   onMessagesUpdate,
 }: AIAssistantChatProps) {
-  const [messages, setMessages] = useState<Message[]>(() => {
-    if (initialMessages.length > 0) {
-      return initialMessages;
-    }
-    return [
-      {
-        id: '0',
-        role: 'assistant',
-        content: welcomeMessage,
-        timestamp: new Date(),
-      },
-    ];
-  });
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [showQueryInfo, setShowQueryInfo] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load chat history on mount
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      try {
+        const response = await fetch('/api/ai-assistant/history');
+        const data = await response.json();
+
+        if (data.success && data.messages.length > 0) {
+          // Load existing messages from database
+          setMessages(data.messages);
+          setSessionId(data.sessionId);
+        } else {
+          // No history, show welcome message
+          const welcomeMsg: Message = {
+            id: '0',
+            role: 'assistant',
+            content: welcomeMessage,
+            timestamp: new Date(),
+          };
+          setMessages([welcomeMsg]);
+        }
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+        // Fallback to initial messages or welcome message
+        if (initialMessages.length > 0) {
+          setMessages(initialMessages);
+        } else {
+          const welcomeMsg: Message = {
+            id: '0',
+            role: 'assistant',
+            content: welcomeMessage,
+            timestamp: new Date(),
+          };
+          setMessages([welcomeMsg]);
+        }
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadChatHistory();
+  }, [welcomeMessage, initialMessages]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -97,6 +130,24 @@ export default function AIAssistantChat({
     setIsLoading(true);
 
     try {
+      // Save user message to database
+      const saveUserResponse = await fetch('/api/ai-assistant/save-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          role: 'user',
+          content: question,
+        }),
+      });
+
+      const saveUserData = await saveUserResponse.json();
+      const currentSessionId = saveUserData.sessionId || sessionId;
+      setSessionId(currentSessionId);
+
+      // Send question to AI assistant
       const response = await fetch('/api/ai-assistant/ask', {
         method: 'POST',
         headers: {
@@ -104,6 +155,7 @@ export default function AIAssistantChat({
         },
         body: JSON.stringify({ 
           question,
+          sessionId: currentSessionId,
           context: messages // Send conversation history for context
         }),
       });
@@ -128,6 +180,10 @@ export default function AIAssistantChat({
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      // Update sessionId from response
+      if (data.sessionId) {
+        setSessionId(data.sessionId);
+      }
     } catch (error) {
       console.error('Error asking question:', error);
       
@@ -143,6 +199,22 @@ export default function AIAssistantChat({
       };
 
       setMessages((prev) => [...prev, errorMessage]);
+
+      // Save error message to database
+      if (sessionId) {
+        await fetch('/api/ai-assistant/save-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sessionId: sessionId,
+            role: 'assistant',
+            content: errorMessage.content,
+            error: true,
+          }),
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +237,16 @@ export default function AIAssistantChat({
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800">
       {/* Messages Container */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-        {messages.map((message) => (
+        {isLoadingHistory ? (
+          <div className="flex justify-center items-center h-full">
+            <div className="flex gap-2">
+              <div className="h-3 w-3 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0ms'}} />
+              <div className="h-3 w-3 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '150ms'}} />
+              <div className="h-3 w-3 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '300ms'}} />
+            </div>
+          </div>
+        ) : (
+          messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -278,7 +359,7 @@ export default function AIAssistantChat({
               </div>
             </div>
           </div>
-        ))}
+        )))}
 
         {/* Loading Indicator */}
         {isLoading && (
@@ -302,7 +383,7 @@ export default function AIAssistantChat({
       </div>
 
       {/* Suggested Questions */}
-      {suggestedQuestions.length > 0 && messages.filter(m => m.role === 'user').length === 0 && (
+      {!isLoadingHistory && suggestedQuestions.length > 0 && messages.filter(m => m.role === 'user').length === 0 && (
         <div className="px-6 pb-6">
           <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wide">💡 Try asking:</p>
           <div className="grid grid-cols-1 gap-2">

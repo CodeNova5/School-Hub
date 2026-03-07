@@ -92,24 +92,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Detect if this is a data-related question
-    const isDataQuestion = await detectDataQuestion(question);
+    // Classify question and get response in single API call
+    const classificationResult = await classifyAndRespond(question);
 
-    // If not a data question, answer directly using AI
-    if (!isDataQuestion) {
-      const directResponse = await generateDirectResponse(question);
+    if (classificationResult.error) {
+      return NextResponse.json(
+        {
+          error: classificationResult.error,
+          success: false
+        },
+        { status: 400 }
+      );
+    }
 
-      if (directResponse.error || !directResponse.response) {
-        return NextResponse.json(
-          {
-            error: directResponse.error || 'No response generated',
-            success: false
-          },
-          { status: 400 }
-        );
-      }
-
-      const responseText = directResponse.response;
+    // If not a data question, we have the direct response
+    if (!classificationResult.isDataQuestion) {
+      const responseText = classificationResult.response!;
 
       // Cache the response
       if (useCache) {
@@ -322,56 +320,12 @@ async function getUserRole(
 }
 
 /**
- * Detect if a question is data-related or general
- * Returns true if the question requires database queries
+ * Classify question and respond in a single API call
+ * Returns either the direct answer (for general questions) or a marker that it needs data processing
  */
-async function detectDataQuestion(question: string): Promise<boolean> {
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [
-          {
-            role: 'system',
-            content: `You are a classifier that determines if a question is about school data/database queries or a general question.
-
-Respond with ONLY "DATA" or "GENERAL".
-
-DATA questions: Questions about students, grades, attendance, classes, teachers, schedules, results, marks, etc. that would require database queries.
-GENERAL questions: Common knowledge, advice, explanations, definitions, how-to questions, etc.`,
-          },
-          {
-            role: 'user',
-            content: question,
-          },
-        ],
-        temperature: 0,
-        max_tokens: 5,
-      }),
-    });
-
-    const data = await response.json();
-    const classification = data.choices?.[0]?.message?.content?.trim().toUpperCase();
-
-    return classification === 'DATA';
-  } catch (error) {
-    console.error('Error detecting question type:', error);
-    // Default to data question if detection fails
-    return true;
-  }
-}
-
-/**
- * Generate a direct response to a general question using AI
- */
-async function generateDirectResponse(
+async function classifyAndRespond(
   question: string
-): Promise<{ response?: string; error?: string }> {
+): Promise<{ isDataQuestion: boolean; response?: string; error?: string }> {
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -384,10 +338,20 @@ async function generateDirectResponse(
         messages: [
           {
             role: 'system',
-            content: `You are a helpful AI assistant for a school management system. 
-Answer the user's question concisely and helpfully.
-Keep responses to 2-3 paragraphs max.
-Use markdown formatting for better readability.`,
+            content: `You are a classifier and AI assistant for a school management system.
+
+Determine if the user's question requires school database access (student records, grades, attendance, classes, teachers, schedules, results, marks, etc.).
+
+If it requires database access:
+- Respond with EXACTLY: [[DATA_QUESTION]]
+- Nothing else, no explanation
+
+If it does NOT require database access:
+- Provide a direct, concise answer to the question
+- Keep it to 2-3 paragraphs max
+- Use markdown formatting
+- No explanations about why it isn't a data question
+- Just the answer`,
           },
           {
             role: 'user',
@@ -401,19 +365,25 @@ Use markdown formatting for better readability.`,
 
     if (!response.ok) {
       const error = await response.json();
-      return { error: error.error?.message || 'Failed to generate response' };
+      return { isDataQuestion: false, error: error.error?.message || 'Failed to process question' };
     }
 
     const data = await response.json();
-    const message = data.choices?.[0]?.message?.content;
+    const message = data.choices?.[0]?.message?.content?.trim();
 
     if (!message) {
-      return { error: 'No response generated' };
+      return { isDataQuestion: false, error: 'No response generated' };
     }
 
-    return { response: message };
+    // Check if it's marked as a data question
+    if (message === '[[DATA_QUESTION]]') {
+      return { isDataQuestion: true };
+    }
+
+    // Otherwise it's the direct response
+    return { isDataQuestion: false, response: message };
   } catch (error) {
-    console.error('Error generating direct response:', error);
-    return { error: error instanceof Error ? error.message : 'Failed to generate response' };
+    console.error('Error classifying question:', error);
+    return { isDataQuestion: false, error: error instanceof Error ? error.message : 'Failed to process question' };
   }
 }

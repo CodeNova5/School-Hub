@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AIAssistantChat from '@/components/ai-assistant-chat';
-import { Loader2, Plus, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash } from 'lucide-react';
+import { Loader2, Plus, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash, Settings, LogOut, Trash2 as TrashIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -56,6 +56,12 @@ export default function AdminAIAssistantPage() {
   
   // Action loading states
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+  
+  // Settings state
+  const [showSettings, setShowSettings] = useState(false);
+  const [isAutoCollapsSidebar, setIsAutoCollapseSidebar] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isClearingArchived, setIsClearingArchived] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -63,6 +69,12 @@ export default function AdminAIAssistantPage() {
 
     async function checkSession() {
       try {
+        // Load sidebar auto-collapse preference from localStorage
+        const savedAutoCollapse = localStorage.getItem('aiAssistant_autoCollapseSidebar') === 'true';
+        if (isMounted) {
+          setIsAutoCollapseSidebar(savedAutoCollapse);
+        }
+
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -460,6 +472,91 @@ export default function AdminAIAssistantPage() {
     }
   }, [archivedSessions]);
 
+  const handleLogout = useCallback(async () => {
+    if (!confirm('Are you sure you want to logout?')) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+    try {
+      await supabase.auth.signOut();
+      router.push('/admin/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      alert('Failed to logout. Please try again.');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  }, [router]);
+
+  const handleClearAllArchived = useCallback(async () => {
+    if (!confirm(`Are you sure you want to permanently delete all ${archivedSessions.length} archived conversations? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsClearingArchived(true);
+    try {
+      // Get all archived session IDs
+      const archivedIds = archivedSessions.map((s) => s.id);
+      
+      if (archivedIds.length === 0) {
+        alert('No archived conversations to delete.');
+        return;
+      }
+
+      // Delete all archived sessions
+      await supabase
+        .from('ai_chat_sessions')
+        .delete()
+        .in('id', archivedIds);
+
+      setArchivedSessions([]);
+      setShowSettings(false);
+      alert('All archived conversations have been deleted.');
+    } catch (error) {
+      console.error('Error clearing archived:', error);
+      alert('Failed to delete archived conversations. Please try again.');
+    } finally {
+      setIsClearingArchived(false);
+    }
+  }, [archivedSessions]);
+
+  const handleExportAsJSON = useCallback(() => {
+    try {
+      // Prepare export data
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        totalSessions: sessions.length + archivedSessions.length,
+        activeSessions: sessions,
+        archivedSessions: archivedSessions,
+      };
+
+      // Create and download JSON file
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `chat-history-${new Date().getTime()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      setShowSettings(false);
+      alert('Chat history exported successfully!');
+    } catch (error) {
+      console.error('Error exporting:', error);
+      alert('Failed to export chat history. Please try again.');
+    }
+  }, [sessions, archivedSessions]);
+
+  const handleToggleAutoCollapse = useCallback(() => {
+    const newValue = !isAutoCollapsSidebar;
+    setIsAutoCollapseSidebar(newValue);
+    localStorage.setItem('aiAssistant_autoCollapseSidebar', String(newValue));
+  }, [isAutoCollapsSidebar]);
+
   // Auto-create new session when all are deleted
   useEffect(() => {
     if (sessions.length === 0 && !isLoading && !isCreatingSession) {
@@ -509,35 +606,10 @@ export default function AdminAIAssistantPage() {
           {/* Chat History */}
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-2">
-              {/* Tab Buttons */}
-              <div className="flex gap-2 mb-4 pb-2 border-b border-slate-700">
-                <button
-                  onClick={() => setShowArchived(false)}
-                  className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                    !showArchived
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  Active ({sessions.length})
-                </button>
-                <button
-                  onClick={() => setShowArchived(true)}
-                  className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-                    showArchived
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                  }`}
-                >
-                  Archived ({archivedSessions.length})
-                </button>
-              </div>
-
               {/* Sessions List */}
-              {!showArchived ? (
-                sessions.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-8">No conversations yet</p>
-                ) : (
+              {sessions.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">No conversations yet</p>
+              ) : (
                   sessions.map((session) => (
                     <div key={session.id} className="relative">
                     {/* Rename Modal */}
@@ -732,208 +804,345 @@ export default function AdminAIAssistantPage() {
                     </div>
                   </div>
                 ))
-                )
-              ) : (
-                // Archived Sessions View
-                archivedSessions.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-8">No archived conversations</p>
-                ) : (
-                  archivedSessions.map((session) => (
-                    <div key={session.id} className="relative">
-                      {/* Rename Modal */}
-                      {renameSessionId === session.id && (
-                        <div
-                          className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3"
-                          onClick={() => {
-                            setRenameSessionId(null);
-                            setRenameValue('');
-                          }}
-                        >
-                          <div
-                            className="bg-slate-800 rounded-lg p-4 w-full max-w-sm border border-slate-700 shadow-xl z-50"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <h2 className="text-white font-semibold mb-3">Rename Conversation</h2>
-                            <input
-                              autoFocus
-                              type="text"
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleRenameSession(session.id, renameValue);
-                                } else if (e.key === 'Escape') {
-                                  setRenameSessionId(null);
-                                  setRenameValue('');
-                                }
-                              }}
-                              placeholder="New name..."
-                              className="w-full bg-slate-700 border border-slate-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-                            />
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleRenameSession(session.id, renameValue)}
-                                disabled={isRenamingSession || !renameValue.trim()}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                              >
-                                {isRenamingSession ? 'Saving...' : 'Save'}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setRenameSessionId(null);
-                                  setRenameValue('');
-                                }}
-                                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition-colors font-medium"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Session Item - Archived */}
-                      <div
-                        onClick={() => {
-                          setCurrentSessionId(session.id);
-                          setOpenDropdownId(null);
-                        }}
-                        className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 ${
-                          currentSessionId === session.id
-                            ? 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'
-                            : 'bg-slate-700 hover:bg-slate-600'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2 justify-between">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <MessageSquare
-                                className={`h-4 w-4 flex-shrink-0 ${
-                                  currentSessionId === session.id
-                                    ? 'text-white'
-                                    : 'text-slate-400'
-                                }`}
-                              />
-                              <Archive
-                                className="h-3 w-3 flex-shrink-0 text-amber-500"
-                                fill="currentColor"
-                              />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3
-                                className={`text-sm font-medium truncate ${
-                                  currentSessionId === session.id
-                                    ? 'text-white'
-                                    : 'text-slate-200'
-                                }`}
-                              >
-                                {session.title}
-                              </h3>
-                              <div
-                                className={`text-xs flex items-center gap-1 mt-1 flex-shrink-0 ${
-                                  currentSessionId === session.id
-                                    ? 'text-blue-100'
-                                    : 'text-slate-400'
-                                }`}
-                              >
-                                <Clock className="h-3 w-3 flex-shrink-0" />
-                                <span className="whitespace-nowrap">
-                                  {session.updatedAt instanceof Date
-                                    ? session.updatedAt.toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        hour12: false,
-                                      })
-                                    : new Date(session.updatedAt).toLocaleTimeString([], {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        hour12: false,
-                                      })}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Dropdown Menu Button */}
-                          <div ref={dropdownRef} className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenDropdownId(openDropdownId === session.id ? null : session.id);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded"
-                            >
-                              <MoreVertical
-                                className={`h-4 w-4 ${
-                                  currentSessionId === session.id
-                                    ? 'text-blue-100'
-                                    : 'text-slate-300'
-                                }`}
-                              />
-                            </button>
-
-                            {/* Dropdown Menu - Archived */}
-                            {openDropdownId === session.id && (
-                              <div className="absolute right-0 mt-1 w-48 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-50 overflow-hidden">
-                                {/* Rename */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRenameSessionId(session.id);
-                                    setRenameValue(session.title);
-                                  }}
-                                  disabled={loadingActionId === session.id}
-                                  className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Edit2 className="h-4 w-4" />
-                                  {loadingActionId === session.id ? 'Processing...' : 'Rename'}
-                                </button>
-
-                                {/* Unarchive */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUnarchiveSession(session.id);
-                                  }}
-                                  disabled={loadingActionId === session.id}
-                                  className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Archive className="h-4 w-4" />
-                                  {loadingActionId === session.id ? 'Processing...' : 'Unarchive'}
-                                </button>
-
-                                {/* Permanent Delete */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handlePermanentDelete(session.id);
-                                  }}
-                                  disabled={loadingActionId === session.id}
-                                  className="w-full px-4 py-2 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Trash className="h-4 w-4" />
-                                  {loadingActionId === session.id ? 'Processing...' : 'Delete Permanently'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )
               )}
             </div>
           </ScrollArea>
 
-          {/* Sidebar Footer */}
+          {/* Sidebar Footer with Settings */}
           <div className="p-4 border-t border-slate-700 space-y-2">
-            <div className="bg-slate-700 rounded-lg p-3">
-              <p className="text-xs text-slate-300 font-semibold mb-1">💡 Tip</p>
-              <p className="text-xs text-slate-400">Each conversation maintains its own memory. Start a new chat for fresh context.</p>
-            </div>
+            {/* Settings Modal */}
+            {showSettings && (
+              <div
+                className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3"
+                onClick={() => setShowSettings(false)}
+              >
+                <div
+                  className="bg-slate-800 rounded-lg p-5 w-full max-w-sm border border-slate-700 shadow-2xl z-50"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <Settings className="h-5 w-5 text-blue-400" />
+                    <h2 className="text-lg font-semibold text-white">Settings</h2>
+                  </div>
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {/* Auto-Collapse Sidebar Toggle */}
+                    <div className="p-3 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-slate-500 transition-colors">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isAutoCollapsSidebar}
+                          onChange={handleToggleAutoCollapse}
+                          className="w-4 h-4 rounded accent-blue-500"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-slate-200">Auto-Collapse Sidebar</p>
+                          <p className="text-xs text-slate-400">Sidebar collapses on startup</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* View Archived Conversations */}
+                    <button
+                      onClick={() => setShowArchived(true)}
+                      className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Archive className="h-4 w-4 text-amber-400" />
+                        <p className="text-sm font-medium text-slate-200">View Archived</p>
+                      </div>
+                      <p className="text-xs text-slate-400 ml-6">{archivedSessions.length} archived conversation{archivedSessions.length !== 1 ? 's' : ''}</p>
+                    </button>
+
+                    {/* Export Chat History */}
+                    <button
+                      onClick={handleExportAsJSON}
+                      className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Download className="h-4 w-4 text-green-400" />
+                        <p className="text-sm font-medium text-slate-200">Export as JSON</p>
+                      </div>
+                      <p className="text-xs text-slate-400 ml-6">Download all chat history</p>
+                    </button>
+
+                    {/* Clear All Archived */}
+                    <button
+                      onClick={handleClearAllArchived}
+                      disabled={isClearingArchived || archivedSessions.length === 0}
+                      className="w-full p-3 text-left bg-red-900/20 border border-red-700/50 rounded-lg hover:bg-red-900/30 hover:border-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <TrashIcon className="h-4 w-4 text-red-400" />
+                        <p className="text-sm font-medium text-red-300">
+                          {isClearingArchived ? 'Clearing...' : 'Clear All Archived'}
+                        </p>
+                      </div>
+                      <p className="text-xs text-red-300/70 ml-6">Permanently delete all archived</p>
+                    </button>
+
+                    {/* Logout */}
+                    <button
+                      onClick={handleLogout}
+                      disabled={isLoggingOut}
+                      className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <LogOut className="h-4 w-4 text-slate-300" />
+                        <p className="text-sm font-medium text-slate-200">
+                          {isLoggingOut ? 'Signing out...' : 'Logout'}
+                        </p>
+                      </div>
+                      <p className="text-xs text-slate-400 ml-6">Sign out from your account</p>
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => setShowSettings(false)}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors font-medium text-sm"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Settings Button */}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="w-full flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 rounded-lg transition-all border border-slate-600 hover:border-slate-500"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="text-sm font-medium">Settings</span>
+            </button>
           </div>
         </div>
+
+        {/* Archived Sessions Modal */}
+        {showArchived && (
+          <div
+            className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3"
+            onClick={() => setShowArchived(false)}
+          >
+            <div
+              className="bg-slate-800 rounded-lg w-full max-w-md border border-slate-700 shadow-2xl z-50 flex flex-col max-h-96"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b border-slate-700">
+                <div className="flex items-center gap-2">
+                  <Archive className="h-5 w-5 text-amber-400" />
+                  <h2 className="text-lg font-semibold text-white">Archived Conversations</h2>
+                  <span className="ml-auto text-xs bg-amber-500/30 text-amber-200 px-2 py-1 rounded">
+                    {archivedSessions.length}
+                  </span>
+                </div>
+              </div>
+
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-2">
+                  {archivedSessions.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">No archived conversations</p>
+                  ) : (
+                    archivedSessions.map((session) => (
+                      <div key={session.id} className="relative">
+                        {/* Rename Modal */}
+                        {renameSessionId === session.id && (
+                          <div
+                            className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3"
+                            onClick={() => {
+                              setRenameSessionId(null);
+                              setRenameValue('');
+                            }}
+                          >
+                            <div
+                              className="bg-slate-800 rounded-lg p-4 w-full max-w-sm border border-slate-700 shadow-xl z-50"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <h2 className="text-white font-semibold mb-3">Rename Conversation</h2>
+                              <input
+                                autoFocus
+                                type="text"
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleRenameSession(session.id, renameValue);
+                                  } else if (e.key === 'Escape') {
+                                    setRenameSessionId(null);
+                                    setRenameValue('');
+                                  }
+                                }}
+                                placeholder="New name..."
+                                className="w-full bg-slate-700 border border-slate-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleRenameSession(session.id, renameValue)}
+                                  disabled={isRenamingSession || !renameValue.trim()}
+                                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                                >
+                                  {isRenamingSession ? 'Saving...' : 'Save'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setRenameSessionId(null);
+                                    setRenameValue('');
+                                  }}
+                                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition-colors font-medium"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Session Item - Archived */}
+                        <div
+                          onClick={() => {
+                            setCurrentSessionId(session.id);
+                            setOpenDropdownId(null);
+                          }}
+                          className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                            currentSessionId === session.id
+                              ? 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'
+                              : 'bg-slate-700 hover:bg-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2 justify-between">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <MessageSquare
+                                  className={`h-4 w-4 flex-shrink-0 ${
+                                    currentSessionId === session.id
+                                      ? 'text-white'
+                                      : 'text-slate-400'
+                                  }`}
+                                />
+                                <Archive
+                                  className="h-3 w-3 flex-shrink-0 text-amber-500"
+                                  fill="currentColor"
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <h3
+                                  className={`text-sm font-medium truncate ${
+                                    currentSessionId === session.id
+                                      ? 'text-white'
+                                      : 'text-slate-200'
+                                  }`}
+                                >
+                                  {session.title}
+                                </h3>
+                                <div
+                                  className={`text-xs flex items-center gap-1 mt-1 flex-shrink-0 ${
+                                    currentSessionId === session.id
+                                      ? 'text-blue-100'
+                                      : 'text-slate-400'
+                                  }`}
+                                >
+                                  <Clock className="h-3 w-3 flex-shrink-0" />
+                                  <span className="whitespace-nowrap">
+                                    {session.updatedAt instanceof Date
+                                      ? session.updatedAt.toLocaleTimeString([], {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: false,
+                                        })
+                                      : new Date(session.updatedAt).toLocaleTimeString([], {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: false,
+                                        })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Dropdown Menu Button */}
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenDropdownId(openDropdownId === session.id ? null : session.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded"
+                              >
+                                <MoreVertical
+                                  className={`h-4 w-4 ${
+                                    currentSessionId === session.id
+                                      ? 'text-blue-100'
+                                      : 'text-slate-300'
+                                  }`}
+                                />
+                              </button>
+
+                              {/* Dropdown Menu - Archived */}
+                              {openDropdownId === session.id && (
+                                <div className="absolute right-0 mt-1 w-48 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-50 overflow-hidden">
+                                  {/* Rename */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRenameSessionId(session.id);
+                                      setRenameValue(session.title);
+                                    }}
+                                    disabled={loadingActionId === session.id}
+                                    className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                    {loadingActionId === session.id ? 'Processing...' : 'Rename'}
+                                  </button>
+
+                                  {/* Unarchive */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleUnarchiveSession(session.id);
+                                    }}
+                                    disabled={loadingActionId === session.id}
+                                    className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <Archive className="h-4 w-4" />
+                                    {loadingActionId === session.id ? 'Processing...' : 'Unarchive'}
+                                  </button>
+
+                                  {/* Permanent Delete */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handlePermanentDelete(session.id);
+                                    }}
+                                    disabled={loadingActionId === session.id}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                    {loadingActionId === session.id ? 'Processing...' : 'Delete Permanently'}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+
+              <div className="p-4 border-t border-slate-700">
+                <button
+                  onClick={() => setShowArchived(false)}
+                  className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col overflow-hidden">

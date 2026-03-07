@@ -923,6 +923,11 @@ export default function AdminAIAssistantPage() {
                   ))
                 )
               )}
+            </div>
+          </ScrollArea>
+
+          {/* Sidebar Footer */}
+          <div className="p-4 border-t border-slate-700 space-y-2">
             <div className="bg-slate-700 rounded-lg p-3">
               <p className="text-xs text-slate-300 font-semibold mb-1">💡 Tip</p>
               <p className="text-xs text-slate-400">Each conversation maintains its own memory. Start a new chat for fresh context.</p>
@@ -982,5 +987,6 @@ export default function AdminAIAssistantPage() {
           </div>
         </div>
       </div>
+
   );
 }

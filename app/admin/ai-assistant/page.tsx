@@ -47,7 +47,9 @@ export default function AdminAIAssistantPage() {
   
   // Dropdown menu state
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [openArchivedDropdownId, setOpenArchivedDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const archivedDropdownRef = useRef<HTMLDivElement>(null);
   
   // Rename modal state
   const [renameSessionId, setRenameSessionId] = useState<string | null>(null);
@@ -62,6 +64,8 @@ export default function AdminAIAssistantPage() {
   const [isAutoCollapsSidebar, setIsAutoCollapseSidebar] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isClearingArchived, setIsClearingArchived] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [lastAutoCreatedTime, setLastAutoCreatedTime] = useState<number>(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -166,7 +170,6 @@ export default function AdminAIAssistantPage() {
     if (isCreatingSession) return; // Prevent duplicate creation
 
     setIsCreatingSession(true);
-    setCurrentSessionId(''); // Unmount old chat to prevent stale updates
     
     try {
       const {
@@ -174,6 +177,27 @@ export default function AdminAIAssistantPage() {
       } = await supabase.auth.getSession();
 
       if (!session) return;
+
+      // Check if there's already a "New Conversation" session with no messages
+      const existingNewChat = sessions.find(
+        (s) => s.title === 'New Conversation'
+      );
+
+      if (existingNewChat) {
+        // Check localStorage to see if this session has messages
+        const sessionMessagesKey = `aiAssistant_sessionMessages_${existingNewChat.id}`;
+        const hasMessages = localStorage.getItem(sessionMessagesKey) === 'true';
+
+        if (!hasMessages) {
+          // Load existing "New Conversation" session
+          setCurrentSessionId(existingNewChat.id);
+          setIsCreatingSession(false);
+          return;
+        }
+      }
+
+      // No existing empty "New Conversation" found, create a new one
+      setCurrentSessionId(''); // Unmount old chat to prevent stale updates
 
       // Get user's school_id
       const { data: userProfile } = await supabase
@@ -211,9 +235,15 @@ export default function AdminAIAssistantPage() {
     } finally {
       setIsCreatingSession(false);
     }
-  }, [isCreatingSession]);
+  }, [isCreatingSession, sessions]);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
+    // Mark session as having messages in localStorage
+    if (currentSessionId && newMessages.length > 0) {
+      const sessionMessagesKey = `aiAssistant_sessionMessages_${currentSessionId}`;
+      localStorage.setItem(sessionMessagesKey, 'true');
+    }
+
     // Only update title once - if current session has default title and there's a first user message
     setSessions((prevSessions) => {
       const currentSession = prevSessions.find((s) => s.id === currentSessionId);
@@ -257,6 +287,10 @@ export default function AdminAIAssistantPage() {
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {
+      // Clear localStorage flag for this session
+      const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
+      localStorage.removeItem(sessionMessagesKey);
+
       // Delete session from database (soft delete)
       await supabase
         .from('ai_chat_sessions')
@@ -289,6 +323,11 @@ export default function AdminAIAssistantPage() {
 
     try {
       setLoadingActionId(id);
+
+      // Clear localStorage flag for this session
+      const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
+      localStorage.removeItem(sessionMessagesKey);
+
       // Permanently delete from database
       await supabase
         .from('ai_chat_sessions')
@@ -398,6 +437,11 @@ export default function AdminAIAssistantPage() {
   const handleArchiveSession = useCallback(async (id: string) => {
     try {
       setLoadingActionId(id);
+
+      // Clear localStorage flag for this session
+      const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
+      localStorage.removeItem(sessionMessagesKey);
+
       await supabase
         .from('ai_chat_sessions')
         .update({
@@ -457,12 +501,15 @@ export default function AdminAIAssistantPage() {
       setSessions((prev) => {
         const unarchivedSession = archivedSessions.find((s) => s.id === id);
         if (unarchivedSession) {
-          return [...prev, { ...unarchivedSession, isArchived: false }];
+          const updated = [...prev, { ...unarchivedSession, isArchived: false }];
+          // Set as current session after unarchiving
+          setTimeout(() => setCurrentSessionId(id), 0);
+          return updated;
         }
         return prev;
       });
 
-      setOpenDropdownId(null);
+      setOpenArchivedDropdownId(null);
       setShowArchived(false);
     } catch (error) {
       console.error('Error unarchiving session:', error);
@@ -503,6 +550,12 @@ export default function AdminAIAssistantPage() {
         alert('No archived conversations to delete.');
         return;
       }
+
+      // Clear all localStorage flags for archived sessions
+      archivedIds.forEach((id: string) => {
+        const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
+        localStorage.removeItem(sessionMessagesKey);
+      });
 
       // Delete all archived sessions
       await supabase
@@ -551,24 +604,101 @@ export default function AdminAIAssistantPage() {
     }
   }, [sessions, archivedSessions]);
 
+  const handleDeleteAllChatHistory = useCallback(async () => {
+    if (!confirm('Are you sure you want to PERMANENTLY DELETE ALL chat history? This includes all conversations, messages, and archived chats. This action cannot be undone.')) {
+      return;
+    }
+
+    setIsDeletingAll(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) return;
+
+      // Get all session IDs for this user
+      const { data: allSessions } = await supabase
+        .from('ai_chat_sessions')
+        .select('id')
+        .eq('user_id', session.user.id);
+
+      if (allSessions && allSessions.length > 0) {
+        const sessionIds = allSessions.map((s: any) => s.id);
+
+        // Clear all localStorage flags for these sessions
+        sessionIds.forEach((id: string) => {
+          const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
+          localStorage.removeItem(sessionMessagesKey);
+        });
+
+        // Delete all messages for these sessions
+        await supabase
+          .from('ai_chat_messages')
+          .delete()
+          .in('session_id', sessionIds);
+
+        // Delete all sessions
+        await supabase
+          .from('ai_chat_sessions')
+          .delete()
+          .in('id', sessionIds);
+      }
+
+      // Clear local state
+      setSessions([]);
+      setArchivedSessions([]);
+      setCurrentSessionId('');
+      setShowSettings(false);
+      
+      alert('All chat history has been permanently deleted.');
+    } catch (error) {
+      console.error('Error deleting all chat history:', error);
+      alert('Failed to delete chat history. Please try again.');
+    } finally {
+      setIsDeletingAll(false);
+    }
+  }, []);
+
   const handleToggleAutoCollapse = useCallback(() => {
     const newValue = !isAutoCollapsSidebar;
     setIsAutoCollapseSidebar(newValue);
     localStorage.setItem('aiAssistant_autoCollapseSidebar', String(newValue));
   }, [isAutoCollapsSidebar]);
 
+  // Ensure valid session is selected when closing modals
+  const handleCloseArchived = useCallback(() => {
+    setShowArchived(false);
+    setOpenArchivedDropdownId(null);
+    
+    // If current session is no longer in active sessions, switch to first active session
+    if (currentSessionId && !sessions.find(s => s.id === currentSessionId)) {
+      if (sessions.length > 0) {
+        setCurrentSessionId(sessions[0].id);
+      }
+    }
+  }, [currentSessionId, sessions]);
+
   // Auto-create new session when all are deleted
   useEffect(() => {
     if (sessions.length === 0 && !isLoading && !isCreatingSession) {
-      handleNewChat();
+      // Prevent creating multiple new chats in quick succession
+      const now = Date.now();
+      if (now - lastAutoCreatedTime > 1000) {
+        setLastAutoCreatedTime(now);
+        handleNewChat();
+      }
     }
-  }, [sessions.length, isLoading, isCreatingSession, handleNewChat]);
+  }, [sessions.length, isLoading, isCreatingSession, handleNewChat, lastAutoCreatedTime]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setOpenDropdownId(null);
+      }
+      if (archivedDropdownRef.current && !archivedDropdownRef.current.contains(event.target as Node)) {
+        setOpenArchivedDropdownId(null);
       }
     }
 
@@ -811,13 +941,13 @@ export default function AdminAIAssistantPage() {
           {/* Sidebar Footer with Settings */}
           <div className="p-4 border-t border-slate-700 space-y-2">
             {/* Settings Modal */}
-            {showSettings && (
+            {showSettings && !showArchived && (
               <div
-                className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3"
+                className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3"
                 onClick={() => setShowSettings(false)}
               >
                 <div
-                  className="bg-slate-800 rounded-lg p-5 w-full max-w-sm border border-slate-700 shadow-2xl z-50"
+                  className="bg-slate-800 rounded-lg p-5 w-full max-w-sm border border-slate-700 shadow-2xl z-[60]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-2 mb-4">
@@ -844,7 +974,10 @@ export default function AdminAIAssistantPage() {
 
                     {/* View Archived Conversations */}
                     <button
-                      onClick={() => setShowArchived(true)}
+                      onClick={() => {
+                        setShowSettings(false);
+                        setShowArchived(true);
+                      }}
                       className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors"
                     >
                       <div className="flex items-center gap-2 mb-1">
@@ -864,6 +997,21 @@ export default function AdminAIAssistantPage() {
                         <p className="text-sm font-medium text-slate-200">Export as JSON</p>
                       </div>
                       <p className="text-xs text-slate-400 ml-6">Download all chat history</p>
+                    </button>
+
+                    {/* Delete All Chat History */}
+                    <button
+                      onClick={handleDeleteAllChatHistory}
+                      disabled={isDeletingAll}
+                      className="w-full p-3 text-left bg-red-900/30 border border-red-700/50 rounded-lg hover:bg-red-900/40 hover:border-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <Trash className="h-4 w-4 text-red-400" />
+                        <p className="text-sm font-medium text-red-300">
+                          {isDeletingAll ? 'Deleting...' : 'Delete All History'}
+                        </p>
+                      </div>
+                      <p className="text-xs text-red-300/70 ml-6">Permanently remove everything</p>
                     </button>
 
                     {/* Clear All Archived */}
@@ -923,11 +1071,11 @@ export default function AdminAIAssistantPage() {
         {/* Archived Sessions Modal */}
         {showArchived && (
           <div
-            className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3"
-            onClick={() => setShowArchived(false)}
+            className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3"
+            onClick={handleCloseArchived}
           >
             <div
-              className="bg-slate-800 rounded-lg w-full max-w-md border border-slate-700 shadow-2xl z-50 flex flex-col max-h-96"
+              className="bg-slate-800 rounded-lg w-full max-w-md border border-slate-700 shadow-2xl z-[60] flex flex-col max-h-[80vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-4 border-b border-slate-700">
@@ -940,8 +1088,8 @@ export default function AdminAIAssistantPage() {
                 </div>
               </div>
 
-              <ScrollArea className="flex-1">
-                <div className="p-4 space-y-2">
+              <ScrollArea className="flex-1 overflow-hidden">
+                <div className="p-4 space-y-2 overflow-y-auto">
                   {archivedSessions.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-8">No archived conversations</p>
                   ) : (
@@ -1062,11 +1210,11 @@ export default function AdminAIAssistantPage() {
                             </div>
 
                             {/* Dropdown Menu Button */}
-                            <div className="relative">
+                            <div ref={archivedDropdownRef} className="relative">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setOpenDropdownId(openDropdownId === session.id ? null : session.id);
+                                  setOpenArchivedDropdownId(openArchivedDropdownId === session.id ? null : session.id);
                                 }}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded"
                               >
@@ -1080,14 +1228,15 @@ export default function AdminAIAssistantPage() {
                               </button>
 
                               {/* Dropdown Menu - Archived */}
-                              {openDropdownId === session.id && (
-                                <div className="absolute right-0 mt-1 w-48 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-50 overflow-hidden">
+                              {openArchivedDropdownId === session.id && (
+                                <div className="absolute right-0 mt-1 w-48 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-[100] overflow-hidden">
                                   {/* Rename */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setRenameSessionId(session.id);
                                       setRenameValue(session.title);
+                                      setOpenArchivedDropdownId(null);
                                     }}
                                     disabled={loadingActionId === session.id}
                                     className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1134,7 +1283,7 @@ export default function AdminAIAssistantPage() {
 
               <div className="p-4 border-t border-slate-700">
                 <button
-                  onClick={() => setShowArchived(false)}
+                  onClick={handleCloseArchived}
                   className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm font-medium"
                 >
                   Close

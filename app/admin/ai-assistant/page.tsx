@@ -93,13 +93,85 @@ export default function AdminAIAssistantPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isClearingArchived, setIsClearingArchived] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
-  const [lastAutoCreatedTime, setLastAutoCreatedTime] = useState<number>(0);
 
+  // Refs for preventing race conditions during initial load
+  const isInitialLoadRef = useRef(true);
+  const creatingSessionRef = useRef(false);
+  const userProfileRef = useRef<{ user_id: string; school_id: string } | null>(null);
+
+  // Helper function to create a new session with optimistic updates
+  const createNewSessionOptimistic = useCallback(async (title: string = 'New Conversation') => {
+    // Prevent duplicate creation attempts
+    if (creatingSessionRef.current) return null;
+    
+    try {
+      creatingSessionRef.current = true;
+
+      // Get auth session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) return null;
+
+      // Use cached profile or fetch it
+      let schoolId = userProfileRef.current?.school_id;
+      if (!schoolId) {
+        const { data: userProfile } = await supabase
+          .from('admins')
+          .select('school_id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (!userProfile) return null;
+        schoolId = userProfile.school_id;
+        userProfileRef.current = {
+          user_id: session.user.id,
+          school_id: userProfile.school_id,
+        };
+      }
+
+      // Create session in database
+      const { data: newSession, error } = await supabase
+        .from('ai_chat_sessions')
+        .insert({
+          user_id: session.user.id,
+          school_id: schoolId,
+          title,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating session:', error);
+        return null;
+      }
+
+      if (!newSession) return null;
+
+      // Return formatted session data
+      return {
+        id: newSession.id,
+        title: newSession.title,
+        createdAt: new Date(newSession.created_at),
+        updatedAt: new Date(newSession.updated_at),
+        isPinned: false,
+        isArchived: false,
+      } as ChatSession;
+    } catch (error) {
+      console.error('Error in createNewSessionOptimistic:', error);
+      return null;
+    } finally {
+      creatingSessionRef.current = false;
+    }
+  }, []);
+
+  // Initialize sessions on load
   useEffect(() => {
     let isMounted = true;
     let retryTimeoutId: NodeJS.Timeout | null = null;
 
-    async function checkSession() {
+    async function initializeSession() {
       try {
         // Load sidebar auto-collapse preference from localStorage
         const savedAutoCollapse = localStorage.getItem('aiAssistant_autoCollapseSidebar') === 'true';
@@ -118,6 +190,20 @@ export default function AdminAIAssistantPage() {
           return;
         }
 
+        // Cache user profile for later use
+        const { data: userProfile } = await supabase
+          .from('admins')
+          .select('school_id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (userProfile && isMounted) {
+          userProfileRef.current = {
+            user_id: session.user.id,
+            school_id: userProfile.school_id,
+          };
+        }
+
         // Load existing sessions from database
         const { data: dbSessions, error } = await supabase
           .from('ai_chat_sessions')
@@ -129,6 +215,7 @@ export default function AdminAIAssistantPage() {
 
         if (!isMounted) return;
 
+        // Process sessions
         if (!error && dbSessions && dbSessions.length > 0) {
           const activeSessions = dbSessions
             .filter((s: any) => !s.is_archived)
@@ -154,56 +241,28 @@ export default function AdminAIAssistantPage() {
 
           setSessions(activeSessions);
           setArchivedSessions(archived);
-
-          if (activeSessions.length > 0) {
-            setCurrentSessionId(activeSessions[0].id);
-          }
+          setCurrentSessionId(activeSessions[0]?.id || '');
         } else {
-          // No sessions exist, create first chat automatically
+          // No sessions exist - create first chat automatically
           setSessions([]);
           setArchivedSessions([]);
-          setCurrentSessionId('');
 
-          // Create initial new session
-          try {
-            const { data: userProfile } = await supabase
-              .from('admins')
-              .select('school_id')
-              .eq('user_id', session.user.id)
-              .single();
-
-            if (userProfile) {
-              const { data: newSession } = await supabase
-                .from('ai_chat_sessions')
-                .insert({
-                  user_id: session.user.id,
-                  school_id: userProfile.school_id,
-                  title: 'New Conversation',
-                })
-                .select()
-                .single();
-
-              if (newSession && isMounted) {
-                const sessionData: ChatSession = {
-                  id: newSession.id,
-                  title: newSession.title,
-                  createdAt: new Date(newSession.created_at),
-                  updatedAt: new Date(newSession.updated_at),
-                };
-                setSessions([sessionData]);
-                setCurrentSessionId(newSession.id);
-              }
+          // Create initial session
+          if (userProfileRef.current) {
+            const newSession = await createNewSessionOptimistic('New Conversation');
+            if (newSession && isMounted) {
+              setSessions([newSession]);
+              setCurrentSessionId(newSession.id);
             }
-          } catch (createError) {
-            console.error('Error creating initial session:', createError);
           }
         }
 
         if (isMounted) {
+          isInitialLoadRef.current = false;
           setIsLoading(false);
         }
       } catch (error: any) {
-        console.error('Error checking session:', error);
+        console.error('Error initializing session:', error);
 
         if (!isMounted) return;
 
@@ -216,92 +275,52 @@ export default function AdminAIAssistantPage() {
         // Retry once with exponential backoff for network errors
         retryTimeoutId = setTimeout(() => {
           if (isMounted) {
-            checkSession();
+            initializeSession();
           }
         }, 1000);
       }
     }
 
-    checkSession();
+    initializeSession();
 
     return () => {
       isMounted = false;
       if (retryTimeoutId) clearTimeout(retryTimeoutId);
     };
-  }, [router]);
+  }, [router, createNewSessionOptimistic]);
 
   const handleNewChat = useCallback(async () => {
-    if (isCreatingSession) return; // Prevent duplicate creation
+    // Prevent creating multiple chats during initial load
+    if (isInitialLoadRef.current || creatingSessionRef.current) return;
 
-    // Check if there's already a "New Conversation" session with no messages
-    const existingNewChat = sessions.find(
-      (s) => s.title === 'New Conversation'
-    );
-
-    if (existingNewChat && !unsavedSessionIds.has(existingNewChat.id)) {
-      const sessionMessagesKey = `aiAssistant_sessionMessages_${existingNewChat.id}`;
+    // Check if there's already an empty "New Conversation" session
+    const existingEmptyChat = sessions.find((s) => {
+      const sessionMessagesKey = `aiAssistant_sessionMessages_${s.id}`;
       const hasMessages = localStorage.getItem(sessionMessagesKey) === 'true';
+      return s.title === 'New Conversation' && !hasMessages && !unsavedSessionIds.has(s.id);
+    });
 
-      if (!hasMessages) {
-        // Load existing "New Conversation" session
-        setCurrentSessionId(existingNewChat.id);
-        return;
-      }
+    // If empty new chat exists, just switch to it
+    if (existingEmptyChat) {
+      setCurrentSessionId(existingEmptyChat.id);
+      return;
     }
 
-    // Create new session in database immediately
+    // Create new session
     setIsCreatingSession(true);
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        setIsCreatingSession(false);
-        return;
-      }
-
-      // Get user's school_id
-      const { data: userProfile } = await supabase
-        .from('admins')
-        .select('school_id')
-        .eq('user_id', session.user.id)
-        .single();
-
-      if (!userProfile) {
-        setIsCreatingSession(false);
-        return;
-      }
-
-      // Create session in database immediately
-      const { data: newSession, error } = await supabase
-        .from('ai_chat_sessions')
-        .insert({
-          user_id: session.user.id,
-          school_id: userProfile.school_id,
-          title: 'New Conversation',
-        })
-        .select()
-        .single();
-
-      if (!error && newSession) {
-        const sessionData: ChatSession = {
-          id: newSession.id,
-          title: newSession.title,
-          createdAt: new Date(newSession.created_at),
-          updatedAt: new Date(newSession.updated_at),
-        };
-        setSessions((prev) => [sessionData, ...prev]);
+      const newSession = await createNewSessionOptimistic('New Conversation');
+      
+      if (newSession) {
+        setSessions((prev) => [newSession, ...prev]);
         setCurrentSessionId(newSession.id);
-      } else {
-        console.error('Error creating session:', error);
       }
     } catch (error) {
       console.error('Error creating new chat:', error);
     } finally {
       setIsCreatingSession(false);
     }
-  }, [sessions, unsavedSessionIds]);
+  }, [sessions, unsavedSessionIds, createNewSessionOptimistic]);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
     // Mark session as having messages in localStorage
@@ -876,15 +895,11 @@ export default function AdminAIAssistantPage() {
 
   // Auto-create new session when all are deleted (after initial load)
   useEffect(() => {
-    if (sessions.length === 0 && !isLoading && !isCreatingSession && currentSessionId === '') {
-      // Prevent creating multiple new chats in quick succession
-      const now = Date.now();
-      if (now - lastAutoCreatedTime > 1000) {
-        setLastAutoCreatedTime(now);
-        handleNewChat();
-      }
+    // Only auto-create if: user is done with initial load, has no sessions, and not currently creating
+    if (!isInitialLoadRef.current && sessions.length === 0 && !isCreatingSession && currentSessionId === '') {
+      handleNewChat();
     }
-  }, [sessions.length, isLoading, isCreatingSession, currentSessionId, handleNewChat, lastAutoCreatedTime]);
+  }, [sessions.length, isCreatingSession, currentSessionId, handleNewChat]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

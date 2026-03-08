@@ -1075,23 +1075,35 @@ export default function AdminAIAssistantPage() {
             onClick={handleCloseArchived}
           >
             <div
-              className="bg-slate-800 rounded-lg w-full max-w-md border border-slate-700 shadow-2xl z-[60] flex flex-col max-h-[80vh] overflow-hidden"
+              className="bg-slate-800 rounded-xl w-full max-w-2xl border border-slate-700 shadow-2xl z-[60] flex flex-col max-h-[80vh]"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-4 border-b border-slate-700">
-                <div className="flex items-center gap-2">
-                  <Archive className="h-5 w-5 text-amber-400" />
-                  <h2 className="text-lg font-semibold text-white">Archived Conversations</h2>
-                  <span className="ml-auto text-xs bg-amber-500/30 text-amber-200 px-2 py-1 rounded">
+              {/* Header */}
+              <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-slate-800 to-slate-700">
+                <div className="flex items-center gap-3 justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-amber-500/30 rounded-lg">
+                      <Archive className="h-6 w-6 text-amber-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Archived Conversations</h2>
+                      <p className="text-xs text-slate-400 mt-1">View and restore your archived chats</p>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1.5 bg-amber-500/30 text-amber-200 rounded-full text-sm font-semibold">
                     {archivedSessions.length}
                   </span>
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 overflow-hidden">
-                <div className="p-4 space-y-2 overflow-y-auto">
+              {/* Content */}
+              <ScrollArea className="flex-1 [&_[data-radix-scroll-area-thumb]]:hidden">
+                <div className="p-6 space-y-3">
                   {archivedSessions.length === 0 ? (
-                    <p className="text-sm text-slate-400 text-center py-8">No archived conversations</p>
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Archive className="h-12 w-12 text-slate-600 mb-3" />
+                      <p className="text-sm text-slate-400 text-center">No archived conversations yet</p>
+                    </div>
                   ) : (
                     archivedSessions.map((session) => (
                       <div key={session.id} className="relative">
@@ -1105,10 +1117,10 @@ export default function AdminAIAssistantPage() {
                             }}
                           >
                             <div
-                              className="bg-slate-800 rounded-lg p-4 w-full max-w-sm border border-slate-700 shadow-xl z-50"
+                              className="bg-slate-800 rounded-lg p-6 w-full max-w-sm border border-slate-700 shadow-xl z-50"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <h2 className="text-white font-semibold mb-3">Rename Conversation</h2>
+                              <h2 className="text-white font-semibold mb-4 text-lg">Rename Conversation</h2>
                               <input
                                 autoFocus
                                 type="text"
@@ -1123,13 +1135,13 @@ export default function AdminAIAssistantPage() {
                                   }
                                 }}
                                 placeholder="New name..."
-                                className="w-full bg-slate-700 border border-slate-600 text-white rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                                className="w-full bg-slate-700 border border-slate-600 text-white rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-5"
                               />
-                              <div className="flex gap-2">
+                              <div className="flex gap-3">
                                 <button
                                   onClick={() => handleRenameSession(session.id, renameValue)}
                                   disabled={isRenamingSession || !renameValue.trim()}
-                                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                                 >
                                   {isRenamingSession ? 'Saving...' : 'Save'}
                                 </button>
@@ -1138,7 +1150,7 @@ export default function AdminAIAssistantPage() {
                                     setRenameSessionId(null);
                                     setRenameValue('');
                                   }}
-                                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition-colors font-medium"
+                                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded transition-colors font-medium"
                                 >
                                   Cancel
                                 </button>
@@ -1153,53 +1165,57 @@ export default function AdminAIAssistantPage() {
                             setCurrentSessionId(session.id);
                             setOpenDropdownId(null);
                           }}
-                          className={`group p-3 rounded-lg cursor-pointer transition-all duration-200 ${
+                          className={`group p-4 rounded-lg cursor-pointer transition-all duration-200 border ${
                             currentSessionId === session.id
-                              ? 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg'
-                              : 'bg-slate-700 hover:bg-slate-600'
+                              ? 'bg-gradient-to-r from-blue-600 to-blue-700 border-blue-500 shadow-lg'
+                              : 'bg-slate-700/50 border-slate-600 hover:bg-slate-700 hover:border-slate-500'
                           }`}
                         >
-                          <div className="flex items-start gap-2 justify-between">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              <div className="flex items-center gap-1 mt-0.5">
+                          <div className="flex items-start gap-3 justify-between">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mt-1">
                                 <MessageSquare
-                                  className={`h-4 w-4 flex-shrink-0 ${
+                                  className={`h-5 w-5 flex-shrink-0 ${
                                     currentSessionId === session.id
                                       ? 'text-white'
                                       : 'text-slate-400'
                                   }`}
                                 />
                                 <Archive
-                                  className="h-3 w-3 flex-shrink-0 text-amber-500"
+                                  className="h-4 w-4 flex-shrink-0 text-amber-400"
                                   fill="currentColor"
                                 />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <h3
-                                  className={`text-sm font-medium truncate ${
+                                  className={`text-base font-semibold truncate mb-2 ${
                                     currentSessionId === session.id
                                       ? 'text-white'
-                                      : 'text-slate-200'
+                                      : 'text-slate-100'
                                   }`}
                                 >
                                   {session.title}
                                 </h3>
                                 <div
-                                  className={`text-xs flex items-center gap-1 mt-1 flex-shrink-0 ${
+                                  className={`text-sm flex items-center gap-2 ${
                                     currentSessionId === session.id
                                       ? 'text-blue-100'
                                       : 'text-slate-400'
                                   }`}
                                 >
-                                  <Clock className="h-3 w-3 flex-shrink-0" />
+                                  <Clock className="h-4 w-4 flex-shrink-0" />
                                   <span className="whitespace-nowrap">
                                     {session.updatedAt instanceof Date
-                                      ? session.updatedAt.toLocaleTimeString([], {
+                                      ? session.updatedAt.toLocaleString([], {
+                                          month: 'short',
+                                          day: 'numeric',
                                           hour: '2-digit',
                                           minute: '2-digit',
                                           hour12: false,
                                         })
-                                      : new Date(session.updatedAt).toLocaleTimeString([], {
+                                      : new Date(session.updatedAt).toLocaleString([], {
+                                          month: 'short',
+                                          day: 'numeric',
                                           hour: '2-digit',
                                           minute: '2-digit',
                                           hour12: false,
@@ -1216,10 +1232,10 @@ export default function AdminAIAssistantPage() {
                                   e.stopPropagation();
                                   setOpenArchivedDropdownId(openArchivedDropdownId === session.id ? null : session.id);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-slate-600/50 rounded-lg"
                               >
                                 <MoreVertical
-                                  className={`h-4 w-4 ${
+                                  className={`h-5 w-5 ${
                                     currentSessionId === session.id
                                       ? 'text-blue-100'
                                       : 'text-slate-300'
@@ -1229,7 +1245,7 @@ export default function AdminAIAssistantPage() {
 
                               {/* Dropdown Menu - Archived */}
                               {openArchivedDropdownId === session.id && (
-                                <div className="absolute right-0 mt-1 w-48 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-[100] overflow-hidden">
+                                <div className="absolute right-0 top-full mt-2 w-52 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-[100] overflow-hidden">
                                   {/* Rename */}
                                   <button
                                     onClick={(e) => {
@@ -1239,10 +1255,10 @@ export default function AdminAIAssistantPage() {
                                       setOpenArchivedDropdownId(null);
                                     }}
                                     disabled={loadingActionId === session.id}
-                                    className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors border-b border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     <Edit2 className="h-4 w-4" />
-                                    {loadingActionId === session.id ? 'Processing...' : 'Rename'}
+                                    <span>{loadingActionId === session.id ? 'Processing...' : 'Rename'}</span>
                                   </button>
 
                                   {/* Unarchive */}
@@ -1252,10 +1268,10 @@ export default function AdminAIAssistantPage() {
                                       handleUnarchiveSession(session.id);
                                     }}
                                     disabled={loadingActionId === session.id}
-                                    className="w-full px-4 py-2 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-2 transition-colors border-b border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors border-b border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     <Archive className="h-4 w-4" />
-                                    {loadingActionId === session.id ? 'Processing...' : 'Unarchive'}
+                                    <span>{loadingActionId === session.id ? 'Processing...' : 'Unarchive'}</span>
                                   </button>
 
                                   {/* Permanent Delete */}
@@ -1265,10 +1281,10 @@ export default function AdminAIAssistantPage() {
                                       handlePermanentDelete(session.id);
                                     }}
                                     disabled={loadingActionId === session.id}
-                                    className="w-full px-4 py-2 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full px-4 py-3 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     <Trash className="h-4 w-4" />
-                                    {loadingActionId === session.id ? 'Processing...' : 'Delete Permanently'}
+                                    <span>{loadingActionId === session.id ? 'Processing...' : 'Delete Permanently'}</span>
                                   </button>
                                 </div>
                               )}
@@ -1281,10 +1297,11 @@ export default function AdminAIAssistantPage() {
                 </div>
               </ScrollArea>
 
-              <div className="p-4 border-t border-slate-700">
+              {/* Footer */}
+              <div className="p-6 border-t border-slate-700 bg-gradient-to-r from-slate-800/50 to-slate-700/50">
                 <button
                   onClick={handleCloseArchived}
-                  className="w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm font-medium"
+                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-lg hover:shadow-xl"
                 >
                   Close
                 </button>

@@ -24,12 +24,13 @@ export async function generateQueryPlan(
   userId?: string
 ): Promise<QueryPlan> {
   if (!GROQ_API_KEY) {
+    console.error('GROQ_API_KEY not configured');
     return {
       query: '',
       values: [],
       explanation: '',
       tables: [],
-      error: 'Groq API key not configured'
+      error: 'AI service is not properly configured. Please contact system administrator.'
     };
   }
 
@@ -53,14 +54,14 @@ export async function generateQueryPlan(
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Groq API error:', error);
+      const errorText = await response.text();
+      console.error('Groq API error:', errorText);
       return {
         query: '',
         values: [],
         explanation: '',
         tables: [],
-        error: 'Failed to generate query plan'
+        error: `AI service error (${response.status}): Unable to generate a query. Please try a different question.`
       };
     }
 
@@ -76,7 +77,7 @@ export async function generateQueryPlan(
         values: [],
         explanation: '',
         tables: [],
-        error: 'No response from AI'
+        error: 'AI did not return a valid response. Please try again with a more specific question.'
       };
     }
 
@@ -84,13 +85,14 @@ export async function generateQueryPlan(
     const parsed = parseQueryPlanResponse(content);
     return parsed;
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Error generating query plan:', error);
     return {
       query: '',
       values: [],
       explanation: '',
       tables: [],
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: `Failed to process your question: ${errorMessage}. Please try rephrasing it.`
     };
   }
 }
@@ -99,33 +101,40 @@ export async function generateQueryPlan(
  * Build the system prompt with schema information
  */
 function buildSystemPrompt(schema: string, userRole: string): string {
-  return `You are a SQL query generator for a school management system. Your task is to convert natural language questions into safe, parameterized PostgreSQL queries.
+  return `You are a SQL query generator for a school management system. Your ONLY task is to convert questions about school data into safe, parameterized PostgreSQL SELECT queries.
+
+**CRITICAL REQUIREMENTS:**
+- You MUST ONLY respond with valid JSON
+- You MUST ONLY generate SELECT queries (read-only)
+- You MUST ignore or reject any question that is not about querying school data
+- If the question is not about school data, return an error JSON object
+- NEVER return plain text responses
+- ALWAYS return a valid JSON object, even for errors
 
 **Database Schema:**
 ${schema}
 
 **Important Rules:**
-1. ALWAYS use parameterized queries with $1, $2, etc. placeholders - NEVER embed values directly in SQL
-2. ALL queries MUST filter by school_id to enforce multi-tenancy:
+1. ONLY respond with valid JSON - no other text
+2. ALWAYS use SELECT queries ONLY - this is a read-only analysis tool
+3. ALWAYS use parameterized queries with $1, $2, etc. placeholders - NEVER embed values directly in SQL
+4. ALL queries MUST filter by school_id to enforce multi-tenancy:
    - For most tables: Include "WHERE school_id = $1" as a condition
    - For the schools table: Filter by "WHERE id = $1" (id is the primary key)
    - For queries with multiple conditions: school_id/id should be in the WHERE clause
-3. Use proper JOINs when querying multiple tables
-4. Only SELECT necessary columns - avoid SELECT *
-5. Use appropriate WHERE clauses, ORDER BY, and LIMIT when needed
-6. For aggregations, use COUNT, SUM, AVG, etc.
-7. Respect the user role: ${userRole}
+5. Use proper JOINs when querying multiple tables
+6. Only SELECT necessary columns - avoid SELECT *
+7. Use appropriate WHERE clauses, ORDER BY, and LIMIT when needed
+8. For aggregations, use COUNT, SUM, AVG, etc.
+9. Respect the user role: ${userRole}
    - Students: Only query their own data
    - Teachers: Only query students in their classes
    - Parents: Only query their own children
    - Admins: Can query all school data
-8. Return a valid JSON object with this exact structure:
-{
-  "query": "SELECT ... FROM ... WHERE school_id = $1 AND ...",
-  "values": ["<school_id>", "<other_values>"],
-  "explanation": "Brief explanation of what the query does",
-  "tables": ["table1", "table2"]
-}
+
+**Response Format:**
+FOR VALID DATA QUESTIONS - Return a JSON object with query and values
+FOR NON-DATA QUESTIONS - Return a JSON object with an error field, NEVER plain text
 
 **Value Placeholders:**
 - Use "<school_id>" for the school_id parameter (will be replaced at runtime)
@@ -152,15 +161,6 @@ Response:
   "tables": ["students", "results", "subject_classes", "subjects", "classes"]
 }
 
-Question: "Who is the teacher for Science in SSS2?"
-Response:
-{
-  "query": "SELECT t.first_name, t.last_name, t.email, sub.name as subject_name, c.name as class_name FROM teachers t JOIN subject_classes sc ON t.id = sc.teacher_id JOIN subjects sub ON sc.subject_id = sub.id JOIN classes c ON sc.class_id = c.id WHERE t.school_id = $1 AND sub.name ILIKE $2 AND c.level = $3",
-  "values": ["<school_id>", "%Science%", "SSS2"],
-  "explanation": "Finds the teacher assigned to Science in SSS2",
-  "tables": ["teachers", "subject_classes", "subjects", "classes"]
-}
-
 Question: "How many students are in Primary 4?"
 Response:
 {
@@ -170,7 +170,7 @@ Response:
   "tables": ["students", "classes"]
 }
 
-Return ONLY the JSON object, no additional text.`;
+Return ONLY a JSON object with no additional text.`;
 }
 
 /**
@@ -194,6 +194,18 @@ function parseQueryPlanResponse(content: string): QueryPlan {
     // Remove markdown code blocks if present
     let jsonStr = content.trim();
     
+    // Check if response is a plain text message (not JSON)
+    // Common indicators: starts with "I'm", "I can't", "Sorry", etc.
+    if (jsonStr.match(/^(I'm|I can't|Sorry|I don't|That|This)/i)) {
+      return {
+        query: '',
+        values: [],
+        explanation: '',
+        tables: [],
+        error: 'This question requires a database query that I cannot generate. Please ask a question about your school data like "How many students are enrolled?" or "Show me low attendance records."'
+      };
+    }
+    
     // Remove code block markers
     if (jsonStr.startsWith('```json')) {
       jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
@@ -207,6 +219,15 @@ function parseQueryPlanResponse(content: string): QueryPlan {
       const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         jsonStr = jsonMatch[0];
+      } else {
+        // No JSON found, likely a text response
+        return {
+          query: '',
+          values: [],
+          explanation: '',
+          tables: [],
+          error: 'Unable to generate a database query from your question. Please ask about specific school data like students, grades, attendance, or classes.'
+        };
       }
     }
 
@@ -214,12 +235,14 @@ function parseQueryPlanResponse(content: string): QueryPlan {
 
     // Validate required fields
     if (!parsed.query || typeof parsed.query !== 'string') {
+      const missingField = !parsed.query ? 'missing query field' : `query is ${typeof parsed.query}`;
+      const responsePreview = JSON.stringify(parsed).substring(0, 100);
       return {
         query: '',
         values: [],
         explanation: '',
         tables: [],
-        error: 'Invalid query format from AI'
+        error: `AI response validation failed: ${missingField}. Response: ${responsePreview}`
       };
     }
 
@@ -230,13 +253,15 @@ function parseQueryPlanResponse(content: string): QueryPlan {
       tables: Array.isArray(parsed.tables) ? parsed.tables : [],
     };
   } catch (error) {
-    console.error('Failed to parse query plan - content:', content.substring(0, 500), 'error:', error);
+    const content_preview = content.substring(0, 200);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Failed to parse query plan - content:', content_preview, 'error:', error);
     return {
       query: '',
       values: [],
       explanation: '',
       tables: [],
-      error: 'Failed to parse AI response - could not extract valid query'
+      error: `Failed to parse AI response: ${errorMessage}. Response preview: ${content_preview}`
     };
   }
 }
@@ -254,11 +279,35 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
 
   const upperQuery = query.toUpperCase().trim();
 
+  // Check if attempting any non-SELECT operation
+  const nonSelectOperations = [
+    { keyword: 'INSERT', message: 'I can only read and analyze data. I cannot create or add new records to the database. This operation (INSERT) would modify your database, which is not permitted.' },
+    { keyword: 'UPDATE', message: 'I can only read and analyze data. I cannot modify existing records in the database. This operation (UPDATE) would change your data, which is not permitted.' },
+    { keyword: 'DELETE', message: 'I can only read and analyze data. I cannot remove records from the database. This operation (DELETE) would destroy your data, which is not permitted.' },
+    { keyword: 'DROP', message: 'I can only read and analyze data. I cannot delete database tables or structures. This operation (DROP) would remove database objects, which is not permitted.' },
+    { keyword: 'TRUNCATE', message: 'I can only read and analyze data. I cannot clear entire tables. This operation (TRUNCATE) would remove all records, which is not permitted.' },
+    { keyword: 'ALTER', message: 'I can only read and analyze data. I cannot modify database structure or tables. This operation (ALTER) would change your database schema, which is not permitted.' },
+    { keyword: 'CREATE', message: 'I can only read and analyze data. I cannot create new database objects. This operation (CREATE) would add new structures, which is not permitted.' },
+    { keyword: 'GRANT', message: 'I can only read and analyze data. I cannot manage user permissions. This operation (GRANT) would change access controls, which is not permitted.' },
+    { keyword: 'REVOKE', message: 'I can only read and analyze data. I cannot manage user permissions. This operation (REVOKE) would change access controls, which is not permitted.' },
+    { keyword: 'REPLACE', message: 'I can only read and analyze data. I cannot modify database records. This operation (REPLACE) would change your data, which is not permitted.' },
+    { keyword: 'UPSERT', message: 'I can only read and analyze data. I cannot insert or update records. This operation (UPSERT) would modify your database, which is not permitted.' }
+  ];
+
+  for (const op of nonSelectOperations) {
+    if (new RegExp(`\\b${op.keyword}\\b`).test(upperQuery)) {
+      return {
+        isValid: false,
+        error: op.message
+      };
+    }
+  }
+
   // Must be a SELECT query
   if (!upperQuery.startsWith('SELECT')) {
     return {
       isValid: false,
-      error: 'Only SELECT queries are allowed'
+      error: 'I can only execute SELECT queries to read and analyze your school data. I cannot perform any write operations, data modifications, or structural changes to the database.'
     };
   }
 
@@ -286,7 +335,7 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
     if (pattern.test(query)) {
       return {
         isValid: false,
-        error: `Query contains dangerous SQL pattern`
+        error: `I can only read and analyze data. I cannot execute operations that modify your database. This query contains structural modifications or dangerous operations, which are not permitted.`
       };
     }
   }

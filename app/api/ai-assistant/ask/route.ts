@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json(
         {
-          error: `Query validation failed: ${validation.error}`,
+          error: validation.error,
           success: false
         },
         { status: 400 }

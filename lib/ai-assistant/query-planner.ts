@@ -106,7 +106,10 @@ ${schema}
 
 **Important Rules:**
 1. ALWAYS use parameterized queries with $1, $2, etc. placeholders - NEVER embed values directly in SQL
-2. ALL queries MUST include "WHERE school_id = $1" as the FIRST condition (this enforces multi-tenancy)
+2. ALL queries MUST filter by school_id to enforce multi-tenancy:
+   - For most tables: Include "WHERE school_id = $1" as a condition
+   - For the schools table: Filter by "WHERE id = $1" (id is the primary key)
+   - For queries with multiple conditions: school_id/id should be in the WHERE clause
 3. Use proper JOINs when querying multiple tables
 4. Only SELECT necessary columns - avoid SELECT *
 5. Use appropriate WHERE clauses, ORDER BY, and LIMIT when needed
@@ -130,6 +133,15 @@ ${schema}
 - Use actual values from the question for other parameters
 
 **Examples:**
+
+Question: "What is my school name?"
+Response:
+{
+  "query": "SELECT name, address, phone, email FROM schools WHERE id = $1",
+  "values": ["<school_id>"],
+  "explanation": "Retrieves the school name, address, phone and email",
+  "tables": ["schools"]
+}
 
 Question: "Which students in SSS1 have grades below 50 in Math?"
 Response:
@@ -237,8 +249,11 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
     };
   }
 
-  // Must include school_id filter
-  if (!query.includes('school_id')) {
+  // Must include multi-tenancy filter: either school_id field or schools.id (schools table primary key)
+  const hasSchoolIdFilter = query.includes('school_id');
+  const hasSchoolTableFilter = /schools\.id\s*=|WHERE\s+id\s*=/i.test(query);
+  
+  if (!hasSchoolIdFilter && !hasSchoolTableFilter) {
     return {
       isValid: false,
       error: 'Query must include school_id filter for multi-tenancy'

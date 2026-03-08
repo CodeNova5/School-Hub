@@ -1565,6 +1565,7 @@ export default function AdminAIAssistantPage() {
         <div className="flex-1 overflow-hidden">
           {currentSessionId && currentSession ? (
             <AIAssistantChat
+              key={currentSessionId}
               sessionId={currentSessionId}
               onMessagesUpdate={handleMessagesUpdate}
               welcomeMessage="👋 Welcome to School Hub AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more."

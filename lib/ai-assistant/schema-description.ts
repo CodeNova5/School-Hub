@@ -22,6 +22,23 @@ export interface TableInfo {
 
 export const DATABASE_SCHEMA: TableInfo[] = [
   {
+    name: 'schools',
+    description: 'Basic information about schools, regardless of what is being asked, data only comes from the user school itself',
+    rlsEnabled: true,
+    columns: [
+      { name: 'id', type: 'uuid', description: 'Unique school identifier', isPrimaryKey: true },
+      { name: 'name', type: 'text', description: 'School name' },
+      { name: 'subdomain', type: 'text', description: 'Unique subdomain for the school' },
+      { name: 'address', type: 'text', description: 'School address' },
+      { name: 'phone', type: 'text', description: 'School phone number' },
+      { name: 'email', type: 'text', description: 'School email address' },
+      { name: 'logo_url', type: 'text', description: 'URL to school logo image' },
+      { name: 'created_at', type: 'timestamptz', description: 'Record creation timestamp' },
+      { name: 'updated_at', type: 'timestamptz', description: 'Record update timestamp' },
+    ]
+  },
+
+  {
     name: 'students',
     description: 'Student information and enrollment data',
     rlsEnabled: true,
@@ -256,7 +273,7 @@ export function getSchemaDescription(): string {
       }
       return colDesc;
     }).join('\n');
-    
+
     return `${table.name}: ${table.description}\n${columns}`;
   }).join('\n\n');
 }

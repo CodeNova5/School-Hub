@@ -193,28 +193,50 @@ function parseQueryPlanResponse(content: string): QueryPlan {
   try {
     // Remove markdown code blocks if present
     let jsonStr = content.trim();
+    
+    // Remove code block markers
     if (jsonStr.startsWith('```json')) {
       jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
     } else if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/```\n?/g, '');
     }
+    
+    // Try to extract JSON from text if not pure JSON
+    if (!jsonStr.startsWith('{')) {
+      // Look for JSON object pattern in the response
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+    }
 
     const parsed = JSON.parse(jsonStr);
 
+    // Validate required fields
+    if (!parsed.query || typeof parsed.query !== 'string') {
+      return {
+        query: '',
+        values: [],
+        explanation: '',
+        tables: [],
+        error: 'Invalid query format from AI'
+      };
+    }
+
     return {
-      query: parsed.query || '',
-      values: parsed.values || [],
+      query: parsed.query.trim(),
+      values: Array.isArray(parsed.values) ? parsed.values : [],
       explanation: parsed.explanation || '',
-      tables: parsed.tables || [],
+      tables: Array.isArray(parsed.tables) ? parsed.tables : [],
     };
   } catch (error) {
-    console.error('Failed to parse query plan:', content, error);
+    console.error('Failed to parse query plan - content:', content.substring(0, 500), 'error:', error);
     return {
       query: '',
       values: [],
       explanation: '',
       tables: [],
-      error: 'Failed to parse AI response'
+      error: 'Failed to parse AI response - could not extract valid query'
     };
   }
 }
@@ -223,23 +245,14 @@ function parseQueryPlanResponse(content: string): QueryPlan {
  * Validate that a query is safe (basic security check)
  */
 export function validateQuery(query: string): { isValid: boolean; error?: string } {
-  const upperQuery = query.toUpperCase();
-
-  // Check for dangerous operations
-  const dangerousKeywords = [
-    'DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 
-    'INSERT', 'UPDATE', 'GRANT', 'REVOKE', 'EXEC', 
-    'EXECUTE', 'PRAGMA', '--', '/*', '*/', ';'
-  ];
-
-  for (const keyword of dangerousKeywords) {
-    if (upperQuery.includes(keyword)) {
-      return {
-        isValid: false,
-        error: `Query contains dangerous keyword: ${keyword}`
-      };
-    }
+  if (!query || query.trim().length === 0) {
+    return {
+      isValid: false,
+      error: 'Query cannot be empty'
+    };
   }
+
+  const upperQuery = query.toUpperCase().trim();
 
   // Must be a SELECT query
   if (!upperQuery.startsWith('SELECT')) {
@@ -249,9 +262,38 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
     };
   }
 
+  // Check for dangerous SQL patterns (not just keywords as they might appear in names)
+  const dangerousPatterns = [
+    /\bDROP\s+TABLE/i,
+    /\bTRUNCATE\s+TABLE/i,
+    /\bDELETE\s+FROM/i,
+    /\bALTER\s+TABLE/i,
+    /\bCREATE\s+TABLE/i,
+    /\bCREATE\s+INDEX/i,
+    /\bCREATE\s+DATABASE/i,
+    /\bINSERT\s+INTO/i,
+    /\bUPDATE\s+/i,
+    /\bGRANT\s+/i,
+    /\bREVOKE\s+/i,
+    /\bEXEC\s*\(/i,
+    /\bEXECUTE\s+/i,
+    /\bPRAGMA\s+/i,
+    /--\s*\w/,  // SQL comments
+    /\/\*[\s\S]*?\*\//,  // SQL block comments
+  ];
+
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(query)) {
+      return {
+        isValid: false,
+        error: `Query contains dangerous SQL pattern`
+      };
+    }
+  }
+
   // Must include multi-tenancy filter: either school_id field or schools.id (schools table primary key)
-  const hasSchoolIdFilter = query.includes('school_id');
-  const hasSchoolTableFilter = /schools\.id\s*=|WHERE\s+id\s*=/i.test(query);
+  const hasSchoolIdFilter = /WHERE\s+.*school_id\s*=/i.test(query) || /AND\s+.*school_id\s*=/i.test(query);
+  const hasSchoolTableFilter = /WHERE\s+id\s*=/i.test(query) && /FROM\s+schools/i.test(query);
   
   if (!hasSchoolIdFilter && !hasSchoolTableFilter) {
     return {

@@ -135,9 +135,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Log the generated query for debugging
+    console.log('Generated query plan:', {
+      question,
+      query: queryPlan.query.substring(0, 200),
+      tables: queryPlan.tables,
+      explanation: queryPlan.explanation
+    });
+
     // Validate query for security
     const validation = validateQuery(queryPlan.query);
     if (!validation.isValid) {
+      console.error('Query validation failed:', {
+        error: validation.error,
+        query: queryPlan.query.substring(0, 300)
+      });
       return NextResponse.json(
         {
           error: `Query validation failed: ${validation.error}`,

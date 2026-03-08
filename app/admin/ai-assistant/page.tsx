@@ -238,14 +238,7 @@ export default function AdminAIAssistantPage() {
       (s) => s.title === 'New Conversation'
     );
 
-    if (existingNewChat) {
-      // Check if it's unsaved or has no messages
-      if (unsavedSessionIds.has(existingNewChat.id)) {
-        // Load existing unsaved "New Conversation" session
-        setCurrentSessionId(existingNewChat.id);
-        return;
-      }
-
+    if (existingNewChat && !unsavedSessionIds.has(existingNewChat.id)) {
       const sessionMessagesKey = `aiAssistant_sessionMessages_${existingNewChat.id}`;
       const hasMessages = localStorage.getItem(sessionMessagesKey) === 'true';
 
@@ -256,19 +249,59 @@ export default function AdminAIAssistantPage() {
       }
     }
 
-    // Create new local session without saving to database yet
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const sessionData: ChatSession = {
-      id: tempId,
-      title: 'New Conversation',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    // Create new session in database immediately
+    setIsCreatingSession(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    setSessions((prev) => [sessionData, ...prev]);
-    setUnsavedSessionIds((prev) => new Set([...Array.from(prev), tempId]));
-    setCurrentSessionId(tempId);
-  }, [isCreatingSession, sessions, unsavedSessionIds]);
+      if (!session) {
+        setIsCreatingSession(false);
+        return;
+      }
+
+      // Get user's school_id
+      const { data: userProfile } = await supabase
+        .from('admins')
+        .select('school_id')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!userProfile) {
+        setIsCreatingSession(false);
+        return;
+      }
+
+      // Create session in database immediately
+      const { data: newSession, error } = await supabase
+        .from('ai_chat_sessions')
+        .insert({
+          user_id: session.user.id,
+          school_id: userProfile.school_id,
+          title: 'New Conversation',
+        })
+        .select()
+        .single();
+
+      if (!error && newSession) {
+        const sessionData: ChatSession = {
+          id: newSession.id,
+          title: newSession.title,
+          createdAt: new Date(newSession.created_at),
+          updatedAt: new Date(newSession.updated_at),
+        };
+        setSessions((prev) => [sessionData, ...prev]);
+        setCurrentSessionId(newSession.id);
+      } else {
+        console.error('Error creating session:', error);
+      }
+    } catch (error) {
+      console.error('Error creating new chat:', error);
+    } finally {
+      setIsCreatingSession(false);
+    }
+  }, [sessions, unsavedSessionIds]);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
     // Mark session as having messages in localStorage

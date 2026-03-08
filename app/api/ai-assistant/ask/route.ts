@@ -109,6 +109,12 @@ export async function POST(request: NextRequest) {
     if (!classificationResult.isDataQuestion) {
       const responseText = classificationResult.response!;
 
+      // Generator title for first message if this is a new session
+      let generatedTitle: string | null = null;
+      if (!sessionId) {
+        generatedTitle = await generateSessionTitle(question);
+      }
+
       // Cache the response
       if (useCache) {
         setCachedQuery(question, schoolId, responseText, userId);
@@ -119,6 +125,7 @@ export async function POST(request: NextRequest) {
         response: responseText,
         cached: false,
         sessionId: currentSessionId,
+        generatedTitle,
       });
     }
 
@@ -201,6 +208,13 @@ export async function POST(request: NextRequest) {
     // NOTE: Messages are saved by the client component via save-message endpoint
     // to avoid duplicate insertions and maintain single source of truth for persistence
 
+    // Generate title for first message if this is a new session
+    let generatedTitle: string | null = null;
+    if (!sessionId) {
+      // This is the first message, generate a title
+      generatedTitle = await generateSessionTitle(question);
+    }
+
     return NextResponse.json({
       success: true,
       response,
@@ -211,6 +225,7 @@ export async function POST(request: NextRequest) {
       resultCount: queryResult.rowCount,
       cached: false,
       sessionId: currentSessionId,
+      generatedTitle,
     });
   } catch (error) {
     console.error('AI Assistant error:', error);
@@ -397,5 +412,63 @@ If it does NOT require database access:
   } catch (error) {
     console.error('Error classifying question:', error);
     return { isDataQuestion: false, error: error instanceof Error ? error.message : 'Failed to process question' };
+  }
+}
+
+/**
+ * Generate a concise session title based on the user's first question
+ * Similar to how Claude generates conversation titles
+ */
+async function generateSessionTitle(question: string): Promise<string> {
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-oss-20b',
+        messages: [
+          {
+            role: 'system',
+            content: `Generate a concise, descriptive title for a chat conversation based on the user's first question. 
+            
+Requirements:
+- Maximum 25 characters
+- Be specific and capture the essence of the question
+- Use natural language
+- No quotes or special formatting
+- Examples: "Student Grade Analysis", "Class Attendance Issues", "Teacher Workload Overview"`,
+          },
+          {
+            role: 'user',
+            content: question,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 30,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to generate title:', await response.text());
+      // Fallback to first 25 chars of question
+      return question.substring(0, 25) + (question.length > 25 ? '...' : '');
+    }
+
+    const data = await response.json();
+    const title = data.choices?.[0]?.message?.content?.trim();
+
+    if (!title) {
+      return question.substring(0, 50) + (question.length > 50 ? '...' : '');
+    }
+
+    // Ensure title is not too long
+    return title.length > 50 ? title.substring(0, 50) + '...' : title;
+  } catch (error) {
+    console.error('Error generating session title:', error);
+    // Fallback to first 50 chars of question
+    return question.substring(0, 50) + (question.length > 50 ? '...' : '');
   }
 }

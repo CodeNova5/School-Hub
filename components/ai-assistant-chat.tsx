@@ -42,6 +42,7 @@ interface AIAssistantChatProps {
   onSessionIdChange?: (sessionId: string) => void;
   enableSpeech?: boolean;
   autoPlayResponses?: boolean;
+  onGeneratedTitle?: (title: string) => void;
 }
 
 export default function AIAssistantChat({
@@ -54,6 +55,7 @@ export default function AIAssistantChat({
   onSessionIdChange,
   enableSpeech = true,
   autoPlayResponses = false,
+  onGeneratedTitle,
 }: AIAssistantChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(propSessionId || null);
@@ -495,6 +497,11 @@ export default function AIAssistantChat({
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || 'Failed to get response');
+      }
+
+      // Handle generated title for first message
+      if (data.generatedTitle && onGeneratedTitle) {
+        onGeneratedTitle(data.generatedTitle);
       }
 
       // Update session ID

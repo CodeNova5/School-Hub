@@ -375,50 +375,39 @@ export default function AdminAIAssistantPage() {
         })();
       }
     }
-
-    // Only update title once - if current session has default title and there's a first user message
-    setSessions((prevSessions) => {
-      const currentSession = prevSessions.find((s) => s.id === currentSessionId);
-      if (!currentSession || currentSession.title !== 'New Conversation') {
-        return prevSessions; // No need to update
-      }
-
-      const firstUserMessage = newMessages.find((m) => m.role === 'user');
-      if (!firstUserMessage || !currentSessionId) {
-        return prevSessions;
-      }
-
-      const newTitle = firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '');
-
-      // Only update DB if session is already saved
-      if (!unsavedSessionIds.has(currentSessionId)) {
-        // Update session in database with new title (fire and forget)
-        (async () => {
-          try {
-            await supabase
-              .from('ai_chat_sessions')
-              .update({
-                title: newTitle,
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', currentSessionId);
-          } catch (error: any) {
-            console.error('Error updating session title:', error);
-          }
-        })();
-      }
-
-      return prevSessions.map((session) =>
-        session.id === currentSessionId
-          ? {
-            ...session,
-            title: newTitle,
-            updatedAt: new Date(),
-          }
-          : session
-      );
-    });
   }, [currentSessionId, sessions, unsavedSessionIds]);
+
+  const handleTitleGenerated = useCallback(async (generatedTitle: string) => {
+    if (!currentSessionId) return;
+
+    try {
+      // Update the session with the AI-generated title
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === currentSessionId
+            ? {
+              ...session,
+              title: generatedTitle,
+              updatedAt: new Date(),
+            }
+            : session
+        )
+      );
+
+      // Only update DB if session is already saved (not unsaved)
+      if (!unsavedSessionIds.has(currentSessionId)) {
+        await supabase
+          .from('ai_chat_sessions')
+          .update({
+            title: generatedTitle,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentSessionId);
+      }
+    } catch (error: any) {
+      console.error('Error updating session title:', error);
+    }
+  }, [currentSessionId, unsavedSessionIds]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {
@@ -1568,6 +1557,7 @@ export default function AdminAIAssistantPage() {
               key={currentSessionId}
               sessionId={currentSessionId}
               onMessagesUpdate={handleMessagesUpdate}
+              onGeneratedTitle={handleTitleGenerated}
               welcomeMessage="👋 Welcome to School Hub AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more."
               placeholder="Ask me anything about your school data..."
               suggestedQuestions={[

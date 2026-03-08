@@ -13,10 +13,19 @@ import { getCachedQuery, setCachedQuery } from '@/lib/ai-assistant/query-cache';
 
 export const dynamic = 'force-dynamic';
 
+interface Message {
+  id?: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: Date;
+  queryInfo?: any;
+}
+
 interface AskRequest {
   question: string;
   useCache?: boolean;
   sessionId?: string;
+  context?: Message[];
 }
 
 export async function POST(request: NextRequest) {
@@ -57,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request
     const body: AskRequest = await request.json();
-    const { question, useCache = true, sessionId } = body;
+    const { question, useCache = true, sessionId, context = [] } = body;
 
     if (!question || question.trim().length === 0) {
       return NextResponse.json(
@@ -109,9 +118,9 @@ export async function POST(request: NextRequest) {
     if (!classificationResult.isDataQuestion) {
       const responseText = classificationResult.response!;
 
-      // Generator title for first message if this is a new session
+      // Generator title for first message if this is the first user message
       let generatedTitle: string | null = null;
-      if (!sessionId) {
+      if (context.length === 1 && context[0]?.role === 'user') {
         generatedTitle = await generateSessionTitle(question);
       }
 
@@ -208,9 +217,9 @@ export async function POST(request: NextRequest) {
     // NOTE: Messages are saved by the client component via save-message endpoint
     // to avoid duplicate insertions and maintain single source of truth for persistence
 
-    // Generate title for first message if this is a new session
+    // Generate title for first message if this is the first user message
     let generatedTitle: string | null = null;
-    if (!sessionId) {
+    if (context.length === 1 && context[0]?.role === 'user') {
       // This is the first message, generate a title
       generatedTitle = await generateSessionTitle(question);
     }

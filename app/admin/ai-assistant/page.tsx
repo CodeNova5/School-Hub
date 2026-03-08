@@ -397,7 +397,12 @@ export default function AdminAIAssistantPage() {
   }, [currentSessionId, sessions, unsavedSessionIds]);
 
   const handleTitleGenerated = useCallback(async (generatedTitle: string) => {
-    if (!currentSessionId) return;
+    if (!currentSessionId) {
+      console.log('handleTitleGenerated: No currentSessionId');
+      return;
+    }
+
+    console.log('handleTitleGenerated called:', { currentSessionId, generatedTitle, isUnsaved: unsavedSessionIds.has(currentSessionId) });
 
     try {
       // Update the session with the AI-generated title
@@ -415,13 +420,22 @@ export default function AdminAIAssistantPage() {
 
       // Only update DB if session is already saved (not unsaved)
       if (!unsavedSessionIds.has(currentSessionId)) {
-        await supabase
+        console.log('Updating DB with new title:', generatedTitle);
+        const { error } = await supabase
           .from('ai_chat_sessions')
           .update({
             title: generatedTitle,
             updated_at: new Date().toISOString(),
           })
           .eq('id', currentSessionId);
+        
+        if (error) {
+          console.error('Error updating title in DB:', error);
+        } else {
+          console.log('Successfully updated title in DB');
+        }
+      } else {
+        console.log('Session is unsaved, skipping DB update');
       }
     } catch (error: any) {
       console.error('Error updating session title:', error);

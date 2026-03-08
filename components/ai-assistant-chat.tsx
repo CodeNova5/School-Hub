@@ -489,7 +489,7 @@ export default function AIAssistantChat({
         body: JSON.stringify({ 
           question,
           sessionId: currentSessionId,
-          context: messages // Send conversation history for context
+          context: updatedMessages // Send conversation history for context
         }),
       });
 

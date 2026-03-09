@@ -456,14 +456,14 @@ export default function SessionsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       // Check if today's date falls within the term's dates
       const term = terms.find(t => t.id === termId);
       if (term) {
         const today = new Date().toISOString().split('T')[0];
         const startDate = term.start_date;
         const endDate = term.end_date;
-        
+
         if (today < startDate || today > endDate) {
           // Show warning confirmation
           const confirmed = confirm(
@@ -473,14 +473,14 @@ export default function SessionsPage() {
             `End Date: ${new Date(endDate).toLocaleDateString()}\n\n` +
             `Do you want to set this as the current term anyway?`
           );
-          
+
           if (!confirmed) {
             setIsLoading(false);
             return;
           }
         }
       }
-      
+
       // Clear all terms' is_current flag
       await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
       // Set the selected term as current
@@ -540,7 +540,7 @@ export default function SessionsPage() {
       const targetSessionId = sessionId || currentSessionId;
       const today = new Date().toISOString().split('T')[0];
 
-      // Check if the current session has ended
+      // Check if today falls outside the current session's date range
       if (targetSessionId) {
         const { data: sessionData } = await supabase
           .from('sessions')
@@ -549,48 +549,102 @@ export default function SessionsPage() {
           .eq('id', targetSessionId)
           .single();
 
-        if (sessionData && today > sessionData.end_date) {
-          // Current session has ended, find the next session
-          const { data: nextSessions } = await supabase
+        if (sessionData && (today < sessionData.start_date || today > sessionData.end_date)) {
+          // Today is outside current session, find the appropriate session
+
+          // First, try to find a session that today falls into
+          const { data: currentSessions } = await supabase
             .from('sessions')
             .select('*')
             .eq('school_id', schoolId)
-            .gt('start_date', sessionData.end_date)
-            .order('start_date', { ascending: true })
+            .lte('start_date', today)
+            .gte('end_date', today)
             .limit(1);
 
-          if (nextSessions && nextSessions.length > 0) {
-            const nextSession = nextSessions[0];
-            // Set the next session as current
+          if (currentSessions && currentSessions.length > 0) {
+            const newSession = currentSessions[0];
+            // Set the new session as current
             await supabase.from('sessions').update({ is_current: false }).eq('school_id', schoolId);
-            await supabase.from('sessions').update({ is_current: true }).eq('school_id', schoolId).eq('id', nextSession.id);
-            
+            await supabase.from('sessions').update({ is_current: true }).eq('school_id', schoolId).eq('id', newSession.id);
+
             // Set all terms to inactive
             await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
-            
-            // Get the first term of the next session
-            const { data: firstTerms } = await supabase
+
+            // Get the term that today falls into for this session
+            const { data: currentTerms } = await supabase
               .from('terms')
               .select('*')
               .eq('school_id', schoolId)
-              .eq('session_id', nextSession.id)
-              .order('start_date', { ascending: true })
+              .eq('session_id', newSession.id)
+              .lte('start_date', today)
+              .gte('end_date', today)
               .limit(1);
 
-            if (firstTerms && firstTerms.length > 0) {
-              await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', firstTerms[0].id);
+            if (currentTerms && currentTerms.length > 0) {
+              await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', currentTerms[0].id);
+            } else {
+              // No term today, get the next upcoming term
+              const { data: nextTerms } = await supabase
+                .from('terms')
+                .select('*')
+                .eq('school_id', schoolId)
+                .eq('session_id', newSession.id)
+                .gt('start_date', today)
+                .order('start_date', { ascending: true })
+                .limit(1);
+
+              if (nextTerms && nextTerms.length > 0) {
+                await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', nextTerms[0].id);
+              }
             }
 
             await fetchSessions();
             await fetchTerms();
             return;
+          } else {
+            // No session contains today, find the next session starting on or after today
+            const { data: nextSessions } = await supabase
+              .from('sessions')
+              .select('*')
+              .eq('school_id', schoolId)
+              .gte('start_date', today)
+              .order('start_date', { ascending: true })
+              .limit(1);
+
+            if (nextSessions && nextSessions.length > 0) {
+              const nextSession = nextSessions[0];
+              // Set the next session as current
+              await supabase.from('sessions').update({ is_current: false }).eq('school_id', schoolId);
+              await supabase.from('sessions').update({ is_current: true }).eq('school_id', schoolId).eq('id', nextSession.id);
+
+              // Set all terms to inactive
+              await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
+
+              // Get the first term of the next session
+              const { data: firstTerms } = await supabase
+                .from('terms')
+                .select('*')
+                .eq('school_id', schoolId)
+                .eq('session_id', nextSession.id)
+                .order('start_date', { ascending: true })
+                .limit(1);
+
+              if (firstTerms && firstTerms.length > 0) {
+                await supabase.from('terms').update({ is_current: true }).eq('school_id', schoolId).eq('id', firstTerms[0].id);
+              }
+
+              await fetchSessions();
+              await fetchTerms();
+              return;
+            }
           }
         }
       }
 
+      // Current session is still valid for today, just update the term
       // Set all terms is_current = false
       await supabase.from('terms').update({ is_current: false }).eq('school_id', schoolId);
-      // Set current term for current session based on today's date
+
       if (targetSessionId) {
         const { data: termsData } = await supabase
           .from('terms')
@@ -659,8 +713,8 @@ export default function SessionsPage() {
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
             {error}
-            <button 
-              onClick={() => setError(null)} 
+            <button
+              onClick={() => setError(null)}
               className="ml-4 text-sm underline hover:no-underline"
             >
               Dismiss
@@ -766,7 +820,7 @@ export default function SessionsPage() {
                   const session = sessions.find(s => s.id === term.session_id);
                   const isTermActive = isDateInTerm(term);
                   const isSessionActive = session ? isDateInSession(session) : false;
-                  
+
                   return (
                     <div key={term.id}>
                       {/* Warning if the date doesn't fall within the term */}
@@ -778,7 +832,7 @@ export default function SessionsPage() {
                           </p>
                         </div>
                       )}
-                      
+
                       {/* Warning if session has ended */}
                       {!isSessionActive && session && (
                         <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3 flex items-start gap-3">
@@ -788,7 +842,7 @@ export default function SessionsPage() {
                           </p>
                         </div>
                       )}
-                      
+
                       <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
                         <div>
                           <p className="font-medium text-lg">{term.name}</p>
@@ -903,8 +957,8 @@ export default function SessionsPage() {
                               <Label>End Date</Label>
                               <Input name="end_date" type="date" required />
                             </div>
-                            <Button 
-                              type="submit" 
+                            <Button
+                              type="submit"
                               className="w-full"
                               disabled={isLoading}
                               onClick={() => setSelectedSession(viewingSession.id)}
@@ -915,15 +969,14 @@ export default function SessionsPage() {
                         </DialogContent>
                       </Dialog>
                     </div>
-                    
+
                     <div className="space-y-3">
                       {viewingSessionTerms.length > 0 ? (
                         viewingSessionTerms.map((term) => (
                           <div
                             key={term.id}
-                            className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition ${
-                              term.is_current ? 'border-green-300 bg-green-50' : ''
-                            }`}
+                            className={`flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition ${term.is_current ? 'border-green-300 bg-green-50' : ''
+                              }`}
                           >
                             <div>
                               <p className="font-medium">{term.name}</p>

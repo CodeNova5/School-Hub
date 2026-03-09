@@ -98,6 +98,12 @@ export default function AdminAIAssistantPage() {
   const isInitialLoadRef = useRef(true);
   const creatingSessionRef = useRef(false);
   const userProfileRef = useRef<{ user_id: string; school_id: string } | null>(null);
+  const unsavedSessionIdsRef = useRef(unsavedSessionIds);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    unsavedSessionIdsRef.current = unsavedSessionIds;
+  }, [unsavedSessionIds]);
 
   // Helper function to create a new session with optimistic updates
   const createNewSessionOptimistic = useCallback(async (title: string = 'New Conversation') => {
@@ -240,9 +246,12 @@ export default function AdminAIAssistantPage() {
               isArchived: s.is_archived || false,
             }));
 
-          // Create a new session and set it as current
+          // Check if "New Conversation" already exists in active sessions
+          const hasNewConversation = activeSessions.some((s) => s.title === 'New Conversation');
+
+          // Only create a new session if one doesn't already exist
           let newSession: ChatSession | null = null;
-          if (userProfileRef.current) {
+          if (!hasNewConversation && userProfileRef.current) {
             newSession = await createNewSessionOptimistic('New Conversation');
           }
 
@@ -252,7 +261,9 @@ export default function AdminAIAssistantPage() {
             setCurrentSessionId(newSession.id);
           } else if (isMounted) {
             setSessions(activeSessions);
-            setCurrentSessionId(activeSessions[0]?.id || '');
+            // Set the current session to "New Conversation" if it exists, otherwise first session
+            const newConversationSession = activeSessions.find((s) => s.title === 'New Conversation');
+            setCurrentSessionId(newConversationSession?.id || activeSessions[0]?.id || '');
           }
 
           if (isMounted) {
@@ -309,16 +320,12 @@ export default function AdminAIAssistantPage() {
     // Prevent creating multiple chats during initial load
     if (isInitialLoadRef.current || creatingSessionRef.current) return;
 
-    // Check if there's already an empty "New Conversation" session
-    const existingEmptyChat = sessions.find((s) => {
-      const sessionMessagesKey = `aiAssistant_sessionMessages_${s.id}`;
-      const hasMessages = localStorage.getItem(sessionMessagesKey) === 'true';
-      return s.title === 'New Conversation' && !hasMessages && !unsavedSessionIds.has(s.id);
-    });
+    // Check if there's already a "New Conversation" session in the database
+    const existingNewConversation = sessions.find((s) => s.title === 'New Conversation');
 
-    // If empty new chat exists, just switch to it
-    if (existingEmptyChat) {
-      setCurrentSessionId(existingEmptyChat.id);
+    // If new conversation already exists in DB, just switch to it
+    if (existingNewConversation) {
+      setCurrentSessionId(existingNewConversation.id);
       return;
     }
 
@@ -336,7 +343,7 @@ export default function AdminAIAssistantPage() {
     } finally {
       setIsCreatingSession(false);
     }
-  }, [sessions, unsavedSessionIds, createNewSessionOptimistic]);
+  }, [sessions, createNewSessionOptimistic]);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
     // Mark session as having messages in localStorage
@@ -414,11 +421,8 @@ export default function AdminAIAssistantPage() {
 
   const handleTitleGenerated = useCallback(async (generatedTitle: string) => {
     if (!currentSessionId) {
-      console.log('handleTitleGenerated: No currentSessionId');
       return;
     }
-
-    console.log('handleTitleGenerated called:', { currentSessionId, generatedTitle, isUnsaved: unsavedSessionIds.has(currentSessionId) });
 
     try {
       // Update the session with the AI-generated title
@@ -435,8 +439,7 @@ export default function AdminAIAssistantPage() {
       );
 
       // Only update DB if session is already saved (not unsaved)
-      if (!unsavedSessionIds.has(currentSessionId)) {
-        console.log('Updating DB with new title:', generatedTitle);
+      if (!unsavedSessionIdsRef.current.has(currentSessionId)) {
         const { error } = await supabase
           .from('ai_chat_sessions')
           .update({
@@ -447,16 +450,12 @@ export default function AdminAIAssistantPage() {
         
         if (error) {
           console.error('Error updating title in DB:', error);
-        } else {
-          console.log('Successfully updated title in DB');
         }
-      } else {
-        console.log('Session is unsaved, skipping DB update');
       }
     } catch (error: any) {
       console.error('Error updating session title:', error);
     }
-  }, [currentSessionId, unsavedSessionIds]);
+  }, [currentSessionId]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {

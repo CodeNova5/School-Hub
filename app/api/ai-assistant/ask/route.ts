@@ -101,11 +101,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if this is the first message in the session
-    const isFirstMessage = context.length === 0;
-
     // Classify question and get response in single API call
-    const classificationResult = await classifyAndRespond(question, isFirstMessage);
+    const classificationResult = await classifyAndRespond(question, context);
 
     if (classificationResult.error) {
       return NextResponse.json(
@@ -215,8 +212,8 @@ export async function POST(request: NextRequest) {
     // NOTE: Messages are saved by the client component via save-message endpoint
     // to avoid duplicate insertions and maintain single source of truth for persistence
 
-    // Only use title for first message in session
-    const generatedTitle = isFirstMessage ? classificationResult.title || null : null;
+    // Generate title from question for data questions
+    const generatedTitle = classificationResult.title || null;
 
     return NextResponse.json({
       success: true,
@@ -352,15 +349,25 @@ async function getUserRole(
 /**
  * Classify question and respond in a single API call
  * Returns either the direct answer (for general questions) or a marker that it needs data processing
- * Only generates title for the first message in a session
+ * Always includes a title for the conversation
  */
 async function classifyAndRespond(
   question: string,
-  isFirstMessage: boolean = false
+  context: Message[] = []
 ): Promise<{ isDataQuestion: boolean; response?: string; title?: string; error?: string }> {
   try {
-    const systemPrompt = isFirstMessage
-      ? `You are a classifier and AI assistant for a school management system.
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-oss-20b',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a classifier and AI assistant for a school management system.
 
 Your task:
 1. Determine if the question requires school database access (student records, grades, attendance, classes, teachers, schedules, results, marks, etc.)
@@ -384,40 +391,7 @@ ALWAYS respond with valid JSON in this format ONLY:
   "title": "3-4 word title"
 }
 
-No markdown formatting in the response field, just plain text.`
-      : `You are a classifier and AI assistant for a school management system.
-
-Determine if the question requires school database access (student records, grades, attendance, classes, teachers, schedules, results, marks, etc.).
-
-If it requires database access:
-- Respond with JSON: {"isDataQuestion": true, "response": "[[DATA_QUESTION]]"}
-- Do NOT generate a title
-
-If it does NOT require database access:
-- Respond with JSON: {"isDataQuestion": false, "response": "your answer"}
-- Do NOT generate a title
-- Keep answer to 2-3 paragraphs max
-
-ALWAYS respond with valid JSON in this format ONLY:
-{
-  "isDataQuestion": boolean,
-  "response": "string"
-}
-
-No markdown formatting in the response field, just plain text.`;
-
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
+No markdown formatting in the response field, just plain text.`,
           },
           {
             role: 'user',
@@ -453,11 +427,11 @@ No markdown formatting in the response field, just plain text.`;
     const { isDataQuestion, response: responseText, title } = parsed;
 
     if (isDataQuestion && responseText === '[[DATA_QUESTION]]') {
-      return { isDataQuestion: true, title: isFirstMessage ? title : undefined };
+      return { isDataQuestion: true, title };
     }
 
     if (!isDataQuestion && responseText) {
-      return { isDataQuestion: false, response: responseText, title: isFirstMessage ? title : undefined };
+      return { isDataQuestion: false, response: responseText, title };
     }
 
     return { isDataQuestion: false, error: 'Invalid response format' };

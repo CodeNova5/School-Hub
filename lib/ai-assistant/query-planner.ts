@@ -126,13 +126,15 @@ ${schema}
 6. Only SELECT necessary columns - avoid SELECT *
 7. Use appropriate WHERE clauses, ORDER BY, and LIMIT when needed
 8. For aggregations, use COUNT, SUM, AVG, etc.
-9. Respect the user role - CRITICAL FOR FILTERING:
-   - Students: MUST filter by "user_id = $X" when querying personal data (name, phone, email, grades, attendance, etc.)
+9. Respect the user role - CRITICAL FOR FILTERING AND PERMISSIONS:
+   - **Students: MUST ONLY query their OWN personal data**
+     * CRITICAL: Never generate queries for other students' personal data
+     * If question asks about "someone else's phone", "another student's grades", etc., return error
      * Questions like "what's my phone number", "show my grades", "my attendance" REQUIRE user_id filtering
      * When a student asks about "my data" or "their own data", use WHERE user_id = <user_id>
-     * The user_id placeholder will be replaced at runtime with the authenticated student's ID
+     * REJECT any questions asking about other students' personal information like phone, email, addresses, grades, attendance
    - Teachers: Only query students in their classes, use school_id filter
-   - Parents: Only query their own children, use school_id filter if needed
+   - Parents: Only query their own children, use school_id filter
    - Admins: Can query all school data within their school_id
 
 **Response Format:**
@@ -171,6 +173,16 @@ Response:
   "values": ["<user_id>", "<school_id>"],
   "explanation": "Retrieves the grades of the authenticated student",
   "tables": ["students", "results", "subject_classes", "subjects"]
+}
+
+Question: "What's John's phone number?" (asked by a student)
+Response:
+{
+  "query": "",
+  "values": [],
+  "explanation": "Permission denied",
+  "tables": [],
+  "error": "You don't have permission to view other students' personal information. I can only provide information about your own data."
 }
 
 Question: "Which students in SSS1 have grades below 50 in Math?"

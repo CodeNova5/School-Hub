@@ -16,7 +16,8 @@ export interface SummaryResult {
 export async function summarizeResults(
   question: string,
   queryResults: any[],
-  queryExplanation: string
+  queryExplanation: string,
+  isZeroResultsOnPersonalQuery: boolean = false
 ): Promise<SummaryResult> {
   if (!GROQ_API_KEY) {
     return {
@@ -25,8 +26,13 @@ export async function summarizeResults(
     };
   }
 
-  // If no results, return a helpful message
+  // If no results, provide context-appropriate message
   if (!queryResults || queryResults.length === 0) {
+    if (isZeroResultsOnPersonalQuery) {
+      return {
+        summary: "You don't have permission to access this data. You can only view your own personal information."
+      };
+    }
     return {
       summary: "I couldn't find any data matching your question. Please try rephrasing or check if the data exists in the system."
     };
@@ -157,9 +163,13 @@ function buildSummaryUserPrompt(
  */
 export function generateSimpleSummary(
   question: string,
-  queryResults: any[]
+  queryResults: any[],
+  isZeroResultsOnPersonalQuery: boolean = false
 ): string {
   if (!queryResults || queryResults.length === 0) {
+    if (isZeroResultsOnPersonalQuery) {
+      return "You don't have permission to access this data. You can only view your own personal information.";
+    }
     return "I couldn't find any data matching your question.";
   }
 

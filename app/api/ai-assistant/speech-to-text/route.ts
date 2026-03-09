@@ -8,13 +8,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '25mb',
-    },
-  },
-};
+export const maxDuration = 60;
 
 interface SpeechToTextRequest {
   audio: string; // Base64 encoded audio data

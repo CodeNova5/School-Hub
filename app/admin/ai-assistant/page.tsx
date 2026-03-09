@@ -208,6 +208,7 @@ export default function AdminAIAssistantPage() {
         const { data: dbSessions, error } = await supabase
           .from('ai_chat_sessions')
           .select('id, title, created_at, updated_at, is_pinned, is_archived, deleted_at')
+          .eq('user_id', session.user.id)
           .is('deleted_at', null)
           .order('is_pinned', { ascending: false })
           .order('updated_at', { ascending: false })
@@ -239,9 +240,24 @@ export default function AdminAIAssistantPage() {
               isArchived: s.is_archived || false,
             }));
 
-          setSessions(activeSessions);
-          setArchivedSessions(archived);
-          setCurrentSessionId(activeSessions[0]?.id || '');
+          // Create a new session and set it as current
+          let newSession: ChatSession | null = null;
+          if (userProfileRef.current) {
+            newSession = await createNewSessionOptimistic('New Conversation');
+          }
+
+          // Set all sessions together in a single state update to ensure consistency
+          if (newSession && isMounted) {
+            setSessions([newSession, ...activeSessions]);
+            setCurrentSessionId(newSession.id);
+          } else if (isMounted) {
+            setSessions(activeSessions);
+            setCurrentSessionId(activeSessions[0]?.id || '');
+          }
+
+          if (isMounted) {
+            setArchivedSessions(archived);
+          }
         } else {
           // No sessions exist - create first chat automatically
           setSessions([]);

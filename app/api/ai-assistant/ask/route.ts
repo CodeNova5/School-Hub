@@ -101,8 +101,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if this is the first message in the session
+    const isFirstMessage = context.length === 0;
+
     // Classify question and get response in single API call
-    const classificationResult = await classifyAndRespond(question);
+    const classificationResult = await classifyAndRespond(question, isFirstMessage);
 
     if (classificationResult.error) {
       return NextResponse.json(
@@ -117,12 +120,7 @@ export async function POST(request: NextRequest) {
     // If not a data question, we have the direct response
     if (!classificationResult.isDataQuestion) {
       const responseText = classificationResult.response!;
-
-      // Generator title for first message if this is the first user message
-      let generatedTitle: string | null = null;
-      if (context.length === 1 && context[0]?.role === 'user') {
-        generatedTitle = await generateSessionTitle(question);
-      }
+      const generatedTitle = classificationResult.title || null;
 
       // Cache the response
       if (useCache) {
@@ -217,12 +215,8 @@ export async function POST(request: NextRequest) {
     // NOTE: Messages are saved by the client component via save-message endpoint
     // to avoid duplicate insertions and maintain single source of truth for persistence
 
-    // Generate title for first message if this is the first user message
-    let generatedTitle: string | null = null;
-    if (context.length === 1 && context[0]?.role === 'user') {
-      // This is the first message, generate a title
-      generatedTitle = await generateSessionTitle(question);
-    }
+    // Only use title for first message in session
+    const generatedTitle = isFirstMessage ? classificationResult.title || null : null;
 
     return NextResponse.json({
       success: true,
@@ -358,11 +352,60 @@ async function getUserRole(
 /**
  * Classify question and respond in a single API call
  * Returns either the direct answer (for general questions) or a marker that it needs data processing
+ * Only generates title for the first message in a session
  */
 async function classifyAndRespond(
-  question: string
-): Promise<{ isDataQuestion: boolean; response?: string; error?: string }> {
+  question: string,
+  isFirstMessage: boolean = false
+): Promise<{ isDataQuestion: boolean; response?: string; title?: string; error?: string }> {
   try {
+    const systemPrompt = isFirstMessage
+      ? `You are a classifier and AI assistant for a school management system.
+
+Your task:
+1. Determine if the question requires school database access (student records, grades, attendance, classes, teachers, schedules, results, marks, etc.)
+2. Generate a concise title (3-4 words max) for the conversation
+
+If the question REQUIRES database access:
+- Set "isDataQuestion": true
+- Set "response": "[[DATA_QUESTION]]"
+- Generate and set a "title" based on the question
+
+If it does NOT require database access:
+- Set "isDataQuestion": false
+- Provide a direct, concise answer to the question (2-3 paragraphs max)
+- Set "response" to your answer
+- Generate a "title" based on the question/answer
+
+ALWAYS respond with valid JSON in this format ONLY:
+{
+  "isDataQuestion": boolean,
+  "response": "string",
+  "title": "3-4 word title"
+}
+
+No markdown formatting in the response field, just plain text.`
+      : `You are a classifier and AI assistant for a school management system.
+
+Determine if the question requires school database access (student records, grades, attendance, classes, teachers, schedules, results, marks, etc.).
+
+If it requires database access:
+- Respond with JSON: {"isDataQuestion": true, "response": "[[DATA_QUESTION]]"}
+- Do NOT generate a title
+
+If it does NOT require database access:
+- Respond with JSON: {"isDataQuestion": false, "response": "your answer"}
+- Do NOT generate a title
+- Keep answer to 2-3 paragraphs max
+
+ALWAYS respond with valid JSON in this format ONLY:
+{
+  "isDataQuestion": boolean,
+  "response": "string"
+}
+
+No markdown formatting in the response field, just plain text.`;
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -374,20 +417,7 @@ async function classifyAndRespond(
         messages: [
           {
             role: 'system',
-            content: `You are a classifier and AI assistant for a school management system.
-
-Determine if the user's question requires school database access (student records, grades, attendance, classes, teachers, schedules, results, marks, etc.).
-
-If it requires database access:
-- Respond with EXACTLY: [[DATA_QUESTION]]
-- Nothing else, no explanation
-
-If it does NOT require database access:
-- Provide a direct, concise answer to the question
-- Keep it to 2-3 paragraphs max
-- Use markdown formatting
-- No explanations about why it isn't a data question
-- Just the answer`,
+            content: systemPrompt,
           },
           {
             role: 'user',
@@ -411,73 +441,30 @@ If it does NOT require database access:
       return { isDataQuestion: false, error: 'No response generated' };
     }
 
-    // Check if it's marked as a data question
-    if (message === '[[DATA_QUESTION]]') {
-      return { isDataQuestion: true };
+    // Parse JSON response
+    let parsed;
+    try {
+      parsed = JSON.parse(message);
+    } catch (e) {
+      console.error('Failed to parse JSON response:', message);
+      return { isDataQuestion: false, error: 'Failed to parse response format' };
     }
 
-    // Otherwise it's the direct response
-    return { isDataQuestion: false, response: message };
+    const { isDataQuestion, response: responseText, title } = parsed;
+
+    if (isDataQuestion && responseText === '[[DATA_QUESTION]]') {
+      return { isDataQuestion: true, title: isFirstMessage ? title : undefined };
+    }
+
+    if (!isDataQuestion && responseText) {
+      return { isDataQuestion: false, response: responseText, title: isFirstMessage ? title : undefined };
+    }
+
+    return { isDataQuestion: false, error: 'Invalid response format' };
   } catch (error) {
     console.error('Error classifying question:', error);
     return { isDataQuestion: false, error: error instanceof Error ? error.message : 'Failed to process question' };
   }
+
 }
 
-/**
- * Generate a concise session title based on the user's first question
- * Similar to how Claude generates conversation titles
- */
-async function generateSessionTitle(question: string): Promise<string> {
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [
-          {
-            role: 'system',
-            content: `Generate a concise, descriptive title for a chat conversation based on the user's first question. 
-            
-Requirements:
-- Maximum 25 characters
-- Be specific and capture the essence of the question
-- Use natural language
-- No quotes or special formatting
-- Examples: "Student Grade Analysis", "Class Attendance Issues", "Teacher Workload Overview"`,
-          },
-          {
-            role: 'user',
-            content: question,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 30,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error('Failed to generate title:', await response.text());
-      // Fallback to first 25 chars of question
-      return question.substring(0, 25) + (question.length > 25 ? '...' : '');
-    }
-
-    const data = await response.json();
-    const title = data.choices?.[0]?.message?.content?.trim();
-
-    if (!title) {
-      return question.substring(0, 50) + (question.length > 50 ? '...' : '');
-    }
-
-    // Ensure title is not too long
-    return title.length > 50 ? title.substring(0, 50) + '...' : title;
-  } catch (error) {
-    console.error('Error generating session title:', error);
-    // Fallback to first 50 chars of question
-    return question.substring(0, 50) + (question.length > 50 ? '...' : '');
-  }
-}

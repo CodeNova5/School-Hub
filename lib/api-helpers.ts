@@ -75,3 +75,44 @@ export function errorResponse(message: string, status: number = 500) {
 export function successResponse(data: any, status: number = 200) {
   return NextResponse.json({ success: true, data }, { status });
 }
+
+/**
+ * Check if user is a student and get their school_id and user_id.
+ * Returns { authorized: boolean, userId?: string, schoolId?: string, error?: string, status?: number }
+ */
+export async function getStudentContext() {
+  const supabase = createRouteHandlerClient({ cookies });
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { authorized: false, error: "Unauthorized", status: 401 };
+    }
+
+    // Get student's school_id from students table
+    const { data: student, error: studentError } = await supabase
+      .from('students')
+      .select('school_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (studentError || !student) {
+      return { authorized: false, error: "Student record not found", status: 404 };
+    }
+
+    return {
+      authorized: true,
+      userId: user.id,
+      schoolId: student.school_id,
+    };
+  } catch (error: any) {
+    return {
+      authorized: false,
+      error: error.message,
+      status: 400,
+    };
+  }
+}

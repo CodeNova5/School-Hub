@@ -247,7 +247,7 @@ export default function AdminAIAssistantPage() {
             }));
 
           // Check if "New Conversation" already exists in active sessions
-          const hasNewConversation = activeSessions.some((s) => s.title === 'New Conversation');
+          const hasNewConversation = activeSessions.some((s: ChatSession) => s.title === 'New Conversation');
 
           // Only create a new session if one doesn't already exist
           let newSession: ChatSession | null = null;
@@ -262,7 +262,7 @@ export default function AdminAIAssistantPage() {
           } else if (isMounted) {
             setSessions(activeSessions);
             // Set the current session to "New Conversation" if it exists, otherwise first session
-            const newConversationSession = activeSessions.find((s) => s.title === 'New Conversation');
+            const newConversationSession = activeSessions.find((s: ChatSession) => s.title === 'New Conversation');
             setCurrentSessionId(newConversationSession?.id || activeSessions[0]?.id || '');
           }
 

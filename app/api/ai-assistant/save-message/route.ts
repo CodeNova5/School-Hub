@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { checkIsAdminWithSchool, errorResponse } from '@/lib/api-helpers';
+import { checkIsAdminWithSchool, errorResponse, getStudentContext } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,12 +24,6 @@ interface SaveMessageRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is admin and get school_id
-    const permission = await checkIsAdminWithSchool();
-    if (!permission.authorized) {
-      return errorResponse(permission.error || 'Unauthorized', permission.status || 401);
-    }
-
     const supabase = createRouteHandlerClient({ cookies });
 
     // Get authenticated user
@@ -46,7 +40,24 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = session.user.id;
-    const schoolId = permission.schoolId;
+
+    // Try to get student context first
+    let context = await getStudentContext();
+    
+    // If not a student, try admin
+    if (!context.authorized) {
+      const adminContext = await checkIsAdminWithSchool();
+      if (!adminContext.authorized) {
+        return errorResponse(adminContext.error || 'Forbidden', adminContext.status || 403);
+      }
+      context = {
+        authorized: true,
+        userId: userId,
+        schoolId: adminContext.schoolId,
+      };
+    }
+
+    const schoolId = context.schoolId;
 
     const body: SaveMessageRequest = await request.json();
     const { sessionId, role, content, queryPlan, error: isError = false } = body;

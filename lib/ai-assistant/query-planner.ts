@@ -126,11 +126,14 @@ ${schema}
 6. Only SELECT necessary columns - avoid SELECT *
 7. Use appropriate WHERE clauses, ORDER BY, and LIMIT when needed
 8. For aggregations, use COUNT, SUM, AVG, etc.
-9. Respect the user role: ${userRole}
-   - Students: Only query their own data
-   - Teachers: Only query students in their classes
-   - Parents: Only query their own children
-   - Admins: Can query all school data
+9. Respect the user role - CRITICAL FOR FILTERING:
+   - Students: MUST filter by "user_id = $X" when querying personal data (name, phone, email, grades, attendance, etc.)
+     * Questions like "what's my phone number", "show my grades", "my attendance" REQUIRE user_id filtering
+     * When a student asks about "my data" or "their own data", use WHERE user_id = <user_id>
+     * The user_id placeholder will be replaced at runtime with the authenticated student's ID
+   - Teachers: Only query students in their classes, use school_id filter
+   - Parents: Only query their own children, use school_id filter if needed
+   - Admins: Can query all school data within their school_id
 
 **Response Format:**
 FOR VALID DATA QUESTIONS - Return a JSON object with query and values
@@ -138,10 +141,19 @@ FOR NON-DATA QUESTIONS - Return a JSON object with an error field, NEVER plain t
 
 **Value Placeholders:**
 - Use "<school_id>" for the school_id parameter (will be replaced at runtime)
-- Use "<user_id>" for user_id if the user role requires it
+- Use "<user_id>" for user_id if the user role requires it (especially important for students querying personal data)
 - Use actual values from the question for other parameters
 
 **Examples:**
+
+Question: "What is my phone number?" (asked by a student)
+Response:
+{
+  "query": "SELECT phone, first_name, last_name FROM students WHERE user_id = $1 AND school_id = $2",
+  "values": ["<user_id>", "<school_id>"],
+  "explanation": "Retrieves the phone number of the authenticated student",
+  "tables": ["students"]
+}
 
 Question: "What is my school name?"
 Response:
@@ -152,6 +164,15 @@ Response:
   "tables": ["schools"]
 }
 
+Question: "Show me my grades"  (asked by a student)
+Response:
+{
+  "query": "SELECT s.first_name, s.last_name, sub.name as subject_name, r.total, r.grade FROM students s JOIN results r ON s.id = r.student_id JOIN subject_classes sc ON r.subject_class_id = sc.id JOIN subjects sub ON sc.subject_id = sub.id WHERE s.user_id = $1 AND s.school_id = $2 ORDER BY r.total DESC",
+  "values": ["<user_id>", "<school_id>"],
+  "explanation": "Retrieves the grades of the authenticated student",
+  "tables": ["students", "results", "subject_classes", "subjects"]
+}
+
 Question: "Which students in SSS1 have grades below 50 in Math?"
 Response:
 {
@@ -159,15 +180,6 @@ Response:
   "values": ["<school_id>", "SSS1", "%Math%", 50],
   "explanation": "Finds students in SSS1 with Math grades below 50",
   "tables": ["students", "results", "subject_classes", "subjects", "classes"]
-}
-
-Question: "How many students are in Primary 4?"
-Response:
-{
-  "query": "SELECT COUNT(*) as student_count, c.name as class_name FROM students s JOIN classes c ON s.class_id = c.id WHERE s.school_id = $1 AND c.level = $2 AND s.status = $3 GROUP BY c.name",
-  "values": ["<school_id>", "Primary 4", "active"],
-  "explanation": "Counts active students in Primary 4",
-  "tables": ["students", "classes"]
 }
 
 Return ONLY a JSON object with no additional text.`;

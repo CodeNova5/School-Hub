@@ -44,6 +44,7 @@ export const DATABASE_SCHEMA: TableInfo[] = [
     rlsEnabled: true,
     columns: [
       { name: 'id', type: 'uuid', description: 'Unique student identifier', isPrimaryKey: true },
+      { name: 'user_id', type: 'uuid', description: 'Authenticated user identifier linking to auth system' },
       { name: 'school_id', type: 'uuid', description: 'School identifier', isForeignKey: true, references: 'schools(id)' },
       { name: 'student_id', type: 'text', description: 'Student ID number' },
       { name: 'first_name', type: 'text', description: 'Student first name' },
@@ -85,6 +86,7 @@ export const DATABASE_SCHEMA: TableInfo[] = [
     rlsEnabled: true,
     columns: [
       { name: 'id', type: 'uuid', description: 'Unique teacher identifier', isPrimaryKey: true },
+      { name: 'user_id', type: 'uuid', description: 'Authenticated user identifier linking to auth system' },
       { name: 'school_id', type: 'uuid', description: 'School identifier', isForeignKey: true, references: 'schools(id)' },
       { name: 'staff_id', type: 'text', description: 'Staff identification number' },
       { name: 'first_name', type: 'text', description: 'Teacher first name' },

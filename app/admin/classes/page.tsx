@@ -4,7 +4,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Edit, Trash2, Users, BookOpen, User } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Users, BookOpen, User, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
@@ -251,23 +251,18 @@ export default function ClassesPage() {
     acc[educationLevel].push(cls);
     return acc;
   }, {} as Record<string, Class[]>);
+if (schoolLoading || !schoolId) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">
-      {schoolLoading && (
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading classes...</p>
-        </div>
-      )}
-
-      {schoolError || !schoolId ? (
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
-            <p className="text-gray-600 text-sm mt-2">Please contact your administrator or try logging in again.</p>
-          </div>
-        </div>
-      ) : (
       <div className="space-y-8">
         {/* HEADER */}
         <div className="flex items-center justify-between">
@@ -504,7 +499,6 @@ export default function ClassesPage() {
           </div>
         )}
         </div>
-      )}
     </DashboardLayout>
   );
 }

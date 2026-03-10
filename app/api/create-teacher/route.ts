@@ -1,26 +1,29 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
 // Generate unique staff ID
 async function generateUniqueStaffId(supabase: any) {
   while (true) {
-    const staffId = `TCH${Math.floor(1000 + Math.random() * 9000)}`;
+    const staffId = `TCH${Math.floor(100000 + Math.random() * 900000)}`;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("teachers")
       .select("id")
       .eq("staff_id", staffId)
       .maybeSingle();
-
+    if (error) throw error;
     if (!data) return staffId;
+
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const { email, teacherData, selectedClass, selectedSubjects } = await req.json();
+    const { email, teacherData, selectedClass } = await req.json();
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,8 +31,7 @@ export async function POST(req: Request) {
     );
 
     // Resolve school_id for the calling admin
-    const { createRouteHandlerClient } = await import("@supabase/auth-helpers-nextjs");
-    const { cookies } = await import("next/headers");
+
     const routeClient = createRouteHandlerClient({ cookies });
     const { data: schoolId } = await routeClient.rpc("get_my_school_id");
     if (!schoolId) {
@@ -65,6 +67,12 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    // Update user with name
+    const fullName = teacherData.first_name + " " + teacherData.last_name;
+    await supabase.auth.admin.updateUserById(authData.user.id, {
+      user_metadata: { role: "teacher", name: fullName },
+    });
 
     // 3️⃣ Generate staff ID
     const staff_id = await generateUniqueStaffId(supabase);
@@ -102,21 +110,6 @@ export async function POST(req: Request) {
       if (classError) {
         throw new Error("Class is already assigned to another teacher");
       }
-    }
-
-    // 6️⃣ Assign subjects
-    if (selectedSubjects?.length > 0 && selectedClass) {
-      const assignments = selectedSubjects.map((subjectId: string) => ({
-        teacher_id: teacher.id,
-        subject_id: subjectId,
-        class_id: selectedClass,
-      }));
-
-      const { error: subjectError } = await supabase
-        .from("subject_assignments")
-        .insert(assignments);
-
-      if (subjectError) throw subjectError;
     }
 
     // 6️⃣ Create user role entry for RBAC

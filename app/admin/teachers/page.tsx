@@ -119,7 +119,7 @@ export default function TeachersPage() {
         const assignedClassObj = (allClasses || []).find((c: Class) => c.class_teacher_id === teacher.id);
         // Assigned subject_classes with full details
         const assignedSubjectClasses = (allSubjectClasses || []).filter((sc: SubjectClass) => sc.teacher_id === teacher.id) as any[];
-        
+
         // Group subjects by class
         const subjectsByClass: { [key: string]: SubjectAssignment } = {};
         assignedSubjectClasses.forEach(sc => {
@@ -137,7 +137,7 @@ export default function TeachersPage() {
             });
           }
         });
-        
+
         return {
           ...teacher,
           assignedClass: assignedClassObj?.name,
@@ -275,7 +275,6 @@ export default function TeachersPage() {
               phone,
             },
             selectedClass: selectedClass || null,
-            selectedSubjects: [],
           }),
         });
 
@@ -468,7 +467,7 @@ export default function TeachersPage() {
                   </div>
                 </div>
 
-<div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   {!editingTeacher && (
                     <>
                       <div>
@@ -878,7 +877,7 @@ export default function TeachersPage() {
                   <p className="text-sm text-gray-600 mb-4">
                     Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> to a subject
                   </p>
-                  
+
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="class_id">Select Class</Label>
@@ -920,7 +919,7 @@ export default function TeachersPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <p className="text-xs text-gray-500 mt-3">
                     Note: This will replace any existing teacher assignment for this subject.
                   </p>

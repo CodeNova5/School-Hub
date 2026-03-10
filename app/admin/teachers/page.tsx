@@ -80,6 +80,9 @@ export default function TeachersPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectClasses, setSubjectClasses] = useState<SubjectClass[]>([]);
   const [selectedClassForSubject, setSelectedClassForSubject] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [teacherToDelete, setTeacherToDelete] = useState<{ id: string; userId?: string; name: string } | null>(null);
 
   useEffect(() => {
     if (schoolId) {
@@ -199,6 +202,7 @@ export default function TeachersPage() {
   }
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
 
     const teacherData = {
@@ -252,6 +256,8 @@ export default function TeachersPage() {
       } catch (error) {
         console.error('Error updating teacher:', error);
         toast.error('An error occurred while updating the teacher');
+      } finally {
+        setIsSubmitting(false);
       }
     } else {
       // Creating a new teacher - use API endpoint
@@ -261,6 +267,7 @@ export default function TeachersPage() {
 
       if (!email) {
         toast.error('Email is required');
+        setIsSubmitting(false);
         return;
       }
 
@@ -291,24 +298,52 @@ export default function TeachersPage() {
       } catch (error) {
         console.error('Error creating teacher:', error);
         toast.error('An error occurred while creating the teacher');
+      } finally {
+        setIsSubmitting(false);
       }
     }
   }
 
 
   async function handleDelete(id: string, userId?: string) {
-    if (!confirm('Are you sure you want to delete this teacher?')) return;
+    setTeacherToDelete({
+      id,
+      userId,
+      name: teachers.find(t => t.id === id)?.first_name + ' ' + teachers.find(t => t.id === id)?.last_name || 'Teacher',
+    });
+    setIsDeleteConfirmOpen(true);
+  }
 
-    const { error } = await supabase.from('teachers').delete().eq('school_id', schoolId).eq('id', id);
+  async function confirmDelete() {
+    if (!teacherToDelete) return;
 
-    if (error) {
-      toast.error('Failed to delete teacher');
-    } else {
-      if (userId) {
-        await supabase.auth.admin.deleteUser(userId);
+    try {
+      // Delete from teachers table
+      const { error: deleteError } = await supabase
+        .from('teachers')
+        .delete()
+        .eq('school_id', schoolId)
+        .eq('id', teacherToDelete.id);
+
+      if (deleteError) throw deleteError;
+
+      // Delete from auth if userId exists
+      if (teacherToDelete.userId) {
+        try {
+          await supabase.auth.admin.deleteUser(teacherToDelete.userId);
+        } catch (authError) {
+          console.error('Error deleting user from auth:', authError);
+          // Don't fail the deletion if auth deletion fails, just log it
+        }
       }
+
       toast.success('Teacher deleted successfully');
+      setIsDeleteConfirmOpen(false);
+      setTeacherToDelete(null);
       fetchTeachers();
+    } catch (error) {
+      console.error('Error deleting teacher:', error);
+      toast.error('Failed to delete teacher');
     }
   }
 
@@ -574,10 +609,10 @@ export default function TeachersPage() {
                   </select>
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
-                    {editingTeacher ? 'Update' : 'Create'}
+                  <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                    {isSubmitting ? 'Creating...' : editingTeacher ? 'Update' : 'Create'}
                   </Button>
-                  <Button type="button" variant="outline" onClick={closeDialog}>
+                  <Button type="button" variant="outline" onClick={closeDialog} disabled={isSubmitting}>
                     Cancel
                   </Button>
                 </div>
@@ -941,6 +976,45 @@ export default function TeachersPage() {
                 </div>
               </form>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Teacher</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-sm text-gray-700">
+                  Are you sure you want to delete <span className="font-semibold text-red-600">{teacherToDelete?.name}</span>?
+                </p>
+                <p className="text-xs text-gray-600 mt-2">
+                  This action will permanently remove the teacher and their user account. This cannot be undone.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={confirmDelete}
+                >
+                  Delete
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setIsDeleteConfirmOpen(false);
+                    setTeacherToDelete(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

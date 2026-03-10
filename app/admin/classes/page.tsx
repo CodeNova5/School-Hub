@@ -20,12 +20,14 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
+import { BulkCreateClassesDialog } from "@/components/bulk-create-classes-dialog";
 
 const EDUCATION_LEVELS = {
+  "Early Childhood": ["Creche"],
   "Pre-Primary": ["Nursery 1", "Nursery 2", "KG 1", "KG 2"],
-  Primary: ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
-  JSS: ["JSS 1", "JSS 2", "JSS 3"],
-  SSS: ["SSS 1", "SSS 2", "SSS 3"],
+  "Primary": ["Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6"],
+  "JSS": ["JSS 1", "JSS 2", "JSS 3"],
+  "SSS": ["SSS 1", "SSS 2", "SSS 3"],
 };
 
 export default function ClassesPage() {
@@ -274,7 +276,15 @@ export default function ClassesPage() {
             <p className="text-gray-500 mt-2">Manage and organize all classes efficiently</p>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <div className="flex gap-3">
+            <BulkCreateClassesDialog
+              schoolId={schoolId}
+              teachers={teachers}
+              onSuccess={fetchClasses}
+              educationLevels={EDUCATION_LEVELS}
+            />
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setEditingClass(null)} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300">
                 <Plus className="mr-2 h-5 w-5" />
@@ -365,6 +375,7 @@ export default function ClassesPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* SEARCH & FILTER */}

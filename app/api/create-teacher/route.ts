@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 
@@ -150,7 +150,10 @@ export async function POST(req: Request) {
       },
     });
 
-    const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/teacher/activate?token=${rawToken}`;
+    const headersList = headers();
+    const host = headersList.get('host');
+    const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+    const activationLink = `${protocol}://${host}/teacher/activate?token=${rawToken}`;
 
     await transporter.sendMail({
       from: `"School Hub" <${process.env.EMAIL_USER}>`,

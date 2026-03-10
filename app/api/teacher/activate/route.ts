@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     // 2️⃣ Find teacher by activation token
     const { data: teacher, error } = await supabase
       .from("teachers")
-      .select("id, email, activation_used, activation_expires_at")
+      .select("id, user_id, activation_used, activation_expires_at")
       .eq("activation_token_hash", tokenHash)
       .single();
     if (
@@ -36,34 +36,10 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    // 3️⃣ Get auth user
-    const { data: users, error: userError } =
-      await supabase.auth.admin.listUsers({
-        page: 1,
-        perPage: 1000,
-      });
-    if (userError) {
-      return NextResponse.json(
-        { error: "Failed to fetch users" },
-        { status: 500 }
-      );
-    }
-    const user = users.users.find((u:any) => u.email === teacher.email);
-    if (!user) {
-      return NextResponse.json(
-        { error: "Auth user not found" },
-        { status: 404 }
-      );
-    }(u:any) => u.email === teacher.email;
-    if (!user) {
-      return NextResponse.json(
-        { error: "Auth user not found" },
-        { status: 404 }
-      );
-    }
-    // 4️⃣ Update auth user password
+
+    // 3️⃣ Update auth user password
     const { error: updateError } = await supabase.auth.admin.updateUserById(
-      user.id,
+      teacher.user_id,
       {
         password,
       }
@@ -74,7 +50,7 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-    // 5️⃣ Mark activation as used
+    // 4️⃣ Mark activation as used
     await supabase
       .from("teachers")
       .update({ 

@@ -61,22 +61,20 @@ CREATE INDEX IF NOT EXISTS idx_terms_is_current ON terms(is_current);
 -- SCHOOL CONFIGURATION TABLES
 -- ============================================================================
 
--- SCHOOLS TABLE (Multitenancy root)
+
 CREATE TABLE IF NOT EXISTS schools (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  code text UNIQUE NOT NULL,
-  address text DEFAULT '',
-  phone text DEFAULT '',
-  email text DEFAULT '',
-  website text DEFAULT '',
-  logo_url text DEFAULT '',
-  is_active boolean DEFAULT true,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        text NOT NULL,
+  subdomain   text UNIQUE,
+  address     text DEFAULT '',
+  phone       text DEFAULT '',
+  email       text DEFAULT '',
+  logo_url    text DEFAULT '',
+  is_active   boolean DEFAULT true,
+  created_at  timestamptz DEFAULT now(),
+  updated_at  timestamptz DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_schools_code ON schools(code);
 CREATE INDEX IF NOT EXISTS idx_schools_is_active ON schools(is_active);
 
 -- SCHOOL_EDUCATION_LEVELS (configurable per school)

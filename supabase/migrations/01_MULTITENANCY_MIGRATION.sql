@@ -91,7 +91,32 @@ ALTER TABLE results_publication ADD COLUMN IF NOT EXISTS school_id uuid REFERENC
 ALTER TABLE notification_tokens ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE SET NULL;
 
 -- ============================================================================
--- STEP 4: DATA MIGRATION
+-- STEP 4: ADD school_id TO SCHOOL CONFIGURATION TABLES
+--   These tables define configurable values per school:
+--   - school_education_levels
+--   - school_class_levels
+--   - school_streams
+--   - school_departments
+--   - school_religions
+-- ============================================================================
+
+-- Add school_id to school_education_levels if not present
+ALTER TABLE school_education_levels ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
+
+-- Add school_id to school_class_levels if not present
+ALTER TABLE school_class_levels ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
+
+-- Add school_id to school_streams if not present
+ALTER TABLE school_streams ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
+
+-- Add school_id to school_departments if not present
+ALTER TABLE school_departments ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
+
+-- Add school_id to school_religions if not present
+ALTER TABLE school_religions ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
+
+-- ============================================================================
+-- STEP 5: DATA MIGRATION
 --   Create a default school and assign all existing data to it.
 --   After this, we enforce NOT NULL.
 -- ============================================================================
@@ -155,6 +180,13 @@ BEGIN
   -- Notification Tokens (optional, not strict)
   UPDATE notification_tokens SET school_id = default_school_id WHERE school_id IS NULL;
 
+  -- School Configuration Tables: Backfill school_id for all existing records
+  UPDATE school_education_levels SET school_id = default_school_id WHERE school_id IS NULL;
+  UPDATE school_class_levels SET school_id = default_school_id WHERE school_id IS NULL;
+  UPDATE school_streams SET school_id = default_school_id WHERE school_id IS NULL;
+  UPDATE school_departments SET school_id = default_school_id WHERE school_id IS NULL;
+  UPDATE school_religions SET school_id = default_school_id WHERE school_id IS NULL;
+
   -- Assign all existing admin users' roles to default school
   -- (super_admin role links stay with school_id = NULL)
   UPDATE user_role_links
@@ -164,9 +196,17 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- STEP 5: ENFORCE NOT NULL on school_id (except user_role_links which allows NULL)
+-- STEP 6: ENFORCE NOT NULL on school_id (except user_role_links which allows NULL)
 -- ============================================================================
 
+-- Configuration tables: enforce NOT NULL on school_id
+ALTER TABLE school_education_levels ALTER COLUMN school_id SET NOT NULL;
+ALTER TABLE school_class_levels ALTER COLUMN school_id SET NOT NULL;
+ALTER TABLE school_streams ALTER COLUMN school_id SET NOT NULL;
+ALTER TABLE school_departments ALTER COLUMN school_id SET NOT NULL;
+ALTER TABLE school_religions ALTER COLUMN school_id SET NOT NULL;
+
+-- Core tables: enforce NOT NULL on school_id
 ALTER TABLE sessions     ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE terms        ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE teachers     ALTER COLUMN school_id SET NOT NULL;
@@ -190,18 +230,18 @@ ALTER TABLE results_publication ALTER COLUMN school_id SET NOT NULL;
 -- are left nullable as they derive context from their parent tables.
 
 -- ============================================================================
--- STEP 6: UPDATE UNIQUE CONSTRAINTS TO BE PER-SCHOOL
+-- STEP 7: UPDATE UNIQUE CONSTRAINTS TO BE PER-SCHOOL
 -- ============================================================================
 
 -- Classes: unique per school (not global)
 DROP INDEX IF EXISTS unique_class_per_level_stream;
 CREATE UNIQUE INDEX IF NOT EXISTS unique_class_per_level_stream_school
-  ON classes (school_id, education_level, level, COALESCE(stream, ''));
+  ON classes (school_id, class_level_id, COALESCE(stream_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 -- Subjects: unique per school
 DROP INDEX IF EXISTS unique_subject_per_level_department;
 CREATE UNIQUE INDEX IF NOT EXISTS unique_subject_per_level_department_school
-  ON subjects (school_id, name, education_level, COALESCE(department, ''), COALESCE(religion, ''));
+  ON subjects (school_id, name, education_level_id, COALESCE(department_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(religion_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 -- Teachers: staff_id unique per school (drop global unique, add composite)
 ALTER TABLE teachers DROP CONSTRAINT IF EXISTS teachers_staff_id_key;
@@ -234,9 +274,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_results_pub_per_school
   ON results_publication (school_id, class_id, session_id, term_id);
 
 -- ============================================================================
--- STEP 7: ADD INDEXES FOR school_id COLUMNS
+-- STEP 8: ADD INDEXES FOR school_id COLUMNS
 -- ============================================================================
 
+-- Configuration table indexes
+CREATE INDEX IF NOT EXISTS idx_school_education_levels_school ON school_education_levels(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_class_levels_school ON school_class_levels(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_streams_school ON school_streams(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_departments_school ON school_departments(school_id);
+CREATE INDEX IF NOT EXISTS idx_school_religions_school ON school_religions(school_id);
+
+-- Core table indexes
 CREATE INDEX IF NOT EXISTS idx_sessions_school     ON sessions(school_id);
 CREATE INDEX IF NOT EXISTS idx_terms_school         ON terms(school_id);
 CREATE INDEX IF NOT EXISTS idx_teachers_school      ON teachers(school_id);
@@ -258,7 +306,7 @@ CREATE INDEX IF NOT EXISTS idx_results_pub_school   ON results_publication(schoo
 CREATE INDEX IF NOT EXISTS idx_user_role_links_school ON user_role_links(school_id);
 
 -- ============================================================================
--- STEP 8: HELPER FUNCTIONS (Super Admin + School Context)
+-- STEP 9: HELPER FUNCTIONS (Super Admin + School Context)
 -- ============================================================================
 
 -- Check if the current user is a super_admin (platform-wide, no school restriction)
@@ -426,7 +474,7 @@ AS $$
 $$;
 
 -- ============================================================================
--- STEP 8: JWT CUSTOM CLAIMS (Simplified)
+-- STEP 10: JWT CUSTOM CLAIMS (Simplified)
 --   Add school_id and admin status to JWT token
 -- ============================================================================
 
@@ -478,7 +526,7 @@ GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin
 REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, anon;
 
 -- ============================================================================
--- STEP 9: GET SCHOOL BY SUBDOMAIN (used by middleware)
+-- STEP 11: GET SCHOOL BY SUBDOMAIN (used by middleware)
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION get_school_by_subdomain(p_subdomain text)
@@ -493,7 +541,87 @@ $$;
 GRANT EXECUTE ON FUNCTION get_school_by_subdomain TO anon, authenticated;
 
 -- ============================================================================
--- STEP 10: UPDATE RLS POLICIES (Simplified)
+-- STEP 12: ADD RLS POLICIES FOR SCHOOL CONFIGURATION TABLES
+--   These tables are school-specific and need proper access control
+-- ============================================================================
+
+-- -------------------- SCHOOL_EDUCATION_LEVELS --------------------
+DROP POLICY IF EXISTS "School users can read education levels" ON school_education_levels;
+DROP POLICY IF EXISTS "Admins can manage education levels"      ON school_education_levels;
+
+CREATE POLICY "School users can read education levels"
+  ON school_education_levels FOR SELECT
+  TO authenticated
+  USING (is_super_admin() OR school_id = get_my_school_id());
+
+CREATE POLICY "Admins can manage education levels"
+  ON school_education_levels FOR ALL
+  TO authenticated
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
+
+-- -------------------- SCHOOL_CLASS_LEVELS --------------------
+DROP POLICY IF EXISTS "School users can read class levels" ON school_class_levels;
+DROP POLICY IF EXISTS "Admins can manage class levels"      ON school_class_levels;
+
+CREATE POLICY "School users can read class levels"
+  ON school_class_levels FOR SELECT
+  TO authenticated
+  USING (is_super_admin() OR school_id = get_my_school_id());
+
+CREATE POLICY "Admins can manage class levels"
+  ON school_class_levels FOR ALL
+  TO authenticated
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
+
+-- -------------------- SCHOOL_STREAMS --------------------
+DROP POLICY IF EXISTS "School users can read streams" ON school_streams;
+DROP POLICY IF EXISTS "Admins can manage streams"      ON school_streams;
+
+CREATE POLICY "School users can read streams"
+  ON school_streams FOR SELECT
+  TO authenticated
+  USING (is_super_admin() OR school_id = get_my_school_id());
+
+CREATE POLICY "Admins can manage streams"
+  ON school_streams FOR ALL
+  TO authenticated
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
+
+-- -------------------- SCHOOL_DEPARTMENTS --------------------
+DROP POLICY IF EXISTS "School users can read departments" ON school_departments;
+DROP POLICY IF EXISTS "Admins can manage departments"      ON school_departments;
+
+CREATE POLICY "School users can read departments"
+  ON school_departments FOR SELECT
+  TO authenticated
+  USING (is_super_admin() OR school_id = get_my_school_id());
+
+CREATE POLICY "Admins can manage departments"
+  ON school_departments FOR ALL
+  TO authenticated
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
+
+-- -------------------- SCHOOL_RELIGIONS --------------------
+DROP POLICY IF EXISTS "School users can read religions" ON school_religions;
+DROP POLICY IF EXISTS "Admins can manage religions"      ON school_religions;
+
+CREATE POLICY "School users can read religions"
+  ON school_religions FOR SELECT
+  TO authenticated
+  USING (is_super_admin() OR school_id = get_my_school_id());
+
+CREATE POLICY "Admins can manage religions"
+  ON school_religions FOR ALL
+  TO authenticated
+  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
+
+-- ============================================================================
+-- STEP 13: UPDATE RLS POLICIES (Simplified)
 --   Pattern: SELECT/ALL with simple school_id checks
 -- ============================================================================
 
@@ -1021,7 +1149,7 @@ CREATE POLICY "Admins can manage results publication"
   WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- ============================================================================
--- STEP 12: ADD super_admin ROLE (if not already present)
+-- STEP 14: ADD super_admin ROLE (if not already present)
 -- ============================================================================
 
 INSERT INTO roles (name) VALUES ('super_admin') ON CONFLICT (name) DO NOTHING;
@@ -1040,17 +1168,134 @@ WHERE r.name = 'super_admin'
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
+-- STEP 15: INITIALIZE DEFAULT SCHOOL CONFIGURATION VALUES
+--   Seed the default school with common configuration values
+-- ============================================================================
+
+-- Helper function to seed default education levels for a school
+CREATE OR REPLACE FUNCTION seed_default_education_levels(p_school_id uuid)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO school_education_levels (school_id, name, code, order_sequence, is_active)
+  VALUES
+    (p_school_id, 'Primary', 'PRI', 1, true),
+    (p_school_id, 'Secondary', 'SEC', 2, true),
+    (p_school_id, 'Tertiary', 'TER', 3, true)
+  ON CONFLICT (school_id, name) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Helper function to seed default class levels for a school
+CREATE OR REPLACE FUNCTION seed_default_class_levels(p_school_id uuid)
+RETURNS void AS $$
+DECLARE
+  v_education_level_id uuid;
+  v_class_num int;
+BEGIN
+  -- Get Primary education level
+  SELECT id INTO v_education_level_id 
+  FROM school_education_levels 
+  WHERE school_id = p_school_id AND code = 'PRI' LIMIT 1;
+  
+  IF v_education_level_id IS NOT NULL THEN
+    FOR v_class_num IN 1..6 LOOP
+      INSERT INTO school_class_levels (school_id, education_level_id, name, code, order_sequence, is_active)
+      VALUES (p_school_id, v_education_level_id, 'Class ' || v_class_num::text, 'PRI' || v_class_num::text, v_class_num, true)
+      ON CONFLICT (school_id, education_level_id, name) DO NOTHING;
+    END LOOP;
+  END IF;
+
+  -- Get Secondary education level
+  SELECT id INTO v_education_level_id 
+  FROM school_education_levels 
+  WHERE school_id = p_school_id AND code = 'SEC' LIMIT 1;
+  
+  IF v_education_level_id IS NOT NULL THEN
+    FOR v_class_num IN 1..4 LOOP
+      INSERT INTO school_class_levels (school_id, education_level_id, name, code, order_sequence, is_active)
+      VALUES (p_school_id, v_education_level_id, 'Form ' || v_class_num::text, 'SEC' || v_class_num::text, v_class_num, true)
+      ON CONFLICT (school_id, education_level_id, name) DO NOTHING;
+    END LOOP;
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Helper function to seed default streams
+CREATE OR REPLACE FUNCTION seed_default_streams(p_school_id uuid)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO school_streams (school_id, name, code, is_active)
+  VALUES
+    (p_school_id, 'Stream A', 'A', true),
+    (p_school_id, 'Stream B', 'B', true),
+    (p_school_id, 'Stream C', 'C', true)
+  ON CONFLICT (school_id, name) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Helper function to seed default departments
+CREATE OR REPLACE FUNCTION seed_default_departments(p_school_id uuid)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO school_departments (school_id, name, code, is_active)
+  VALUES
+    (p_school_id, 'Science', 'SCI', true),
+    (p_school_id, 'Arts', 'ART', true),
+    (p_school_id, 'Commercial', 'COM', true)
+  ON CONFLICT (school_id, name) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Helper function to seed default religions
+CREATE OR REPLACE FUNCTION seed_default_religions(p_school_id uuid)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO school_religions (school_id, name, code, is_active)
+  VALUES
+    (p_school_id, 'Christian', 'CHR', true),
+    (p_school_id, 'Muslim', 'MUS', true),
+    (p_school_id, 'Hindu', 'HIN', true),
+    (p_school_id, 'Other', 'OTH', true)
+  ON CONFLICT (school_id, name) DO NOTHING;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Master function to initialize all default configurations for a school
+CREATE OR REPLACE FUNCTION initialize_school_configurations(p_school_id uuid)
+RETURNS void AS $$
+BEGIN
+  PERFORM seed_default_education_levels(p_school_id);
+  PERFORM seed_default_class_levels(p_school_id);
+  PERFORM seed_default_streams(p_school_id);
+  PERFORM seed_default_departments(p_school_id);
+  PERFORM seed_default_religions(p_school_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Initialize configurations for the default school
+SELECT initialize_school_configurations('00000000-0000-0000-0000-000000000001');
+
+-- ============================================================================
 -- COMPLETION
 -- ============================================================================
 -- ✅ schools table created
--- ✅ school_id added to all core tables
+-- ✅ school_id added to all core tables AND configuration tables
 -- ✅ Existing data migrated to Default School (id: 00000000-0000-0000-0000-000000000001)
 -- ✅ NOT NULL enforced on critical tables
 -- ✅ Unique constraints updated to be per-school
 -- ✅ is_super_admin(), get_my_school_id() helper functions created
 -- ✅ can_access_super_admin() RPC created for middleware
 -- ✅ custom_access_token_hook installed (configure in Supabase Dashboard → Auth → Hooks)
--- ✅ All RLS policies updated to filter by school_id
+-- ✅ ALL RLS policies updated to filter by school_id (including configuration tables)
+-- ✅ School configuration tables (education levels, class levels, streams, departments, religions) initialized
+-- ✅ Helper functions created for seeding default configurations per school
+--
+-- NEW CONFIGURABLE SCHOOL VALUES:
+-- ✅ school_education_levels: define education structure (Primary, Secondary, Tertiary)
+-- ✅ school_class_levels: define class names per education level (Class 1-6, Form 1-4)
+-- ✅ school_streams: define class divisions (Stream A, B, C or Science, Arts, etc.)
+-- ✅ school_departments: define departments (Science, Arts, Commercial)
+-- ✅ school_religions: define religion options (Christian, Muslim, etc.)
 --
 -- NEXT STEPS:
 -- 1. In Supabase Dashboard → Authentication → Hooks → Custom Access Token:
@@ -1058,7 +1303,16 @@ ON CONFLICT DO NOTHING;
 -- 2. Update Default School name/subdomain to your real school:
 --    UPDATE schools SET name='Your School Name', subdomain='yourschool'
 --    WHERE id='00000000-0000-0000-0000-000000000001';
--- 3. To create a super_admin user:
+-- 3. Customize default configurations (or use initialize_school_configurations() for any new school):
+--    - View: SELECT * FROM school_education_levels WHERE school_id = '<school-id>'
+--    - Add: INSERT INTO school_education_levels (school_id, name, code, is_active) VALUES (...)
+-- 4. Create a new school and auto-seed its configurations:
+--    WITH new_school AS (
+--      INSERT INTO schools (name, subdomain) VALUES ('New School', 'newschool')
+--      RETURNING id
+--    )
+--    SELECT initialize_school_configurations((SELECT id FROM new_school));
+-- 5. To create a super_admin user:
 --    INSERT INTO user_role_links (user_id, role_id, school_id)
 --    SELECT '<your-user-id>', id, NULL FROM roles WHERE name = 'super_admin';
 
@@ -1126,3 +1380,13 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- ============================================================================
+-- ENABLE RLS ON SCHOOL CONFIGURATION TABLES
+-- ============================================================================
+
+ALTER TABLE school_education_levels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_class_levels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_streams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_religions ENABLE ROW LEVEL SECURITY;

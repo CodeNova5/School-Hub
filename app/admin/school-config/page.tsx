@@ -64,7 +64,7 @@ import type {
    Form type helpers
 ───────────────────────────────────────────── */
 const blankEL = () => ({ name: "", code: "", description: "", order_sequence: 1 });
-const blankCL = () => ({ name: "", code: "", education_level_id: "", order_sequence: 1 });
+const blankCL = () => ({ name: "", education_level_id: "", order_sequence: 1 });
 const blankSimple = () => ({ name: "", code: "", description: "" });
 
 /* ─────────────────────────────────────────────
@@ -234,7 +234,6 @@ export default function SchoolConfigPage() {
           .from("school_class_levels")
           .update({
             name: clForm.name.trim(),
-            code: clForm.code.trim() || null,
             education_level_id: clForm.education_level_id,
             order_sequence: Number(clForm.order_sequence),
           })
@@ -245,7 +244,6 @@ export default function SchoolConfigPage() {
         const { error } = await supabase.from("school_class_levels").insert({
           school_id: schoolId,
           name: clForm.name.trim(),
-          code: clForm.code.trim() || null,
           education_level_id: clForm.education_level_id,
           order_sequence: Number(clForm.order_sequence),
           is_active: true,
@@ -343,19 +341,27 @@ export default function SchoolConfigPage() {
         const { error } = await supabase
           .from("school_streams")
           .update({
-            name: stForm.name.trim(),
-            code: stForm.code.trim() || null,
             description: stForm.description.trim(),
           })
           .eq("id", editingSt.id);
         if (error) throw error;
         toast.success("Stream updated");
       } else {
+        // Auto-generate letter-based name for new streams
+        const usedLetters = streams.map((s) => s.name).filter((n) => n.length === 1);
+        let nextLetter = "A";
+        for (let i = 0; i < 26; i++) {
+          const letter = String.fromCharCode(65 + i);
+          if (!usedLetters.includes(letter)) {
+            nextLetter = letter;
+            break;
+          }
+        }
+
         const { error } = await supabase.from("school_streams").insert({
           school_id: schoolId,
-          name: stForm.name.trim(),
-          code: stForm.code.trim() || null,
-          description: stForm.description.trim(),
+          name: nextLetter,
+          description: stForm.description.trim() || "",
           is_active: true,
         });
         if (error) throw error;
@@ -912,7 +918,6 @@ export default function SchoolConfigPage() {
                     <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
                       <th className="px-4 py-2 text-left w-10">Order</th>
                       <th className="px-4 py-2 text-left">Class Name</th>
-                      <th className="px-4 py-2 text-left">Code</th>
                       <th className="px-4 py-2 text-left">Education Level</th>
                       <th className="px-4 py-2 text-center">Active</th>
                       <th className="px-4 py-2 text-right">Actions</th>
@@ -953,15 +958,6 @@ export default function SchoolConfigPage() {
                             </td>
                             <td className="px-4 py-3 font-medium">{cl.name}</td>
                             <td className="px-4 py-3">
-                              {cl.code ? (
-                                <Badge variant="outline" className="text-xs font-mono">
-                                  {cl.code}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
                               {eduLevel ? (
                                 <Badge className="text-xs">{eduLevel.name}</Badge>
                               ) : (
@@ -985,7 +981,6 @@ export default function SchoolConfigPage() {
                                     setEditingCl(cl);
                                     setClForm({
                                       name: cl.name,
-                                      code: cl.code ?? "",
                                       education_level_id: cl.education_level_id,
                                       order_sequence: cl.order_sequence,
                                     });
@@ -1041,8 +1036,7 @@ export default function SchoolConfigPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
-                      <th className="px-4 py-2 text-left">Name</th>
-                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left">Name (Letter)</th>
                       <th className="px-4 py-2 text-left hidden md:table-cell">Description</th>
                       <th className="px-4 py-2 text-center">Active</th>
                       <th className="px-4 py-2 text-right">Actions</th>
@@ -1057,15 +1051,6 @@ export default function SchoolConfigPage() {
                       streams.map((s) => (
                         <tr key={s.id} className="hover:bg-muted/20 transition-colors">
                           <td className="px-4 py-3 font-medium">{s.name}</td>
-                          <td className="px-4 py-3">
-                            {s.code ? (
-                              <Badge variant="outline" className="text-xs font-mono">
-                                {s.code}
-                              </Badge>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
                           <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
                             {s.description || "—"}
                           </td>
@@ -1086,7 +1071,7 @@ export default function SchoolConfigPage() {
                                   setEditingSt(s);
                                   setStForm({
                                     name: s.name,
-                                    code: s.code ?? "",
+                                    code: "",
                                     description: s.description ?? "",
                                   });
                                   setStDialogOpen(true);
@@ -1415,28 +1400,17 @@ export default function SchoolConfigPage() {
                   className="mt-1"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Short Code</Label>
-                  <Input
-                    value={clForm.code}
-                    onChange={(e) => setClForm((f) => ({ ...f, code: e.target.value }))}
-                    placeholder="e.g. JSS1"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label>Order Sequence</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={clForm.order_sequence}
-                    onChange={(e) =>
-                      setClForm((f) => ({ ...f, order_sequence: Number(e.target.value) }))
-                    }
-                    className="mt-1"
-                  />
-                </div>
+              <div>
+                <Label>Order Sequence</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={clForm.order_sequence}
+                  onChange={(e) =>
+                    setClForm((f) => ({ ...f, order_sequence: Number(e.target.value) }))
+                  }
+                  className="mt-1"
+                />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setClDialogOpen(false)}>
@@ -1461,25 +1435,17 @@ export default function SchoolConfigPage() {
               <DialogTitle>{editingSt ? "Edit Stream" : "Add Stream"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={saveSt} className="space-y-4">
-              <div>
-                <Label>Stream Name *</Label>
-                <Input
-                  value={stForm.name}
-                  onChange={(e) => setStForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Science"
-                  required
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label>Short Code</Label>
-                <Input
-                  value={stForm.code}
-                  onChange={(e) => setStForm((f) => ({ ...f, code: e.target.value }))}
-                  placeholder="e.g. SCI"
-                  className="mt-1"
-                />
-              </div>
+              {editingSt && (
+                <div>
+                  <Label>Stream Letter</Label>
+                  <Input
+                    value={stForm.name}
+                    disabled
+                    className="mt-1 bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Stream names are auto-generated as letters (A, B, C, etc.)</p>
+                </div>
+              )}
               <div>
                 <Label>Description</Label>
                 <Textarea
@@ -1494,7 +1460,7 @@ export default function SchoolConfigPage() {
                 <Button type="button" variant="outline" onClick={() => setStDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={stSaving || !stForm.name.trim()}>
+                <Button type="submit" disabled={stSaving}>
                   {stSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingSt ? "Save Changes" : "Create Stream"}
                 </Button>

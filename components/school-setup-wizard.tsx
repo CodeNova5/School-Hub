@@ -46,7 +46,6 @@ import {
 interface WizardClassLevel {
   _id: string;
   name: string;
-  code: string;
   order_sequence: number;
 }
 
@@ -90,7 +89,7 @@ const mkEdu = (
   code: string,
   description: string,
   order: number,
-  classes: { name: string; code: string }[]
+  classes: { name: string }[]
 ): WizardEduLevel => ({
   _id: uid(),
   name,
@@ -100,7 +99,6 @@ const mkEdu = (
   classLevels: classes.map((c, i) => ({
     _id: uid(),
     name: c.name,
-    code: c.code,
     order_sequence: i + 1,
   })),
 });
@@ -116,96 +114,96 @@ const PRESETS: Record<string, Pick<WizardState, "educationLevels">> = {
   nursery: {
     educationLevels: [
       mkEdu("Nursery", "NUR", "Early childhood education", 1, [
-        { name: "Nursery 1", code: "NUR1" },
-        { name: "Nursery 2", code: "NUR2" },
-        { name: "KG 1", code: "KG1" },
-        { name: "KG 2", code: "KG2" },
+        { name: "Nursery 1" },
+        { name: "Nursery 2" },
+        { name: "KG 1" },
+        { name: "KG 2" },
       ]),
     ],
   },
   primary: {
     educationLevels: [
       mkEdu("Primary", "PRI", "Primary school education", 1, [
-        { name: "Primary 1", code: "P1" },
-        { name: "Primary 2", code: "P2" },
-        { name: "Primary 3", code: "P3" },
-        { name: "Primary 4", code: "P4" },
-        { name: "Primary 5", code: "P5" },
-        { name: "Primary 6", code: "P6" },
+        { name: "Primary 1" },
+        { name: "Primary 2" },
+        { name: "Primary 3" },
+        { name: "Primary 4" },
+        { name: "Primary 5" },
+        { name: "Primary 6" },
       ]),
     ],
   },
   secondary: {
     educationLevels: [
       mkEdu("Junior Secondary", "JSS", "Junior secondary school education", 1, [
-        { name: "JSS 1", code: "JSS1" },
-        { name: "JSS 2", code: "JSS2" },
-        { name: "JSS 3", code: "JSS3" },
+        { name: "JSS 1" },
+        { name: "JSS 2" },
+        { name: "JSS 3" },
       ]),
       mkEdu("Senior Secondary", "SSS", "Senior secondary school education", 2, [
-        { name: "SS 1", code: "SS1" },
-        { name: "SS 2", code: "SS2" },
-        { name: "SS 3", code: "SS3" },
+        { name: "SS 1" },
+        { name: "SS 2" },
+        { name: "SS 3" },
       ]),
     ],
   },
   primary_secondary: {
     educationLevels: [
       mkEdu("Primary", "PRI", "Primary school education", 1, [
-        { name: "Primary 1", code: "P1" },
-        { name: "Primary 2", code: "P2" },
-        { name: "Primary 3", code: "P3" },
-        { name: "Primary 4", code: "P4" },
-        { name: "Primary 5", code: "P5" },
-        { name: "Primary 6", code: "P6" },
+        { name: "Primary 1" },
+        { name: "Primary 2" },
+        { name: "Primary 3" },
+        { name: "Primary 4" },
+        { name: "Primary 5" },
+        { name: "Primary 6" },
       ]),
       mkEdu("Junior Secondary", "JSS", "Junior secondary school education", 2, [
-        { name: "JSS 1", code: "JSS1" },
-        { name: "JSS 2", code: "JSS2" },
-        { name: "JSS 3", code: "JSS3" },
+        { name: "JSS 1" },
+        { name: "JSS 2" },
+        { name: "JSS 3" },
       ]),
       mkEdu("Senior Secondary", "SSS", "Senior secondary school education", 3, [
-        { name: "SS 1", code: "SS1" },
-        { name: "SS 2", code: "SS2" },
-        { name: "SS 3", code: "SS3" },
+        { name: "SS 1" },
+        { name: "SS 2" },
+        { name: "SS 3" },
       ]),
     ],
   },
   nursery_primary_secondary: {
     educationLevels: [
       mkEdu("Nursery", "NUR", "Early childhood education", 1, [
-        { name: "Nursery 1", code: "NUR1" },
-        { name: "Nursery 2", code: "NUR2" },
-        { name: "KG 1", code: "KG1" },
-        { name: "KG 2", code: "KG2" },
+        { name: "Nursery 1" },
+        { name: "Nursery 2" },
+        { name: "KG 1" },
+        { name: "KG 2" },
       ]),
       mkEdu("Primary", "PRI", "Primary school education", 2, [
-        { name: "Primary 1", code: "P1" },
-        { name: "Primary 2", code: "P2" },
-        { name: "Primary 3", code: "P3" },
-        { name: "Primary 4", code: "P4" },
-        { name: "Primary 5", code: "P5" },
-        { name: "Primary 6", code: "P6" },
+        { name: "Primary 1" },
+        { name: "Primary 2" },
+        { name: "Primary 3" },
+        { name: "Primary 4" },
+        { name: "Primary 5" },
+        { name: "Primary 6" },
       ]),
       mkEdu("Junior Secondary", "JSS", "Junior secondary school education", 3, [
-        { name: "JSS 1", code: "JSS1" },
-        { name: "JSS 2", code: "JSS2" },
-        { name: "JSS 3", code: "JSS3" },
+        { name: "JSS 1" },
+        { name: "JSS 2" },
+        { name: "JSS 3" },
       ]),
       mkEdu("Senior Secondary", "SSS", "Senior secondary school education", 4, [
-        { name: "SS 1", code: "SS1" },
-        { name: "SS 2", code: "SS2" },
-        { name: "SS 3", code: "SS3" },
+        { name: "SS 1" },
+        { name: "SS 2" },
+        { name: "SS 3" },
       ]),
     ],
   },
   university: {
     educationLevels: [
       mkEdu("Undergraduate", "UG", "Undergraduate degree program", 1, [
-        { name: "100 Level", code: "100L" },
-        { name: "200 Level", code: "200L" },
-        { name: "300 Level", code: "300L" },
-        { name: "400 Level", code: "400L" },
+        { name: "100 Level" },
+        { name: "200 Level" },
+        { name: "300 Level" },
+        { name: "400 Level" },
       ]),
     ],
   },
@@ -215,10 +213,10 @@ const PRESETS: Record<string, Pick<WizardState, "educationLevels">> = {
 };
 
 const DEFAULT_STREAMS = [
-  mkItem("Science", "SCI", "Sciences track"),
-  mkItem("Arts", "ART", "Arts & Humanities track"),
-  mkItem("Commercial", "COM", "Commercial & Business track"),
-  mkItem("General Studies", "GEN", "General curriculum"),
+  mkItem("A", "", ""),
+  mkItem("B", "", ""),
+  mkItem("C", "", ""),
+  mkItem("D", "", ""),
 ];
 
 const DEFAULT_DEPARTMENTS = [
@@ -496,7 +494,6 @@ export function SchoolSetupWizard({ isOpen, onClose, onComplete }: SchoolSetupWi
           school_id: schoolId,
           education_level_id: nameToId.get(el.name.trim()),
           name: cl.name.trim(),
-          code: cl.code.trim() || null,
           order_sequence: cl.order_sequence || i + 1,
           is_active: true,
         }))
@@ -696,14 +693,7 @@ export function SchoolSetupWizard({ isOpen, onClose, onComplete }: SchoolSetupWi
                                 placeholder="e.g. Primary 1"
                                 className="h-7 text-xs flex-1"
                               />
-                              <Input
-                                value={cl.code}
-                                onChange={(e) =>
-                                  updateClassLevel(el._id, cl._id, "code", e.target.value)
-                                }
-                                placeholder="Code"
-                                className="h-7 text-xs w-20"
-                              />
+
                               <button
                                 type="button"
                                 onClick={() => removeClassLevel(el._id, cl._id)}

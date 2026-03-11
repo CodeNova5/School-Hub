@@ -1,0 +1,1728 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { SchoolSetupWizard } from "@/components/school-setup-wizard";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  GraduationCap,
+  BookOpen,
+  Building2,
+  Church,
+  Waves,
+  Sparkles,
+  ChevronUp,
+  ChevronDown,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
+import type {
+  EducationLevel,
+  ClassLevel,
+  Stream,
+  Department,
+  Religion,
+} from "@/lib/types";
+
+/* ─────────────────────────────────────────────
+   Form type helpers
+───────────────────────────────────────────── */
+const blankEL = () => ({ name: "", code: "", description: "", order_sequence: 1 });
+const blankCL = () => ({ name: "", code: "", education_level_id: "", order_sequence: 1 });
+const blankSimple = () => ({ name: "", code: "", description: "" });
+
+/* ─────────────────────────────────────────────
+   Stat card
+───────────────────────────────────────────── */
+function StatBadge({ count, label }: { count: number; label: string }) {
+  return (
+    <div className="text-center">
+      <p className="text-2xl font-bold text-foreground">{count}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Main Page
+───────────────────────────────────────────── */
+export default function SchoolConfigPage() {
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
+
+  /* ── Wizard ── */
+  const [showWizard, setShowWizard] = useState(false);
+
+  /* ═══════════════════════════════════════
+     EDUCATION LEVELS
+  ═══════════════════════════════════════ */
+  const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
+  const [elLoading, setElLoading] = useState(false);
+  const [elDialogOpen, setElDialogOpen] = useState(false);
+  const [editingEl, setEditingEl] = useState<EducationLevel | null>(null);
+  const [deleteElId, setDeleteElId] = useState<string | null>(null);
+  const [elForm, setElForm] = useState(blankEL());
+  const [elSaving, setElSaving] = useState(false);
+
+  const fetchEducationLevels = useCallback(async () => {
+    if (!schoolId) return;
+    setElLoading(true);
+    const { data, error } = await supabase
+      .from("school_education_levels")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("order_sequence", { ascending: true });
+    if (error) toast.error("Failed to load education levels");
+    else setEducationLevels(data ?? []);
+    setElLoading(false);
+  }, [schoolId]);
+
+  async function saveEL(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId) return;
+    setElSaving(true);
+    try {
+      if (editingEl) {
+        const { error } = await supabase
+          .from("school_education_levels")
+          .update({
+            name: elForm.name.trim(),
+            code: elForm.code.trim() || null,
+            description: elForm.description.trim(),
+            order_sequence: Number(elForm.order_sequence),
+          })
+          .eq("id", editingEl.id);
+        if (error) throw error;
+        toast.success("Education level updated");
+      } else {
+        const { error } = await supabase.from("school_education_levels").insert({
+          school_id: schoolId,
+          name: elForm.name.trim(),
+          code: elForm.code.trim() || null,
+          description: elForm.description.trim(),
+          order_sequence: Number(elForm.order_sequence),
+          is_active: true,
+        });
+        if (error) throw error;
+        toast.success("Education level created");
+      }
+      setElDialogOpen(false);
+      setEditingEl(null);
+      setElForm(blankEL());
+      fetchEducationLevels();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setElSaving(false);
+    }
+  }
+
+  async function deleteEL() {
+    if (!deleteElId) return;
+    const { error } = await supabase
+      .from("school_education_levels")
+      .delete()
+      .eq("id", deleteElId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Education level deleted");
+      fetchEducationLevels();
+      // Refresh class levels since some may depend on this
+      fetchClassLevels();
+    }
+    setDeleteElId(null);
+  }
+
+  async function toggleELActive(item: EducationLevel) {
+    const { error } = await supabase
+      .from("school_education_levels")
+      .update({ is_active: !item.is_active })
+      .eq("id", item.id);
+    if (error) toast.error(error.message);
+    else setEducationLevels((prev) =>
+      prev.map((el) => (el.id === item.id ? { ...el, is_active: !item.is_active } : el))
+    );
+  }
+
+  async function moveEL(id: string, direction: "up" | "down") {
+    const idx = educationLevels.findIndex((el) => el.id === id);
+    if (direction === "up" && idx === 0) return;
+    if (direction === "down" && idx === educationLevels.length - 1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    const a = educationLevels[idx];
+    const b = educationLevels[swapIdx];
+    await Promise.all([
+      supabase
+        .from("school_education_levels")
+        .update({ order_sequence: b.order_sequence })
+        .eq("id", a.id),
+      supabase
+        .from("school_education_levels")
+        .update({ order_sequence: a.order_sequence })
+        .eq("id", b.id),
+    ]);
+    fetchEducationLevels();
+  }
+
+  /* ═══════════════════════════════════════
+     CLASS LEVELS
+  ═══════════════════════════════════════ */
+  const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
+  const [clLoading, setClLoading] = useState(false);
+  const [clDialogOpen, setClDialogOpen] = useState(false);
+  const [editingCl, setEditingCl] = useState<ClassLevel | null>(null);
+  const [deleteClId, setDeleteClId] = useState<string | null>(null);
+  const [clForm, setClForm] = useState(blankCL());
+  const [clSaving, setClSaving] = useState(false);
+  const [clFilterEdu, setClFilterEdu] = useState<string>("all");
+
+  const fetchClassLevels = useCallback(async () => {
+    if (!schoolId) return;
+    setClLoading(true);
+    const { data, error } = await supabase
+      .from("school_class_levels")
+      .select("*, school_education_levels(id, name)")
+      .eq("school_id", schoolId)
+      .order("order_sequence", { ascending: true });
+    if (error) toast.error("Failed to load class levels");
+    else setClassLevels((data ?? []) as ClassLevel[]);
+    setClLoading(false);
+  }, [schoolId]);
+
+  async function saveCL(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId) return;
+    setClSaving(true);
+    try {
+      if (editingCl) {
+        const { error } = await supabase
+          .from("school_class_levels")
+          .update({
+            name: clForm.name.trim(),
+            code: clForm.code.trim() || null,
+            education_level_id: clForm.education_level_id,
+            order_sequence: Number(clForm.order_sequence),
+          })
+          .eq("id", editingCl.id);
+        if (error) throw error;
+        toast.success("Class level updated");
+      } else {
+        const { error } = await supabase.from("school_class_levels").insert({
+          school_id: schoolId,
+          name: clForm.name.trim(),
+          code: clForm.code.trim() || null,
+          education_level_id: clForm.education_level_id,
+          order_sequence: Number(clForm.order_sequence),
+          is_active: true,
+        });
+        if (error) throw error;
+        toast.success("Class level created");
+      }
+      setClDialogOpen(false);
+      setEditingCl(null);
+      setClForm(blankCL());
+      fetchClassLevels();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setClSaving(false);
+    }
+  }
+
+  async function deleteCL() {
+    if (!deleteClId) return;
+    const { error } = await supabase.from("school_class_levels").delete().eq("id", deleteClId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Class level deleted");
+      fetchClassLevels();
+    }
+    setDeleteClId(null);
+  }
+
+  async function toggleCLActive(item: ClassLevel) {
+    const { error } = await supabase
+      .from("school_class_levels")
+      .update({ is_active: !item.is_active })
+      .eq("id", item.id);
+    if (error) toast.error(error.message);
+    else setClassLevels((prev) =>
+      prev.map((cl) => (cl.id === item.id ? { ...cl, is_active: !item.is_active } : cl))
+    );
+  }
+
+  async function moveCL(id: string, direction: "up" | "down") {
+    const filtered = classLevels.filter(
+      (cl) =>
+        clFilterEdu === "all" || cl.education_level_id === clFilterEdu
+    );
+    const idx = filtered.findIndex((cl) => cl.id === id);
+    if (direction === "up" && idx === 0) return;
+    if (direction === "down" && idx === filtered.length - 1) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    const a = filtered[idx];
+    const b = filtered[swapIdx];
+    await Promise.all([
+      supabase
+        .from("school_class_levels")
+        .update({ order_sequence: b.order_sequence })
+        .eq("id", a.id),
+      supabase
+        .from("school_class_levels")
+        .update({ order_sequence: a.order_sequence })
+        .eq("id", b.id),
+    ]);
+    fetchClassLevels();
+  }
+
+  /* ═══════════════════════════════════════
+     STREAMS
+  ═══════════════════════════════════════ */
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [stLoading, setStLoading] = useState(false);
+  const [stDialogOpen, setStDialogOpen] = useState(false);
+  const [editingSt, setEditingSt] = useState<Stream | null>(null);
+  const [deleteStId, setDeleteStId] = useState<string | null>(null);
+  const [stForm, setStForm] = useState(blankSimple());
+  const [stSaving, setStSaving] = useState(false);
+
+  const fetchStreams = useCallback(async () => {
+    if (!schoolId) return;
+    setStLoading(true);
+    const { data, error } = await supabase
+      .from("school_streams")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("name", { ascending: true });
+    if (error) toast.error("Failed to load streams");
+    else setStreams(data ?? []);
+    setStLoading(false);
+  }, [schoolId]);
+
+  async function saveSt(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId) return;
+    setStSaving(true);
+    try {
+      if (editingSt) {
+        const { error } = await supabase
+          .from("school_streams")
+          .update({
+            name: stForm.name.trim(),
+            code: stForm.code.trim() || null,
+            description: stForm.description.trim(),
+          })
+          .eq("id", editingSt.id);
+        if (error) throw error;
+        toast.success("Stream updated");
+      } else {
+        const { error } = await supabase.from("school_streams").insert({
+          school_id: schoolId,
+          name: stForm.name.trim(),
+          code: stForm.code.trim() || null,
+          description: stForm.description.trim(),
+          is_active: true,
+        });
+        if (error) throw error;
+        toast.success("Stream created");
+      }
+      setStDialogOpen(false);
+      setEditingSt(null);
+      setStForm(blankSimple());
+      fetchStreams();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setStSaving(false);
+    }
+  }
+
+  async function deleteSt() {
+    if (!deleteStId) return;
+    const { error } = await supabase.from("school_streams").delete().eq("id", deleteStId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Stream deleted");
+      fetchStreams();
+    }
+    setDeleteStId(null);
+  }
+
+  async function toggleStActive(item: Stream) {
+    const { error } = await supabase
+      .from("school_streams")
+      .update({ is_active: !item.is_active })
+      .eq("id", item.id);
+    if (error) toast.error(error.message);
+    else setStreams((prev) =>
+      prev.map((s) => (s.id === item.id ? { ...s, is_active: !item.is_active } : s))
+    );
+  }
+
+  /* ═══════════════════════════════════════
+     DEPARTMENTS
+  ═══════════════════════════════════════ */
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [dpLoading, setDpLoading] = useState(false);
+  const [dpDialogOpen, setDpDialogOpen] = useState(false);
+  const [editingDp, setEditingDp] = useState<Department | null>(null);
+  const [deleteDpId, setDeleteDpId] = useState<string | null>(null);
+  const [dpForm, setDpForm] = useState(blankSimple());
+  const [dpSaving, setDpSaving] = useState(false);
+
+  const fetchDepartments = useCallback(async () => {
+    if (!schoolId) return;
+    setDpLoading(true);
+    const { data, error } = await supabase
+      .from("school_departments")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("name", { ascending: true });
+    if (error) toast.error("Failed to load departments");
+    else setDepartments(data ?? []);
+    setDpLoading(false);
+  }, [schoolId]);
+
+  async function saveDp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId) return;
+    setDpSaving(true);
+    try {
+      if (editingDp) {
+        const { error } = await supabase
+          .from("school_departments")
+          .update({
+            name: dpForm.name.trim(),
+            code: dpForm.code.trim() || null,
+            description: dpForm.description.trim(),
+          })
+          .eq("id", editingDp.id);
+        if (error) throw error;
+        toast.success("Department updated");
+      } else {
+        const { error } = await supabase.from("school_departments").insert({
+          school_id: schoolId,
+          name: dpForm.name.trim(),
+          code: dpForm.code.trim() || null,
+          description: dpForm.description.trim(),
+          is_active: true,
+        });
+        if (error) throw error;
+        toast.success("Department created");
+      }
+      setDpDialogOpen(false);
+      setEditingDp(null);
+      setDpForm(blankSimple());
+      fetchDepartments();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setDpSaving(false);
+    }
+  }
+
+  async function deleteDp() {
+    if (!deleteDpId) return;
+    const { error } = await supabase.from("school_departments").delete().eq("id", deleteDpId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Department deleted");
+      fetchDepartments();
+    }
+    setDeleteDpId(null);
+  }
+
+  async function toggleDpActive(item: Department) {
+    const { error } = await supabase
+      .from("school_departments")
+      .update({ is_active: !item.is_active })
+      .eq("id", item.id);
+    if (error) toast.error(error.message);
+    else setDepartments((prev) =>
+      prev.map((d) => (d.id === item.id ? { ...d, is_active: !item.is_active } : d))
+    );
+  }
+
+  /* ═══════════════════════════════════════
+     RELIGIONS
+  ═══════════════════════════════════════ */
+  const [religions, setReligions] = useState<Religion[]>([]);
+  const [rlLoading, setRlLoading] = useState(false);
+  const [rlDialogOpen, setRlDialogOpen] = useState(false);
+  const [editingRl, setEditingRl] = useState<Religion | null>(null);
+  const [deleteRlId, setDeleteRlId] = useState<string | null>(null);
+  const [rlForm, setRlForm] = useState(blankSimple());
+  const [rlSaving, setRlSaving] = useState(false);
+
+  const fetchReligions = useCallback(async () => {
+    if (!schoolId) return;
+    setRlLoading(true);
+    const { data, error } = await supabase
+      .from("school_religions")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("name", { ascending: true });
+    if (error) toast.error("Failed to load religions");
+    else setReligions(data ?? []);
+    setRlLoading(false);
+  }, [schoolId]);
+
+  async function saveRl(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId) return;
+    setRlSaving(true);
+    try {
+      if (editingRl) {
+        const { error } = await supabase
+          .from("school_religions")
+          .update({
+            name: rlForm.name.trim(),
+            code: rlForm.code.trim() || null,
+            description: rlForm.description.trim(),
+          })
+          .eq("id", editingRl.id);
+        if (error) throw error;
+        toast.success("Religion updated");
+      } else {
+        const { error } = await supabase.from("school_religions").insert({
+          school_id: schoolId,
+          name: rlForm.name.trim(),
+          code: rlForm.code.trim() || null,
+          description: rlForm.description.trim(),
+          is_active: true,
+        });
+        if (error) throw error;
+        toast.success("Religion created");
+      }
+      setRlDialogOpen(false);
+      setEditingRl(null);
+      setRlForm(blankSimple());
+      fetchReligions();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setRlSaving(false);
+    }
+  }
+
+  async function deleteRl() {
+    if (!deleteRlId) return;
+    const { error } = await supabase.from("school_religions").delete().eq("id", deleteRlId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Religion deleted");
+      fetchReligions();
+    }
+    setDeleteRlId(null);
+  }
+
+  async function toggleRlActive(item: Religion) {
+    const { error } = await supabase
+      .from("school_religions")
+      .update({ is_active: !item.is_active })
+      .eq("id", item.id);
+    if (error) toast.error(error.message);
+    else setReligions((prev) =>
+      prev.map((r) => (r.id === item.id ? { ...r, is_active: !item.is_active } : r))
+    );
+  }
+
+  /* ═══════════════════════════════════════
+     Effects — fetch on schoolId ready
+  ═══════════════════════════════════════ */
+  useEffect(() => {
+    if (schoolId) {
+      fetchEducationLevels();
+      fetchClassLevels();
+      fetchStreams();
+      fetchDepartments();
+      fetchReligions();
+    }
+  }, [schoolId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isEmptySetup =
+    !schoolLoading &&
+    educationLevels.length === 0 &&
+    classLevels.length === 0 &&
+    streams.length === 0 &&
+    departments.length === 0 &&
+    religions.length === 0;
+
+  /* ─────────────────────────────────────────
+     Reusable table/list utilities
+  ───────────────────────────────────────── */
+  function LoadingRow() {
+    return (
+      <tr>
+        <td colSpan={6} className="py-10 text-center">
+          <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+        </td>
+      </tr>
+    );
+  }
+
+  function EmptyRow({ message }: { message: string }) {
+    return (
+      <tr>
+        <td colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+          {message}
+        </td>
+      </tr>
+    );
+  }
+
+  /* ─────────────────────────────────────────
+     Filtered class levels list
+  ───────────────────────────────────────── */
+  const filteredCL =
+    clFilterEdu === "all"
+      ? classLevels
+      : classLevels.filter((cl) => cl.education_level_id === clFilterEdu);
+
+  /* ═══════════════════════════════════════
+     RENDER
+  ═══════════════════════════════════════ */
+  if (schoolLoading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout role="admin">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* ── Page Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">School Structure</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Manage your school&apos;s academic structure — education levels, class levels,
+              streams, departments, and religions.
+            </p>
+          </div>
+          <Button onClick={() => setShowWizard(true)} className="shrink-0 gap-2">
+            <Sparkles className="h-4 w-4" />
+            Setup Wizard
+          </Button>
+        </div>
+
+        {/* ── Empty-state banner ── */}
+        {isEmptySetup && (
+          <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-8 text-center space-y-3">
+            <div className="mx-auto h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="font-semibold text-lg">No school structure yet</h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Use the Setup Wizard to quickly configure your school&apos;s academic structure
+              with smart presets, or add items manually using the tabs below.
+            </p>
+            <Button onClick={() => setShowWizard(true)} className="mt-2 gap-2">
+              <Sparkles className="h-4 w-4" />
+              Launch Setup Wizard
+            </Button>
+          </div>
+        )}
+
+        {/* ── Summary Stats ── */}
+        {!isEmptySetup && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            {[
+              { count: educationLevels.length, label: "Education Levels", icon: <GraduationCap className="h-4 w-4" /> },
+              { count: classLevels.length, label: "Class Levels", icon: <BookOpen className="h-4 w-4" /> },
+              { count: streams.length, label: "Streams", icon: <Waves className="h-4 w-4" /> },
+              { count: departments.length, label: "Departments", icon: <Building2 className="h-4 w-4" /> },
+              { count: religions.length, label: "Religions", icon: <Church className="h-4 w-4" /> },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-xl border bg-card p-4 flex items-center gap-3"
+              >
+                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                  {stat.icon}
+                </div>
+                <div>
+                  <p className="text-xl font-bold">{stat.count}</p>
+                  <p className="text-xs text-muted-foreground leading-tight">{stat.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Tabs ── */}
+        <Tabs defaultValue="education_levels">
+          <TabsList className="h-auto flex-wrap gap-1 p-1">
+            <TabsTrigger value="education_levels" className="gap-1.5">
+              <GraduationCap className="h-3.5 w-3.5" />
+              Education Levels
+              <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                {educationLevels.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="class_levels" className="gap-1.5">
+              <BookOpen className="h-3.5 w-3.5" />
+              Class Levels
+              <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                {classLevels.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="streams" className="gap-1.5">
+              <Waves className="h-3.5 w-3.5" />
+              Streams
+              <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                {streams.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="departments" className="gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />
+              Departments
+              <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                {departments.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="religions" className="gap-1.5">
+              <Church className="h-3.5 w-3.5" />
+              Religions
+              <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                {religions.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ══════════════════════════════════════
+              TAB: EDUCATION LEVELS
+          ══════════════════════════════════════ */}
+          <TabsContent value="education_levels" className="mt-4">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                <div>
+                  <h3 className="font-semibold text-sm">Education Levels</h3>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. Primary, Junior Secondary, Senior Secondary
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingEl(null);
+                    setElForm({ ...blankEL(), order_sequence: educationLevels.length + 1 });
+                    setElDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Level
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                      <th className="px-4 py-2 text-left w-10">Order</th>
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left hidden md:table-cell">Description</th>
+                      <th className="px-4 py-2 text-left">Classes</th>
+                      <th className="px-4 py-2 text-center">Active</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {elLoading ? (
+                      <LoadingRow />
+                    ) : educationLevels.length === 0 ? (
+                      <EmptyRow message="No education levels yet. Click 'Add Level' to get started." />
+                    ) : (
+                      educationLevels.map((el, idx) => {
+                        const classCount = classLevels.filter(
+                          (cl) => cl.education_level_id === el.id
+                        ).length;
+                        return (
+                          <tr key={el.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                  onClick={() => moveEL(el.id, "up")}
+                                  disabled={idx === 0}
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                >
+                                  <ChevronUp className="h-3 w-3" />
+                                </button>
+                                <span className="text-xs text-center text-muted-foreground">
+                                  {el.order_sequence}
+                                </span>
+                                <button
+                                  onClick={() => moveEL(el.id, "down")}
+                                  disabled={idx === educationLevels.length - 1}
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                >
+                                  <ChevronDown className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-medium">{el.name}</td>
+                            <td className="px-4 py-3">
+                              {el.code ? (
+                                <Badge variant="outline" className="text-xs font-mono">
+                                  {el.code}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
+                              {el.description || "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant="secondary" className="text-xs">
+                                {classCount} class{classCount !== 1 ? "es" : ""}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <Switch
+                                checked={el.is_active}
+                                onCheckedChange={() => toggleELActive(el)}
+                                className="scale-90"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => {
+                                    setEditingEl(el);
+                                    setElForm({
+                                      name: el.name,
+                                      code: el.code ?? "",
+                                      description: el.description ?? "",
+                                      order_sequence: el.order_sequence,
+                                    });
+                                    setElDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => setDeleteElId(el.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ══════════════════════════════════════
+              TAB: CLASS LEVELS
+          ══════════════════════════════════════ */}
+          <TabsContent value="class_levels" className="mt-4">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
+                <div>
+                  <h3 className="font-semibold text-sm">Class Levels</h3>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. JSS 1, JSS 2, SS 1, Primary 3 — grouped under education levels
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={clFilterEdu} onValueChange={setClFilterEdu}>
+                    <SelectTrigger className="h-8 text-xs w-44">
+                      <SelectValue placeholder="Filter by level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Levels</SelectItem>
+                      {educationLevels.map((el) => (
+                        <SelectItem key={el.id} value={el.id}>
+                          {el.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingCl(null);
+                      setClForm({
+                        ...blankCL(),
+                        education_level_id: clFilterEdu !== "all" ? clFilterEdu : "",
+                        order_sequence: filteredCL.length + 1,
+                      });
+                      setClDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add Class
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                      <th className="px-4 py-2 text-left w-10">Order</th>
+                      <th className="px-4 py-2 text-left">Class Name</th>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left">Education Level</th>
+                      <th className="px-4 py-2 text-center">Active</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {clLoading ? (
+                      <LoadingRow />
+                    ) : filteredCL.length === 0 ? (
+                      <EmptyRow message="No class levels yet. Click 'Add Class' to get started." />
+                    ) : (
+                      filteredCL.map((cl, idx) => {
+                        const eduLevel = educationLevels.find(
+                          (el) => el.id === cl.education_level_id
+                        );
+                        return (
+                          <tr key={cl.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-0.5">
+                                <button
+                                  onClick={() => moveCL(cl.id, "up")}
+                                  disabled={idx === 0}
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                >
+                                  <ChevronUp className="h-3 w-3" />
+                                </button>
+                                <span className="text-xs text-center text-muted-foreground">
+                                  {cl.order_sequence}
+                                </span>
+                                <button
+                                  onClick={() => moveCL(cl.id, "down")}
+                                  disabled={idx === filteredCL.length - 1}
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                >
+                                  <ChevronDown className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 font-medium">{cl.name}</td>
+                            <td className="px-4 py-3">
+                              {cl.code ? (
+                                <Badge variant="outline" className="text-xs font-mono">
+                                  {cl.code}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {eduLevel ? (
+                                <Badge className="text-xs">{eduLevel.name}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">Unknown</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <Switch
+                                checked={cl.is_active}
+                                onCheckedChange={() => toggleCLActive(cl)}
+                                className="scale-90"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => {
+                                    setEditingCl(cl);
+                                    setClForm({
+                                      name: cl.name,
+                                      code: cl.code ?? "",
+                                      education_level_id: cl.education_level_id,
+                                      order_sequence: cl.order_sequence,
+                                    });
+                                    setClDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => setDeleteClId(cl.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ══════════════════════════════════════
+              TAB: STREAMS
+          ══════════════════════════════════════ */}
+          <TabsContent value="streams" className="mt-4">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                <div>
+                  <h3 className="font-semibold text-sm">Streams</h3>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. Science, Arts, Commercial
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingSt(null);
+                    setStForm(blankSimple());
+                    setStDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Stream
+                </Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left hidden md:table-cell">Description</th>
+                      <th className="px-4 py-2 text-center">Active</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {stLoading ? (
+                      <LoadingRow />
+                    ) : streams.length === 0 ? (
+                      <EmptyRow message="No streams configured yet." />
+                    ) : (
+                      streams.map((s) => (
+                        <tr key={s.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 font-medium">{s.name}</td>
+                          <td className="px-4 py-3">
+                            {s.code ? (
+                              <Badge variant="outline" className="text-xs font-mono">
+                                {s.code}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
+                            {s.description || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <Switch
+                              checked={s.is_active}
+                              onCheckedChange={() => toggleStActive(s)}
+                              className="scale-90"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  setEditingSt(s);
+                                  setStForm({
+                                    name: s.name,
+                                    code: s.code ?? "",
+                                    description: s.description ?? "",
+                                  });
+                                  setStDialogOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setDeleteStId(s.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ══════════════════════════════════════
+              TAB: DEPARTMENTS
+          ══════════════════════════════════════ */}
+          <TabsContent value="departments" className="mt-4">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                <div>
+                  <h3 className="font-semibold text-sm">Departments</h3>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. Sciences, Arts & Humanities, Commercial Studies
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingDp(null);
+                    setDpForm(blankSimple());
+                    setDpDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Department
+                </Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left hidden md:table-cell">Description</th>
+                      <th className="px-4 py-2 text-center">Active</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {dpLoading ? (
+                      <LoadingRow />
+                    ) : departments.length === 0 ? (
+                      <EmptyRow message="No departments configured yet." />
+                    ) : (
+                      departments.map((d) => (
+                        <tr key={d.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 font-medium">{d.name}</td>
+                          <td className="px-4 py-3">
+                            {d.code ? (
+                              <Badge variant="outline" className="text-xs font-mono">
+                                {d.code}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
+                            {d.description || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <Switch
+                              checked={d.is_active}
+                              onCheckedChange={() => toggleDpActive(d)}
+                              className="scale-90"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  setEditingDp(d);
+                                  setDpForm({
+                                    name: d.name,
+                                    code: d.code ?? "",
+                                    description: d.description ?? "",
+                                  });
+                                  setDpDialogOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setDeleteDpId(d.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ══════════════════════════════════════
+              TAB: RELIGIONS
+          ══════════════════════════════════════ */}
+          <TabsContent value="religions" className="mt-4">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                <div>
+                  <h3 className="font-semibold text-sm">Religions</h3>
+                  <p className="text-xs text-muted-foreground">
+                    e.g. Christianity, Islam, Traditional Religion
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingRl(null);
+                    setRlForm(blankSimple());
+                    setRlDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Religion
+                </Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left hidden md:table-cell">Description</th>
+                      <th className="px-4 py-2 text-center">Active</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {rlLoading ? (
+                      <LoadingRow />
+                    ) : religions.length === 0 ? (
+                      <EmptyRow message="No religions configured yet." />
+                    ) : (
+                      religions.map((r) => (
+                        <tr key={r.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 font-medium">{r.name}</td>
+                          <td className="px-4 py-3">
+                            {r.code ? (
+                              <Badge variant="outline" className="text-xs font-mono">
+                                {r.code}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground hidden md:table-cell max-w-xs truncate">
+                            {r.description || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <Switch
+                              checked={r.is_active}
+                              onCheckedChange={() => toggleRlActive(r)}
+                              className="scale-90"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => {
+                                  setEditingRl(r);
+                                  setRlForm({
+                                    name: r.name,
+                                    code: r.code ?? "",
+                                    description: r.description ?? "",
+                                  });
+                                  setRlDialogOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => setDeleteRlId(r.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* ═══════════════════════════════════════════════
+            DIALOGS — Education Level
+        ═══════════════════════════════════════════════ */}
+        <Dialog open={elDialogOpen} onOpenChange={setElDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {editingEl ? "Edit Education Level" : "Add Education Level"}
+              </DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveEL} className="space-y-4">
+              <div>
+                <Label>Name *</Label>
+                <Input
+                  value={elForm.name}
+                  onChange={(e) => setElForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Junior Secondary"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Short Code</Label>
+                  <Input
+                    value={elForm.code}
+                    onChange={(e) => setElForm((f) => ({ ...f, code: e.target.value }))}
+                    placeholder="e.g. JSS"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Order Sequence</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={elForm.order_sequence}
+                    onChange={(e) =>
+                      setElForm((f) => ({ ...f, order_sequence: Number(e.target.value) }))
+                    }
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={elForm.description}
+                  onChange={(e) => setElForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional description"
+                  rows={2}
+                  className="mt-1"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setElDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={elSaving || !elForm.name.trim()}>
+                  {elSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingEl ? "Save Changes" : "Create Level"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* DIALOGS — Class Level */}
+        <Dialog open={clDialogOpen} onOpenChange={setClDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingCl ? "Edit Class Level" : "Add Class Level"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveCL} className="space-y-4">
+              <div>
+                <Label>Education Level *</Label>
+                <Select
+                  value={clForm.education_level_id}
+                  onValueChange={(v) => setClForm((f) => ({ ...f, education_level_id: v }))}
+                  required
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select education level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {educationLevels.map((el) => (
+                      <SelectItem key={el.id} value={el.id}>
+                        {el.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Class Name *</Label>
+                <Input
+                  value={clForm.name}
+                  onChange={(e) => setClForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. JSS 1"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Short Code</Label>
+                  <Input
+                    value={clForm.code}
+                    onChange={(e) => setClForm((f) => ({ ...f, code: e.target.value }))}
+                    placeholder="e.g. JSS1"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Order Sequence</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={clForm.order_sequence}
+                    onChange={(e) =>
+                      setClForm((f) => ({ ...f, order_sequence: Number(e.target.value) }))
+                    }
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setClDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={clSaving || !clForm.name.trim() || !clForm.education_level_id}
+                >
+                  {clSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingCl ? "Save Changes" : "Create Class"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* DIALOGS — Stream */}
+        <Dialog open={stDialogOpen} onOpenChange={setStDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingSt ? "Edit Stream" : "Add Stream"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveSt} className="space-y-4">
+              <div>
+                <Label>Stream Name *</Label>
+                <Input
+                  value={stForm.name}
+                  onChange={(e) => setStForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Science"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Short Code</Label>
+                <Input
+                  value={stForm.code}
+                  onChange={(e) => setStForm((f) => ({ ...f, code: e.target.value }))}
+                  placeholder="e.g. SCI"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={stForm.description}
+                  onChange={(e) => setStForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional description"
+                  rows={2}
+                  className="mt-1"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setStDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={stSaving || !stForm.name.trim()}>
+                  {stSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingSt ? "Save Changes" : "Create Stream"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* DIALOGS — Department */}
+        <Dialog open={dpDialogOpen} onOpenChange={setDpDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingDp ? "Edit Department" : "Add Department"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveDp} className="space-y-4">
+              <div>
+                <Label>Department Name *</Label>
+                <Input
+                  value={dpForm.name}
+                  onChange={(e) => setDpForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Sciences"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Short Code</Label>
+                <Input
+                  value={dpForm.code}
+                  onChange={(e) => setDpForm((f) => ({ ...f, code: e.target.value }))}
+                  placeholder="e.g. SCI"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={dpForm.description}
+                  onChange={(e) => setDpForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional description"
+                  rows={2}
+                  className="mt-1"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setDpDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={dpSaving || !dpForm.name.trim()}>
+                  {dpSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingDp ? "Save Changes" : "Create Department"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* DIALOGS — Religion */}
+        <Dialog open={rlDialogOpen} onOpenChange={setRlDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingRl ? "Edit Religion" : "Add Religion"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveRl} className="space-y-4">
+              <div>
+                <Label>Religion Name *</Label>
+                <Input
+                  value={rlForm.name}
+                  onChange={(e) => setRlForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Christianity"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Short Code</Label>
+                <Input
+                  value={rlForm.code}
+                  onChange={(e) => setRlForm((f) => ({ ...f, code: e.target.value }))}
+                  placeholder="e.g. CHR"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Description</Label>
+                <Textarea
+                  value={rlForm.description}
+                  onChange={(e) => setRlForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Optional description"
+                  rows={2}
+                  className="mt-1"
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setRlDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={rlSaving || !rlForm.name.trim()}>
+                  {rlSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingRl ? "Save Changes" : "Create Religion"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* ═══════════════════════════════════════════════
+            DELETE CONFIRM DIALOGS
+        ═══════════════════════════════════════════════ */}
+        <AlertDialog open={!!deleteElId} onOpenChange={() => setDeleteElId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delete Education Level
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This will also delete all class levels under this education level. This action
+                cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={deleteEL}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteClId} onOpenChange={() => setDeleteClId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delete Class Level
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this class level? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteCL} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteStId} onOpenChange={() => setDeleteStId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delete Stream
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this stream? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteSt} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteDpId} onOpenChange={() => setDeleteDpId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delete Department
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this department? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteDp} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteRlId} onOpenChange={() => setDeleteRlId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delete Religion
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this religion? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteRl} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* ── Wizard ── */}
+        {showWizard && (
+          <SchoolSetupWizard
+            isOpen={showWizard}
+            onClose={() => setShowWizard(false)}
+            onComplete={() => {
+              fetchEducationLevels();
+              fetchClassLevels();
+              fetchStreams();
+              fetchDepartments();
+              fetchReligions();
+            }}
+          />
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}

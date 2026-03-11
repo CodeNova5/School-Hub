@@ -38,23 +38,83 @@ export interface Term {
   school_id?: string;
 }
 
+// ── School Configuration Types ────────────────────────────────────────────
+
+export interface EducationLevel {
+  id: string;
+  school_id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  order_sequence: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ClassLevel {
+  id: string;
+  school_id: string;
+  education_level_id: string;
+  name: string;
+  code?: string;
+  order_sequence: number;
+  is_active: boolean;
+  created_at: string;
+  education_level?: EducationLevel; // Denormalized for convenience
+}
+
+export interface Stream {
+  id: string;
+  school_id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Department {
+  id: string;
+  school_id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface Religion {
+  id: string;
+  school_id: string;
+  name: string;
+  code?: string;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+// ── Classes ────────────────────────────────────────────────────────────────
+
 export interface Class {
   id: string;
+  school_id: string;
   name: string;
-  level: string;
-  education_level: 'Pre-Primary' | 'Primary' | 'JSS' | 'SSS';
-  capacity: number;
+  class_level_id: string;
+  stream_id?: string;
+  department_id?: string;
   room_number?: string;
   class_teacher_id?: string;
-  academic_year?: string;
-  department?: 'Science' | 'Arts' | 'Commercial';
-  stream?: string;
   session_id?: string;
+  academic_year?: string;
   created_at: string;
+  updated_at: string;
+  // Denormalized fields for UI display
+  class_level?: ClassLevel;
+  stream?: Stream;
+  department?: Department;
   teacherName?: string;
   studentCount?: number;
   subjectCount?: number;
-  school_id?: string;
 }
 
 export interface Subject {

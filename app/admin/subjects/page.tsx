@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { useSchoolConfig } from '@/hooks/use-school-config';
+import { BulkCreateSubjectsDialog } from '@/components/bulk-create-subjects-dialog';
 
 
 export default function SubjectsPage() {
@@ -333,13 +334,24 @@ export default function SubjectsPage() {
               Manage subjects by education level - subjects apply to all classes in the level
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingSubject(null)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Subject
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            {schoolId && (
+              <BulkCreateSubjectsDialog
+                schoolId={schoolId}
+                onSuccess={fetchSubjects}
+                educationLevels={educationLevels}
+                departments={departments}
+                religions={religions}
+                teachers={teachers}
+              />
+            )}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setEditingSubject(null)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Subject
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingSubject ? 'Edit Subject' : 'Add New Subject'}</DialogTitle>
@@ -510,6 +522,7 @@ export default function SubjectsPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         <div className="relative">

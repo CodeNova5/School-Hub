@@ -16,7 +16,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Subject, EducationLevel, Department, Religion, Teacher } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
-import { getSubjectsForLevel, getSmartDepartmentId, getSmartReligionId } from "@/lib/nigerian-subjects";
+import { getSubjectsForLevel, getSmartDepartmentId, getSmartReligionId, validatePredefinedSubjectsForSchool } from "@/lib/nigerian-subjects";
 
 interface BulkCreateSubjectsProps {
   schoolId: string;
@@ -57,6 +57,7 @@ export function BulkCreateSubjectsDialog({
   const [newSubjectReligionId, setNewSubjectReligionId] = useState("");
   const [newSubjectIsOptional, setNewSubjectIsOptional] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [configWarnings, setConfigWarnings] = useState<string[]>([]);
 
   // Fetch existing subjects for selected level
   useEffect(() => {
@@ -147,9 +148,29 @@ export function BulkCreateSubjectsDialog({
       return;
     }
 
-    // Map predefined subjects to our format, filtering out duplicates
-    // Use smart mapping to match departments and religions to school configuration
-    const newSubjects: SubjectToCreate[] = predefinedSubjects
+    // Validate subjects against school's configuration
+    const { loadable: validatedSubjects, warnings } = validatePredefinedSubjectsForSchool(
+      predefinedSubjects,
+      religions
+    );
+
+    if (validatedSubjects.length === 0) {
+      toast.error("No subjects can be loaded with current school configuration");
+      if (warnings.length > 0) {
+        console.warn("Configuration warnings:", warnings);
+        setConfigWarnings(warnings);
+      }
+      return;
+    }
+
+    // Show warnings if any subjects were skipped
+    if (warnings.length > 0) {
+      setConfigWarnings(warnings);
+      toast.warning(`${warnings.length} subject(s) skipped due to school configuration`);
+    }
+
+    // Map validated subjects to our format, filtering out duplicates
+    const newSubjects: SubjectToCreate[] = validatedSubjects
       .filter(ps => {
         // Check if subject already exists
         const alreadyExists = existingSubjects.some(
@@ -318,6 +339,7 @@ export function BulkCreateSubjectsDialog({
     setNewSubjectDeptId("");
     setNewSubjectReligionId("");
     setNewSubjectIsOptional(false);
+    setConfigWarnings([]);
   }
 
   function goToNextStep() {
@@ -437,6 +459,25 @@ export function BulkCreateSubjectsDialog({
                 <BookMarked className="mr-2 h-4 w-4" />
                 Load Predefined Nigerian Subjects
               </Button>
+
+              {/* Configuration warnings */}
+              {configWarnings.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-amber-900 mb-2 flex items-center gap-2">
+                    ⚠️ Configuration Notes
+                  </p>
+                  <ul className="space-y-1">
+                    {configWarnings.map((warning, index) => (
+                      <li key={index} className="text-xs text-amber-800 leading-relaxed">
+                        • {warning}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-amber-700 mt-2 italic">
+                    These subjects were skipped. You can configure missing religions in School Settings to load them.
+                  </p>
+                </div>
+              )}
 
               {/* Add custom subject form */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">

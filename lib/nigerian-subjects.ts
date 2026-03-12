@@ -74,7 +74,8 @@ const LEVEL_SUBJECTS = {
     { name: "Visual Arts", isOptional: true },
     { name: "French Language", isOptional: true },
     { name: "Arabic Language", isOptional: true },
-    { name: "Religious Studies", isOptional: true },
+    { name: "Christian Religious Studies", isOptional: true },
+    { name: "Islamic Religious Studies", isOptional: true },
     { name: "Computer Studies" },
     { name: "Agricultural Science", isOptional: true },
     { name: "Home Economics", isOptional: true },
@@ -116,7 +117,8 @@ const LEVEL_SUBJECTS = {
     { name: "Business Studies", isOptional: true },
 
     // Religious Studies
-    { name: "Religious Studies", isOptional: true, category: "religion" },
+    { name: "Christian Religious Studies", isOptional: true, category: "religion" },
+    { name: "Islamic Religious Studies", isOptional: true, category: "religion" },
   ],
 };
 
@@ -179,7 +181,24 @@ export const NIGERIAN_SUBJECTS: Record<string, PredefinedSubject[]> = {
 };
 
 /**
+ * Intelligent religion detection - identifies which religion a subject belongs to
+ * @param subjectName - The name of the subject
+ * @returns "christian" | "islamic" | null
+ */
+function detectReligionType(subjectName: string): "christian" | "islamic" | null {
+  const lower = subjectName.toLowerCase();
+  if (lower.includes("christian") || lower.includes("crs")) {
+    return "christian";
+  }
+  if (lower.includes("islamic") || lower.includes("irs") || lower.includes("muslim")) {
+    return "islamic";
+  }
+  return null;
+}
+
+/**
  * Smart department mapping - matches subject to school's departments by category
+ * Uses keyword matching and category-based assignment
  * @param subjectName - The name of the subject
  * @param departments - Available departments in the school
  * @returns Department ID if match found, empty string otherwise
@@ -188,6 +207,8 @@ export function getSmartDepartmentId(
   subjectName: string,
   departments: Department[]
 ): string {
+  if (departments.length === 0) return "";
+
   // Find category for this subject
   let subjectCategory: string | null = null;
   for (const [category, subjects] of Object.entries(SUBJECT_CATEGORIES)) {
@@ -201,26 +222,34 @@ export function getSmartDepartmentId(
 
   // Keywords to match department names with categories
   const categoryKeywords: Record<string, string[]> = {
-    science: ["science", "stem", "stem education"],
-    arts: ["arts", "humanities", "literature", "english", "language"],
-    social: ["social", "social science", "social studies", "humanities"],
+    science: ["science", "stem", "stem education", "pure science"],
+    arts: ["arts", "humanities", "literature", "english", "language", "social arts"],
+    social: ["social", "social science", "social studies", "humanities", "commercial"],
   };
 
   const keywords = categoryKeywords[subjectCategory] || [];
-  
-  // Try to find matching department
-  const matchedDept = departments.find((d) =>
-    keywords.some((kw) => d.name.toLowerCase().includes(kw.toLowerCase()))
+
+  // Try exact category match first
+  let matchedDept = departments.find((d) =>
+    keywords.some((kw) => d.name.toLowerCase() === kw.toLowerCase())
   );
+
+  // If no exact match, try partial match
+  if (!matchedDept) {
+    matchedDept = departments.find((d) =>
+      keywords.some((kw) => d.name.toLowerCase().includes(kw.toLowerCase()))
+    );
+  }
 
   return matchedDept?.id || "";
 }
 
 /**
- * Smart religion mapping - finds a suitable religion for religion-specific subjects
+ * Intelligent religion mapping - matches religion subjects to school's configured religions
+ * Detects Christian vs Islamic and finds matching religion in school config
  * @param subjectName - The name of the subject
  * @param religions - Available religions in the school
- * @returns Religion ID if this is a religion subject, empty string otherwise
+ * @returns Religion ID if match found, empty string otherwise
  */
 export function getSmartReligionId(
   subjectName: string,
@@ -231,8 +260,77 @@ export function getSmartReligionId(
     return "";
   }
 
-  // Return first religion if available (user can adjust per subject in the wizard)
-  return religions.length > 0 ? religions[0].id : "";
+  if (religions.length === 0) return "";
+
+  // Detect which religion this subject is for
+  const religionType = detectReligionType(subjectName);
+  if (!religionType) return "";
+
+  // Look for matching religion in school's configured religions
+  const matchedReligion = religions.find((r) => {
+    const rLower = r.name.toLowerCase();
+    if (religionType === "christian") {
+      return (
+        rLower.includes("christian") ||
+        rLower.includes("crs") ||
+        rLower.includes("christ") ||
+        rLower === "christianity"
+      );
+    } else if (religionType === "islamic") {
+      return (
+        rLower.includes("islamic") ||
+        rLower.includes("islam") ||
+        rLower.includes("irs") ||
+        rLower.includes("muslim") ||
+        rLower === "muslims"
+      );
+    }
+    return false;
+  });
+
+  return matchedReligion?.id || "";
+}
+
+/**
+ * Validates if a religion subject can be loaded based on school config
+ * @param subjectName - The name of the subject
+ * @param religions - Available religions in the school
+ * @returns { canLoad: boolean, warning?: string }
+ */
+export function validateReligionSubject(
+  subjectName: string,
+  religions: Religion[]
+): { canLoad: boolean; warning?: string } {
+  if (!isReligionSubject(subjectName)) {
+    return { canLoad: true };
+  }
+
+  if (religions.length === 0) {
+    return {
+      canLoad: false,
+      warning: `Cannot load "${subjectName}" - no religions configured in school`,
+    };
+  }
+
+  const religionType = detectReligionType(subjectName);
+  if (!religionType) {
+    return {
+      canLoad: false,
+      warning: `Cannot determine religion type for "${subjectName}"`,
+    };
+  }
+
+  const hasMatchingReligion = getSmartReligionId(subjectName, religions) !== "";
+
+  if (!hasMatchingReligion) {
+    const needsReligion = religionType === "christian" ? "Christian" : "Islamic";
+    return {
+      canLoad: false,
+      warning: `School doesn't have "${needsReligion}" configured. Configure it in School Settings or skip "${subjectName}"`,
+    };
+  }
+
+  return { canLoad: true };
 }
 
 /**
@@ -241,6 +339,33 @@ export function getSmartReligionId(
 export function isReligionSubject(subjectName: string): boolean {
   return subjectName.toLowerCase().includes("religious");
 }
+
+/**
+ * Validates and filters predefined subjects based on school configuration
+ * Returns loadable subjects and any warnings about skipped subjects
+ * @param subjects - Predefined subjects to validate
+ * @param religions - School's configured religions
+ * @returns { loadable: PredefinedSubject[], warnings: string[] }
+ */
+export function validatePredefinedSubjectsForSchool(
+  subjects: PredefinedSubject[],
+  religions: Religion[]
+): { loadable: PredefinedSubject[]; warnings: string[] } {
+  const loadable: PredefinedSubject[] = [];
+  const warnings: string[] = [];
+
+  for (const subject of subjects) {
+    const validation = validateReligionSubject(subject.name, religions);
+    if (validation.canLoad) {
+      loadable.push(subject);
+    } else if (validation.warning) {
+      warnings.push(validation.warning);
+    }
+  }
+
+  return { loadable, warnings };
+}
+
 
 /**
  * Get subjects for a specific education level

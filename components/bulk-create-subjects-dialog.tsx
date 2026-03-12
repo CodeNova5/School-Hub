@@ -16,7 +16,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Subject, EducationLevel, Department, Religion, Teacher } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
-import { getSubjectsForLevel } from "@/lib/nigerian-subjects";
+import { getSubjectsForLevel, getSmartDepartmentId, getSmartReligionId } from "@/lib/nigerian-subjects";
 
 interface BulkCreateSubjectsProps {
   schoolId: string;
@@ -148,6 +148,7 @@ export function BulkCreateSubjectsDialog({
     }
 
     // Map predefined subjects to our format, filtering out duplicates
+    // Use smart mapping to match departments and religions to school configuration
     const newSubjects: SubjectToCreate[] = predefinedSubjects
       .filter(ps => {
         // Check if subject already exists
@@ -161,12 +162,10 @@ export function BulkCreateSubjectsDialog({
       .map((ps) => ({
         id: Math.random().toString(36).substr(2, 9),
         name: ps.name,
-        department_id: ps.department
-          ? departments.find(d => d.name === ps.department)?.id || ""
-          : "",
-        religion_id: ps.religion
-          ? religions.find(r => r.name === ps.religion)?.id || ""
-          : "",
+        // Smart department mapping based on subject category
+        department_id: getSmartDepartmentId(ps.name, departments),
+        // Smart religion mapping for religion-specific subjects
+        religion_id: getSmartReligionId(ps.name, religions),
         is_optional: ps.isOptional || false,
       }));
 
@@ -649,6 +648,15 @@ export function BulkCreateSubjectsDialog({
                 className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white flex items-center justify-center gap-2"
               >
                 Review & Confirm
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : currentStep === "level" ? (
+              <Button
+                onClick={goToNextStep}
+                disabled={!selectedEducationLevelId}
+                className="flex-1 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white flex items-center justify-center gap-2"
+              >
+                Continue
                 <ChevronRight className="h-4 w-4" />
               </Button>
             ) : (

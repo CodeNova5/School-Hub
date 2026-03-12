@@ -1,14 +1,37 @@
 /**
  * Predefined subjects for Nigerian Educational Levels
  * Based on Nigerian National Curriculum Standards
+ * 
+ * NOTE: Subjects are defined WITHOUT hardcoded department/religion references.
+ * They are mapped dynamically to school configuration using smart categorization.
  */
+
+import { Department, Religion } from "./types";
 
 export interface PredefinedSubject {
   name: string;
   isOptional?: boolean;
-  department?: string; // Department name if applicable
-  religion?: string; // Religion-specific if applicable
+  category?: "science" | "arts" | "social" | "language" | "practical" | "core" | "religion";
 }
+
+// Subject categories for intelligent department/category mapping
+export const SUBJECT_CATEGORIES = {
+  science: ["Physics", "Chemistry", "Biology", "Integrated Science", "Basic Science", "Further Mathematics"],
+  arts: ["Literature in English", "French Language", "Arabic Language", "Technical Drawing"],
+  social: ["History", "Geography", "Economics", "Government", "Civic Education", "Social Studies"],
+  language: ["English Language", "French Language", "Arabic Language"],
+  practical: [
+    "Physical Education",
+    "Computer Studies",
+    "Agricultural Science",
+    "Home Economics",
+    "Music",
+    "Visual Arts",
+    "Art & Craft",
+    "Technical Drawing",
+  ],
+  religion: ["Religious Studies"],
+};
 
 // Core predefined subjects organized by standard Nigerian level types
 const LEVEL_SUBJECTS = {
@@ -31,11 +54,10 @@ const LEVEL_SUBJECTS = {
     { name: "Physical Education" },
     { name: "National Values Education" },
     { name: "Agricultural Science" },
-    { name: "Computer Studies" },
-    { name: "Music" },
-    { name: "Visual Arts" },
-    { name: "Religious Studies", isOptional: true, religion: "Christianity" },
-    { name: "Religious Studies", isOptional: true, religion: "Islam" },
+    { name: "Computer Studies", isOptional: true },
+    { name: "Music", isOptional: true },
+    { name: "Visual Arts", isOptional: true },
+    { name: "Religious Studies", isOptional: true },
     { name: "Arabic Language", isOptional: true },
   ],
 
@@ -48,16 +70,15 @@ const LEVEL_SUBJECTS = {
     { name: "Geography" },
     { name: "Civic Education" },
     { name: "Physical Education" },
-    { name: "Music" },
-    { name: "Visual Arts" },
+    { name: "Music", isOptional: true },
+    { name: "Visual Arts", isOptional: true },
     { name: "French Language", isOptional: true },
     { name: "Arabic Language", isOptional: true },
-    { name: "Religious Studies", isOptional: true, religion: "Christianity" },
-    { name: "Religious Studies", isOptional: true, religion: "Islam" },
+    { name: "Religious Studies", isOptional: true },
     { name: "Computer Studies" },
-    { name: "Agricultural Science" },
-    { name: "Home Economics" },
-    { name: "Business Studies" },
+    { name: "Agricultural Science", isOptional: true },
+    { name: "Home Economics", isOptional: true },
+    { name: "Business Studies", isOptional: true },
     { name: "Technical Drawing", isOptional: true },
   ],
 
@@ -69,34 +90,33 @@ const LEVEL_SUBJECTS = {
     { name: "Civic Education" },
 
     // Science Subjects
-    { name: "Physics", department: "Science" },
-    { name: "Chemistry", department: "Science" },
-    { name: "Biology", department: "Science" },
-    { name: "Further Mathematics", isOptional: true, department: "Science" },
+    { name: "Physics", category: "science" },
+    { name: "Chemistry", category: "science" },
+    { name: "Biology", category: "science" },
+    { name: "Further Mathematics", isOptional: true, category: "science" },
 
     // Social Sciences
-    { name: "History", department: "Social Sciences" },
-    { name: "Geography", department: "Social Sciences" },
-    { name: "Economics", department: "Social Sciences" },
-    { name: "Government", department: "Social Sciences" },
+    { name: "History", category: "social" },
+    { name: "Geography", category: "social" },
+    { name: "Economics", category: "social" },
+    { name: "Government", category: "social" },
 
     // Arts & Humanities
-    { name: "Literature in English", department: "Arts" },
-    { name: "French Language", isOptional: true, department: "Arts" },
-    { name: "Arabic Language", isOptional: true, department: "Arts" },
-    { name: "Technical Drawing", isOptional: true, department: "Arts" },
+    { name: "Literature in English", category: "arts" },
+    { name: "French Language", isOptional: true, category: "language" },
+    { name: "Arabic Language", isOptional: true, category: "language" },
+    { name: "Technical Drawing", isOptional: true, category: "practical" },
 
     // Electives & Optional
-    { name: "Computer Studies", isOptional: true },
+    { name: "Computer Studies", isOptional: true, category: "practical" },
     { name: "Agricultural Science", isOptional: true },
     { name: "Home Economics", isOptional: true },
-    { name: "Music", isOptional: true },
-    { name: "Visual Arts", isOptional: true },
+    { name: "Music", isOptional: true, category: "practical" },
+    { name: "Visual Arts", isOptional: true, category: "practical" },
     { name: "Business Studies", isOptional: true },
 
     // Religious Studies
-    { name: "Religious Studies", isOptional: true, religion: "Christianity" },
-    { name: "Religious Studies", isOptional: true, religion: "Islam" },
+    { name: "Religious Studies", isOptional: true, category: "religion" },
   ],
 };
 
@@ -109,7 +129,6 @@ function inferLevelType(
 ): "prePrimary" | "primary" | "jss" | "sss" | null {
   const lower = levelName.toLowerCase().trim();
 
-  // Pre-Primary detection
   if (
     lower.includes("pre-primary") ||
     lower.includes("preprimary") ||
@@ -120,36 +139,30 @@ function inferLevelType(
     return "prePrimary";
   }
 
-  // Primary detection
   if (
     lower.includes("primary") ||
     (lower.startsWith("form") &&
       ["1", "2", "3", "4", "5", "6"].some((n) => lower.includes(n))) ||
     lower.match(/^(form\s*[1-6]|class\s*[1-6])$/i)
   ) {
-    // Check if it's Form 1-6 (which are primary)
-    const primaryForms = lower.match(/form\s*([1-6])|class\s*([1-6])/i);
-    if (primaryForms) {
-      return "primary";
-    }
     return "primary";
   }
 
-  // JSS detection (Junior Secondary School / Form 1-3 in some regions)
   if (
     lower.includes("jss") ||
     lower.includes("junior secondary") ||
-    lower.includes("form") && (lower.includes("1") || lower.includes("2") || lower.includes("3")) ||
+    (lower.includes("form") &&
+      (lower.includes("1") || lower.includes("2") || lower.includes("3"))) ||
     lower.match(/^(form\s*[1-3]|lower\s*(form|secondary))$/i)
   ) {
     return "jss";
   }
 
-  // SSS detection (Senior Secondary School / Form 4-6 in some regions)
   if (
     lower.includes("sss") ||
     lower.includes("senior secondary") ||
-    lower.includes("form") && (lower.includes("4") || lower.includes("5") || lower.includes("6")) ||
+    (lower.includes("form") &&
+      (lower.includes("4") || lower.includes("5") || lower.includes("6"))) ||
     lower.match(/^(form\s*[4-6]|upper\s*(form|secondary))$/i)
   ) {
     return "sss";
@@ -159,11 +172,75 @@ function inferLevelType(
 }
 
 export const NIGERIAN_SUBJECTS: Record<string, PredefinedSubject[]> = {
-  "Pre-Primary": LEVEL_SUBJECTS.prePrimary,
-  "Primary": LEVEL_SUBJECTS.primary,
-  "JSS": LEVEL_SUBJECTS.jss,
-  "SSS": LEVEL_SUBJECTS.sss,
+  "Pre-Primary": LEVEL_SUBJECTS.prePrimary as PredefinedSubject[],
+  "Primary": LEVEL_SUBJECTS.primary as PredefinedSubject[],
+  "JSS": LEVEL_SUBJECTS.jss as PredefinedSubject[],
+  "SSS": LEVEL_SUBJECTS.sss as PredefinedSubject[],
 };
+
+/**
+ * Smart department mapping - matches subject to school's departments by category
+ * @param subjectName - The name of the subject
+ * @param departments - Available departments in the school
+ * @returns Department ID if match found, empty string otherwise
+ */
+export function getSmartDepartmentId(
+  subjectName: string,
+  departments: Department[]
+): string {
+  // Find category for this subject
+  let subjectCategory: string | null = null;
+  for (const [category, subjects] of Object.entries(SUBJECT_CATEGORIES)) {
+    if (subjects.includes(subjectName)) {
+      subjectCategory = category;
+      break;
+    }
+  }
+
+  if (!subjectCategory) return ""; // No department mapping
+
+  // Keywords to match department names with categories
+  const categoryKeywords: Record<string, string[]> = {
+    science: ["science", "stem", "stem education"],
+    arts: ["arts", "humanities", "literature", "english", "language"],
+    social: ["social", "social science", "social studies", "humanities"],
+  };
+
+  const keywords = categoryKeywords[subjectCategory] || [];
+  
+  // Try to find matching department
+  const matchedDept = departments.find((d) =>
+    keywords.some((kw) => d.name.toLowerCase().includes(kw.toLowerCase()))
+  );
+
+  return matchedDept?.id || "";
+}
+
+/**
+ * Smart religion mapping - finds a suitable religion for religion-specific subjects
+ * @param subjectName - The name of the subject
+ * @param religions - Available religions in the school
+ * @returns Religion ID if this is a religion subject, empty string otherwise
+ */
+export function getSmartReligionId(
+  subjectName: string,
+  religions: Religion[]
+): string {
+  // Check if this is a religion subject
+  if (!isReligionSubject(subjectName)) {
+    return "";
+  }
+
+  // Return first religion if available (user can adjust per subject in the wizard)
+  return religions.length > 0 ? religions[0].id : "";
+}
+
+/**
+ * Identifies if a subject is religion-specific
+ */
+export function isReligionSubject(subjectName: string): boolean {
+  return subjectName.toLowerCase().includes("religious");
+}
 
 /**
  * Get subjects for a specific education level
@@ -178,7 +255,7 @@ export function getSubjectsForLevel(levelName: string): PredefinedSubject[] {
   // Then try to infer the level type
   const levelType = inferLevelType(levelName);
   if (levelType) {
-    return LEVEL_SUBJECTS[levelType];
+    return LEVEL_SUBJECTS[levelType] as PredefinedSubject[];
   }
 
   return [];

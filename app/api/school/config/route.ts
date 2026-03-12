@@ -122,6 +122,37 @@ export async function GET(request: Request) {
         break;
       }
 
+      case "subjects": {
+        let query = supabase
+          .from("subjects")
+          .select(`
+            id,
+            name,
+            subject_code,
+            education_level_id,
+            department_id,
+            religion_id,
+            is_optional,
+            is_active,
+            created_at,
+            updated_at
+          `)
+          .eq("school_id", schoolId)
+          .eq("is_active", true);
+
+        if (educationLevelId) {
+          query = query.eq("education_level_id", educationLevelId);
+        }
+
+        const { data: subjects, error } = await query.order("name", {
+          ascending: true,
+        });
+
+        if (error) throw error;
+        data = subjects || [];
+        break;
+      }
+
       default: {
         return NextResponse.json(
           { error: `Unknown type: ${type}` },

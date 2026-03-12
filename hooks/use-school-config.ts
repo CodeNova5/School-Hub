@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { EducationLevel, ClassLevel, Stream, Department, Religion } from "@/lib/types";
 
 interface UseSchoolConfigOptions {
-  type: "education_levels" | "class_levels" | "streams" | "departments" | "religions";
+  type: "education_levels" | "class_levels" | "streams" | "departments" | "religions" | "subjects";
   educationLevelId?: string;
   enabled?: boolean;
 }
@@ -79,7 +79,7 @@ export function useSchoolConfig<T = any>(
  * Use when you need to fetch config outside of a component
  */
 export async function fetchSchoolConfig<T = any>(
-  type: "education_levels" | "class_levels" | "streams" | "departments" | "religions",
+  type: "education_levels" | "class_levels" | "streams" | "departments" | "religions" | "subjects",
   educationLevelId?: string
 ): Promise<{ data: T[]; error: string | null }> {
   try {

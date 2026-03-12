@@ -119,14 +119,20 @@ export interface Class {
 
 export interface Subject {
   id: string;
+  school_id: string;
   name: string;
-  education_level: 'Pre-Primary' | 'Primary' | 'JSS' | 'SSS';
-  department?: 'Science' | 'Arts' | 'Commercial';
-  religion?: 'Christian' | 'Muslim';
-  student_count?: number;
+  subject_code?: string;
+  education_level_id: string;
+  department_id?: string;
+  religion_id?: string;
   is_optional: boolean;
-  teacher_id?: string;
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
+  // Denormalized fields for UI display
+  education_level?: EducationLevel;
+  department?: Department;
+  religion?: Religion;
   teacherName?: string;
 }
 

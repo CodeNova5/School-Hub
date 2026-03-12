@@ -4,10 +4,10 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2, BookOpen, User } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, BookOpen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Subject, Teacher } from '@/lib/types';
+import { Subject, Teacher, EducationLevel, Department, Religion } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -20,92 +20,8 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { useSchoolContext } from '@/hooks/use-school-context';
+import { useSchoolConfig } from '@/hooks/use-school-config';
 
-const PREDEFINED_SUBJECTS = {
-  'Pre-Primary': [
-    'English',
-    'Hand Writing',
-    'Mathematics',
-    'Science',
-    'Social Habits',
-    'Health Habits',
-    'Cultural and Creative Arts',
-    'Rhymes and Poems',
-  ],
-  'Primary': [
-    'English Studies',
-    'Mathematics',
-    'French Language',
-    'Basic Science and Technology',
-    'Physical and Health Education',
-    'IRS / CRS',
-    'Social Studies',
-    'Civic Education',
-    'Agricultural Science',
-    'Computer Studies',
-    'Cultural and Creative Arts',
-    'Quantitative Reasoning',
-    'Verbal Reasoning',
-    'Vocational Studies',
-  ],
-  'JSS': [
-    'English Studies',
-    'Mathematics',
-    'French Language',
-    'Basic Science',
-    'Basic Technology',
-    'Physical and Health Education',
-    'IRS / CRS',
-    'Social Studies',
-    'Civic Education',
-    'Security Education',
-    'Agricultural Science',
-    'Computer Studies',
-    'Cultural and Creative Arts',
-    'Home Economics',
-    'Business Studies',
-    'Coding',
-  ],
-  'SSS-Science': [
-    'Physics',
-    'Chemistry',
-    'Biology',
-    'Coding',
-    'Data Processing',
-    'Animal Husbandry',
-  ],
-  'SSS-Arts': [
-    'Literature-in-English',
-    'Christian Religious Studies',
-    'Islamic Religious Studies',
-    'Government',
-    'Biology',
-    'French',
-    'History',
-    'Music',
-    'Yoruba Language',
-  ],
-  'SSS-Commercial': [
-    'Government',
-    'Insurance',
-    'Book Keeping',
-    'Economics',
-    'Financial Accounting',
-    'Commerce',
-    'Marketing',
-    'Office Practice',
-  ],
-  'SSS-All': [
-    'English Language',
-    'Mathematics',
-    'Civic Education',
-    'Further Mathematics',
-    'Economics',
-    'Marketing',
-    'Geography',
-    'History',
-  ],
-};
 
 export default function SubjectsPage() {
   const { schoolId } = useSchoolContext();
@@ -113,18 +29,27 @@ export default function SubjectsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<string>('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedLevelId, setSelectedLevelId] = useState<string>('');
   const [customSubjectName, setCustomSubjectName] = useState<string>('');
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
-  const [selectedReligion, setSelectedReligion] = useState<string>('');
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('');
+  const [selectedReligionId, setSelectedReligionId] = useState<string>('');
   const [isOptional, setIsOptional] = useState(false);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [assigningSubject, setAssigningSubject] = useState<Subject | null>(null);
   const [selectedTeacher, setSelectedTeacher] = useState("");
-  const [forceAssign, setForceAssign] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch config data
+  const { data: educationLevels, isLoading: isLoadingEduLevels } = useSchoolConfig({
+    type: "education_levels",
+  });
+
+  const { data: departments, isLoading: isLoadingDepartments } = useSchoolConfig({
+    type: "departments",
+  });
+
+  const { data: religions, isLoading: isLoadingReligions } = useSchoolConfig({
+    type: "religions",
+  });
 
   useEffect(() => {
     if (schoolId) {
@@ -147,7 +72,6 @@ export default function SubjectsPage() {
     }
   }
 
-
   async function fetchSubjects() {
     if (!schoolId) return;
     try {
@@ -155,7 +79,7 @@ export default function SubjectsPage() {
         .from('subjects')
         .select('*')
         .eq('school_id', schoolId)
-        .order('education_level', { ascending: true })
+        .order('education_level_id', { ascending: true })
         .order('name', { ascending: true });
       if (error) throw error;
       setSubjects(data || []);
@@ -164,48 +88,17 @@ export default function SubjectsPage() {
     }
   }
 
-
-  function getAvailableSubjects(): string[] {
-    if (!selectedLevel) return [];
-
-    let predefinedKey = selectedLevel;
-    if (selectedLevel === 'SSS' && selectedDepartment) {
-      predefinedKey = `SSS-${selectedDepartment}`;
-    }
-
-    if (selectedLevel === 'SSS' && !selectedDepartment) {
-      predefinedKey = 'SSS-All';
-    }
-
-
-    const allPredefined =
-      PREDEFINED_SUBJECTS[predefinedKey as keyof typeof PREDEFINED_SUBJECTS] || [];
-
-    const existingSubjects = subjects
-      .filter(
-        (s) =>
-          s.education_level === selectedLevel &&
-          (selectedDepartment ? s.department === selectedDepartment : true)
-      )
-      .map((s) => s.name);
-
-
-    return allPredefined.filter((name) => !existingSubjects.includes(name));
-  }
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const subjectName =
-      selectedSubject === 'custom' ? customSubjectName : selectedSubject;
-
-    if (!subjectName) {
-      toast.error('Please select or enter a subject name');
+    if (!customSubjectName.trim()) {
+      toast.error('Please enter a subject name');
       setIsSubmitting(false);
       return;
     }
 
-    if (!selectedLevel) {
+    if (!selectedLevelId) {
       toast.error('Please select an education level');
       setIsSubmitting(false);
       return;
@@ -213,11 +106,12 @@ export default function SubjectsPage() {
 
     const subjectData = {
       school_id: schoolId,
-      name: subjectName,
-      education_level: selectedLevel,
-      department: selectedLevel === 'SSS' ? (selectedDepartment || null) : null,
-      religion: selectedReligion || null,
+      name: customSubjectName.trim(),
+      education_level_id: selectedLevelId,
+      department_id: selectedDepartmentId || null,
+      religion_id: selectedReligionId || null,
       is_optional: isOptional,
+      is_active: true,
     };
 
     // ===========================
@@ -240,25 +134,6 @@ export default function SubjectsPage() {
           }
           setIsSubmitting(false);
           return;
-        }
-
-        // 🔥 AUTO ASSIGN TO EMPTY CLASSES
-        const { data: emptyClasses } = await supabase
-          .from("classes")
-          .select("id")
-          .eq("school_id", schoolId)
-          .eq("education_level", selectedLevel)
-          .is("class_teacher_id", null);
-
-        if (emptyClasses && emptyClasses.length > 0 && selectedTeacher) {
-          for (const c of emptyClasses) {
-            await supabase
-              .from('subject_classes')
-              .update({ teacher_id: selectedTeacher || null })
-              .eq('school_id', schoolId)
-              .eq('subject_id', editingSubject.id)
-              .eq('class_id', c.id);
-          }
         }
 
         await fetchSubjects();
@@ -295,12 +170,27 @@ export default function SubjectsPage() {
 
       const newSubject = Array.isArray(newSubjectArr) ? newSubjectArr[0] : newSubjectArr;
 
-      // Get all classes in level (with names)
+      // Get all class levels for this education level
+      const { data: classLevels, error: classLevelsError } = await supabase
+        .from('school_class_levels')
+        .select('id')
+        .eq('school_id', schoolId)
+        .eq('education_level_id', selectedLevelId);
+
+      if (classLevelsError || !Array.isArray(classLevels) || classLevels.length === 0) {
+        toast.error('Could not find class levels for this education level.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const classLevelIds = classLevels.map(cl => cl.id);
+
+      // Get all classes for these class levels (with names)
       const { data: classes, error: classesError } = await supabase
         .from('classes')
         .select('id, name')
         .eq('school_id', schoolId)
-        .eq('education_level', selectedLevel)
+        .in('class_level_id', classLevelIds)
         .order('name', { ascending: true });
 
       if (classesError || !Array.isArray(classes) || classes.length === 0) {
@@ -333,27 +223,6 @@ export default function SubjectsPage() {
         toast.error(subjectClassesError.message || 'Failed to create subject_classes');
         setIsSubmitting(false);
         return;
-      }
-
-      // Auto assign to empty classes only
-      if (selectedTeacher) {
-        const { data: emptyClasses } = await supabase
-          .from("classes")
-          .select("id")
-          .eq("school_id", schoolId)
-          .eq("education_level", selectedLevel)
-          .is("class_teacher_id", null);
-
-        if (emptyClasses && emptyClasses.length > 0) {
-          for (const c of emptyClasses) {
-            await supabase
-              .from('subject_classes')
-              .update({ teacher_id: selectedTeacher })
-              .eq('school_id', schoolId)
-              .eq('subject_id', newSubject.id)
-              .eq('class_id', c.id);
-          }
-        }
       }
 
       await fetchSubjects();
@@ -390,44 +259,28 @@ export default function SubjectsPage() {
       await fetchSubjects();
       toast.success('Subject deleted successfully');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to delete subject');
+      toast.error('Error deleting subject');
     }
   }
+
   async function openEditDialog(subject: Subject) {
     setEditingSubject(subject);
-    setSelectedLevel(subject.education_level);
-    setSelectedDepartment(subject.department || "");
-
-    setSelectedSubject("custom");
+    setSelectedLevelId(subject.education_level_id);
+    setSelectedDepartmentId(subject.department_id || "");
     setCustomSubjectName(subject.name);
-
-    setSelectedReligion(subject.religion || "");
+    setSelectedReligionId(subject.religion_id || "");
     setIsOptional(subject.is_optional);
-
-    // 🔥 Load existing assigned teacher (if any)
-    const { data } = await supabase
-      .from("subject_classes")
-      .select("teacher_id")
-      .eq("school_id", schoolId)
-      .eq("subject_id", subject.id)
-      .not("teacher_id", "is", null)
-      .limit(1)
-      .maybeSingle();
-
-    setSelectedTeacher(data?.teacher_id || "");
-
+    setSelectedTeacher("");
     setIsDialogOpen(true);
   }
-
 
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingSubject(null);
-    setSelectedLevel('');
-    setSelectedSubject('');
+    setSelectedLevelId('');
     setCustomSubjectName('');
-    setSelectedDepartment('');
-    setSelectedReligion('');
+    setSelectedDepartmentId('');
+    setSelectedReligionId('');
     setSelectedTeacher('');
     setIsOptional(false);
   }
@@ -436,8 +289,11 @@ export default function SubjectsPage() {
     subject.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
+  const getLevelColor = (levelId: string) => {
+    const level = educationLevels.find(l => l.id === levelId);
+    const levelName = level?.name || '';
+    
+    switch (levelName) {
       case 'Pre-Primary':
         return 'bg-pink-100 text-pink-700';
       case 'Primary':
@@ -452,20 +308,20 @@ export default function SubjectsPage() {
   };
 
   const groupedSubjects = filteredSubjects.reduce((acc, subject) => {
+    const eduLevel = educationLevels.find(el => el.id === subject.education_level_id);
+    const dept = departments.find(d => d.id === subject.department_id);
+    
     let groupKey: string;
-
-    if (subject.education_level === 'SSS') {
-      groupKey = subject.department ? `SSS - ${subject.department}` : 'SSS - All';
+    if (dept) {
+      groupKey = `${eduLevel?.name || 'Unknown'} - ${dept.name}`;
     } else {
-      groupKey = subject.education_level;
+      groupKey = eduLevel?.name || 'Unknown';
     }
 
     if (!acc[groupKey]) acc[groupKey] = [];
     acc[groupKey].push(subject);
     return acc;
   }, {} as Record<string, Subject[]>);
-
-  const availableSubjectsForSelection = getAvailableSubjects();
 
   return (
     <DashboardLayout role="admin">
@@ -493,22 +349,26 @@ export default function SubjectsPage() {
                   <Label htmlFor="education_level">Education Level</Label>
                   <select
                     id="education_level"
-                    value={selectedLevel}
+                    value={selectedLevelId}
                     onChange={(e) => {
-                      setSelectedLevel(e.target.value);
-                      setSelectedSubject('');
+                      setSelectedLevelId(e.target.value);
                       setCustomSubjectName('');
-                      setSelectedDepartment('');
+                      setSelectedDepartmentId('');
                     }}
                     className="w-full px-3 py-2 border rounded-md"
                     required
                     disabled={!!editingSubject}
                   >
                     <option value="">Select Level</option>
-                    <option value="Pre-Primary">Pre-Primary</option>
-                    <option value="Primary">Primary</option>
-                    <option value="JSS">JSS (Junior Secondary School)</option>
-                    <option value="SSS">SSS (Senior Secondary School)</option>
+                    {isLoadingEduLevels ? (
+                      <option disabled>Loading...</option>
+                    ) : (
+                      educationLevels.map((level) => (
+                        <option key={level.id} value={level.id}>
+                          {level.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                   {editingSubject && (
                     <p className="text-xs text-gray-500 mt-1">
@@ -517,70 +377,54 @@ export default function SubjectsPage() {
                   )}
                 </div>
 
-
-                {selectedLevel === 'SSS' && (
+                {selectedLevelId && departments.length > 0 && (
                   <div>
                     <Label htmlFor="department">Department (Optional)</Label>
-                    <select
-                      id="department"
-                      value={selectedDepartment}
-                      onChange={(e) => {
-                        setSelectedDepartment(e.target.value);
-                        setSelectedSubject('');
-                        setCustomSubjectName('');
-                      }}
-                      className="w-full px-3 py-2 border rounded-md"
-                      disabled={!!editingSubject}
-                    >
-                      <option value="">No Department</option>
-                      <option value="Science">Science</option>
-                      <option value="Arts">Arts</option>
-                      <option value="Commercial">Commercial</option>
-                    </select>
-                    {editingSubject ? (
+                    {isLoadingDepartments ? (
+                      <select disabled className="w-full px-3 py-2 border rounded-md">
+                        <option>Loading...</option>
+                      </select>
+                    ) : (
+                      <select
+                        id="department"
+                        value={selectedDepartmentId}
+                        onChange={(e) => {
+                          setSelectedDepartmentId(e.target.value);
+                          setCustomSubjectName('');
+                        }}
+                        className="w-full px-3 py-2 border rounded-md"
+                        disabled={!!editingSubject}
+                      >
+                        <option value="">No Department</option>
+                        {departments.map((dept) => (
+                          <option key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {editingSubject && (
                       <p className="text-xs text-gray-500 mt-1">
                         Department cannot be changed when editing
                       </p>
-                    ) : (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Department is optional; leave empty to apply to all SSS subjects.
-                      </p>
                     )}
                   </div>
                 )}
 
-                {selectedLevel && !editingSubject && (
+                {selectedLevelId && !editingSubject && (
                   <div>
-                    <Label htmlFor="subject">Subject</Label>
-                    <select
-                      id="subject"
-                      value={selectedSubject}
-                      onChange={(e) => {
-                        setSelectedSubject(e.target.value);
-                        if (e.target.value !== 'custom') {
-                          setCustomSubjectName('');
-                        }
-                      }}
-                      className="w-full px-3 py-2 border rounded-md"
+                    <Label htmlFor="subject_name">Subject Name</Label>
+                    <Input
+                      id="subject_name"
+                      value={customSubjectName}
+                      onChange={(e) => setCustomSubjectName(e.target.value)}
+                      placeholder="Enter subject name"
                       required
-                    >
-                      <option value="">Select Subject</option>
-                      {availableSubjectsForSelection.map((subject) => (
-                        <option key={subject} value={subject}>
-                          {subject}
-                        </option>
-                      ))}
-                      <option value="custom">Custom Subject (Not in List)</option>
-                    </select>
-                    {availableSubjectsForSelection.length === 0 && (
-                      <p className="text-xs text-amber-600 mt-1">
-                        All predefined subjects have been added. Use custom to add more.
-                      </p>
-                    )}
+                    />
                   </div>
                 )}
 
-                {(selectedSubject === 'custom' || editingSubject) && (
+                {(editingSubject) && (
                   <div>
                     <Label htmlFor="custom_name">Subject Name</Label>
                     <Input
@@ -615,13 +459,20 @@ export default function SubjectsPage() {
                   <Label htmlFor="religion">Religion (Optional)</Label>
                   <select
                     id="religion"
-                    value={selectedReligion}
-                    onChange={(e) => setSelectedReligion(e.target.value)}
+                    value={selectedReligionId}
+                    onChange={(e) => setSelectedReligionId(e.target.value)}
                     className="w-full px-3 py-2 border rounded-md"
                   >
                     <option value="">Not Specific</option>
-                    <option value="Christian">Christian</option>
-                    <option value="Muslim">Muslim</option>
+                    {isLoadingReligions ? (
+                      <option disabled>Loading...</option>
+                    ) : (
+                      religions.map((rel) => (
+                        <option key={rel.id} value={rel.id}>
+                          {rel.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -643,11 +494,7 @@ export default function SubjectsPage() {
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
                     <p className="text-sm text-blue-800">
                       <strong>Note:</strong> This subject will automatically apply to all classes
-                      under the selected education level
-                      {selectedLevel === 'SSS' && selectedDepartment
-                        ? ` and ${selectedDepartment} department`
-                        : ''}
-                      .
+                      under the selected education level {selectedDepartmentId && `and department`}.
                     </p>
                   </div>
                 )}
@@ -690,7 +537,7 @@ export default function SubjectsPage() {
             <Card key={level}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Badge className={getLevelColor(levelSubjects[0].education_level)}>
+                  <Badge className={getLevelColor(levelSubjects[0].education_level_id)}>
                     {level}
                   </Badge>
                   <span className="text-sm font-normal text-gray-600">
@@ -714,9 +561,9 @@ export default function SubjectsPage() {
                                   {subject.name}
                                 </h3>
                                 <div className="flex flex-wrap gap-1 mb-2">
-                                  {subject.religion && (
+                                  {subject.religion_id && (
                                     <Badge variant="outline" className="text-xs">
-                                      {subject.religion}
+                                      {religions.find(r => r.id === subject.religion_id)?.name || 'Unknown'}
                                     </Badge>
                                   )}
                                   {subject.is_optional && (
@@ -728,17 +575,6 @@ export default function SubjectsPage() {
                               </div>
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setAssigningSubject(subject);
-                                  setAssignDialogOpen(true);
-                                }}
-                              >
-                                <User className="h-4 w-4 mr-1" />
-                                Assign Teacher
-                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -764,72 +600,6 @@ export default function SubjectsPage() {
             </Card>
           ))
         )}
-
-        <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Assign Teacher to All {assigningSubject?.education_level} Classes</DialogTitle>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <div>
-                <Label>Select Teacher</Label>
-                <select
-                  className="w-full border rounded-md p-2"
-                  value={selectedTeacher}
-                  onChange={(e) => setSelectedTeacher(e.target.value)}
-                >
-                  <option value="">Select teacher</option>
-                  {teachers.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.first_name} {t.last_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center justify-between border p-3 rounded-md">
-                <div>
-                  <p className="font-medium">Overwrite existing teachers?</p>
-                  <p className="text-sm text-gray-500">
-                    If off, only unassigned classes will be filled.
-                  </p>
-                </div>
-                <Switch checked={forceAssign} onCheckedChange={setForceAssign} />
-              </div>
-
-              <Button
-                disabled={!selectedTeacher}
-                onClick={async () => {
-                  const loading = toast.loading("Assigning teacher...");
-
-                  const res = await fetch("/api/assign-teacher-to-level", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      teacher_id: selectedTeacher,
-                      subject_id: assigningSubject?.id,
-                      education_level: assigningSubject?.education_level,
-                      force: forceAssign,
-                    }),
-                  });
-
-                  const json = await res.json();
-
-                  if (!res.ok) {
-                    toast.error(json.error || "Failed", { id: loading });
-                  } else {
-                    toast.success("Teacher assigned successfully", { id: loading });
-                    setAssignDialogOpen(false);
-                  }
-                }}
-              >
-                Assign
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
       </div>
     </DashboardLayout>
   );

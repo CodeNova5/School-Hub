@@ -114,10 +114,10 @@ const PRESETS: Record<string, Pick<WizardState, "educationLevels">> = {
   nursery: {
     educationLevels: [
       mkEdu("Nursery", "NUR", "Early childhood education", 1, [
-        { name: "Nursery 1" },
-        { name: "Nursery 2" },
         { name: "KG 1" },
         { name: "KG 2" },
+        { name: "Nursery 1" },
+        { name: "Nursery 2" },
       ]),
     ],
   },
@@ -141,9 +141,27 @@ const PRESETS: Record<string, Pick<WizardState, "educationLevels">> = {
         { name: "JSS 3" },
       ]),
       mkEdu("Senior Secondary", "SSS", "Senior secondary school education", 2, [
-        { name: "SS 1" },
-        { name: "SS 2" },
-        { name: "SS 3" },
+        { name: "SSS 1" },
+        { name: "SSS 2" },
+        { name: "SSS 3" },
+      ]),
+    ],
+  },
+  nursery_primary: {
+    educationLevels: [
+      mkEdu("Nursery", "NUR", "Early childhood education", 1, [
+        { name: "KG 1" },
+        { name: "KG 2" },
+        { name: "Nursery 1" },
+        { name: "Nursery 2" },
+      ]),
+      mkEdu("Primary", "PRI", "Primary school education", 2, [
+        { name: "Primary 1" },
+        { name: "Primary 2" },
+        { name: "Primary 3" },
+        { name: "Primary 4" },
+        { name: "Primary 5" },
+        { name: "Primary 6" },
       ]),
     ],
   },
@@ -163,19 +181,19 @@ const PRESETS: Record<string, Pick<WizardState, "educationLevels">> = {
         { name: "JSS 3" },
       ]),
       mkEdu("Senior Secondary", "SSS", "Senior secondary school education", 3, [
-        { name: "SS 1" },
-        { name: "SS 2" },
-        { name: "SS 3" },
+        { name: "SSS 1" },
+        { name: "SSS 2" },
+        { name: "SSS 3" },
       ]),
     ],
   },
   nursery_primary_secondary: {
     educationLevels: [
       mkEdu("Nursery", "NUR", "Early childhood education", 1, [
-        { name: "Nursery 1" },
-        { name: "Nursery 2" },
         { name: "KG 1" },
         { name: "KG 2" },
+        { name: "Nursery 1" },
+        { name: "Nursery 2" },
       ]),
       mkEdu("Primary", "PRI", "Primary school education", 2, [
         { name: "Primary 1" },
@@ -191,9 +209,9 @@ const PRESETS: Record<string, Pick<WizardState, "educationLevels">> = {
         { name: "JSS 3" },
       ]),
       mkEdu("Senior Secondary", "SSS", "Senior secondary school education", 4, [
-        { name: "SS 1" },
-        { name: "SS 2" },
-        { name: "SS 3" },
+        { name: "SSS 1" },
+        { name: "SSS 2" },
+        { name: "SSS 3" },
       ]),
     ],
   },
@@ -223,9 +241,6 @@ const DEFAULT_DEPARTMENTS = [
   mkItem("Sciences", "SCI", "Science subjects"),
   mkItem("Arts & Humanities", "ART", "Arts and Language subjects"),
   mkItem("Commercial Studies", "COM", "Business and commercial subjects"),
-  mkItem("Social Studies", "SOC", "Social & civic subjects"),
-  mkItem("Mathematics", "MTH", "Mathematics related subjects"),
-  mkItem("Technical & Vocational", "TEC", "Technical and vocational subjects"),
 ];
 
 const DEFAULT_RELIGIONS = [
@@ -259,6 +274,15 @@ const SCHOOL_TYPES = [
     icon: <BookOpen className="h-6 w-6" />,
     color: "bg-green-50 border-green-200 hover:border-green-400",
     activeColor: "bg-green-100 border-green-500",
+  },
+  // nursery + primary setup
+  {
+    key: "nursery_primary",
+    label: "Nursery + Primary",
+    description: "Nursery through Primary",
+    icon: <Building2 className="h-6 w-6" />,
+    color: "bg-yellow-50 border-yellow-200 hover:border-yellow-400",
+    activeColor: "bg-yellow-100 border-yellow-500",
   },
   {
     key: "primary_secondary",
@@ -581,9 +605,8 @@ export function SchoolSetupWizard({ isOpen, onClose, onComplete }: SchoolSetupWi
                 key={t.key}
                 type="button"
                 onClick={() => handleSchoolTypeSelect(t.key)}
-                className={`relative flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all ${
-                  isActive ? t.activeColor : t.color
-                }`}
+                className={`relative flex items-start gap-3 rounded-xl border-2 p-4 text-left transition-all ${isActive ? t.activeColor : t.color
+                  }`}
               >
                 {isActive && (
                   <CheckCircle2 className="absolute right-3 top-3 h-4 w-4 text-green-600" />
@@ -957,13 +980,12 @@ export function SchoolSetupWizard({ isOpen, onClose, onComplete }: SchoolSetupWi
               {STEP_META.map((s, i) => (
                 <div
                   key={i}
-                  className={`flex-1 text-center text-xs py-0.5 rounded transition-colors ${
-                    i + 1 < step
-                      ? "bg-primary text-primary-foreground"
-                      : i + 1 === step
+                  className={`flex-1 text-center text-xs py-0.5 rounded transition-colors ${i + 1 < step
+                    ? "bg-primary text-primary-foreground"
+                    : i + 1 === step
                       ? "bg-primary/20 text-primary font-medium"
                       : "bg-muted text-muted-foreground"
-                  }`}
+                    }`}
                 >
                   {s.short}
                 </div>

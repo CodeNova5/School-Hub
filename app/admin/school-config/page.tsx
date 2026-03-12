@@ -878,7 +878,7 @@ export default function SchoolConfigPage() {
                 <div>
                   <h3 className="font-semibold text-sm">Class Levels</h3>
                   <p className="text-xs text-muted-foreground">
-                    e.g. JSS 1, JSS 2, SS 1, Primary 3 — grouped under education levels
+                    e.g. JSS 1, JSS 2, SSS 1, Primary 3 — grouped under education levels
                   </p>
                 </div>
                 <div className="flex items-center gap-2">

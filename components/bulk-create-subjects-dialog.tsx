@@ -127,6 +127,12 @@ export function BulkCreateSubjectsDialog({
     setSubjectsToCreate(subjectsToCreate.filter((s) => s.id !== id));
   }
 
+  function updateSubject(id: string, updates: Partial<SubjectToCreate>) {
+    setSubjectsToCreate((prev) =>
+      prev.map((subject) => (subject.id === id ? { ...subject, ...updates } : subject))
+    );
+  }
+
   function loadPredefinedSubjects() {
     if (!selectedEducationLevelId) {
       toast.error("Please select an education level first");
@@ -541,12 +547,74 @@ export function BulkCreateSubjectsDialog({
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {subjectsToCreate.map((subject) => {
                       const dept = departments.find(d => d.id === subject.department_id);
+                      const rel = religions.find(r => r.id === subject.religion_id);
+                      const needsDept = !subject.department_id && departments.length > 0;
+                      const needsReligion = !subject.religion_id && religions.length > 0;
                       return (
                         <div key={subject.id} className="flex items-center justify-between p-2 bg-white rounded border border-amber-200">
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 mr-3 space-y-2">
                             <p className="font-semibold text-sm text-gray-800">{subject.name}</p>
-                            {dept && (
-                              <p className="text-xs text-gray-600">{dept.name}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                              {departments.length > 0 && (
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] font-semibold text-gray-700">Department</Label>
+                                  <select
+                                    value={subject.department_id || ""}
+                                    onChange={(e) => updateSubject(subject.id, { department_id: e.target.value })}
+                                    className={`w-full px-2 py-1.5 border rounded-md text-xs ${
+                                      needsDept ? "border-amber-400 bg-amber-50" : "border-gray-300"
+                                    }`}
+                                  >
+                                    <option value="">No Department</option>
+                                    {departments.map((deptOption) => (
+                                      <option key={deptOption.id} value={deptOption.id}>
+                                        {deptOption.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {needsDept && (
+                                    <p className="text-[10px] text-amber-700">Consider assigning a department.</p>
+                                  )}
+                                </div>
+                              )}
+
+                              {religions.length > 0 && (
+                                <div className="space-y-1">
+                                  <Label className="text-[11px] font-semibold text-gray-700">Religion</Label>
+                                  <select
+                                    value={subject.religion_id || ""}
+                                    onChange={(e) => updateSubject(subject.id, { religion_id: e.target.value })}
+                                    className={`w-full px-2 py-1.5 border rounded-md text-xs ${
+                                      needsReligion ? "border-amber-400 bg-amber-50" : "border-gray-300"
+                                    }`}
+                                  >
+                                    <option value="">Not Religion-Specific</option>
+                                    {religions.map((relOption) => (
+                                      <option key={relOption.id} value={relOption.id}>
+                                        {relOption.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {needsReligion && (
+                                    <p className="text-[10px] text-amber-700">Set religion if this subject is religion-specific.</p>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between sm:justify-start sm:gap-2 mt-1 sm:mt-5">
+                                <Label className="text-[11px] font-semibold text-gray-700">Optional</Label>
+                                <Switch
+                                  checked={subject.is_optional}
+                                  onCheckedChange={(checked) => updateSubject(subject.id, { is_optional: checked })}
+                                />
+                              </div>
+                            </div>
+                            {(dept || rel) && (
+                              <p className="text-[11px] text-gray-500">
+                                {dept && <span>Dept: {dept.name}</span>}
+                                {dept && rel && <span className="mx-1">•</span>}
+                                {rel && <span>Religion: {rel.name}</span>}
+                              </p>
                             )}
                           </div>
                           <Button
@@ -554,6 +622,7 @@ export function BulkCreateSubjectsDialog({
                             size="icon"
                             onClick={() => removeSubjectToCreate(subject.id)}
                             className="flex-shrink-0 text-red-600"
+                            aria-label="Remove subject"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

@@ -39,9 +39,22 @@ import { AlertTriangle } from "lucide-react";
 
 type ClassData = {
   id: string;
+  school_id: string;
   name: string;
-  level: string;
-  education_level: string;
+  class_level_id: string;
+  stream_id: string | null;
+  department_id: string | null;
+  room_number: string | null;
+  class_teacher_id: string | null;
+  session_id: string | null;
+  academic_year: string | null;
+  created_at: string;
+  updated_at: string;
+  school_class_levels?: {
+    id: string;
+    name: string;
+    code: string | null;
+  };
 };
 
 interface StudentsTabProps {
@@ -548,7 +561,8 @@ export function StudentsTab({
                 .filter((c) => c.id !== classData.id)
                 .map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} - {c.level}
+                    {c.name}
+                    {c.school_class_levels && ` - ${c.school_class_levels.name}`}
                   </option>
                 ))}
             </select>

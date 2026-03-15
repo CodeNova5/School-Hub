@@ -20,11 +20,27 @@ import { ResultsTab } from "./components/ResultsTab";
 
 type ClassData = {
   id: string;
+  school_id: string;
   name: string;
-  level: string;
-  education_level: string;
+  class_level_id: string;
+  stream_id: string | null;
+  department_id: string | null;
+  room_number: string | null;
   class_teacher_id: string | null;
-  class_code: string | null;
+  session_id: string | null;
+  academic_year: string | null;
+  created_at: string;
+  updated_at: string;
+  school_class_levels?: {
+    id: string;
+    name: string;
+    code: string | null;
+    school_education_levels?: {
+      id: string;
+      name: string;
+      code: string | null;
+    };
+  };
 };
 
 type SubjectClass = {
@@ -102,12 +118,35 @@ export default function ClassPage() {
     try {
       const { data, error } = await supabase
         .from("classes")
-        .select("*")
+        .select(`
+          id,
+          school_id,
+          name,
+          class_level_id,
+          stream_id,
+          department_id,
+          room_number,
+          class_teacher_id,
+          session_id,
+          academic_year,
+          created_at,
+          updated_at,
+          school_class_levels:class_level_id(
+            id,
+            name,
+            code,
+            school_education_levels:education_level_id(
+              id,
+              name,
+              code
+            )
+          )
+        `)
         .eq("school_id", schoolId)
         .eq("id", classId)
         .single();
       if (!error && data) {
-        setClassData(data);
+        setClassData(data as ClassData);
       }
     } catch (error) {
       toast.error("Error fetching class");
@@ -189,10 +228,29 @@ export default function ClassPage() {
     try {
       const { data, error } = await supabase
         .from("classes")
-        .select("*")
+        .select(`
+          id,
+          school_id,
+          name,
+          class_level_id,
+          stream_id,
+          department_id,
+          room_number,
+          class_teacher_id,
+          session_id,
+          academic_year,
+          created_at,
+          updated_at,
+          school_class_levels:class_level_id(
+            id,
+            name,
+            code,
+            order_sequence
+          )
+        `)
         .eq("school_id", schoolId)
-        .order("level", { ascending: true });
-      if (!error && data) setAllClasses(data || []);
+        .order("school_class_levels(order_sequence)", { ascending: true });
+      if (!error && data) setAllClasses(data as ClassData[] || []);
     } catch (error) {
       toast.error("Error fetching classes");
     }
@@ -305,14 +363,12 @@ export default function ClassPage() {
       await supabase
         .from("student_subjects")
         .delete()
-        .eq("school_id", schoolId)
         .eq("student_id", studentId);
 
       // Delete optional subject selections
       await supabase
         .from("student_optional_subjects")
         .delete()
-        .eq("school_id", schoolId)
         .eq("student_id", studentId);
 
       // Remove from class
@@ -347,14 +403,12 @@ export default function ClassPage() {
       await supabase
         .from("student_subjects")
         .delete()
-        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       // Delete optional subject selections
       await supabase
         .from("student_optional_subjects")
         .delete()
-        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       // Remove from class
@@ -386,13 +440,11 @@ export default function ClassPage() {
       await supabase
         .from("student_subjects")
         .delete()
-        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       await supabase
         .from("student_optional_subjects")
         .delete()
-        .eq("school_id", schoolId)
         .in("student_id", studentIds);
 
       // Add to new class
@@ -460,8 +512,12 @@ export default function ClassPage() {
               {classData.name}
             </h1>
             <div className="flex gap-2 mt-2">
-              <Badge>{classData.education_level}</Badge>
-              <Badge variant="outline">{classData.level}</Badge>
+              {classData.school_class_levels?.school_education_levels && (
+                <Badge>{classData.school_class_levels.school_education_levels.name}</Badge>
+              )}
+              {classData.school_class_levels && (
+                <Badge variant="outline">{classData.school_class_levels.name}</Badge>
+              )}
             </div>
           </div>
 
@@ -515,6 +571,7 @@ export default function ClassPage() {
               teachers={teachers}
               students={students}
               classId={classId}
+              schoolId={schoolId}
               onGenerateCodes={generateMissingSubjectCodes}
               onAssignTeacher={handleAssignTeacher}
               onDeleteSubject={deleteSubjectClass}

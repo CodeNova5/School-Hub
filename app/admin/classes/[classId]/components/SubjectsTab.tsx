@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,7 @@ interface SubjectsTabProps {
   onAssignTeacher: (subjectClassId: string, teacherId: string) => void;
   onDeleteSubject: (subjectClassId: string) => void;
   onRefresh: () => void;
+  schoolId?: string | null;
 }
 
 export function SubjectsTab({
@@ -75,12 +77,48 @@ export function SubjectsTab({
   onAssignTeacher,
   onDeleteSubject,
   onRefresh,
+  schoolId,
 }: SubjectsTabProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [filterOptional, setFilterOptional] = useState<"all" | "optional" | "compulsory">("all");
-  const [filterReligion, setFilterReligion] = useState<"all" | "Christian" | "Muslim">("all");
-  const [filterDepartment, setFilterDepartment] = useState<"all" | "Science" | "Arts" | "Commercial">("all");
+  const [filterReligion, setFilterReligion] = useState<"all" | string>("all");
+  const [filterDepartment, setFilterDepartment] = useState<"all" | string>("all");
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [religions, setReligions] = useState<string[]>([]);
+
+  // Load departments and religions from database
+  React.useEffect(() => {
+    if (!schoolId) return;
+    loadSchoolConfig();
+  }, [schoolId]);
+
+  async function loadSchoolConfig() {
+    if (!schoolId) return;
+    try {
+      const [deptResult, religionResult] = await Promise.all([
+        supabase
+          .from("school_departments")
+          .select("name")
+          .eq("school_id", schoolId)
+          .eq("is_active", true),
+        supabase
+          .from("school_religions")
+          .select("name")
+          .eq("school_id", schoolId)
+          .eq("is_active", true),
+      ]);
+
+      if (deptResult.data) {
+        setDepartments(deptResult.data.map((d: { name: any; }) => d.name));
+      }
+      if (religionResult.data) {
+        setReligions(religionResult.data.map((r: { name: any; }) => r.name));
+      }
+    } catch (error) {
+      console.error("Error loading school config:", error);
+    }
+  }
 
   const [isAssignTeacherOpen, setIsAssignTeacherOpen] = useState(false);
   const [selectedSubjectClass, setSelectedSubjectClass] = useState<SubjectClass | null>(null);
@@ -268,10 +306,27 @@ export function SubjectsTab({
               onChange={(e) => setFilterDepartment(e.target.value as any)}
             >
               <option value="all">All Departments</option>
-              <option value="Science">Science</option>
-              <option value="Arts">Arts</option>
-              <option value="Commercial">Commercial</option>
+              {departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
             </select>
+
+            {religions.length > 0 && (
+              <select
+                className="border rounded-md p-2"
+                value={filterReligion}
+                onChange={(e) => setFilterReligion(e.target.value as any)}
+              >
+                <option value="all">All Religions</option>
+                {religions.map((religion) => (
+                  <option key={religion} value={religion}>
+                    {religion}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Table */}
@@ -513,3 +568,4 @@ export function SubjectsTab({
     </>
   );
 }
+

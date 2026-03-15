@@ -180,15 +180,23 @@ export function SubjectsTab({
     setIsEditSubmitting(true);
 
     try {
-      const { error } = await supabase
-        .from("subjects")
-        .update({
-          name: editName,
-          is_optional: editIsOptional,
-        })
-        .eq("id", editingSubjectClass.subject.id);
+      const [{ error: subjectError }, { error: assignmentError }] = await Promise.all([
+        supabase
+          .from("subjects")
+          .update({
+            name: editName,
+          })
+          .eq("id", editingSubjectClass.subject.id),
+        supabase
+          .from("subject_classes")
+          .update({
+            is_optional: editIsOptional,
+          })
+          .eq("id", editingSubjectClass.id),
+      ]);
 
-      if (error) throw error;
+      if (subjectError) throw subjectError;
+      if (assignmentError) throw assignmentError;
 
       toast.success("Subject updated successfully");
       setIsEditOpen(false);

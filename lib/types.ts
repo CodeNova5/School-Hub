@@ -122,9 +122,9 @@ export interface Subject {
   school_id: string;
   name: string;
   subject_code?: string;
-  education_level_id: string;
-  department_id?: string;
-  religion_id?: string;
+  education_level_id?: string | null;
+  department_id?: string | null;
+  religion_id?: string | null;
   is_optional: boolean;
   is_active: boolean;
   created_at: string;
@@ -134,6 +134,29 @@ export interface Subject {
   department?: Department;
   religion?: Religion;
   teacherName?: string;
+}
+
+export interface SubjectClassAssignment {
+  id: string;
+  school_id: string;
+  subject_id: string;
+  class_id: string;
+  teacher_id?: string | null;
+  subject_code?: string | null;
+  department_id?: string | null;
+  religion_id?: string | null;
+  is_optional: boolean;
+  full_mark_obtainable: number;
+  pass_mark: number;
+  prerequisite_subject_id?: string | null;
+  prerequisite_min_score?: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  subject?: Subject;
+  department?: Department;
+  religion?: Religion;
+  teacher?: Teacher | null;
 }
 
 export interface Teacher {

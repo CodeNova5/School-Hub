@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS subjects (
   school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   name text NOT NULL,
   subject_code text,
-  education_level_id uuid NOT NULL REFERENCES school_education_levels(id) ON DELETE RESTRICT,
+  education_level_id uuid REFERENCES school_education_levels(id) ON DELETE RESTRICT,
   department_id uuid REFERENCES school_departments(id) ON DELETE SET NULL,
   religion_id uuid REFERENCES school_religions(id) ON DELETE SET NULL,
   is_optional boolean DEFAULT false,
@@ -278,8 +278,20 @@ CREATE TABLE IF NOT EXISTS subject_classes (
   teacher_id uuid REFERENCES teachers(id) ON DELETE SET NULL,
   class_id uuid NOT NULL REFERENCES classes(id) ON DELETE CASCADE,
   subject_code text,
+  department_id uuid REFERENCES school_departments(id) ON DELETE SET NULL,
+  religion_id uuid REFERENCES school_religions(id) ON DELETE SET NULL,
+  is_optional boolean DEFAULT false,
+  full_mark_obtainable integer DEFAULT 100,
+  pass_mark integer DEFAULT 40,
+  prerequisite_subject_id uuid REFERENCES subjects(id) ON DELETE SET NULL,
+  prerequisite_min_score numeric,
+  is_active boolean DEFAULT true,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
+  CHECK (pass_mark >= 0),
+  CHECK (full_mark_obtainable > 0),
+  CHECK (pass_mark <= full_mark_obtainable),
+  CHECK (prerequisite_min_score IS NULL OR prerequisite_min_score >= 0),
   UNIQUE(school_id, subject_id, class_id)
 );
 
@@ -287,6 +299,10 @@ CREATE INDEX IF NOT EXISTS idx_subject_classes_school ON subject_classes(school_
 CREATE INDEX IF NOT EXISTS idx_subject_classes_subject ON subject_classes(subject_id);
 CREATE INDEX IF NOT EXISTS idx_subject_classes_teacher ON subject_classes(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_subject_classes_class ON subject_classes(class_id);
+CREATE INDEX IF NOT EXISTS idx_subject_classes_department ON subject_classes(department_id);
+CREATE INDEX IF NOT EXISTS idx_subject_classes_religion ON subject_classes(religion_id);
+CREATE INDEX IF NOT EXISTS idx_subject_classes_is_optional ON subject_classes(is_optional);
+CREATE INDEX IF NOT EXISTS idx_subject_classes_prerequisite_subject ON subject_classes(prerequisite_subject_id);
 
 -- STUDENT_SUBJECTS TABLE
 CREATE TABLE IF NOT EXISTS student_subjects (

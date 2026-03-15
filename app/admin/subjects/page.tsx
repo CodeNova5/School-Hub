@@ -1,13 +1,13 @@
 "use client";
 
+import { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2, BookOpen, MoreVertical, Eye } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Plus, Search, Edit, Trash2, BookOpen, MoreVertical, Layers } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { Subject, Teacher, EducationLevel, Department, Religion } from '@/lib/types';
+import { Subject, Teacher } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -46,8 +46,23 @@ import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { useSchoolConfig } from '@/hooks/use-school-config';
-import { BulkCreateSubjectsDialog } from '@/components/bulk-create-subjects-dialog';
 
+type SchoolClassOption = {
+  id: string;
+  name: string;
+};
+
+type ExistingAssignment = {
+  class_id: string;
+  teacher_id: string | null;
+  department_id: string | null;
+  religion_id: string | null;
+  is_optional: boolean | null;
+  full_mark_obtainable: number | null;
+  pass_mark: number | null;
+  prerequisite_subject_id: string | null;
+  prerequisite_min_score: number | null;
+};
 
 export default function SubjectsPage() {
   const { schoolId } = useSchoolContext();
@@ -56,61 +71,75 @@ export default function SubjectsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
-  const [selectedLevelId, setSelectedLevelId] = useState<string>('');
-  const [customSubjectName, setCustomSubjectName] = useState<string>('');
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('');
-  const [selectedReligionId, setSelectedReligionId] = useState<string>('');
-  const [isOptional, setIsOptional] = useState(false);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [selectedTeacher, setSelectedTeacher] = useState("");
+  const [customSubjectName, setCustomSubjectName] = useState('');
+  const [subjectCode, setSubjectCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Pagination & Filtering
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
   const [totalSubjects, setTotalSubjects] = useState(0);
-  const [filterLevel, setFilterLevel] = useState<string>('');
-  const [filterDept, setFilterDept] = useState<string>('');
-  const [filterType, setFilterType] = useState<'all' | 'optional' | 'religion'>('all');
-  const [isFormStep2, setIsFormStep2] = useState(false);
 
-  // Fetch config data
-  const { data: educationLevels, isLoading: isLoadingEduLevels } = useSchoolConfig({
-    type: "education_levels",
+  const [isAssignmentDialogOpen, setIsAssignmentDialogOpen] = useState(false);
+  const [subjectForAssignment, setSubjectForAssignment] = useState<Subject | null>(null);
+  const [classOptions, setClassOptions] = useState<SchoolClassOption[]>([]);
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  const [existingClassIds, setExistingClassIds] = useState<string[]>([]);
+  const [assignmentSearchTerm, setAssignmentSearchTerm] = useState('');
+  const [assignmentTeacherId, setAssignmentTeacherId] = useState('');
+  const [assignmentDepartmentId, setAssignmentDepartmentId] = useState('');
+  const [assignmentReligionId, setAssignmentReligionId] = useState('');
+  const [assignmentIsOptional, setAssignmentIsOptional] = useState(false);
+  const [assignmentFullMark, setAssignmentFullMark] = useState('100');
+  const [assignmentPassMark, setAssignmentPassMark] = useState('40');
+  const [assignmentPrerequisiteSubjectId, setAssignmentPrerequisiteSubjectId] = useState('');
+  const [assignmentPrerequisiteMinScore, setAssignmentPrerequisiteMinScore] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+
+  const { data: departments } = useSchoolConfig({
+    type: 'departments',
   });
 
-  const { data: departments, isLoading: isLoadingDepartments } = useSchoolConfig({
-    type: "departments",
-  });
-
-  const { data: religions, isLoading: isLoadingReligions } = useSchoolConfig({
-    type: "religions",
+  const { data: religions } = useSchoolConfig({
+    type: 'religions',
   });
 
   useEffect(() => {
-    if (schoolId) {
-      fetchSubjects();
-      fetchTeachers();
-      fetchSubjectClassCounts();
+    if (!schoolId) {
+      return;
     }
-  }, [schoolId, currentPage, filterLevel, filterDept, filterType, searchTerm]);
+
+    fetchSubjects();
+    fetchTeachers();
+    fetchSubjectClassCounts();
+  }, [schoolId, currentPage, searchTerm]);
+
+  const filteredClassOptions = useMemo(() => {
+    if (!assignmentSearchTerm.trim()) {
+      return classOptions;
+    }
+
+    return classOptions.filter((classOption) =>
+      classOption.name.toLowerCase().includes(assignmentSearchTerm.toLowerCase())
+    );
+  }, [assignmentSearchTerm, classOptions]);
 
   async function fetchSubjectClassCounts() {
     if (!schoolId) return;
+
     try {
       const { data, error } = await supabase
         .from('subject_classes')
-        .select('subject_id', { count: 'exact' })
+        .select('subject_id')
         .eq('school_id', schoolId);
+
       if (error) throw error;
-      
-      // Count classes per subject
+
       const counts: Record<string, number> = {};
-      if (data) {
-        data.forEach((row: any) => {
-          counts[row.subject_id] = (counts[row.subject_id] || 0) + 1;
-        });
+      for (const row of data || []) {
+        counts[row.subject_id] = (counts[row.subject_id] || 0) + 1;
       }
+
       setSubjectClassCounts(counts);
     } catch (error) {
       console.error('Error fetching class counts:', error);
@@ -119,42 +148,25 @@ export default function SubjectsPage() {
 
   async function fetchSubjects() {
     if (!schoolId) return;
+
     try {
       let query = supabase
         .from('subjects')
-        .select('*', { count: 'exact' })
+        .select('id, school_id, name, subject_code, is_active, created_at, updated_at', { count: 'exact' })
         .eq('school_id', schoolId);
 
-      // Apply filters
-      if (filterLevel) {
-        query = query.eq('education_level_id', filterLevel);
-      }
-      if (filterDept) {
-        query = query.eq('department_id', filterDept);
-      }
-      if (filterType === 'optional') {
-        query = query.eq('is_optional', true);
-      }
-      if (filterType === 'religion') {
-        query = query.not('religion_id', 'is', null);
-      }
-
-      // Apply search
-      if (searchTerm) {
+      if (searchTerm.trim()) {
         query = query.ilike('name', `%${searchTerm}%`);
       }
 
-      // Apply pagination
       const offset = (currentPage - 1) * pageSize;
-      query = query
-        .order('education_level_id', { ascending: true })
+      const { data, error, count } = await query
         .order('name', { ascending: true })
         .range(offset, offset + pageSize - 1);
 
-      const { data, error, count } = await query;
       if (error) throw error;
-      
-      setSubjects(data || []);
+
+      setSubjects((data || []) as Subject[]);
       setTotalSubjects(count || 0);
     } catch (error) {
       toast.error('Failed to fetch subjects');
@@ -164,183 +176,268 @@ export default function SubjectsPage() {
 
   async function fetchTeachers() {
     if (!schoolId) return;
+
     try {
       const { data, error } = await supabase
         .from('teachers')
         .select('id, first_name, last_name')
         .eq('school_id', schoolId);
+
       if (error) throw error;
-      setTeachers(data as Teacher[]);
+      setTeachers((data || []) as Teacher[]);
     } catch (error) {
       toast.error('Error fetching teachers');
     }
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    
-    // Step 1 validation & move to step 2
-    if (!isFormStep2) {
-      if (!customSubjectName.trim()) {
-        toast.error('Please enter a subject name');
-        return;
-      }
-      if (!selectedLevelId) {
-        toast.error('Please select an education level');
-        return;
-      }
-      setIsFormStep2(true);
+  function resetSubjectDialog() {
+    setEditingSubject(null);
+    setCustomSubjectName('');
+    setSubjectCode('');
+    setIsDialogOpen(false);
+  }
+
+  function resetAssignmentDialog() {
+    setSubjectForAssignment(null);
+    setClassOptions([]);
+    setSelectedClassIds([]);
+    setExistingClassIds([]);
+    setAssignmentSearchTerm('');
+    setAssignmentTeacherId('');
+    setAssignmentDepartmentId('');
+    setAssignmentReligionId('');
+    setAssignmentIsOptional(false);
+    setAssignmentFullMark('100');
+    setAssignmentPassMark('40');
+    setAssignmentPrerequisiteSubjectId('');
+    setAssignmentPrerequisiteMinScore('');
+    setIsAssignmentDialogOpen(false);
+  }
+
+  function openEditDialog(subject: Subject) {
+    setEditingSubject(subject);
+    setCustomSubjectName(subject.name);
+    setSubjectCode(subject.subject_code || '');
+    setIsDialogOpen(true);
+  }
+
+  async function handleSubjectSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!schoolId) {
+      toast.error('School not found');
       return;
     }
 
-    // Step 2: Final submission
+    if (!customSubjectName.trim()) {
+      toast.error('Please enter a subject name');
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const subjectData = {
-      school_id: schoolId,
-      name: customSubjectName.trim(),
-      education_level_id: selectedLevelId,
-      department_id: selectedDepartmentId || null,
-      religion_id: selectedReligionId || null,
-      is_optional: isOptional,
-      is_active: true,
-    };
+    try {
+      const subjectPayload = {
+        school_id: schoolId,
+        name: customSubjectName.trim(),
+        subject_code: subjectCode.trim() || null,
+        is_active: true,
+      };
 
-    // ===========================
-    // ✏️ EDIT SUBJECT
-    // ===========================
-    if (editingSubject) {
-      try {
-        // Update subject
-        const { error: updateError } = await supabase
+      if (editingSubject) {
+        const { error } = await supabase
           .from('subjects')
-          .update(subjectData)
+          .update(subjectPayload)
           .eq('school_id', schoolId)
           .eq('id', editingSubject.id);
 
-        if (updateError) {
-          if (updateError.message?.includes('duplicate') || updateError.message?.includes('23505')) {
-            toast.error('This subject already exists for this level/department');
-          } else {
-            toast.error(updateError.message || 'Failed to update subject');
-          }
-          setIsSubmitting(false);
-          return;
-        }
-
-        await fetchSubjects();
+        if (error) throw error;
         toast.success('Subject updated successfully');
-        setIsSubmitting(false);
-        closeDialog();
-        return;
-      } catch (error: any) {
-        toast.error(error.message || 'Failed to update subject');
-        setIsSubmitting(false);
-        return;
-      }
-    }
+      } else {
+        const { error } = await supabase
+          .from('subjects')
+          .insert([subjectPayload]);
 
-    // ===========================
-    // ➕ CREATE SUBJECT
-    // ===========================
-    try {
-      // Insert subject
-      const { data: newSubjectArr, error: insertError } = await supabase
-        .from('subjects')
-        .insert([subjectData])
-        .select();
-
-      if (insertError) {
-        if (insertError.message?.includes('duplicate') || insertError.message?.includes('23505')) {
-          toast.error('This subject already exists for this level/department');
-        } else {
-          toast.error(insertError.message || 'Failed to create subject');
-        }
-        setIsSubmitting(false);
-        return;
-      }
-
-      const newSubject = Array.isArray(newSubjectArr) ? newSubjectArr[0] : newSubjectArr;
-
-      // Get all class levels for this education level
-      const { data: classLevels, error: classLevelsError } = await supabase
-        .from('school_class_levels')
-        .select('id')
-        .eq('school_id', schoolId)
-        .eq('education_level_id', selectedLevelId);
-
-      if (classLevelsError || !Array.isArray(classLevels) || classLevels.length === 0) {
-        toast.error('Could not find class levels for this education level.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      const classLevelIds = classLevels.map(cl => cl.id);
-
-      // Get all classes for these class levels (with names)
-      const { data: classes, error: classesError } = await supabase
-        .from('classes')
-        .select('id, name')
-        .eq('school_id', schoolId)
-        .in('class_level_id', classLevelIds)
-        .order('name', { ascending: true });
-
-      if (classesError || !Array.isArray(classes) || classes.length === 0) {
-        toast.error('Could not find classes to apply subjects to.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Generate subject code
-      const generateSubjectCode = (subjectName: string, className: string) => {
-        const clean = subjectName.replace(/\s+/g, "");
-        const prefix = clean.slice(0, 3).toUpperCase();
-        return `${prefix}-${className}`;
-      };
-
-      // Create subject_classes rows with subject_code
-      const subjectClasses = classes.map((c: any) => ({
-        school_id: schoolId,
-        class_id: c.id,
-        subject_id: newSubject.id,
-        subject_code: generateSubjectCode(newSubject.name, c.name),
-      }));
-
-      // Insert subject_classes
-      const { error: subjectClassesError } = await supabase
-        .from('subject_classes')
-        .insert(subjectClasses);
-
-      if (subjectClassesError) {
-        toast.error(subjectClassesError.message || 'Failed to create subject_classes');
-        setIsSubmitting(false);
-        return;
+        if (error) throw error;
+        toast.success('Subject added to the catalog');
       }
 
       await fetchSubjects();
-      toast.success('Subject created and applied to all classes in this level');
-      setIsSubmitting(false);
-      closeDialog();
+      resetSubjectDialog();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to create subject');
+      if (error.message?.includes('23505')) {
+        toast.error('This subject already exists in the catalog');
+      } else {
+        toast.error(error.message || 'Failed to save subject');
+      }
+    } finally {
       setIsSubmitting(false);
     }
   }
 
-  const filteredSubjectsForDisplay = subjects;
+  async function openAssignmentDialog(subject: Subject) {
+    if (!schoolId) return;
 
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
+    setSubjectForAssignment(subject);
+    setIsAssignmentDialogOpen(true);
 
     try {
-      // Delete subject_classes first
+      const [classesResponse, assignmentsResponse] = await Promise.all([
+        supabase
+          .from('classes')
+          .select('id, name')
+          .eq('school_id', schoolId)
+          .order('name', { ascending: true }),
+        supabase
+          .from('subject_classes')
+          .select('class_id, teacher_id, department_id, religion_id, is_optional, full_mark_obtainable, pass_mark, prerequisite_subject_id, prerequisite_min_score')
+          .eq('school_id', schoolId)
+          .eq('subject_id', subject.id),
+      ]);
+
+      if (classesResponse.error) throw classesResponse.error;
+      if (assignmentsResponse.error) throw assignmentsResponse.error;
+
+      const availableClasses = (classesResponse.data || []) as SchoolClassOption[];
+      const assignments = (assignmentsResponse.data || []) as ExistingAssignment[];
+
+      setClassOptions(availableClasses);
+
+      const assignedClassIds = assignments.map((assignment) => assignment.class_id);
+      setSelectedClassIds(assignedClassIds);
+      setExistingClassIds(assignedClassIds);
+
+      if (assignments.length > 0) {
+        const firstAssignment = assignments[0];
+        setAssignmentTeacherId(firstAssignment.teacher_id || '');
+        setAssignmentDepartmentId(firstAssignment.department_id || '');
+        setAssignmentReligionId(firstAssignment.religion_id || '');
+        setAssignmentIsOptional(Boolean(firstAssignment.is_optional));
+        setAssignmentFullMark(String(firstAssignment.full_mark_obtainable ?? 100));
+        setAssignmentPassMark(String(firstAssignment.pass_mark ?? 40));
+        setAssignmentPrerequisiteSubjectId(firstAssignment.prerequisite_subject_id || '');
+        setAssignmentPrerequisiteMinScore(
+          firstAssignment.prerequisite_min_score == null ? '' : String(firstAssignment.prerequisite_min_score)
+        );
+      }
+    } catch (error) {
+      console.error('Error loading assignment dialog:', error);
+      toast.error('Failed to load class assignments');
+      resetAssignmentDialog();
+    }
+  }
+
+  function generateSubjectCode(subjectName: string, className: string) {
+    const prefix = subjectName.replace(/\s+/g, '').slice(0, 3).toUpperCase();
+    return `${prefix}-${className}`;
+  }
+
+  function toggleClassSelection(classId: string) {
+    setSelectedClassIds((current) =>
+      current.includes(classId)
+        ? current.filter((value) => value !== classId)
+        : [...current, classId]
+    );
+  }
+
+  async function handleAssignmentSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!schoolId || !subjectForAssignment) {
+      toast.error('Subject assignment is not ready');
+      return;
+    }
+
+    if (selectedClassIds.length === 0) {
+      toast.error('Select at least one class');
+      return;
+    }
+
+    const fullMark = Number(assignmentFullMark);
+    const passMark = Number(assignmentPassMark);
+    const prerequisiteMinScore = assignmentPrerequisiteMinScore.trim()
+      ? Number(assignmentPrerequisiteMinScore)
+      : null;
+
+    if (!Number.isFinite(fullMark) || fullMark <= 0) {
+      toast.error('Full mark must be greater than 0');
+      return;
+    }
+
+    if (!Number.isFinite(passMark) || passMark < 0 || passMark > fullMark) {
+      toast.error('Pass mark must be between 0 and full mark');
+      return;
+    }
+
+    if (prerequisiteMinScore != null && (!Number.isFinite(prerequisiteMinScore) || prerequisiteMinScore < 0)) {
+      toast.error('Prerequisite minimum score must be 0 or greater');
+      return;
+    }
+
+    setIsAssigning(true);
+
+    try {
+      const subjectClassesPayload = selectedClassIds.map((classId) => {
+        const classOption = classOptions.find((entry)  => entry.id === classId);
+
+        return {
+          school_id: schoolId,
+          subject_id: subjectForAssignment.id,
+          class_id: classId,
+          teacher_id: assignmentTeacherId || null,
+          department_id: assignmentDepartmentId || null,
+          religion_id: assignmentReligionId || null,
+          is_optional: assignmentIsOptional,
+          full_mark_obtainable: fullMark,
+          pass_mark: passMark,
+          prerequisite_subject_id: assignmentPrerequisiteSubjectId || null,
+          prerequisite_min_score: prerequisiteMinScore,
+          subject_code: generateSubjectCode(subjectForAssignment.name, classOption?.name || 'CLASS'),
+          is_active: true,
+        };
+      });
+
+      const removedClassIds = existingClassIds.filter((classId) => !selectedClassIds.includes(classId));
+      if (removedClassIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('subject_classes')
+          .delete()
+          .eq('school_id', schoolId)
+          .eq('subject_id', subjectForAssignment.id)
+          .in('class_id', removedClassIds);
+
+        if (deleteError) throw deleteError;
+      }
+
+      const { error } = await supabase
+        .from('subject_classes')
+        .upsert(subjectClassesPayload, {
+          onConflict: 'school_id,subject_id,class_id',
+        });
+
+      if (error) throw error;
+
+      toast.success('Subject assignments saved');
+      await fetchSubjectClassCounts();
+      resetAssignmentDialog();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to save subject assignments');
+    } finally {
+      setIsAssigning(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!schoolId) return;
+    if (!confirm('Are you sure you want to delete this subject and all its class assignments?')) return;
+
+    try {
       await supabase
         .from('subject_classes')
         .delete()
         .eq('school_id', schoolId)
         .eq('subject_id', id);
 
-      // Then delete the subject
       const { error } = await supabase
         .from('subjects')
         .delete()
@@ -351,411 +448,139 @@ export default function SubjectsPage() {
 
       setCurrentPage(1);
       await fetchSubjects();
+      await fetchSubjectClassCounts();
       toast.success('Subject deleted successfully');
     } catch (error: any) {
-      toast.error('Error deleting subject');
+      toast.error(error.message || 'Error deleting subject');
     }
-  }
-
-  const getLevelColor = (levelId: string) => {
-    const level = educationLevels.find(l => l.id === levelId);
-    const levelName = level?.name || '';
-    
-    switch (levelName) {
-      case 'Pre-Primary':
-        return 'bg-pink-100 text-pink-700';
-      case 'Primary':
-        return 'bg-blue-100 text-blue-700';
-      case 'JSS':
-        return 'bg-green-100 text-green-700';
-      case 'SSS':
-        return 'bg-purple-100 text-purple-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  async function openEditDialog(subject: Subject) {
-    setEditingSubject(subject);
-    setSelectedLevelId(subject.education_level_id);
-    setSelectedDepartmentId(subject.department_id || "");
-    setCustomSubjectName(subject.name);
-    setSelectedReligionId(subject.religion_id || "");
-    setIsOptional(subject.is_optional);
-    setSelectedTeacher("");
-    setIsFormStep2(false);
-    setIsDialogOpen(true);
-  }
-
-  function closeDialog() {
-    setIsDialogOpen(false);
-    setEditingSubject(null);
-    setSelectedLevelId('');
-    setCustomSubjectName('');
-    setSelectedDepartmentId('');
-    setSelectedReligionId('');
-    setSelectedTeacher('');
-    setIsOptional(false);
-    setIsFormStep2(false);
   }
 
   const totalPages = Math.ceil(totalSubjects / pageSize);
-  const pageNumbers = [];
+  const pageNumbers: number[] = [];
   if (totalPages <= 5) {
-    for (let i = 1; i <= totalPages; i++) {
-      pageNumbers.push(i);
+    for (let page = 1; page <= totalPages; page += 1) {
+      pageNumbers.push(page);
     }
+  } else if (currentPage <= 3) {
+    pageNumbers.push(1, 2, 3, 4, 5);
+  } else if (currentPage >= totalPages - 2) {
+    pageNumbers.push(totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
   } else {
-    if (currentPage <= 3) {
-      pageNumbers.push(1, 2, 3, 4, 5);
-    } else if (currentPage >= totalPages - 2) {
-      pageNumbers.push(totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
-    } else {
-      pageNumbers.push(currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2);
-    }
+    pageNumbers.push(currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2);
   }
 
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Subjects</h1>
-            <p className="text-gray-600 mt-1">
-              Manage subjects and assign them to classes
+            <p className="mt-1 text-gray-600">
+              Build a global subject catalog, then configure each subject independently for any class.
             </p>
           </div>
-          <div className="flex gap-2">
-            {schoolId && (
-              <BulkCreateSubjectsDialog
-                schoolId={schoolId}
-                onSuccess={() => { setCurrentPage(1); fetchSubjects(); }}
-                educationLevels={educationLevels}
-                departments={departments}
-                religions={religions}
-                teachers={teachers}
-              />
-            )}
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) closeDialog(); }}>
-              <DialogTrigger asChild>
-                <Button onClick={() => { setEditingSubject(null); setIsFormStep2(false); }}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Subject
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingSubject ? 'Edit Subject' : 'Add New Subject'}
-                    {!editingSubject && !isFormStep2 && <span className="text-sm font-normal text-gray-500 ml-2">(Step 1 of 2)</span>}
-                    {!editingSubject && isFormStep2 && <span className="text-sm font-normal text-gray-500 ml-2">(Step 2 of 2)</span>}
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* STEP 1: Basic Information */}
-                  {!isFormStep2 || editingSubject ? (
-                    <>
-                      <div>
-                        <Label htmlFor="education_level">Education Level *</Label>
-                        <select
-                          id="education_level"
-                          value={selectedLevelId}
-                          onChange={(e) => {
-                            setSelectedLevelId(e.target.value);
-                            setCustomSubjectName('');
-                            setSelectedDepartmentId('');
-                          }}
-                          className="w-full px-3 py-2 border rounded-md"
-                          required
-                          disabled={!!editingSubject}
-                        >
-                          <option value="">Select Level</option>
-                          {isLoadingEduLevels ? (
-                            <option disabled>Loading...</option>
-                          ) : (
-                            educationLevels.map((level) => (
-                              <option key={level.id} value={level.id}>
-                                {level.name}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                        {editingSubject && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Cannot change when editing
-                          </p>
-                        )}
-                      </div>
-
-                      {selectedLevelId && departments.length > 0 && (
-                        <div>
-                          <Label htmlFor="department">Department (Optional)</Label>
-                          {isLoadingDepartments ? (
-                            <select disabled className="w-full px-3 py-2 border rounded-md">
-                              <option>Loading...</option>
-                            </select>
-                          ) : (
-                            <select
-                              id="department"
-                              value={selectedDepartmentId}
-                              onChange={(e) => {
-                                setSelectedDepartmentId(e.target.value);
-                                setCustomSubjectName('');
-                              }}
-                              className="w-full px-3 py-2 border rounded-md"
-                              disabled={!!editingSubject}
-                            >
-                              <option value="">No Department</option>
-                              {departments.map((dept) => (
-                                <option key={dept.id} value={dept.id}>
-                                  {dept.name}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                          {editingSubject && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Cannot change when editing
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      <div>
-                        <Label htmlFor="subject_name">Subject Name *</Label>
-                        <Input
-                          id="subject_name"
-                          value={customSubjectName}
-                          onChange={(e) => setCustomSubjectName(e.target.value)}
-                          placeholder="Enter subject name"
-                          required
-                        />
-                      </div>
-
-                      {editingSubject && (
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                          <p className="text-sm text-blue-800">
-                            Update the subject details below.
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  ) : null}
-
-                  {/* STEP 2: Optional Settings */}
-                  {isFormStep2 && !editingSubject ? (
-                    <>
-                      <div>
-                        <Label>Subject Type</Label>
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              id="is_optional"
-                              checked={isOptional}
-                              onCheckedChange={setIsOptional}
-                            />
-                            <Label htmlFor="is_optional" className="flex-1 font-normal cursor-pointer">
-                              Optional Subject
-                              <p className="text-xs text-gray-500">Students can choose not to take this</p>
-                            </Label>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="religion">Religion-Specific (Optional)</Label>
-                        <select
-                          id="religion"
-                          value={selectedReligionId}
-                          onChange={(e) => setSelectedReligionId(e.target.value)}
-                          className="w-full px-3 py-2 border rounded-md"
-                        >
-                          <option value="">Not Specific</option>
-                          {isLoadingReligions ? (
-                            <option disabled>Loading...</option>
-                          ) : (
-                            religions.map((rel) => (
-                              <option key={rel.id} value={rel.id}>
-                                {rel.name}
-                              </option>
-                            ))
-                          )}
-                        </select>
-                      </div>
-
-                      <div>
-                        <Label>Assign Teacher (Optional)</Label>
-                        <select
-                          className="w-full border rounded-md p-2"
-                          value={selectedTeacher}
-                          onChange={(e) => setSelectedTeacher(e.target.value)}
-                        >
-                          <option value="">Do not assign yet</option>
-                          {teachers.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.first_name} {t.last_name}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Auto-assigns to classes without a class teacher
-                        </p>
-                      </div>
-
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                        <p className="text-sm text-blue-800">
-                          <strong>Note:</strong> This subject will apply to all classes under <strong>{educationLevels.find(l => l.id === selectedLevelId)?.name}</strong>.
-                        </p>
-                      </div>
-                    </>
-                  ) : null}
-
-                  {/* Form Actions */}
-                  <div className="flex gap-2 pt-4 border-t">
-                    {!editingSubject && isFormStep2 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsFormStep2(false)}
-                        disabled={isSubmitting}
-                      >
-                        Back
-                      </Button>
-                    )}
-                    <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                      {isSubmitting ? 'Saving...' : isFormStep2 && !editingSubject ? 'Create Subject' : editingSubject ? 'Update' : 'Next'}
-                    </Button>
-                    <Button type="button" variant="outline" onClick={closeDialog} disabled={isSubmitting}>
-                      Cancel
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="filter-level" className="text-sm font-medium mb-2 block">
-                  Education Level
-                </Label>
-                <select
-                  id="filter-level"
-                  value={filterLevel}
-                  onChange={(e) => {
-                    setFilterLevel(e.target.value);
-                    setFilterDept('');
-                    setCurrentPage(1);
-                  }}
-                  className="w-full px-3 py-2 border rounded-md"
-                >
-                  <option value="">All Levels</option>
-                  {educationLevels.map((level) => (
-                    <option key={level.id} value={level.id}>
-                      {level.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="filter-dept" className="text-sm font-medium mb-2 block">
-                  Department
-                </Label>
-                <select
-                  id="filter-dept"
-                  value={filterDept}
-                  onChange={(e) => {
-                    setFilterDept(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="w-full px-3 py-2 border rounded-md"
-                  disabled={!filterLevel && departments.length > 0}
-                >
-                  <option value="">All Departments</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="filter-type" className="text-sm font-medium mb-2 block">
-                  Subject Type
-                </Label>
-                <select
-                  id="filter-type"
-                  value={filterType}
-                  onChange={(e) => {
-                    setFilterType(e.target.value as 'all' | 'optional' | 'religion');
-                    setCurrentPage(1);
-                  }}
-                  className="w-full px-3 py-2 border rounded-md"
-                >
-                  <option value="all">All Types</option>
-                  <option value="optional">Optional Only</option>
-                  <option value="religion">Religion-Specific</option>
-                </select>
-              </div>
-
-              <div>
-                <Label htmlFor="search" className="text-sm font-medium mb-2 block">
-                  Search
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          <Dialog open={isDialogOpen} onOpenChange={(open) => (!open ? resetSubjectDialog() : setIsDialogOpen(true))}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingSubject(null)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Subject
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>{editingSubject ? 'Edit Catalog Subject' : 'Add Catalog Subject'}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubjectSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="subject_name">Subject Name</Label>
                   <Input
-                    id="search"
-                    placeholder="Search subjects..."
-                    className="pl-10"
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
+                    id="subject_name"
+                    value={customSubjectName}
+                    onChange={(event) => setCustomSubjectName(event.target.value)}
+                    placeholder="Mathematics"
+                    required
                   />
                 </div>
-              </div>
-            </div>
 
-            {(filterLevel || filterDept || filterType !== 'all' || searchTerm) && (
-              <div className="mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setFilterLevel('');
-                    setFilterDept('');
-                    setFilterType('all');
-                    setSearchTerm('');
-                    setCurrentPage(1);
-                  }}
-                >
-                  Clear Filters
-                </Button>
-              </div>
-            )}
+                <div>
+                  <Label htmlFor="subject_code">Catalog Code</Label>
+                  <Input
+                    id="subject_code"
+                    value={subjectCode}
+                    onChange={(event) => setSubjectCode(event.target.value)}
+                    placeholder="MTH"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Optional. Class-specific codes are still generated when you assign the subject.
+                  </p>
+                </div>
+
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  Catalog subjects are no longer tied to a single education level. Optionality, department,
+                  religion, marks, and teacher assignment now happen per class assignment.
+                </div>
+
+                <div className="flex gap-2 border-t pt-4">
+                  <Button type="submit" className="flex-1" disabled={isSubmitting}>
+                    {isSubmitting ? 'Saving...' : editingSubject ? 'Update Subject' : 'Create Subject'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={resetSubjectDialog} disabled={isSubmitting}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">New Assignment Model</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm text-gray-600 md:grid-cols-3">
+            <div className="rounded-lg border bg-gray-50 p-4">
+              Create each subject once in the catalog.
+            </div>
+            <div className="rounded-lg border bg-gray-50 p-4">
+              Assign that subject to one or many classes.
+            </div>
+            <div className="rounded-lg border bg-gray-50 p-4">
+              Configure optionality, religion, department, marks, and teacher per class.
+            </div>
           </CardContent>
         </Card>
 
-        {/* Table */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="max-w-md">
+              <Label htmlFor="search" className="mb-2 block text-sm font-medium">
+                Search Catalog
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <Input
+                  id="search"
+                  placeholder="Search subjects..."
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(event) => {
+                    setSearchTerm(event.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="p-0">
-            {filteredSubjectsForDisplay.length === 0 ? (
+            {subjects.length === 0 ? (
               <div className="p-12 text-center">
-                <BookOpen className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500 font-medium">No subjects found</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  {searchTerm || filterLevel || filterDept || filterType !== 'all'
-                    ? 'Try adjusting your filters'
-                    : 'Add your first subject'}
+                <BookOpen className="mx-auto mb-4 h-12 w-12 text-gray-300" />
+                <p className="font-medium text-gray-500">No subjects found</p>
+                <p className="mt-2 text-sm text-gray-400">
+                  {searchTerm ? 'Try a different search term' : 'Add your first catalog subject'}
                 </p>
               </div>
             ) : (
@@ -764,49 +589,30 @@ export default function SubjectsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Level</TableHead>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-center">Classes</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Catalog Code</TableHead>
+                        <TableHead className="text-center">Assigned Classes</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredSubjectsForDisplay.map((subject) => {
-                        const level = educationLevels.find(l => l.id === subject.education_level_id);
-                        const dept = departments.find(d => d.id === subject.department_id);
-                        const religion = religions.find(r => r.id === subject.religion_id);
+                      {subjects.map((subject) => {
                         const classCount = subjectClassCounts[subject.id] || 0;
 
                         return (
                           <TableRow key={subject.id}>
-                            <TableCell className="font-medium">{subject.name}</TableCell>
                             <TableCell>
-                              <Badge className={getLevelColor(subject.education_level_id)}>
-                                {level?.name || 'Unknown'}
-                              </Badge>
+                              <div className="font-medium">{subject.name}</div>
                             </TableCell>
-                            <TableCell>{dept?.name || '-'}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-1 flex-wrap">
-                                {subject.is_optional && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    Optional
-                                  </Badge>
-                                )}
-                                {religion && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {religion.name}
-                                  </Badge>
-                                )}
-                                {!subject.is_optional && !religion && (
-                                  <span className="text-gray-500 text-sm">-</span>
-                                )}
-                              </div>
-                            </TableCell>
+                            <TableCell>{subject.subject_code || '-'}</TableCell>
                             <TableCell className="text-center">
                               <Badge variant="outline">{classCount}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={classCount > 0 ? 'default' : 'secondary'}>
+                                {classCount > 0 ? 'Assigned' : 'Catalog only'}
+                              </Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
@@ -818,9 +624,13 @@ export default function SubjectsPage() {
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                   <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => openAssignmentDialog(subject)}>
+                                    <Layers className="mr-2 h-4 w-4" />
+                                    Assign to Classes
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => openEditDialog(subject)}>
                                     <Edit className="mr-2 h-4 w-4" />
-                                    Edit
+                                    Edit Catalog Entry
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handleDelete(subject.id)}>
                                     <Trash2 className="mr-2 h-4 w-4 text-red-600" />
@@ -836,7 +646,6 @@ export default function SubjectsPage() {
                   </Table>
                 </div>
 
-                {/* Pagination */}
                 {totalPages > 1 && (
                   <div className="border-t p-4">
                     <Pagination>
@@ -852,11 +661,7 @@ export default function SubjectsPage() {
                         {pageNumbers[0] > 1 && (
                           <>
                             <PaginationItem>
-                              <PaginationLink
-                                onClick={() => setCurrentPage(1)}
-                                href="#"
-                                isActive={currentPage === 1}
-                              >
+                              <PaginationLink onClick={() => setCurrentPage(1)} href="#" isActive={currentPage === 1}>
                                 1
                               </PaginationLink>
                             </PaginationItem>
@@ -870,11 +675,7 @@ export default function SubjectsPage() {
 
                         {pageNumbers.map((page) => (
                           <PaginationItem key={page}>
-                            <PaginationLink
-                              onClick={() => setCurrentPage(page)}
-                              href="#"
-                              isActive={currentPage === page}
-                            >
+                            <PaginationLink onClick={() => setCurrentPage(page)} href="#" isActive={currentPage === page}>
                               {page}
                             </PaginationLink>
                           </PaginationItem>
@@ -911,14 +712,205 @@ export default function SubjectsPage() {
                   </div>
                 )}
 
-                {/* Results Summary */}
-                <div className="border-t px-6 py-3 bg-gray-50 text-sm text-gray-600">
+                <div className="border-t bg-gray-50 px-6 py-3 text-sm text-gray-600">
                   Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalSubjects)} of {totalSubjects} subjects
                 </div>
               </>
             )}
           </CardContent>
         </Card>
+
+        <Dialog
+          open={isAssignmentDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              resetAssignmentDialog();
+              return;
+            }
+
+            setIsAssignmentDialogOpen(true);
+          }}
+        >
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>
+                Assign {subjectForAssignment?.name || 'Subject'} to Classes
+              </DialogTitle>
+            </DialogHeader>
+
+            <form onSubmit={handleAssignmentSubmit} className="space-y-6">
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                This saves configuration on the class assignment itself. If you update multiple selected classes here,
+                they will all share the same teacher, optionality, department, religion, and marks settings.
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div>
+                    <Label htmlFor="class-search">Classes</Label>
+                    <Input
+                      id="class-search"
+                      value={assignmentSearchTerm}
+                      onChange={(event) => setAssignmentSearchTerm(event.target.value)}
+                      placeholder="Search classes"
+                    />
+                  </div>
+
+                  <div className="max-h-80 space-y-2 overflow-y-auto rounded-md border p-3">
+                    {filteredClassOptions.length === 0 ? (
+                      <p className="text-sm text-gray-500">No matching classes</p>
+                    ) : (
+                      filteredClassOptions.map((classOption) => (
+                        <label
+                          key={classOption.id}
+                          className="flex cursor-pointer items-center justify-between rounded-md border px-3 py-2"
+                        >
+                          <span className="text-sm font-medium">{classOption.name}</span>
+                          <input
+                            type="checkbox"
+                            checked={selectedClassIds.includes(classOption.id)}
+                            onChange={() => toggleClassSelection(classOption.id)}
+                          />
+                        </label>
+                      ))
+                    )}
+                  </div>
+
+                  <p className="text-xs text-gray-500">
+                    Selected classes: {selectedClassIds.length}
+                  </p>
+                </div>
+
+                <div className="space-y-4 rounded-lg border p-4">
+                  <div>
+                    <Label htmlFor="teacher">Teacher in Charge</Label>
+                    <select
+                      id="teacher"
+                      value={assignmentTeacherId}
+                      onChange={(event) => setAssignmentTeacherId(event.target.value)}
+                      className="w-full rounded-md border px-3 py-2"
+                    >
+                      <option value="">Unassigned</option>
+                      {teachers.map((teacher) => (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.first_name} {teacher.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="department">Department</Label>
+                    <select
+                      id="department"
+                      value={assignmentDepartmentId}
+                      onChange={(event) => setAssignmentDepartmentId(event.target.value)}
+                      className="w-full rounded-md border px-3 py-2"
+                    >
+                      <option value="">All departments</option>
+                      {departments.map((department) => (
+                        <option key={department.id} value={department.id}>
+                          {department.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="religion">Religion</Label>
+                    <select
+                      id="religion"
+                      value={assignmentReligionId}
+                      onChange={(event) => setAssignmentReligionId(event.target.value)}
+                      className="w-full rounded-md border px-3 py-2"
+                    >
+                      <option value="">No religion filter</option>
+                      {religions.map((religion) => (
+                        <option key={religion.id} value={religion.id}>
+                          {religion.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-3 rounded-md border px-3 py-2">
+                    <Switch
+                      id="assignment_is_optional"
+                      checked={assignmentIsOptional}
+                      onCheckedChange={setAssignmentIsOptional}
+                    />
+                    <Label htmlFor="assignment_is_optional" className="cursor-pointer font-normal">
+                      Optional subject for selected classes
+                    </Label>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="full_mark">Full Mark Obtainable</Label>
+                      <Input
+                        id="full_mark"
+                        type="number"
+                        min="1"
+                        value={assignmentFullMark}
+                        onChange={(event) => setAssignmentFullMark(event.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pass_mark">Pass Mark</Label>
+                      <Input
+                        id="pass_mark"
+                        type="number"
+                        min="0"
+                        value={assignmentPassMark}
+                        onChange={(event) => setAssignmentPassMark(event.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="prerequisite_subject">Prerequisite Subject</Label>
+                    <select
+                      id="prerequisite_subject"
+                      value={assignmentPrerequisiteSubjectId}
+                      onChange={(event) => setAssignmentPrerequisiteSubjectId(event.target.value)}
+                      className="w-full rounded-md border px-3 py-2"
+                    >
+                      <option value="">None</option>
+                      {subjects
+                        .filter((subject) => subject.id !== subjectForAssignment?.id)
+                        .map((subject) => (
+                          <option key={subject.id} value={subject.id}>
+                            {subject.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="prerequisite_score">Minimum Score for Prerequisite</Label>
+                    <Input
+                      id="prerequisite_score"
+                      type="number"
+                      min="0"
+                      value={assignmentPrerequisiteMinScore}
+                      onChange={(event) => setAssignmentPrerequisiteMinScore(event.target.value)}
+                      placeholder="Leave blank if not required"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 border-t pt-4">
+                <Button type="submit" className="flex-1" disabled={isAssigning}>
+                  {isAssigning ? 'Saving assignments...' : 'Save Class Assignments'}
+                </Button>
+                <Button type="button" variant="outline" onClick={resetAssignmentDialog} disabled={isAssigning}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

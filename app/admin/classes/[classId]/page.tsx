@@ -161,14 +161,28 @@ export default function ClassPage() {
     try {
       const { data, error } = await supabase
         .from("subject_classes")
-        .select(`id, subject_code, subjects:subject_id(id, name, is_optional, religion, department), teachers:teacher_id(id, first_name, last_name)`)
+        .select(`
+          id,
+          subject_code,
+          is_optional,
+          department:department_id(name),
+          religion:religion_id(name),
+          subjects:subject_id(id, name),
+          teachers:teacher_id(id, first_name, last_name)
+        `)
         .eq("school_id", schoolId)
         .eq("class_id", classId);
       if (!error && data) {
         const formatted: SubjectClass[] = (data || []).map((item: any) => ({
           id: item.id,
           subject_code: item.subject_code,
-          subject: item.subjects,
+          subject: {
+            id: item.subjects.id,
+            name: item.subjects.name,
+            is_optional: Boolean(item.is_optional),
+            religion: item.religion?.name || null,
+            department: item.department?.name || null,
+          },
           teacher: item.teachers ?? null,
         }));
         setSubjects(formatted);

@@ -76,8 +76,55 @@ type WizardClassConfig = {
   selectedSubjectNames: string[];
 };
 
-function generateSubjectCode(subjectName: string, className: string) {
-  const prefix = subjectName.replace(/\s+/g, "").slice(0, 3).toUpperCase();
+function getSubjectCodePrefix(
+  subjectName: string,
+  allSubjectNames: string[]
+): { prefix: string; length: number } {
+  const nameNoSpace = subjectName.replace(/\s+/g, "");
+  let prefix = nameNoSpace.slice(0, 3).toUpperCase();
+
+  // Check for collisions with 3 characters
+  const conflictsWith3 = allSubjectNames.some(
+    (name) =>
+      name !== subjectName &&
+      name.replace(/\s+/g, "").slice(0, 3).toUpperCase() === prefix
+  );
+
+  if (conflictsWith3) {
+    // Try 4 characters
+    prefix = nameNoSpace.slice(0, 4).toUpperCase();
+    return { prefix, length: 4 };
+  }
+
+  return { prefix, length: 3 };
+}
+
+function generateSubjectCode(
+  subjectName: string,
+  className: string,
+  subjectId?: string,
+  allSubjectNames?: string[]
+): string {
+  if (!allSubjectNames) {
+    // Fallback to simple 3-character code
+    const prefix = subjectName.replace(/\s+/g, "").slice(0, 3).toUpperCase();
+    return `${prefix}-${className}`;
+  }
+
+  const { prefix, length } = getSubjectCodePrefix(subjectName, allSubjectNames);
+
+  // Check if there's still a collision at this length
+  const stillConflicting = allSubjectNames.some(
+    (name) =>
+      name !== subjectName &&
+      getSubjectCodePrefix(name, allSubjectNames).prefix === prefix
+  );
+
+  if (stillConflicting && subjectId) {
+    // Use subject ID for disambiguation (4-char prefix + 4-char ID)
+    return `${prefix}-${subjectId.slice(0, 4)}-${className}`;
+  }
+
   return `${prefix}-${className}`;
 }
 
@@ -542,7 +589,7 @@ export default function SubjectsPage() {
             is_optional: Boolean(setupSubject?.isOptional),
             full_mark_obtainable: fullMark,
             pass_mark: passMark,
-            subject_code: generateSubjectCode(subjectName, classItem.name),
+            subject_code: generateSubjectCode(subjectName, classItem.name, subjectId, selectedSubjectNames),
             is_active: true,
           });
         }

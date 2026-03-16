@@ -42,6 +42,7 @@ const LEVEL_SUBJECTS = {
     { name: "Basic Science & Technology" },
     { name: "Physical Education" },
     { name: "Music" },
+    { name: "Chess" },
     { name: "Art & Craft" },
   ],
 
@@ -55,6 +56,7 @@ const LEVEL_SUBJECTS = {
     { name: "Agricultural Science" },
     { name: "Computer Studies" },
     { name: "Music" },
+    { name: "Chess" },
     { name: "Visual Arts" },
     { name: "Christian Religious Studies" },
     { name: "Islamic Religious Studies" },
@@ -105,7 +107,7 @@ const LEVEL_SUBJECTS = {
     { name: "Geography" },
     { name: "Economics" },
     { name: "Government" },
-
+    
     // Arts & Humanities
     { name: "Literature in English" },
     { name: "French Language" },
@@ -118,6 +120,7 @@ const LEVEL_SUBJECTS = {
     { name: "Music" },
     { name: "Visual Arts" },
     { name: "Business Studies" },
+    { name: "Chess" },
 
     // Religious Studies
     { name: "Christian Religious Studies" },

@@ -590,6 +590,7 @@ export default function SchoolConfigPage() {
   const [spForm, setSpForm] = useState(blankSubjectPreset());
   const [spSaving, setSpSaving] = useState(false);
   const [selectedPresetLevelId, setSelectedPresetLevelId] = useState<string>("");
+  const [loadDefaultsConfirmOpen, setLoadDefaultsConfirmOpen] = useState(false);
 
   const fetchSubjectPresets = useCallback(async (levelId?: string) => {
     if (!schoolId) return;
@@ -704,7 +705,23 @@ export default function SchoolConfigPage() {
     }
   }
 
-  async function loadDefaultSubjectsForPresetLevel() {
+  function loadDefaultSubjectsForPresetLevel() {
+    if (!schoolId || !selectedPresetLevelId) {
+      toast.error("Select an education level first");
+      return;
+    }
+
+    // Check if there are existing subjects
+    if (subjectPresets.length > 0) {
+      setLoadDefaultsConfirmOpen(true);
+      return;
+    }
+
+    // No existing subjects, proceed directly
+    proceedWithLoadingDefaults();
+  }
+
+  async function proceedWithLoadingDefaults() {
     if (!schoolId || !selectedPresetLevelId) {
       toast.error("Select an education level first");
       return;
@@ -741,6 +758,7 @@ export default function SchoolConfigPage() {
     }
 
     toast.success(`Loaded ${rows.length} default subjects for ${selectedLevel.name}`);
+    setLoadDefaultsConfirmOpen(false);
     fetchSubjectPresets(selectedPresetLevelId);
   }
 
@@ -2148,6 +2166,26 @@ export default function SchoolConfigPage() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={deleteSubjectPreset} className="bg-red-600 hover:bg-red-700">
                 Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={loadDefaultsConfirmOpen} onOpenChange={setLoadDefaultsConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+                Load Default Subjects
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This education level already has {subjectPresets.length} subject{subjectPresets.length !== 1 ? 's' : ''}. Loading defaults will add new subjects and update existing ones with matching names. Continue?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={proceedWithLoadingDefaults}>
+                Load Defaults
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

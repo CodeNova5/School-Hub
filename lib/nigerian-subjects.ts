@@ -11,7 +11,6 @@ import { Department, Religion } from "./types";
 export interface PredefinedSubject {
   name: string;
   isOptional?: boolean;
-  category?: "science" | "arts" | "social" | "language" | "practical" | "core" | "religion";
 }
 
 // Subject categories for intelligent department/category mapping
@@ -54,35 +53,38 @@ const LEVEL_SUBJECTS = {
     { name: "Physical Education" },
     { name: "National Values Education" },
     { name: "Agricultural Science" },
-    { name: "Computer Studies", isOptional: true },
-    { name: "Music", isOptional: true },
-    { name: "Visual Arts", isOptional: true },
-    { name: "Christian Religious Studies", category: "religion" },
-    { name: "Islamic Religious Studies", category: "religion" },
-    { name: "French Language", isOptional: true },
-    { name: "Arabic Language", isOptional: true },
+    { name: "Computer Studies" },
+    { name: "Music" },
+    { name: "Visual Arts" },
+    { name: "Christian Religious Studies" },
+    { name: "Islamic Religious Studies" },
+    { name: "French Language" },
+    { name: "Arabic Language" },
   ],
 
   jss: [
     { name: "English Language" },
     { name: "Mathematics" },
-    { name: "Integrated Science" },
+    { name: "Basic Science" },
     { name: "Social Studies" },
     { name: "History" },
     { name: "Geography" },
     { name: "Civic Education" },
-    { name: "Physical Education" },
-    { name: "Music", isOptional: true },
-    { name: "Visual Arts", isOptional: true },
-    { name: "French Language", isOptional: true },
-    { name: "Arabic Language", isOptional: true },
-    { name: "Christian Religious Studies", isOptional: true },
-    { name: "Islamic Religious Studies", isOptional: true },
+    { name: "PHE" },
+    { name: "Music" },
+    { name: "Visual Arts" },
+    { name: "French Language" },
+    { name: "Arabic Language" },
+    { name: "Christian Religious Studies" },
+    { name: "Islamic Religious Studies" },
     { name: "Computer Studies" },
-    { name: "Agricultural Science", isOptional: true },
-    { name: "Home Economics", isOptional: true },
-    { name: "Business Studies", isOptional: true },
-    { name: "Technical Drawing", isOptional: true },
+    { name: "Art & Craft" },
+    { name: "Data Processing" },
+    { name: "Chess" },
+    { name: "Agricultural Science" },
+    { name: "Home Economics" },
+    { name: "Business Studies" },
+    { name: "Technical Drawing" },
   ],
 
   sss: [
@@ -93,34 +95,33 @@ const LEVEL_SUBJECTS = {
     { name: "Civic Education" },
 
     // Science Subjects
-    { name: "Physics", category: "science" },
-    { name: "Chemistry", category: "science" },
-    { name: "Biology", category: "science" },
-    { name: "Further Mathematics", isOptional: true, category: "science" },
+    { name: "Physics" },
+    { name: "Chemistry" },
+    { name: "Biology" },
+    { name: "Further Mathematics" },
 
     // Social Sciences
-    { name: "History", category: "social" },
-    { name: "Geography", category: "social" },
-    { name: "Economics", category: "social" },
-    { name: "Government", category: "social" },
+    { name: "History" },
+    { name: "Geography" },
+    { name: "Economics" },
+    { name: "Government" },
 
     // Arts & Humanities
-    { name: "Literature in English", category: "arts" },
-    { name: "French Language", isOptional: true, category: "language" },
-    { name: "Arabic Language", isOptional: true, category: "language" },
-    { name: "Technical Drawing", isOptional: true, category: "practical" },
+    { name: "Literature in English" },
+    { name: "French Language" },
+    { name: "Arabic Language" },
+    { name: "Technical Drawing" },
 
     // Electives & Optional
-    { name: "Computer Studies", isOptional: true, category: "practical" },
-    { name: "Agricultural Science", isOptional: true },
-    { name: "Home Economics", isOptional: true },
-    { name: "Music", isOptional: true, category: "practical" },
-    { name: "Visual Arts", isOptional: true, category: "practical" },
-    { name: "Business Studies", isOptional: true },
+    { name: "Computer Studies" },
+    { name: "Agricultural Science" },
+    { name: "Music" },
+    { name: "Visual Arts" },
+    { name: "Business Studies" },
 
     // Religious Studies
-    { name: "Christian Religious Studies", category: "religion" },
-    { name: "Islamic Religious Studies", category: "religion" },
+    { name: "Christian Religious Studies" },
+    { name: "Islamic Religious Studies" },
   ],
 };
 

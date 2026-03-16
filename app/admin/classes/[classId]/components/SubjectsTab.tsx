@@ -29,6 +29,11 @@ import { supabase } from "@/lib/supabase";
 type SubjectClass = {
   id: string;
   subject_code: string;
+  subject_id: string;
+  full_mark_obtainable: number;
+  pass_mark: number;
+  department_id: string | null;
+  religion_id: string | null;
   subject: {
     id: string;
     name: string;
@@ -126,8 +131,11 @@ export function SubjectsTab({
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingSubjectClass, setEditingSubjectClass] = useState<SubjectClass | null>(null);
-  const [editName, setEditName] = useState("");
+  const [editFullMark, setEditFullMark] = useState(100);
+  const [editPassMark, setEditPassMark] = useState(40);
   const [editIsOptional, setEditIsOptional] = useState(false);
+  const [editDepartmentId, setEditDepartmentId] = useState<string | null>(null);
+  const [editReligionId, setEditReligionId] = useState<string | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
 
   const [isManageStudentsOpen, setIsManageStudentsOpen] = useState(false);
@@ -166,47 +174,47 @@ export function SubjectsTab({
 
   function openEditDialog(sc: SubjectClass) {
     setEditingSubjectClass(sc);
-    setEditName(sc.subject.name);
+    setEditFullMark(sc.full_mark_obtainable);
+    setEditPassMark(sc.pass_mark);
     setEditIsOptional(sc.subject.is_optional);
+    setEditDepartmentId(sc.department_id || null);
+    setEditReligionId(sc.religion_id || null);
     setIsEditOpen(true);
   }
 
   async function handleEditSubmit() {
-    if (!editingSubjectClass || !editName.trim()) {
-      toast.error("Subject name is required");
+    if (!editingSubjectClass) {
+      toast.error("No subject selected");
+      return;
+    }
+
+    if (editFullMark <= 0 || editPassMark < 0 || editPassMark > editFullMark) {
+      toast.error("Invalid marks configuration");
       return;
     }
 
     setIsEditSubmitting(true);
 
     try {
-      const [{ error: subjectError }, { error: assignmentError }] = await Promise.all([
-        supabase
-          .from("subjects")
-          .update({
-            name: editName,
-          })
-          .eq("id", editingSubjectClass.subject.id),
-        supabase
-          .from("subject_classes")
-          .update({
-            is_optional: editIsOptional,
-          })
-          .eq("id", editingSubjectClass.id),
-      ]);
+      const { error } = await supabase
+        .from("subject_classes")
+        .update({
+          full_mark_obtainable: editFullMark,
+          pass_mark: editPassMark,
+          is_optional: editIsOptional,
+          department_id: editDepartmentId,
+          religion_id: editReligionId,
+        })
+        .eq("id", editingSubjectClass.id);
 
-      if (subjectError) throw subjectError;
-      if (assignmentError) throw assignmentError;
+      if (error) throw error;
 
-      toast.success("Subject updated successfully");
+      toast.success("Subject settings updated successfully");
       setIsEditOpen(false);
       onRefresh();
     } catch (error: any) {
-      if (error.message?.includes("23505")) {
-        toast.error("Subject name already exists");
-      } else {
-        toast.error("Failed to update subject");
-      }
+      toast.error("Failed to update subject settings");
+      console.error(error);
     } finally {
       setIsEditSubmitting(false);
     }
@@ -469,27 +477,24 @@ export function SubjectsTab({
 
       {/* Edit Subject Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Subject</DialogTitle>
+            <DialogTitle>Edit Subject Settings</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Read-only Subject Name */}
             <div>
-              <Label htmlFor="edit_name">Subject Name</Label>
-              <Input
-                id="edit_name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="Enter subject name"
-              />
+              <Label>Subject Name</Label>
+              <div className="p-3 bg-muted rounded-md text-sm">
+                {editingSubjectClass?.subject.name}
+              </div>
             </div>
 
+            {/* Optional Toggle */}
             <div className="flex items-center justify-between p-3 border rounded-md">
               <div>
                 <Label htmlFor="edit_optional">Optional Subject</Label>
-                <p className="text-xs text-gray-500">
-                  Mark if this subject is optional for students
-                </p>
+                <p className="text-xs text-gray-500">For this class</p>
               </div>
               <Switch
                 id="edit_optional"
@@ -498,7 +503,74 @@ export function SubjectsTab({
               />
             </div>
 
-            <div className="flex justify-end gap-2">
+            {/* Full Mark Obtainable */}
+            <div>
+              <Label htmlFor="edit_full_mark">Full Mark Obtainable</Label>
+              <Input
+                id="edit_full_mark"
+                type="number"
+                min="1"
+                value={editFullMark}
+                onChange={(e) => setEditFullMark(Math.max(1, parseInt(e.target.value) || 0))}
+              />
+            </div>
+
+            {/* Pass Mark */}
+            <div>
+              <Label htmlFor="edit_pass_mark">Pass Mark</Label>
+              <Input
+                id="edit_pass_mark"
+                type="number"
+                min="0"
+                max={editFullMark}
+                value={editPassMark}
+                onChange={(e) => setEditPassMark(Math.min(editFullMark, Math.max(0, parseInt(e.target.value) || 0)))}
+              />
+            </div>
+
+
+
+            {/* Department */}
+            {departments.length > 0 && (
+              <div>
+                <Label htmlFor="edit_department">Department</Label>
+                <select
+                  id="edit_department"
+                  className="w-full border rounded-md p-2 text-sm"
+                  value={editDepartmentId || ""}
+                  onChange={(e) => setEditDepartmentId(e.target.value || null)}
+                >
+                  <option value="">None</option>
+                  {departments.map((dept) => (
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Religion */}
+            {religions.length > 0 && (
+              <div>
+                <Label htmlFor="edit_religion">Religion</Label>
+                <select
+                  id="edit_religion"
+                  className="w-full border rounded-md p-2 text-sm"
+                  value={editReligionId || ""}
+                  onChange={(e) => setEditReligionId(e.target.value || null)}
+                >
+                  <option value="">None</option>
+                  {religions.map((religion) => (
+                    <option key={religion} value={religion}>
+                      {religion}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-4">
               <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isEditSubmitting}>
                 Cancel
               </Button>

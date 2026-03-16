@@ -46,6 +46,11 @@ type ClassData = {
 type SubjectClass = {
   id: string;
   subject_code: string;
+  subject_id: string;
+  full_mark_obtainable: number;
+  pass_mark: number;
+  department_id: string | null;
+  religion_id: string | null;
   subject: {
     id: string;
     name: string;
@@ -164,6 +169,11 @@ export default function ClassPage() {
         .select(`
           id,
           subject_code,
+          subject_id,
+          full_mark_obtainable,
+          pass_mark,
+          department_id,
+          religion_id,
           is_optional,
           department:department_id(name),
           religion:religion_id(name),
@@ -176,6 +186,11 @@ export default function ClassPage() {
         const formatted: SubjectClass[] = (data || []).map((item: any) => ({
           id: item.id,
           subject_code: item.subject_code,
+          subject_id: item.subject_id,
+          full_mark_obtainable: item.full_mark_obtainable,
+          pass_mark: item.pass_mark,
+          department_id: item.department_id,
+          religion_id: item.religion_id,
           subject: {
             id: item.subjects.id,
             name: item.subjects.name,

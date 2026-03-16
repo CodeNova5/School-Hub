@@ -43,6 +43,7 @@ import {
   Trash2,
   GraduationCap,
   BookOpen,
+  Library,
   Building2,
   Church,
   Waves,
@@ -58,7 +59,9 @@ import type {
   Stream,
   Department,
   Religion,
+  EducationLevelSubjectPreset,
 } from "@/lib/types";
+import { getSubjectsForLevel } from "@/lib/nigerian-subjects";
 
 /* ─────────────────────────────────────────────
    Form type helpers
@@ -66,6 +69,14 @@ import type {
 const blankEL = () => ({ name: "", code: "", description: "", order_sequence: 1 });
 const blankCL = () => ({ name: "", education_level_id: "", order_sequence: 1 });
 const blankSimple = () => ({ name: "", code: "", description: "" });
+const blankSubjectPreset = () => ({
+  name: "",
+  is_optional: false,
+  department_id: "",
+  religion_id: "",
+  order_sequence: 1,
+  is_active: true,
+});
 
 /* ─────────────────────────────────────────────
    Stat card
@@ -569,6 +580,171 @@ export default function SchoolConfigPage() {
   }
 
   /* ═══════════════════════════════════════
+     EDUCATION LEVEL SUBJECT PRESETS
+  ═══════════════════════════════════════ */
+  const [subjectPresets, setSubjectPresets] = useState<EducationLevelSubjectPreset[]>([]);
+  const [spLoading, setSpLoading] = useState(false);
+  const [spDialogOpen, setSpDialogOpen] = useState(false);
+  const [editingSp, setEditingSp] = useState<EducationLevelSubjectPreset | null>(null);
+  const [deleteSpId, setDeleteSpId] = useState<string | null>(null);
+  const [spForm, setSpForm] = useState(blankSubjectPreset());
+  const [spSaving, setSpSaving] = useState(false);
+  const [selectedPresetLevelId, setSelectedPresetLevelId] = useState<string>("");
+
+  const fetchSubjectPresets = useCallback(async (levelId?: string) => {
+    if (!schoolId) return;
+
+    const targetLevelId = levelId ?? selectedPresetLevelId;
+    if (!targetLevelId) {
+      setSubjectPresets([]);
+      return;
+    }
+
+    setSpLoading(true);
+    const { data, error } = await supabase
+      .from("school_level_subject_presets")
+      .select("*")
+      .eq("school_id", schoolId)
+      .eq("education_level_id", targetLevelId)
+      .order("order_sequence", { ascending: true })
+      .order("name", { ascending: true });
+
+    if (error) {
+      toast.error(error.message || "Failed to load level subjects");
+    } else {
+      setSubjectPresets((data ?? []) as EducationLevelSubjectPreset[]);
+    }
+
+    setSpLoading(false);
+  }, [schoolId, selectedPresetLevelId]);
+
+  async function saveSubjectPreset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId || !selectedPresetLevelId) return;
+
+    setSpSaving(true);
+    try {
+      const payload = {
+        school_id: schoolId,
+        education_level_id: selectedPresetLevelId,
+        name: spForm.name.trim(),
+        is_optional: spForm.is_optional,
+        department_id: spForm.department_id || null,
+        religion_id: spForm.religion_id || null,
+        order_sequence: Number(spForm.order_sequence),
+        is_active: spForm.is_active,
+      };
+
+      if (!payload.name) {
+        toast.error("Subject name is required");
+        return;
+      }
+
+      if (!Number.isFinite(payload.order_sequence) || payload.order_sequence < 1) {
+        toast.error("Order sequence must be at least 1");
+        return;
+      }
+
+      if (editingSp) {
+        const { error } = await supabase
+          .from("school_level_subject_presets")
+          .update(payload)
+          .eq("id", editingSp.id);
+        if (error) throw error;
+        toast.success("Level subject updated");
+      } else {
+        const { error } = await supabase
+          .from("school_level_subject_presets")
+          .insert(payload);
+        if (error) throw error;
+        toast.success("Level subject added");
+      }
+
+      setSpDialogOpen(false);
+      setEditingSp(null);
+      setSpForm(blankSubjectPreset());
+      fetchSubjectPresets(selectedPresetLevelId);
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save level subject");
+    } finally {
+      setSpSaving(false);
+    }
+  }
+
+  async function deleteSubjectPreset() {
+    if (!deleteSpId) return;
+
+    const { error } = await supabase
+      .from("school_level_subject_presets")
+      .delete()
+      .eq("id", deleteSpId);
+
+    if (error) {
+      toast.error(error.message || "Failed to delete level subject");
+    } else {
+      toast.success("Level subject deleted");
+      fetchSubjectPresets(selectedPresetLevelId);
+    }
+
+    setDeleteSpId(null);
+  }
+
+  async function toggleSubjectPresetActive(item: EducationLevelSubjectPreset) {
+    const { error } = await supabase
+      .from("school_level_subject_presets")
+      .update({ is_active: !item.is_active })
+      .eq("id", item.id);
+
+    if (error) {
+      toast.error(error.message || "Failed to update status");
+    } else {
+      setSubjectPresets((prev) =>
+        prev.map((row) => (row.id === item.id ? { ...row, is_active: !item.is_active } : row))
+      );
+    }
+  }
+
+  async function loadDefaultSubjectsForPresetLevel() {
+    if (!schoolId || !selectedPresetLevelId) {
+      toast.error("Select an education level first");
+      return;
+    }
+
+    const selectedLevel = educationLevels.find((level) => level.id === selectedPresetLevelId);
+    if (!selectedLevel) {
+      toast.error("Selected education level was not found");
+      return;
+    }
+
+    const defaults = getSubjectsForLevel(selectedLevel.name);
+    if (defaults.length === 0) {
+      toast.error(`No default subjects found for ${selectedLevel.name}`);
+      return;
+    }
+
+    const rows = defaults.map((subject, index) => ({
+      school_id: schoolId,
+      education_level_id: selectedPresetLevelId,
+      name: subject.name,
+      is_optional: Boolean(subject.isOptional),
+      order_sequence: index + 1,
+      is_active: true,
+    }));
+
+    const { error } = await supabase
+      .from("school_level_subject_presets")
+      .upsert(rows, { onConflict: "school_id,education_level_id,name", ignoreDuplicates: false });
+
+    if (error) {
+      toast.error(error.message || "Failed to load default subjects");
+      return;
+    }
+
+    toast.success(`Loaded ${rows.length} default subjects for ${selectedLevel.name}`);
+    fetchSubjectPresets(selectedPresetLevelId);
+  }
+
+  /* ═══════════════════════════════════════
      Effects — fetch on schoolId ready
   ═══════════════════════════════════════ */
   useEffect(() => {
@@ -580,6 +756,26 @@ export default function SchoolConfigPage() {
       fetchReligions();
     }
   }, [schoolId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (educationLevels.length === 0) {
+      if (selectedPresetLevelId) {
+        setSelectedPresetLevelId("");
+      }
+      return;
+    }
+
+    const stillExists = educationLevels.some((level) => level.id === selectedPresetLevelId);
+    if (!stillExists) {
+      setSelectedPresetLevelId(educationLevels[0].id);
+    }
+  }, [educationLevels, selectedPresetLevelId]);
+
+  useEffect(() => {
+    if (schoolId && selectedPresetLevelId) {
+      fetchSubjectPresets(selectedPresetLevelId);
+    }
+  }, [schoolId, selectedPresetLevelId, fetchSubjectPresets]);
 
   const isEmptySetup =
     !schoolLoading &&
@@ -710,6 +906,13 @@ export default function SchoolConfigPage() {
               Class Levels
               <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
                 {classLevels.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="subjects" className="gap-1.5">
+              <Library className="h-3.5 w-3.5" />
+              Subjects
+              <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                {subjectPresets.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="streams" className="gap-1.5">
@@ -994,6 +1197,148 @@ export default function SchoolConfigPage() {
                                   size="icon"
                                   className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
                                   onClick={() => setDeleteClId(cl.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ══════════════════════════════════════
+              TAB: SUBJECT PRESETS
+          ══════════════════════════════════════ */}
+          <TabsContent value="subjects" className="mt-4">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
+                <div>
+                  <h3 className="font-semibold text-sm">Education Level Subjects</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Set and edit initial subject templates per education level. Subject setup uses these presets first.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={selectedPresetLevelId} onValueChange={setSelectedPresetLevelId}>
+                    <SelectTrigger className="h-8 text-xs w-48">
+                      <SelectValue placeholder="Select education level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {educationLevels.map((el) => (
+                        <SelectItem key={el.id} value={el.id}>
+                          {el.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={loadDefaultSubjectsForPresetLevel}
+                    disabled={!selectedPresetLevelId}
+                  >
+                    Load Defaults
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingSp(null);
+                      setSpForm({
+                        ...blankSubjectPreset(),
+                        order_sequence: subjectPresets.length + 1,
+                      });
+                      setSpDialogOpen(true);
+                    }}
+                    disabled={!selectedPresetLevelId}
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add Subject
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                      <th className="px-4 py-2 text-left w-16">Order</th>
+                      <th className="px-4 py-2 text-left">Subject Name</th>
+                      <th className="px-4 py-2 text-left">Optional</th>
+                      <th className="px-4 py-2 text-left">Department</th>
+                      <th className="px-4 py-2 text-left">Religion</th>
+                      <th className="px-4 py-2 text-center">Active</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {!selectedPresetLevelId ? (
+                      <EmptyRow message="Select an education level to manage subject presets." />
+                    ) : spLoading ? (
+                      <LoadingRow />
+                    ) : subjectPresets.length === 0 ? (
+                      <EmptyRow message="No subjects configured for this level yet." />
+                    ) : (
+                      subjectPresets.map((preset) => {
+                        const department = departments.find((d) => d.id === preset.department_id);
+                        const religion = religions.find((r) => r.id === preset.religion_id);
+
+                        return (
+                          <tr key={preset.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-3 text-xs text-muted-foreground">{preset.order_sequence}</td>
+                            <td className="px-4 py-3 font-medium">{preset.name}</td>
+                            <td className="px-4 py-3">
+                              {preset.is_optional ? (
+                                <Badge variant="secondary" className="text-xs">Optional</Badge>
+                              ) : (
+                                <Badge className="text-xs">Core</Badge>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">
+                              {department?.name || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-muted-foreground">
+                              {religion?.name || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <Switch
+                                checked={preset.is_active}
+                                onCheckedChange={() => toggleSubjectPresetActive(preset)}
+                                className="scale-90"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => {
+                                    setEditingSp(preset);
+                                    setSpForm({
+                                      name: preset.name,
+                                      is_optional: preset.is_optional,
+                                      department_id: preset.department_id ?? "",
+                                      religion_id: preset.religion_id ?? "",
+                                      order_sequence: preset.order_sequence,
+                                      is_active: preset.is_active,
+                                    });
+                                    setSpDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => setDeleteSpId(preset.id)}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
@@ -1567,6 +1912,120 @@ export default function SchoolConfigPage() {
           </DialogContent>
         </Dialog>
 
+        {/* DIALOGS — Education Level Subject Preset */}
+        <Dialog open={spDialogOpen} onOpenChange={setSpDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingSp ? "Edit Level Subject" : "Add Level Subject"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveSubjectPreset} className="space-y-4">
+              <div>
+                <Label>Subject Name *</Label>
+                <Input
+                  value={spForm.name}
+                  onChange={(e) => setSpForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. English Language"
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Order Sequence</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={spForm.order_sequence}
+                  onChange={(e) =>
+                    setSpForm((f) => ({ ...f, order_sequence: Number(e.target.value) || 1 }))
+                  }
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Department</Label>
+                  <Select
+                    value={spForm.department_id || "none"}
+                    onValueChange={(value) =>
+                      setSpForm((f) => ({ ...f, department_id: value === "none" ? "" : value }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Optional department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No department</SelectItem>
+                      {departments.map((department) => (
+                        <SelectItem key={department.id} value={department.id}>
+                          {department.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Religion</Label>
+                  <Select
+                    value={spForm.religion_id || "none"}
+                    onValueChange={(value) =>
+                      setSpForm((f) => ({ ...f, religion_id: value === "none" ? "" : value }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Optional religion" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No religion</SelectItem>
+                      {religions.map((religion) => (
+                        <SelectItem key={religion.id} value={religion.id}>
+                          {religion.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md border p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Optional Subject</p>
+                    <p className="text-xs text-muted-foreground">Mark as optional in setup</p>
+                  </div>
+                  <Switch
+                    checked={spForm.is_optional}
+                    onCheckedChange={(checked) => setSpForm((f) => ({ ...f, is_optional: checked }))}
+                  />
+                </div>
+
+                <div className="rounded-md border p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Active</p>
+                    <p className="text-xs text-muted-foreground">Include in setup lists</p>
+                  </div>
+                  <Switch
+                    checked={spForm.is_active}
+                    onCheckedChange={(checked) => setSpForm((f) => ({ ...f, is_active: checked }))}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setSpDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={spSaving || !spForm.name.trim()}>
+                  {spSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingSp ? "Save Changes" : "Create Subject"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         {/* ═══════════════════════════════════════════════
             DELETE CONFIRM DIALOGS
         ═══════════════════════════════════════════════ */}
@@ -1668,6 +2127,26 @@ export default function SchoolConfigPage() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={deleteRl} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteSpId} onOpenChange={() => setDeleteSpId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delete Level Subject
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this preset subject? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteSubjectPreset} className="bg-red-600 hover:bg-red-700">
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>

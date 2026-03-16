@@ -93,6 +93,20 @@ export interface Religion {
   created_at: string;
 }
 
+export interface EducationLevelSubjectPreset {
+  id: string;
+  school_id: string;
+  education_level_id: string;
+  name: string;
+  is_optional: boolean;
+  department_id?: string | null;
+  religion_id?: string | null;
+  order_sequence: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Classes ────────────────────────────────────────────────────────────────
 
 export interface Class {

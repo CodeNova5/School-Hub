@@ -13,10 +13,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { Search, Wrench, ArrowRight, BookOpen, GraduationCap, CheckCircle2, AlertCircle, Zap, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { Department, Religion, Subject, Teacher } from "@/lib/types";
+import { Department, EducationLevelSubjectPreset, Religion, Subject, Teacher } from "@/lib/types";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { useSchoolConfig } from "@/hooks/use-school-config";
 import {
+  PredefinedSubject,
   getSubjectsForLevel,
   getSmartDepartmentId,
   getSmartReligionId,
@@ -60,7 +61,10 @@ type SetupSummary = {
   skippedAlreadyAssigned: number;
 };
 
-type SetupSubjectOption = ReturnType<typeof getSubjectsForLevel>[number];
+type SetupSubjectOption = PredefinedSubject & {
+  departmentId?: string | null;
+  religionId?: string | null;
+};
 
 type WizardClassConfig = {
   classId: string;
@@ -88,6 +92,7 @@ export default function SubjectsPage() {
   const [assignments, setAssignments] = useState<SubjectAssignmentRow[]>([]);
   const [educationLevels, setEducationLevels] = useState<EducationLevelOption[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [levelSubjectPresets, setLevelSubjectPresets] = useState<EducationLevelSubjectPreset[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [isRunningSetup, setIsRunningSetup] = useState(false);
@@ -129,6 +134,27 @@ export default function SubjectsPage() {
     [classes, selectedLevel]
   );
 
+  const configuredSubjectsForSelectedLevel = useMemo(() => {
+    if (!selectedLevel) {
+      return [] as SetupSubjectOption[];
+    }
+
+    return levelSubjectPresets
+      .filter((preset) => preset.education_level_id === selectedLevel.id && preset.is_active)
+      .sort((a, b) => {
+        if (a.order_sequence !== b.order_sequence) {
+          return a.order_sequence - b.order_sequence;
+        }
+        return a.name.localeCompare(b.name);
+      })
+      .map((preset) => ({
+        name: preset.name,
+        isOptional: preset.is_optional,
+        departmentId: preset.department_id,
+        religionId: preset.religion_id,
+      }));
+  }, [levelSubjectPresets, selectedLevel]);
+
   const validatedPredefined = useMemo(() => {
     if (!selectedLevel) {
       return {
@@ -137,9 +163,13 @@ export default function SubjectsPage() {
       };
     }
 
-    const predefined = getSubjectsForLevel(selectedLevel.name);
+    const predefined =
+      configuredSubjectsForSelectedLevel.length > 0
+        ? configuredSubjectsForSelectedLevel
+        : getSubjectsForLevel(selectedLevel.name);
+
     return validatePredefinedSubjectsForSchool(predefined, (religions || []) as Religion[]);
-  }, [selectedLevel, religions]);
+  }, [selectedLevel, religions, configuredSubjectsForSelectedLevel]);
 
   const predefinedPreview = useMemo(() => {
     if (!selectedLevel) {
@@ -261,6 +291,7 @@ export default function SubjectsPage() {
         classesResponse,
         assignmentsResponse,
         teachersResponse,
+        presetsResponse,
       ] = await Promise.all([
         supabase
           .from("school_education_levels")
@@ -301,6 +332,13 @@ export default function SubjectsPage() {
           .select("id, first_name, last_name")
           .eq("school_id", schoolId)
           .order("first_name", { ascending: true }),
+        supabase
+          .from("school_level_subject_presets")
+          .select("*")
+          .eq("school_id", schoolId)
+          .eq("is_active", true)
+          .order("order_sequence", { ascending: true })
+          .order("name", { ascending: true }),
       ]);
 
       if (levelsResponse.error) throw levelsResponse.error;
@@ -308,12 +346,14 @@ export default function SubjectsPage() {
       if (classesResponse.error) throw classesResponse.error;
       if (assignmentsResponse.error) throw assignmentsResponse.error;
       if (teachersResponse.error) throw teachersResponse.error;
+      if (presetsResponse.error) throw presetsResponse.error;
 
       setEducationLevels((levelsResponse.data || []) as EducationLevelOption[]);
       setSubjects((subjectsResponse.data || []) as Subject[]);
       setClasses((classesResponse.data || []) as ClassWithLevel[]);
       setAssignments((assignmentsResponse.data || []) as SubjectAssignmentRow[]);
       setTeachers((teachersResponse.data || []) as Teacher[]);
+      setLevelSubjectPresets((presetsResponse.data || []) as EducationLevelSubjectPreset[]);
     } catch (error) {
       console.error("Error loading subjects page:", error);
       toast.error("Failed to load subject setup data");
@@ -472,16 +512,18 @@ export default function SubjectsPage() {
           }
 
           if (!defaultDepartmentCache.has(subjectName)) {
+            const configuredDepartmentId = setupSubject?.departmentId?.trim() || "";
             defaultDepartmentCache.set(
               subjectName,
-              getSmartDepartmentId(subjectName, (departments || []) as Department[])
+              configuredDepartmentId || getSmartDepartmentId(subjectName, (departments || []) as Department[])
             );
           }
 
           if (!defaultReligionCache.has(subjectName)) {
+            const configuredReligionId = setupSubject?.religionId?.trim() || "";
             defaultReligionCache.set(
               subjectName,
-              getSmartReligionId(subjectName, (religions || []) as Religion[])
+              configuredReligionId || getSmartReligionId(subjectName, (religions || []) as Religion[])
             );
           }
 

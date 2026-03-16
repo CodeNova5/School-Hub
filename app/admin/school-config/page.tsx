@@ -51,6 +51,7 @@ import {
   ChevronDown,
   AlertTriangle,
   Loader2,
+  Library,
 } from "lucide-react";
 import type {
   EducationLevel,
@@ -58,6 +59,7 @@ import type {
   Stream,
   Department,
   Religion,
+  Subject,
 } from "@/lib/types";
 
 /* ─────────────────────────────────────────────
@@ -66,6 +68,7 @@ import type {
 const blankEL = () => ({ name: "", code: "", description: "", order_sequence: 1 });
 const blankCL = () => ({ name: "", education_level_id: "", order_sequence: 1 });
 const blankSimple = () => ({ name: "", code: "", description: "" });
+const blankSubject = () => ({ name: "", subject_code: "", education_level_id: "" as string, department_id: "", religion_id: "", is_optional: false });
 
 /* ─────────────────────────────────────────────
    Stat card
@@ -569,6 +572,96 @@ export default function SchoolConfigPage() {
   }
 
   /* ═══════════════════════════════════════
+     SUBJECTS
+  ═══════════════════════════════════════ */
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [sbLoading, setSbLoading] = useState(false);
+  const [sbDialogOpen, setSbDialogOpen] = useState(false);
+  const [editingSb, setEditingSb] = useState<Subject | null>(null);
+  const [deleteSbId, setDeleteSbId] = useState<string | null>(null);
+  const [sbForm, setSbForm] = useState(blankSubject());
+  const [sbSaving, setSbSaving] = useState(false);
+
+  const fetchSubjects = useCallback(async () => {
+    if (!schoolId) return;
+    setSbLoading(true);
+    const { data, error } = await supabase
+      .from("subjects")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("name", { ascending: true });
+    if (error) toast.error("Failed to load subjects");
+    else setSubjects(data ?? []);
+    setSbLoading(false);
+  }, [schoolId]);
+
+  async function saveSb(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId) return;
+    setSbSaving(true);
+    try {
+      if (editingSb) {
+        const { error } = await supabase
+          .from("subjects")
+          .update({
+            name: sbForm.name.trim(),
+            subject_code: sbForm.subject_code?.trim() || null,
+            education_level_id: sbForm.education_level_id || null,
+            department_id: sbForm.department_id || null,
+            religion_id: sbForm.religion_id || null,
+            is_optional: sbForm.is_optional,
+          })
+          .eq("id", editingSb.id);
+        if (error) throw error;
+        toast.success("Subject updated");
+      } else {
+        const { error } = await supabase.from("subjects").insert({
+          school_id: schoolId,
+          name: sbForm.name.trim(),
+          subject_code: sbForm.subject_code?.trim() || null,
+          education_level_id: sbForm.education_level_id || null,
+          department_id: sbForm.department_id || null,
+          religion_id: sbForm.religion_id || null,
+          is_optional: sbForm.is_optional,
+          is_active: true,
+        });
+        if (error) throw error;
+        toast.success("Subject created");
+      }
+      setSbDialogOpen(false);
+      setEditingSb(null);
+      setSbForm(blankSubject());
+      fetchSubjects();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save");
+    } finally {
+      setSbSaving(false);
+    }
+  }
+
+  async function deleteSb() {
+    if (!deleteSbId) return;
+    const { error } = await supabase.from("subjects").delete().eq("id", deleteSbId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Subject deleted");
+      fetchSubjects();
+    }
+    setDeleteSbId(null);
+  }
+
+  async function toggleSbActive(item: Subject) {
+    const { error } = await supabase
+      .from("subjects")
+      .update({ is_active: !item.is_active })
+      .eq("id", item.id);
+    if (error) toast.error(error.message);
+    else setSubjects((prev) =>
+      prev.map((s) => (s.id === item.id ? { ...s, is_active: !item.is_active } : s))
+    );
+  }
+
+  /* ═══════════════════════════════════════
      Effects — fetch on schoolId ready
   ═══════════════════════════════════════ */
   useEffect(() => {
@@ -578,6 +671,7 @@ export default function SchoolConfigPage() {
       fetchStreams();
       fetchDepartments();
       fetchReligions();
+      fetchSubjects();
     }
   }, [schoolId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -587,7 +681,8 @@ export default function SchoolConfigPage() {
     classLevels.length === 0 &&
     streams.length === 0 &&
     departments.length === 0 &&
-    religions.length === 0;
+    religions.length === 0 &&
+    subjects.length === 0;
 
   /* ─────────────────────────────────────────
      Reusable table/list utilities
@@ -731,6 +826,13 @@ export default function SchoolConfigPage() {
               Religions
               <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
                 {religions.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="subjects" className="gap-1.5">
+              <Library className="h-3.5 w-3.5" />
+              Subjects
+              <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                {subjects.length}
               </Badge>
             </TabsTrigger>
           </TabsList>
@@ -1295,6 +1397,131 @@ export default function SchoolConfigPage() {
               </div>
             </div>
           </TabsContent>
+
+          {/* ══════════════════════════════════════
+              TAB: SUBJECTS
+          ══════════════════════════════════════ */}
+          <TabsContent value="subjects" className="mt-4">
+            <div className="rounded-xl border bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+                <div>
+                  <h3 className="font-semibold text-sm">Subjects</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Manage subjects available in your school
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingSb(null);
+                    setSbForm(blankSubject());
+                    setSbDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-1" /> Add Subject
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                      <th className="px-4 py-2 text-left">Name</th>
+                      <th className="px-4 py-2 text-left">Code</th>
+                      <th className="px-4 py-2 text-left hidden md:table-cell">Level</th>
+                      <th className="px-4 py-2 text-left hidden lg:table-cell">Department</th>
+                      <th className="px-4 py-2 text-left hidden lg:table-cell">Religion</th>
+                      <th className="px-4 py-2 text-center">Optional</th>
+                      <th className="px-4 py-2 text-center">Active</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {sbLoading ? (
+                      <LoadingRow />
+                    ) : subjects.length === 0 ? (
+                      <EmptyRow message="No subjects yet. Click 'Add Subject' to get started." />
+                    ) : (
+                      subjects.map((subject) => {
+                        const appLevel = educationLevels.find(el => el.id === subject.education_level_id);
+                        const appDept = departments.find(d => d.id === subject.department_id);
+                        const appRelig = religions.find(r => r.id === subject.religion_id);
+
+                        return (
+                          <tr key={subject.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-3 font-medium">{subject.name}</td>
+                            <td className="px-4 py-3">
+                              {subject.subject_code ? (
+                                <Badge variant="outline" className="text-xs font-mono">
+                                  {subject.subject_code}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
+                              {appLevel?.name || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
+                              {appDept?.name || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell">
+                              {appRelig?.name || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {subject.is_optional ? (
+                                <Badge variant="secondary" className="text-xs">Optional</Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">Core</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <Switch
+                                checked={subject.is_active}
+                                onCheckedChange={() => toggleSbActive(subject)}
+                                className="scale-90"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => {
+                                    setEditingSb(subject);
+                                    setSbForm({
+                                      name: subject.name,
+                                      subject_code: subject.subject_code ?? "",
+                                      education_level_id: subject.education_level_id ?? "",
+                                      department_id: subject.department_id ?? "",
+                                      religion_id: subject.religion_id ?? "",
+                                      is_optional: subject.is_optional,
+                                    });
+                                    setSbDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => setDeleteSbId(subject.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
         </Tabs>
 
         {/* ═══════════════════════════════════════════════
@@ -1567,6 +1794,110 @@ export default function SchoolConfigPage() {
           </DialogContent>
         </Dialog>
 
+        {/* DIALOGS — Subject */}
+        <Dialog open={sbDialogOpen} onOpenChange={setSbDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingSb ? "Edit Subject" : "Add Subject"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveSb} className="space-y-4">
+              <div>
+                <Label>Subject Name *</Label>
+                <Input
+                  value={sbForm.name}
+                  onChange={(e) => setSbForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. English Language"
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Subject Code</Label>
+                <Input
+                  value={sbForm.subject_code}
+                  onChange={(e) => setSbForm((f) => ({ ...f, subject_code: e.target.value }))}
+                  placeholder="e.g. ENG-101"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Education Level</Label>
+                <Select
+                  value={sbForm.education_level_id}
+                  onValueChange={(v) => setSbForm((f) => ({ ...f, education_level_id: v }))}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select level (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {educationLevels.map((el) => (
+                      <SelectItem key={el.id} value={el.id}>
+                        {el.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Department</Label>
+                <Select
+                  value={sbForm.department_id}
+                  onValueChange={(v) => setSbForm((f) => ({ ...f, department_id: v }))}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select department (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Religion</Label>
+                <Select
+                  value={sbForm.religion_id}
+                  onValueChange={(v) => setSbForm((f) => ({ ...f, religion_id: v }))}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select religion (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {religions.map((relig) => (
+                      <SelectItem key={relig.id} value={relig.id}>
+                        {relig.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={sbForm.is_optional}
+                  onCheckedChange={(checked) => setSbForm((f) => ({ ...f, is_optional: checked }))}
+                  className="scale-90"
+                />
+                <Label className="font-normal cursor-pointer">Optional Subject</Label>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setSbDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={sbSaving || !sbForm.name.trim()}>
+                  {sbSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingSb ? "Save Changes" : "Create Subject"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         {/* ═══════════════════════════════════════════════
             DELETE CONFIRM DIALOGS
         ═══════════════════════════════════════════════ */}
@@ -1668,6 +1999,26 @@ export default function SchoolConfigPage() {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={deleteRl} className="bg-red-600 hover:bg-red-700">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!deleteSbId} onOpenChange={() => setDeleteSbId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+                Delete Subject
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this subject? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={deleteSb} className="bg-red-600 hover:bg-red-700">
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>

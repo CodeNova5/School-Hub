@@ -57,7 +57,9 @@ const LEVEL_SUBJECTS = {
     { name: "Computer Studies", isOptional: true },
     { name: "Music", isOptional: true },
     { name: "Visual Arts", isOptional: true },
-    { name: "Religious Studies", isOptional: true },
+    { name: "Christian Religious Studies", category: "religion" },
+    { name: "Islamic Religious Studies", category: "religion" },
+    { name: "French Language", isOptional: true },
     { name: "Arabic Language", isOptional: true },
   ],
 
@@ -117,8 +119,8 @@ const LEVEL_SUBJECTS = {
     { name: "Business Studies", isOptional: true },
 
     // Religious Studies
-    { name: "Christian Religious Studies", isOptional: true, category: "religion" },
-    { name: "Islamic Religious Studies", isOptional: true, category: "religion" },
+    { name: "Christian Religious Studies", category: "religion" },
+    { name: "Islamic Religious Studies", category: "religion" },
   ],
 };
 

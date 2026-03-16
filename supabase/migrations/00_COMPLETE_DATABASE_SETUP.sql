@@ -11,7 +11,6 @@ DROP TABLE IF EXISTS assignments CASCADE;
 DROP TABLE IF EXISTS attendance CASCADE;
 DROP TABLE IF EXISTS student_optional_subjects CASCADE;
 DROP TABLE IF EXISTS student_subjects CASCADE;
-DROP TABLE IF EXISTS subject_assignments CASCADE;
 DROP TABLE IF EXISTS subject_classes CASCADE;
 DROP TABLE IF EXISTS results CASCADE;
 DROP TABLE IF EXISTS students CASCADE;
@@ -370,20 +369,6 @@ CREATE TABLE IF NOT EXISTS student_optional_subjects (
 
 CREATE INDEX IF NOT EXISTS idx_student_optional_subjects_student ON student_optional_subjects(student_id);
 CREATE INDEX IF NOT EXISTS idx_student_optional_subjects_subject ON student_optional_subjects(subject_id);
-
--- SUBJECT_ASSIGNMENTS TABLE
-CREATE TABLE IF NOT EXISTS subject_assignments (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  subject_id uuid REFERENCES subjects(id) ON DELETE CASCADE,
-  teacher_id uuid REFERENCES teachers(id) ON DELETE CASCADE,
-  class_id uuid REFERENCES classes(id) ON DELETE CASCADE,
-  session_id uuid REFERENCES sessions(id) ON DELETE SET NULL,
-  created_at timestamptz DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_subject_assignments_subject ON subject_assignments(subject_id);
-CREATE INDEX IF NOT EXISTS idx_subject_assignments_teacher ON subject_assignments(teacher_id);
-CREATE INDEX IF NOT EXISTS idx_subject_assignments_class ON subject_assignments(class_id);
 
 -- ATTENDANCE TABLE
 CREATE TABLE IF NOT EXISTS attendance (
@@ -927,7 +912,6 @@ ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subject_classes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE subject_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE assignment_submissions ENABLE ROW LEVEL SECURITY;

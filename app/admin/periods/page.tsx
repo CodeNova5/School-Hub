@@ -3,10 +3,11 @@
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Edit, Trash2, AlertCircle, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, AlertCircle, Clock, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
+import { PeriodsSetupWizard } from '@/components/periods-setup-wizard';
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,7 @@ export default function PeriodsPage() {
   const { schoolId } = useSchoolContext();
   const [periods, setPeriods] = useState<PeriodSlot[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [editingPeriod, setEditingPeriod] = useState<PeriodSlot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -252,10 +254,16 @@ export default function PeriodsPage() {
             <h1 className="text-3xl font-bold">Period Management</h1>
             <p className="text-gray-600 mt-2">Configure school period times and breaks</p>
           </div>
-          <Button onClick={openAddDialog} className="gap-2">
-            <Plus size={20} />
-            Add Period
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsWizardOpen(true)} className="gap-2 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700">
+              <Zap size={20} />
+              Quick Setup
+            </Button>
+            <Button onClick={openAddDialog} className="gap-2">
+              <Plus size={20} />
+              Add Period
+            </Button>
+          </div>
         </div>
 
         {/* Error Alert */}
@@ -523,6 +531,16 @@ export default function PeriodsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Periods Setup Wizard */}
+      <PeriodsSetupWizard
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        onComplete={() => {
+          setIsWizardOpen(false);
+          fetchPeriods();
+        }}
+      />
     </DashboardLayout>
   );
 }

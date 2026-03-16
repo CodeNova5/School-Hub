@@ -79,8 +79,6 @@ ALTER TABLE period_slots ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES scho
 ALTER TABLE timetable_entries ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
 -- Subject Classes
 ALTER TABLE subject_classes ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
--- Subject Assignments
-ALTER TABLE subject_assignments ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
 -- Student Subjects
 ALTER TABLE student_subjects ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
 -- Student Optional Subjects
@@ -169,8 +167,6 @@ BEGIN
   UPDATE timetable_entries SET school_id = default_school_id WHERE school_id IS NULL;
   -- Subject Classes
   UPDATE subject_classes SET school_id = default_school_id WHERE school_id IS NULL;
-  -- Subject Assignments
-  UPDATE subject_assignments SET school_id = default_school_id WHERE school_id IS NULL;
   -- Student Subjects
   UPDATE student_subjects SET school_id = default_school_id WHERE school_id IS NULL;
   -- Student Optional Subjects
@@ -226,7 +222,7 @@ ALTER TABLE timetable_entries ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE subject_classes ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE results_publication ALTER COLUMN school_id SET NOT NULL;
 -- Note: assignment_submissions, submissions, student_subjects,
--- student_optional_subjects, subject_assignments, notification_tokens
+-- student_optional_subjects,  notification_tokens
 -- are left nullable as they derive context from their parent tables.
 
 -- ============================================================================
@@ -770,22 +766,6 @@ CREATE POLICY "School users can read subject_classes"
 
 CREATE POLICY "Admins can manage subject_classes"
   ON subject_classes FOR ALL
-  TO authenticated
-  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
-
--- -------------------- SUBJECT_ASSIGNMENTS --------------------
-DROP POLICY IF EXISTS "Authenticated users can read subject_assignments" ON subject_assignments;
-DROP POLICY IF EXISTS "Admins can manage subject_assignments"            ON subject_assignments;
-DROP POLICY IF EXISTS "School users can read subject_assignments"        ON subject_assignments;
-
-CREATE POLICY "School users can read subject_assignments"
-  ON subject_assignments FOR SELECT
-  TO authenticated
-  USING (is_super_admin() OR school_id = get_my_school_id());
-
-CREATE POLICY "Admins can manage subject_assignments"
-  ON subject_assignments FOR ALL
   TO authenticated
   USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
   WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));

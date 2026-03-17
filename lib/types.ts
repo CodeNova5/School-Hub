@@ -215,6 +215,7 @@ export interface Result {
 
 export interface Student {
   id: string;
+  school_id?: string;
   user_id?: string;
   student_id: string;
   first_name: string;
@@ -222,9 +223,11 @@ export interface Student {
   email: string;
   phone: string;
   date_of_birth?: string;
-  gender: string;
+  gender: 'male' | 'female' | 'others' | '';
   address: string;
   class_id?: string;
+  department_id?: string | null;
+  religion_id?: string | null;
   department?: string;
   parent_name: string;
   parent_email: string;

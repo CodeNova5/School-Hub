@@ -185,7 +185,8 @@ export async function POST(req: Request) {
       gender: studentData.gender || null,
       address: studentData.address || null,
       class_id: studentData.class_id || null,
-      department: studentData.department || null,
+      department_id: studentData.department_id || null,
+      religion_id: studentData.religion_id || null,
       parent_name: studentData.parent_name,
       parent_email: studentData.parent_email,
       parent_phone: studentData.parent_phone || null,
@@ -262,8 +263,8 @@ export async function POST(req: Request) {
           subjects (
             id,
             name,
-            department,
-            religion,
+            department_id,
+            religion_id,
             is_optional
           )
         `)
@@ -273,14 +274,14 @@ export async function POST(req: Request) {
         const eligibleSubjectClasses = subjectClassesData.filter((sc: any) => {
           const subject = Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects;
 
-          if (subject.department && studentData.department) {
-            if (subject.department !== studentData.department) {
+          if (subject.department_id && studentData.department_id) {
+            if (subject.department_id !== studentData.department_id) {
               return false;
             }
           }
 
-          if (subject.religion && studentData.religion) {
-            if (subject.religion !== studentData.religion) {
+          if (subject.religion_id && studentData.religion_id) {
+            if (subject.religion_id !== studentData.religion_id) {
               return false;
             }
           }

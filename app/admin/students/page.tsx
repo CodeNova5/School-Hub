@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { Student, Session, Term, Class } from '@/lib/types';
+import { Student, Session, Term, Class, Department } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
 import { EditStudentModal } from '@/components/edit-student-modal';
@@ -31,6 +31,7 @@ export default function AdminStudentsPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
@@ -60,7 +61,7 @@ export default function AdminStudentsPage() {
     gender: '',
     address: '',
     class_id: '',
-    department: '',
+    department_id: '',
     parent_name: '',
     parent_email: '',
     parent_phone: '',
@@ -125,7 +126,7 @@ export default function AdminStudentsPage() {
     }
 
     if (filterDepartment) {
-      filtered = filtered.filter((s) => s.department === filterDepartment);
+      filtered = filtered.filter((s) => s.department_id === filterDepartment);
     }
 
     if (filterGender) {
@@ -151,22 +152,26 @@ export default function AdminStudentsPage() {
       }
 
       // Use Supabase client instead of API - ALL queries now filter by school_id
-      const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }] = await Promise.all([
+      const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }, { data: departmentsList, error: departmentsError }] = await Promise.all([
         supabase.from('students').select('*').eq('school_id', schoolId).order('first_name', { ascending: true }),
         supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
         supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
         supabase.from('classes').select('*').eq('school_id', schoolId).order('name', { ascending: true }),
+        supabase.from('school_departments').select('*').eq('school_id', schoolId).eq('is_active', true).order('name', { ascending: true }),
       ]);
 
-      if (studentsError || sessionsError || termsError || classesError) {
+      if (studentsError || sessionsError || termsError || classesError || departmentsError) {
         throw new Error(
           studentsError?.message ||
           sessionsError?.message ||
           termsError?.message ||
           classesError?.message ||
+          departmentsError?.message ||
           'Unknown error'
         );
       }
+
+      const departmentMap = new Map((departmentsList || []).map((d: Department) => [d.id, d.name]));
 
       const studentIds = (studentList || []).map((s: Student) => s.id).filter(Boolean);
 
@@ -201,8 +206,13 @@ export default function AdminStudentsPage() {
           (r: AttendanceRecord) => r.status === "present" || r.status === "late" || r.status === "excused"
         ).length;
 
+        const resolvedDepartmentName = student.department_id
+          ? departmentMap.get(student.department_id)
+          : null;
+
         return {
           ...student,
+          department: student.department || resolvedDepartmentName || undefined,
           average_attendance: total === 0 ? 0 : Math.round((present / total) * 100),
           total_attendance: total,
         };
@@ -212,6 +222,7 @@ export default function AdminStudentsPage() {
       setSessions(sessionsList || []);
       setTerms(termsList || []);
       setClasses(classList || []);
+      setDepartments(departmentsList || []);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
     } finally {
@@ -420,7 +431,7 @@ export default function AdminStudentsPage() {
         gender: '',
         address: '',
         class_id: '',
-        department: '',
+        department_id: '',
         parent_name: '',
         parent_email: '',
         parent_phone: '',
@@ -466,7 +477,7 @@ export default function AdminStudentsPage() {
     ? students.filter((s) => new Date(s.admission_date) >= currentTermStartDate).length
     : 0;
 
-  const uniqueDepartments = Array.from(new Set(students.map((s) => s.department).filter(Boolean)));
+  const uniqueDepartments = departments;
 
   if (schoolLoading || isLoading) {
     return (
@@ -575,6 +586,7 @@ export default function AdminStudentsPage() {
                           <option value="">Select gender</option>
                           <option value="male">Male</option>
                           <option value="female">Female</option>
+                          <option value="others">Others</option>
                         </select>
                       </div>
                       <div>
@@ -610,17 +622,19 @@ export default function AdminStudentsPage() {
                         </select>
                       </div>
                       <div>
-                        <Label htmlFor="department">Department</Label>
+                        <Label htmlFor="department_id">Department</Label>
                         <select
-                          id="department"
-                          value={formData.department}
-                          onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                          id="department_id"
+                          value={formData.department_id}
+                          onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
                           className="w-full px-3 py-2 border rounded-md"
                         >
                           <option value="">Select department</option>
-                          <option value="Science">Science</option>
-                          <option value="Arts">Arts</option>
-                          <option value="Commercial">Commercial</option>
+                          {departments.map((dept) => (
+                            <option key={dept.id} value={dept.id}>
+                              {dept.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -780,8 +794,8 @@ export default function AdminStudentsPage() {
               >
                 <option value="">All Departments</option>
                 {uniqueDepartments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
                   </option>
                 ))}
               </select>
@@ -794,6 +808,7 @@ export default function AdminStudentsPage() {
                 <option value="">All Genders</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
+                <option value="others">Others</option>
               </select>
 
               <select

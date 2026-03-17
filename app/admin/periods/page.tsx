@@ -122,10 +122,20 @@ export default function PeriodsPage() {
   function validateForm(): string | null {
     if (!formDay) return 'Please select a day';
     
-    // Validate period number - must be a positive integer
-    const periodNum = parseInt(formPeriodNumber);
-    if (!formPeriodNumber || isNaN(periodNum) || periodNum <= 0) {
-      return 'Period number must be a positive integer';
+    // Validate period number - must be a positive integer between 1-20
+    const periodNum = parseInt(formPeriodNumber, 10);
+    
+    // Check if period number is valid
+    if (!formPeriodNumber || formPeriodNumber.trim() === '') {
+      return 'Period number is required';
+    }
+    
+    if (isNaN(periodNum)) {
+      return 'Period number must be a valid number';
+    }
+    
+    if (periodNum <= 0 || periodNum > 20) {
+      return 'Period number must be between 1 and 20';
     }
     
     if (!formStartTime) return 'Please enter start time';
@@ -144,7 +154,7 @@ export default function PeriodsPage() {
     );
 
     if (isDuplicate) {
-      return `Period ${formPeriodNumber} already exists for ${formDay}`;
+      return `Period ${periodNum} already exists for ${formDay}`;
     }
 
     return null;
@@ -160,14 +170,25 @@ export default function PeriodsPage() {
     }
 
     try {
+      const periodNum = parseInt(formPeriodNumber, 10);
+      
+      // Final safety check before sending
+      if (isNaN(periodNum) || periodNum <= 0 || periodNum > 20) {
+        toast.error('Invalid period number. Must be between 1 and 20');
+        return;
+      }
+
       const payload = {
         school_id: schoolId,
         day_of_week: formDay,
-        period_number: parseInt(formPeriodNumber),
+        period_number: periodNum,
         start_time: formStartTime,
         end_time: formEndTime,
         is_break: formIsBreak,
       };
+
+      // Debug log
+      console.log('Submitting period with payload:', payload);
 
       if (editingPeriod) {
         // Update
@@ -193,6 +214,7 @@ export default function PeriodsPage() {
       await fetchPeriods();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save period';
+      console.error('Period submission error:', err);
       toast.error(message);
     }
   }
@@ -465,9 +487,28 @@ export default function PeriodsPage() {
                 step="1"
                 value={formPeriodNumber}
                 onChange={(e) => {
+                  let val = e.target.value;
+                  
+                  // Allow empty for now
+                  if (val === '') {
+                    setFormPeriodNumber('');
+                    return;
+                  }
+                  
                   // Only allow positive integers
-                  const val = e.target.value;
-                  if (val === '' || /^\d+$/.test(val)) {
+                  if (!/^\d+$/.test(val)) {
+                    return; // Don't update if not numeric
+                  }
+                  
+                  // Parse to ensure it's numeric
+                  const num = parseInt(val, 10);
+                  
+                  // Enforce range
+                  if (num > 20) {
+                    setFormPeriodNumber('20');
+                  } else if (num < 1 && val !== '') {
+                    setFormPeriodNumber('1');
+                  } else {
                     setFormPeriodNumber(val);
                   }
                 }}

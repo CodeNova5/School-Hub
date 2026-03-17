@@ -231,20 +231,31 @@ export function PeriodsSetupWizard({
     setSaving(true);
 
     try {
-      // Filter selected periods and format for database
-      const periodsToSave = generatedPeriods
-        .filter((p) => {
-          const key = `${p.day_of_week}-${p.period_number}-${p.start_time}`;
-          return selectedPeriods.has(key);
-        })
-        .map((p) => ({
+      // Filter selected periods first.
+      const selected = generatedPeriods.filter((p) => {
+        const key = `${p.day_of_week}-${p.period_number}-${p.start_time}`;
+        return selectedPeriods.has(key);
+      });
+
+      // Re-number periods per day in time order so DB check (1..20) is always satisfied.
+      const periodsToSave = DAYS.flatMap((day) => {
+        const dayPeriods = selected
+          .filter((p) => p.day_of_week === day)
+          .sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+        if (dayPeriods.length > 20) {
+          throw new Error(`Too many slots on ${day}. Maximum allowed is 20.`);
+        }
+
+        return dayPeriods.map((p, index) => ({
           school_id: schoolId,
           day_of_week: p.day_of_week,
-          period_number: p.is_break ? 0 : p.period_number,
+          period_number: index + 1,
           start_time: p.start_time,
           end_time: p.end_time,
           is_break: p.is_break,
         }));
+      });
 
       if (periodsToSave.length === 0) {
         toast.error("Please select periods to save");

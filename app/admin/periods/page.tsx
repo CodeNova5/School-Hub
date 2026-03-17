@@ -123,19 +123,27 @@ export default function PeriodsPage() {
     if (!formDay) return 'Please select a day';
     
     // Validate period number - must be a positive integer between 1-20
-    const periodNum = parseInt(formPeriodNumber, 10);
+    const periodStr = formPeriodNumber.trim();
     
-    // Check if period number is valid
-    if (!formPeriodNumber || formPeriodNumber.trim() === '') {
+    // Check if period number is empty
+    if (!periodStr) {
       return 'Period number is required';
     }
     
-    if (isNaN(periodNum)) {
-      return 'Period number must be a valid number';
+    // Check if it's a valid integer
+    if (!/^\d+$/.test(periodStr)) {
+      return 'Period number must be a whole number';
     }
     
-    if (periodNum <= 0 || periodNum > 20) {
-      return 'Period number must be between 1 and 20';
+    const periodNum = parseInt(periodStr, 10);
+    
+    // Check range
+    if (periodNum < 1) {
+      return 'Period number must be at least 1';
+    }
+    
+    if (periodNum > 20) {
+      return 'Period number cannot exceed 20';
     }
     
     if (!formStartTime) return 'Please enter start time';
@@ -170,11 +178,23 @@ export default function PeriodsPage() {
     }
 
     try {
+      // Ensure period number is valid - must be a non-empty string first
+      if (!formPeriodNumber || formPeriodNumber.trim() === '') {
+        toast.error('Period number is required');
+        return;
+      }
+
       const periodNum = parseInt(formPeriodNumber, 10);
       
       // Final safety check before sending
       if (isNaN(periodNum) || periodNum <= 0 || periodNum > 20) {
         toast.error('Invalid period number. Must be between 1 and 20');
+        return;
+      }
+
+      // Validate schoolId is present
+      if (!schoolId) {
+        toast.error('School ID is missing');
         return;
       }
 
@@ -188,7 +208,7 @@ export default function PeriodsPage() {
       };
 
       // Debug log
-      console.log('Submitting period with payload:', payload);
+      console.log('Submitting period with payload:', payload, 'Type of period_number:', typeof payload.period_number);
 
       if (editingPeriod) {
         // Update
@@ -489,13 +509,13 @@ export default function PeriodsPage() {
                 onChange={(e) => {
                   let val = e.target.value;
                   
-                  // Allow empty for now
+                  // Allow empty temporarily for user to clear and re-enter
                   if (val === '') {
                     setFormPeriodNumber('');
                     return;
                   }
                   
-                  // Only allow positive integers
+                  // Only allow positive integers (no decimals, no negatives)
                   if (!/^\d+$/.test(val)) {
                     return; // Don't update if not numeric
                   }
@@ -503,12 +523,14 @@ export default function PeriodsPage() {
                   // Parse to ensure it's numeric
                   const num = parseInt(val, 10);
                   
-                  // Enforce range
+                  // Enforce range: 1-20
                   if (num > 20) {
                     setFormPeriodNumber('20');
-                  } else if (num < 1 && val !== '') {
+                  } else if (num < 1) {
+                    // If user types 0 or negative, default to 1
                     setFormPeriodNumber('1');
                   } else {
+                    // Valid number in range
                     setFormPeriodNumber(val);
                   }
                 }}

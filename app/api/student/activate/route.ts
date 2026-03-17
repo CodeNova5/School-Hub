@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     // 2️⃣ Find student by activation token
     const { data: student, error } = await supabase
       .from("students")
-      .select("id, email, activation_used, activation_expires_at")
+      .select("id, email, student_id, first_name, last_name, activation_used, activation_expires_at")
       .eq("activation_token_hash", tokenHash)
       .single();
 
@@ -87,6 +87,13 @@ export async function POST(req: Request) {
         email: student.email,
         email_confirm: false,
         password: password,
+        user_metadata: {
+          role: "student",
+          student_id: student.student_id,
+          first_name: student.first_name,
+          last_name: student.last_name,
+          name: `${student.first_name} ${student.last_name}`.trim(),
+        },
       });
 
       if (createError) {
@@ -102,7 +109,18 @@ export async function POST(req: Request) {
     // 4️⃣ Set password and confirm email
     const { error: updateError } = await supabase.auth.admin.updateUserById(
       user.id,
-      { password, email_confirm: true }
+      {
+        password,
+        email_confirm: true,
+        user_metadata: {
+          ...(user.user_metadata || {}),
+          role: "student",
+          student_id: student.student_id,
+          first_name: student.first_name,
+          last_name: student.last_name,
+          name: `${student.first_name} ${student.last_name}`.trim(),
+        },
+      }
     );
 
     if (updateError) {

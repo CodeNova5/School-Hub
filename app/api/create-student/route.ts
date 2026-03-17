@@ -88,6 +88,9 @@ export async function POST(req: Request) {
         user_metadata: {
           role: "student",
           student_id: generatedStudentId,
+          first_name: studentData.first_name,
+          last_name: studentData.last_name,
+          name: `${studentData.first_name} ${studentData.last_name}`.trim(),
         },
       });
 

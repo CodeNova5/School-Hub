@@ -121,7 +121,13 @@ export default function PeriodsPage() {
 
   function validateForm(): string | null {
     if (!formDay) return 'Please select a day';
-    if (!formPeriodNumber || parseInt(formPeriodNumber) <= 0) return 'Period number must be positive';
+    
+    // Validate period number - must be a positive integer
+    const periodNum = parseInt(formPeriodNumber);
+    if (!formPeriodNumber || isNaN(periodNum) || periodNum <= 0) {
+      return 'Period number must be a positive integer';
+    }
+    
     if (!formStartTime) return 'Please enter start time';
     if (!formEndTime) return 'Please enter end time';
 
@@ -133,7 +139,7 @@ export default function PeriodsPage() {
     const isDuplicate = periods.some(
       (p) =>
         p.day_of_week === formDay &&
-        p.period_number === parseInt(formPeriodNumber) &&
+        p.period_number === periodNum &&
         (!editingPeriod || p.id !== editingPeriod.id)
     );
 
@@ -455,13 +461,21 @@ export default function PeriodsPage() {
                 id="period_number"
                 type="number"
                 min="1"
+                max="20"
+                step="1"
                 value={formPeriodNumber}
-                onChange={(e) => setFormPeriodNumber(e.target.value)}
+                onChange={(e) => {
+                  // Only allow positive integers
+                  const val = e.target.value;
+                  if (val === '' || /^\d+$/.test(val)) {
+                    setFormPeriodNumber(val);
+                  }
+                }}
                 placeholder="1"
                 className="mt-2"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Sequential number for this period on the selected day
+                Sequential number for this period on the selected day (1-20)
               </p>
             </div>
 

@@ -5,10 +5,56 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import crypto from "crypto";
 
+type MailPayload = {
+  to: string;
+  subject: string;
+  html: string;
+};
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+function getMailTransporter() {
+  const host = process.env.EMAIL_HOST || "smtp.gmail.com";
+  const port = Number(process.env.EMAIL_PORT || "587");
+  const secure = process.env.EMAIL_SECURE === "true" || port === 465;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    requireTLS: !secure, 
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
+  });
+}
+
+async function sendEmailSafe(payload: MailPayload): Promise<string | null> {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    return "Email not configured (missing EMAIL_USER/EMAIL_PASS).";
+  }
+
+  try {
+    const transporter = getMailTransporter();
+    await transporter.sendMail({
+      from: `"School Hub" <${process.env.EMAIL_USER}>`,
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+    });
+    return null;
+  } catch (error: any) {
+    console.error("Email delivery failed:", error);
+    return error?.message || "Unknown email delivery error";
+  }
+}
 
 /**
  * Resolve the school_id for the admin making the request.
@@ -59,6 +105,7 @@ async function generateUniqueStudentId(): Promise<string> {
 export async function POST(req: Request) {
   try {
     const studentData = await req.json();
+    const warnings: string[] = [];
 
     // Resolve school_id: prefer explicit body param (internal calls), else from caller session
     let schoolId: string | null = studentData.school_id ?? null;
@@ -135,7 +182,7 @@ export async function POST(req: Request) {
         .digest("hex");
 
       // Create parent record
-      await supabase.from("parents").insert({
+      const { error: parentInsertError } = await supabase.from("parents").insert({
         user_id: parentUserId,
         email: studentData.parent_email,
         name: studentData.parent_name,
@@ -147,35 +194,10 @@ export async function POST(req: Request) {
         school_id: schoolId,
       });
 
-      // Send activation email to parent
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
+      if (parentInsertError) throw parentInsertError;
 
-      const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/parent/activate?token=${rawToken}`;
-
-      await transporter.sendMail({
-        from: `"School Hub" <${process.env.EMAIL_USER}>`,
-        to: studentData.parent_email,
-        subject: "Activate Your Parent Portal Account",
-        html: `
-          <p>Hello ${studentData.parent_name},</p>
-          <p>A student account has been created for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
-          <p>Student ID: <strong>${generatedStudentId}</strong></p>
-          <p>Click the link below to activate your parent portal account and set your password:</p>
-          <p>
-            <a href="${activationLink}" style="color:#2563eb;">
-              Activate Parent Account
-            </a>
-          </p>
-          <p>Once activated, you'll be able to view your child's academic progress, attendance, assignments, and more.</p>
-          <p>This link expires in 24 hours.</p>
-        `,
-      });
+      // Store token for email after core create flow succeeds
+      (studentData as any).__parentActivationToken = rawToken;
     }
 
     // 3️⃣ Create student row with generated ID
@@ -218,29 +240,23 @@ export async function POST(req: Request) {
         .digest("hex");
 
       // Save token in students table
-      await supabase
+      const { error: studentTokenError } = await supabase
         .from("students")
         .update({
           activation_token_hash: tokenHash,
           activation_expires_at: new Date(Date.now() + 86400000), // 24 hours expiry
           activation_used: false,
         })
-        .eq("email", studentData.email);
+        .eq("id", createdStudent.id);
 
-      // Send activation email
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
+      if (studentTokenError) {
+        throw studentTokenError;
+      }
 
       const activationLink =
         `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${rawToken}`;
 
-      await transporter.sendMail({
-        from: `"School Hub" <${process.env.EMAIL_USER}>`,
+      const studentMailError = await sendEmailSafe({
         to: studentData.email,
         subject: "Activate Your Student Account",
         html: `
@@ -255,7 +271,12 @@ export async function POST(req: Request) {
       <p>This link expires in 24 hours.</p>
     `,
       });
+
+      if (studentMailError) {
+        warnings.push(`Student activation email was not delivered: ${studentMailError}`);
+      }
     }
+
     // 3.6️⃣ Automatically assign subjects based on religion and department
     if (studentData.class_id) {
       const { data: subjectClassesData, error: subjectClassesError } = await supabase
@@ -309,18 +330,38 @@ export async function POST(req: Request) {
       }
     }
 
-    // 4️⃣ Notify parent if new student added to existing account
-    if (!isNewParent && existingParent?.is_active) {
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASS,
-        },
-      });
+    // 4️⃣ Send parent notifications (best effort; do not fail student creation)
+    if (isNewParent) {
+      const parentActivationToken = (studentData as any).__parentActivationToken;
+      if (parentActivationToken) {
+        const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/parent/activate?token=${parentActivationToken}`;
 
-      await transporter.sendMail({
-        from: `"School Hub" <${process.env.EMAIL_USER}>`,
+        const parentMailError = await sendEmailSafe({
+          to: studentData.parent_email,
+          subject: "Activate Your Parent Portal Account",
+          html: `
+          <p>Hello ${studentData.parent_name},</p>
+          <p>A student account has been created for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
+          <p>Student ID: <strong>${generatedStudentId}</strong></p>
+          <p>Click the link below to activate your parent portal account and set your password:</p>
+          <p>
+            <a href="${activationLink}" style="color:#2563eb;">
+              Activate Parent Account
+            </a>
+          </p>
+          <p>Once activated, you'll be able to view your child's academic progress, attendance, assignments, and more.</p>
+          <p>This link expires in 24 hours.</p>
+        `,
+        });
+
+        if (parentMailError) {
+          warnings.push(`Parent activation email was not delivered: ${parentMailError}`);
+        }
+      }
+    }
+
+    if (!isNewParent && existingParent?.is_active) {
+      const existingParentMailError = await sendEmailSafe({
         to: studentData.parent_email,
         subject: "New Student Added to Your Account",
         html: `
@@ -330,12 +371,21 @@ export async function POST(req: Request) {
           <p>You can now view their information in your parent portal.</p>
         `,
       });
+
+      if (existingParentMailError) {
+        warnings.push(`Parent notification email was not delivered: ${existingParentMailError}`);
+      }
     }
 
     return NextResponse.json({
       success: true,
       studentId: generatedStudentId,
-      message: hasOwnEmail ? "Student created. Activation code sent to student email." : "Student created. Using parent portal for now."
+      message: warnings.length > 0
+        ? `Student created, but email delivery failed (${warnings.length} issue${warnings.length > 1 ? "s" : ""}).`
+        : hasOwnEmail
+          ? "Student created. Activation link sent to student email."
+          : "Student created. Using parent portal for now.",
+      warnings,
     });
 
   } catch (e: any) {

@@ -419,7 +419,12 @@ export default function AdminStudentsPage() {
         return;
       }
 
-      toast.success(`Student created successfully (ID: ${result.studentId}). Activation email sent.`, { id: creatingToast });
+      const successMessage = result?.message || `Student created successfully (ID: ${result.studentId}).`;
+      toast.success(successMessage, { id: creatingToast });
+
+      if (Array.isArray(result?.warnings) && result.warnings.length > 0) {
+        toast.warning(result.warnings.join(' | '));
+      }
 
       // Reset form
       setFormData({

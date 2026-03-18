@@ -11,11 +11,17 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 type PeriodSlot = {
   id: string;
   day_of_week: string;
-  period_number: number;
+  period_number: number | null;
   start_time: string;
   end_time: string;
   is_break: boolean;
 };
+
+function compareSlotTime(a: PeriodSlot, b: PeriodSlot) {
+  const byTime = (a.start_time || "").localeCompare(b.start_time || "");
+  if (byTime !== 0) return byTime;
+  return (a.period_number ?? Number.MAX_SAFE_INTEGER) - (b.period_number ?? Number.MAX_SAFE_INTEGER);
+}
 
 type TimetableCell = {
   subject: string;
@@ -106,7 +112,8 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
       const { data: slotsData } = await supabase
         .from("period_slots")
         .select("*")
-        .order("day_of_week, period_number");
+        .order("day_of_week", { ascending: true })
+        .order("start_time", { ascending: true });
 
       if (slotsData) {
         setPeriodSlots(slotsData);
@@ -166,7 +173,9 @@ export default function ParentStudentTimetableTab({ studentId, classId }: Parent
   const periodsByDay = useMemo(() => {
     const dayMap: Record<string, PeriodSlot[]> = {};
     DAYS.forEach(day => {
-      dayMap[day] = periodSlots.filter(p => p.day_of_week === day);
+      dayMap[day] = periodSlots
+        .filter(p => p.day_of_week === day)
+        .sort(compareSlotTime);
     });
     return dayMap;
   }, [periodSlots]);

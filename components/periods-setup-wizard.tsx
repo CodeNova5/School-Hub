@@ -237,24 +237,32 @@ export function PeriodsSetupWizard({
         return selectedPeriods.has(key);
       });
 
-      // Re-number periods per day in time order so DB check (1..20) is always satisfied.
+      // Number only class periods per day; break intervals are stored without period numbers.
       const periodsToSave = DAYS.flatMap((day) => {
         const dayPeriods = selected
           .filter((p) => p.day_of_week === day)
           .sort((a, b) => a.start_time.localeCompare(b.start_time));
 
-        if (dayPeriods.length > 20) {
-          throw new Error(`Too many slots on ${day}. Maximum allowed is 20.`);
+        const classPeriodsCount = dayPeriods.filter((p) => !p.is_break).length;
+        if (classPeriodsCount > 20) {
+          throw new Error(`Too many class periods on ${day}. Maximum allowed is 20.`);
         }
 
-        return dayPeriods.map((p, index) => ({
-          school_id: schoolId,
-          day_of_week: p.day_of_week,
-          period_number: index + 1,
-          start_time: p.start_time,
-          end_time: p.end_time,
-          is_break: p.is_break,
-        }));
+        let classCounter = 0;
+        return dayPeriods.map((p) => {
+          if (!p.is_break) {
+            classCounter += 1;
+          }
+
+          return {
+            school_id: schoolId,
+            day_of_week: p.day_of_week,
+            period_number: p.is_break ? null : classCounter,
+            start_time: p.start_time,
+            end_time: p.end_time,
+            is_break: p.is_break,
+          };
+        });
       });
 
       if (periodsToSave.length === 0) {

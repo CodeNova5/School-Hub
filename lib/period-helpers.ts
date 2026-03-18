@@ -47,7 +47,7 @@ export interface BreakConfig {
 
 export interface GeneratedPeriod {
   day_of_week: string;
-  period_number: number;
+  period_number: number | null;
   start_time: string;
   end_time: string;
   is_break: boolean;
@@ -68,7 +68,6 @@ export function generatePeriodSchedule(
 
   let currentTime = startTime;
   let periodCount = 1;
-  let breakCount = 0;
 
   // Generate periods for each day
   for (const day of DAYS_OF_WEEK) {
@@ -98,10 +97,9 @@ export function generatePeriodSchedule(
       // Add break if scheduled after this period
       if (breakAfterThisPeriod) {
         const breakEndTime = addMinutesToTime(currentTime, breakAfterThisPeriod.duration);
-        breakCount++;
         periods.push({
           day_of_week: day,
-          period_number: periodCount + 1000 + breakCount, // Use high number for break identification
+          period_number: null,
           start_time: currentTime,
           end_time: breakEndTime,
           is_break: true,
@@ -147,7 +145,7 @@ export function validateScheduleFitsInSchoolHours(
 export function formatPeriodsForDisplay(periods: GeneratedPeriod[]): GeneratedPeriod[] {
   return periods.map((p) => ({
     ...p,
-    period_number: p.is_break ? 0 : p.period_number, // Breaks don't have period numbers
+    period_number: p.is_break ? null : p.period_number,
   }));
 }
 

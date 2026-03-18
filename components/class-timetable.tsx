@@ -13,11 +13,17 @@ import * as XLSX from "xlsx-js-style";
 type PeriodSlot = {
   id: string;
   day_of_week: string;
-  period_number: number;
+  period_number: number | null;
   start_time: string;
   end_time: string;
   is_break: boolean;
 };
+
+function compareSlotTime(a: PeriodSlot, b: PeriodSlot) {
+  const byTime = (a.start_time || "").localeCompare(b.start_time || "");
+  if (byTime !== 0) return byTime;
+  return (a.period_number ?? Number.MAX_SAFE_INTEGER) - (b.period_number ?? Number.MAX_SAFE_INTEGER);
+}
 
 type TimetableEntry = {
   id: string;
@@ -95,8 +101,8 @@ export function ClassTimetable({
     });
     slotMap.forEach((v) => slots.push(v));
     slots.sort((a, b) => {
-      if (a.day_of_week === b.day_of_week) return a.period_number - b.period_number;
-      return a.day_of_week.localeCompare(b.day_of_week);
+      if (a.day_of_week === b.day_of_week) return compareSlotTime(a, b);
+      return DAYS.indexOf(a.day_of_week) - DAYS.indexOf(b.day_of_week);
     });
 
     setTimetableEntries(entries || []);

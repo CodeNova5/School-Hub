@@ -34,7 +34,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 interface PeriodSlot {
   id: string;
   day_of_week: string;
-  period_number: number;
+  period_number: number | null;
   start_time: string;
   end_time: string;
   is_break: boolean;
@@ -74,7 +74,7 @@ export default function PeriodsPage() {
         .select('*')
         .eq('school_id', schoolId)
         .order('day_of_week', { ascending: true })
-        .order('period_number', { ascending: true });
+        .order('start_time', { ascending: true });
 
       if (error) throw error;
 
@@ -106,7 +106,7 @@ export default function PeriodsPage() {
   function openEditDialog(period: PeriodSlot) {
     setEditingPeriod(period);
     setFormDay(period.day_of_week);
-    setFormPeriodNumber(period.period_number.toString());
+    setFormPeriodNumber(period.period_number?.toString() || '');
     setFormStartTime(period.start_time);
     setFormEndTime(period.end_time);
     setFormIsBreak(period.is_break);
@@ -121,36 +121,38 @@ export default function PeriodsPage() {
 
   function validateForm(): string | null {
     if (!formDay) return 'Please select a day';
-    
-    // Validate period number - must be a positive integer between 1-20
-    const periodStr = formPeriodNumber.trim();
-    
-    // Check if period number is empty
-    if (!periodStr) {
-      return 'Period number is required';
-    }
-    
-    // Check if it's a valid integer
-    if (!/^\d+$/.test(periodStr)) {
-      return 'Period number must be a whole number';
-    }
-    
-    const periodNum = parseInt(periodStr, 10);
-    
-    // Check range
-    if (periodNum < 1) {
-      return 'Period number must be at least 1';
-    }
-    
-    if (periodNum > 20) {
-      return 'Period number cannot exceed 20';
-    }
-    
+
     if (!formStartTime) return 'Please enter start time';
     if (!formEndTime) return 'Please enter end time';
 
     if (formStartTime >= formEndTime) {
       return 'End time must be after start time';
+    }
+
+    // Break intervals do not require period numbers.
+    if (formIsBreak) {
+      return null;
+    }
+
+    // Validate class period number - must be a positive integer between 1-20.
+    const periodStr = formPeriodNumber.trim();
+
+    if (!periodStr) {
+      return 'Period number is required for class periods';
+    }
+
+    if (!/^\d+$/.test(periodStr)) {
+      return 'Period number must be a whole number';
+    }
+
+    const periodNum = parseInt(periodStr, 10);
+
+    if (periodNum < 1) {
+      return 'Period number must be at least 1';
+    }
+
+    if (periodNum > 20) {
+      return 'Period number cannot exceed 20';
     }
 
     // Check for duplicate day+period number when creating (excluding current if editing)
@@ -178,16 +180,9 @@ export default function PeriodsPage() {
     }
 
     try {
-      // Ensure period number is valid - must be a non-empty string first
-      if (!formPeriodNumber || formPeriodNumber.trim() === '') {
-        toast.error('Period number is required');
-        return;
-      }
+      const periodNum = formIsBreak ? null : parseInt(formPeriodNumber, 10);
 
-      const periodNum = parseInt(formPeriodNumber, 10);
-      
-      // Final safety check before sending
-      if (isNaN(periodNum) || periodNum <= 0 || periodNum > 20) {
+      if (!formIsBreak && (isNaN(periodNum as number) || (periodNum as number) <= 0 || (periodNum as number) > 20)) {
         toast.error('Invalid period number. Must be between 1 and 20');
         return;
       }
@@ -206,9 +201,6 @@ export default function PeriodsPage() {
         end_time: formEndTime,
         is_break: formIsBreak,
       };
-
-      // Debug log
-      console.log('Submitting period with payload:', payload, 'Type of period_number:', typeof payload.period_number);
 
       if (editingPeriod) {
         // Update
@@ -499,47 +491,51 @@ export default function PeriodsPage() {
             {/* Period Number */}
             <div>
               <Label htmlFor="period_number">Period Number</Label>
-              <Input
-                id="period_number"
-                type="number"
-                min="1"
-                max="20"
-                step="1"
-                value={formPeriodNumber}
-                onChange={(e) => {
-                  let val = e.target.value;
-                  
-                  // Allow empty temporarily for user to clear and re-enter
-                  if (val === '') {
-                    setFormPeriodNumber('');
-                    return;
-                  }
-                  
-                  // Only allow positive integers (no decimals, no negatives)
-                  if (!/^\d+$/.test(val)) {
-                    return; // Don't update if not numeric
-                  }
-                  
-                  // Parse to ensure it's numeric
-                  const num = parseInt(val, 10);
-                  
-                  // Enforce range: 1-20
-                  if (num > 20) {
-                    setFormPeriodNumber('20');
-                  } else if (num < 1) {
-                    // If user types 0 or negative, default to 1
-                    setFormPeriodNumber('1');
-                  } else {
-                    // Valid number in range
-                    setFormPeriodNumber(val);
-                  }
-                }}
-                placeholder="1"
-                className="mt-2"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Sequential number for this period on the selected day (1-20)
-              </p>
+              {formIsBreak ? (
+                <p className="text-xs text-gray-500 mt-2">
+                  Break intervals do not use period numbers. This break will sit between class periods based on time.
+                </p>
+              ) : (
+                <>
+                  <Input
+                    id="period_number"
+                    type="number"
+                    min="1"
+                    max="20"
+                    step="1"
+                    value={formPeriodNumber}
+                    onChange={(e) => {
+                      const val = e.target.value;
+
+                      // Allow empty temporarily for user to clear and re-enter
+                      if (val === '') {
+                        setFormPeriodNumber('');
+                        return;
+                      }
+
+                      // Only allow positive integers (no decimals, no negatives)
+                      if (!/^\d+$/.test(val)) {
+                        return;
+                      }
+
+                      const num = parseInt(val, 10);
+
+                      if (num > 20) {
+                        setFormPeriodNumber('20');
+                      } else if (num < 1) {
+                        setFormPeriodNumber('1');
+                      } else {
+                        setFormPeriodNumber(val);
+                      }
+                    }}
+                    placeholder="1"
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Sequential number for this class period on the selected day (1-20)
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Start Time */}
@@ -579,7 +575,15 @@ export default function PeriodsPage() {
               <Checkbox
                 id="is_break"
                 checked={formIsBreak}
-                onCheckedChange={(checked) => setFormIsBreak(checked as boolean)}
+                onCheckedChange={(checked) => {
+                  const isBreak = checked as boolean;
+                  setFormIsBreak(isBreak);
+                  if (isBreak) {
+                    setFormPeriodNumber('');
+                  } else if (!formPeriodNumber) {
+                    setFormPeriodNumber('1');
+                  }
+                }}
               />
               <Label htmlFor="is_break" className="font-medium cursor-pointer">
                 This is a break/lunch period

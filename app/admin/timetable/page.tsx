@@ -21,6 +21,17 @@ import { Sparkles } from "lucide-react";
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const DAYS_SHORT = ["mon", "tue", "wed", "thu", "fri"];
 
+function compareSlotTime(a: { start_time?: string | null; period_number?: number | null }, b: { start_time?: string | null; period_number?: number | null }) {
+  const byTime = (a.start_time || "").localeCompare(b.start_time || "");
+  if (byTime !== 0) return byTime;
+  return (a.period_number ?? Number.MAX_SAFE_INTEGER) - (b.period_number ?? Number.MAX_SAFE_INTEGER);
+}
+
+function formatPeriodLabel(periodNumber?: number | null, isBreak?: boolean) {
+  if (isBreak) return "Break";
+  return typeof periodNumber === "number" ? `Period ${periodNumber}` : "Period";
+}
+
 export default function TimetablePage() {
   const { schoolId } = useSchoolContext();
   const [entries, setEntries] = useState<any[]>([]);
@@ -160,7 +171,8 @@ export default function TimetablePage() {
       .from("period_slots")
       .select("*")
       .eq("school_id", schoolId)
-      .order("day_of_week, period_number");
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true });
 
     if (periodSlots) setPeriodSlots(periodSlots);
     if (timetableRes.data) setEntries(timetableRes.data);
@@ -203,7 +215,7 @@ export default function TimetablePage() {
 
     // Sort each day's periods
     Object.keys(dayMap).forEach((day) => {
-      dayMap[day].sort((a, b) => a.period_number - b.period_number);
+      dayMap[day].sort(compareSlotTime);
     });
 
     return dayMap;
@@ -570,7 +582,7 @@ export default function TimetablePage() {
               `${clash.teacherName} is already teaching:\n` +
               `• Subject: ${clash.subjectName}\n` +
               `• Class: ${clash.className}\n` +
-              `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+              `• Slot: ${formatPeriodLabel(clash.periodNumber)} on ${clash.dayOfWeek}`
             );
             return;
           }
@@ -654,7 +666,7 @@ export default function TimetablePage() {
             `${clash.teacherName} is already teaching:\n` +
             `• Subject: ${clash.subjectName}\n` +
             `• Class: ${clash.className}\n` +
-            `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+            `• Slot: ${formatPeriodLabel(clash.periodNumber)} on ${clash.dayOfWeek}`
           );
           return;
         }
@@ -709,7 +721,7 @@ export default function TimetablePage() {
             `${clash.teacherName} is already teaching:\n` +
             `• Subject: ${clash.subjectName}\n` +
             `• Class: ${clash.className}\n` +
-            `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+            `• Slot: ${formatPeriodLabel(clash.periodNumber)} on ${clash.dayOfWeek}`
           );
           return;
         }
@@ -756,7 +768,7 @@ export default function TimetablePage() {
             `${clash.teacherName} is already teaching:\n` +
             `• Subject: ${clash.subjectName}\n` +
             `• Class: ${clash.className}\n` +
-            `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+            `• Slot: ${formatPeriodLabel(clash.periodNumber)} on ${clash.dayOfWeek}`
           );
           return;
         }
@@ -835,7 +847,7 @@ export default function TimetablePage() {
           `${clash.teacherName} is already teaching:\n` +
           `• Subject: ${clash.subjectName}\n` +
           `• Class: ${clash.className}\n` +
-          `• Period: ${clash.periodNumber} on ${clash.dayOfWeek}`
+          `• Slot: ${formatPeriodLabel(clash.periodNumber)} on ${clash.dayOfWeek}`
         );
         return;
       }
@@ -955,6 +967,8 @@ export default function TimetablePage() {
           class_name: en.classes?.name,
           day_of_week: en.period_slots?.day_of_week,
           period_number: en.period_slots?.period_number,
+          is_break: en.period_slots?.is_break,
+          start_time: en.period_slots?.start_time,
           period_slot_id: en.period_slot_id,
           raw: [],
         };
@@ -1023,7 +1037,9 @@ export default function TimetablePage() {
     });
 
     results.sort((a: any, b: any) => {
-      if (a.day_of_week === b.day_of_week) return a.period_number - b.period_number;
+      if (a.day_of_week === b.day_of_week) {
+        return compareSlotTime(a, b);
+      }
       return DAYS.indexOf(a.day_of_week) - DAYS.indexOf(b.day_of_week);
     });
 
@@ -1439,7 +1455,7 @@ export default function TimetablePage() {
                       <tr key={entry.id} className="border-b hover:bg-gray-50">
                         <td className="p-2">{entry.class_name}</td>
                         <td className="p-2">{entry.day_of_week}</td>
-                        <td className="p-2">{entry.period_number}</td>
+                        <td className="p-2">{formatPeriodLabel(entry.period_number, entry.is_break)}</td>
                         <td className="p-2 text-sm">
                           {periodSlot ? `${periodSlot.start_time} - ${periodSlot.end_time}` : "—"}
                         </td>
@@ -1614,7 +1630,7 @@ export default function TimetablePage() {
                   <option value="">Select Period</option>
                   {availablePeriodsForDay.map((p) => (
                     <option key={p.id} value={p.id}>
-                      Period {p.period_number} ({p.start_time} - {p.end_time})
+                      {formatPeriodLabel(p.period_number, p.is_break)} ({p.start_time} - {p.end_time})
                     </option>
                   ))}
                 </select>
@@ -1933,7 +1949,7 @@ export default function TimetablePage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
-              {editingPeriodSlot?.day_of_week} - Period {editingPeriodSlot?.period_number}
+              {editingPeriodSlot?.day_of_week} - {formatPeriodLabel(editingPeriodSlot?.period_number, editingPeriodSlot?.is_break)}
             </div>
             <div>
               <Label>Start Time</Label>

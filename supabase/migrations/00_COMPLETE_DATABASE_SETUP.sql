@@ -586,12 +586,13 @@ CREATE TABLE IF NOT EXISTS school_settings (
 
 CREATE INDEX IF NOT EXISTS idx_school_settings_key ON school_settings(key);
 
--- PERIOD_SLOTS TABLE
-CREATE TABLE IF NOT EXISTS period_slots (
+
+-- Recreate period_slots with proper multitenancy
+CREATE TABLE period_slots (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   day_of_week text NOT NULL CHECK (day_of_week IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')),
-  period_number integer NOT NULL CHECK (period_number > 0),
+  period_number integer,
   start_time time NOT NULL,
   end_time time NOT NULL,
   is_break boolean DEFAULT false,
@@ -600,14 +601,20 @@ CREATE TABLE IF NOT EXISTS period_slots (
   ) STORED,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  
-  CONSTRAINT unique_day_period UNIQUE (school_id, day_of_week, period_number),
+
+  CONSTRAINT period_slots_break_number_rule CHECK (
+    (is_break = true AND period_number IS NULL)
+    OR (is_break = false AND period_number BETWEEN 1 AND 20)
+  ),
   CONSTRAINT valid_time_range CHECK (end_time > start_time)
 );
 
-CREATE INDEX IF NOT EXISTS idx_period_slots_school ON period_slots(school_id);
-CREATE INDEX IF NOT EXISTS idx_period_slots_day ON period_slots(day_of_week);
-CREATE INDEX IF NOT EXISTS idx_period_slots_day_period ON period_slots(school_id, day_of_week, period_number);
+CREATE INDEX idx_period_slots_school ON period_slots(school_id);
+CREATE INDEX idx_period_slots_day ON period_slots(day_of_week);
+CREATE INDEX idx_period_slots_day_start_time ON period_slots(school_id, day_of_week, start_time);
+CREATE UNIQUE INDEX unique_period_slots_class_period_per_day
+  ON period_slots(school_id, day_of_week, period_number)
+  WHERE is_break = false;
 
 -- TIMETABLE_ENTRIES TABLE
 CREATE TABLE IF NOT EXISTS timetable_entries (

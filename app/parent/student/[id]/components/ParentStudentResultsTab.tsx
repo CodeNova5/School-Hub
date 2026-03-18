@@ -94,7 +94,7 @@ export default function ParentStudentResultsTab({ studentId }: ParentStudentResu
                     *,
                     subject_classes!inner(
                         class_id,
-                        subjects(name)
+                        subjects!subject_classes_subject_id_fkey(name)
                     ),
                     terms(name, session_id, is_current),
                     sessions(name, is_current)

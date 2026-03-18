@@ -96,7 +96,7 @@ export function StudentDetailsModal({
           *,
           subject_classes (
             id,
-            subjects (
+            subjects!subject_classes_subject_id_fkey (
               id,
               name,
               is_optional

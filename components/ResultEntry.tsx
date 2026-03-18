@@ -87,7 +87,7 @@ export default function ResultEntry({
           .from('teachers')
           .select('school_id')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (teacherData) {
           schoolId = teacherData.school_id;
@@ -96,7 +96,7 @@ export default function ResultEntry({
             .from('students')
             .select('school_id')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
           if (studentData) schoolId = studentData.school_id;
         }
       }
@@ -225,13 +225,17 @@ export default function ResultEntry({
         .from("subject_classes")
         .select(`
           id,
-          subjects (
-              id,
-              name,
-              is_optional,
-              religion,
-              department
-            )
+          subject_code,
+          subject_id,
+          full_mark_obtainable,
+          pass_mark,
+          department_id,
+          religion_id,
+          is_optional,
+          department:department_id(name),
+          religion:religion_id(name),
+          subjects:subject_id(id, name),
+          teachers:teacher_id(id, first_name, last_name)
         `)
         .eq("class_id", studentData.class_id);
 
@@ -265,13 +269,24 @@ export default function ResultEntry({
       const filteredSubjectClasses = subjectClasses.filter((sc: any) => {
         const subject = sc.subjects;
         if (!subject) return false;
+        
         // If subject is optional, only show if student is enrolled
-        if (subject.is_optional) {
+        if (sc.is_optional) {
           return optionalSubjectIds.includes(subject.id);
         }
-        // For compulsory subjects, filter by department if needed
-        if (!subject.department || subject.department === '') return true;
-        return subject.department === studentData.department;
+        
+        // For compulsory subjects, apply department and religion filters
+        // Filter by department if specified in subject_class
+        if (sc.department_id && sc.department_id !== studentData.department_id) {
+          return false;
+        }
+        
+        // Filter by religion if specified in subject_class
+        if (sc.religion_id && sc.religion_id !== studentData.religion_id) {
+          return false;
+        }
+        
+        return true;
       });
 
       if (filteredSubjectClasses.length === 0) {
@@ -751,7 +766,7 @@ export default function ResultEntry({
           .from('teachers')
           .select('school_id')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
         if (teacherData) schoolId = teacherData.school_id;
       }
 

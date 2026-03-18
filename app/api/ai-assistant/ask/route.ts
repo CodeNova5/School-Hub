@@ -332,7 +332,7 @@ async function getUserSchoolId(supabase: any, userId: string): Promise<string | 
       .from('admins')
       .select('school_id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (admin?.school_id) {
       return admin.school_id;
@@ -343,7 +343,7 @@ async function getUserSchoolId(supabase: any, userId: string): Promise<string | 
       .from('teachers')
       .select('school_id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (teacher?.school_id) {
       return teacher.school_id;
@@ -354,7 +354,7 @@ async function getUserSchoolId(supabase: any, userId: string): Promise<string | 
       .from('students')
       .select('school_id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (student?.school_id) {
       return student.school_id;
@@ -365,7 +365,7 @@ async function getUserSchoolId(supabase: any, userId: string): Promise<string | 
       .from('parents')
       .select('school_id')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
     if (parent?.school_id) {
       return parent.school_id;

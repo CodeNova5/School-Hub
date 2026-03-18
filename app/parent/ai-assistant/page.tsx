@@ -127,7 +127,7 @@ export default function ParentAIAssistantPage() {
           .from('parents')
           .select('school_id')
           .eq('user_id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (!userProfile) return null;
         schoolId = userProfile.school_id;
@@ -201,7 +201,7 @@ export default function ParentAIAssistantPage() {
           .from('parents')
           .select('school_id')
           .eq('user_id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (userProfile && isMounted) {
           userProfileRef.current = {
@@ -369,7 +369,7 @@ export default function ParentAIAssistantPage() {
               .from('parents')
               .select('school_id')
               .eq('user_id', session.user.id)
-              .single();
+              .maybeSingle();
 
             if (!userProfile) return;
 

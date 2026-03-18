@@ -30,7 +30,7 @@ export default function StudentAssignmentDetails() {
             setLoading(true);
             const { data: { session } } = await supabase.auth.getSession();
             const user = session?.user;
-            const { data: student } = await supabase.from("students").select("id").eq("user_id", user?.id).eq("school_id", schoolId).single();
+            const { data: student } = await supabase.from("students").select("id").eq("user_id", user?.id).eq("school_id", schoolId).maybeSingle();
 
             const { data: assignmentData } = await supabase
                 .from("assignments")

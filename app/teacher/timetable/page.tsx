@@ -78,7 +78,7 @@ export default function TeacherTimetablePage() {
             id,
             subject_code,
             teacher_id,
-            subjects ( name, department, religion ),
+            subjects!subject_classes_subject_id_fkey ( name, department, religion ),
             teachers ( first_name, last_name )
           )
         `)

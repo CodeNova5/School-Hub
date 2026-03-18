@@ -34,9 +34,9 @@ export async function POST(req: Request) {
         
         let result;
         if (email) {
-            result = await query.eq("email", email).single();
+            result = await query.eq("email", email).maybeSingle();
         } else {
-            result = await query.eq("user_id", userId).single();
+            result = await query.eq("user_id", userId).maybeSingle();
         }
 
         const { data: student, error: studentError } = result;

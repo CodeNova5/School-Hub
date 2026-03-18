@@ -97,7 +97,7 @@ export async function getStudentContext() {
       .from('students')
       .select('school_id')
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (studentError || !student) {
       return { authorized: false, error: "Student record not found", status: 404 };

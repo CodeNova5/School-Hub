@@ -99,7 +99,7 @@ export default function TimetablePage() {
       supabase.from("classes").select("*").eq("school_id", schoolId).order("name"),
       supabase.from("subject_classes").select(`
         *,
-        subjects ( name, department, religion ),
+        subjects!subject_classes_subject_id_fkey ( name, department, religion ),
         teachers ( first_name, last_name ),
         classes ( name, level )
       `)
@@ -1040,7 +1040,7 @@ export default function TimetablePage() {
           id,
           subject_code,
           teacher_id,
-          subjects ( name, department, religion ),
+          subjects!subject_classes_subject_id_fkey ( name, department, religion ),
           teachers ( first_name, last_name )
         )
       `)

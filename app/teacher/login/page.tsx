@@ -54,9 +54,9 @@ export default function TeacherLoginPage() {
       .from("teachers")
       .select("is_active")
       .eq("user_id", data.user.id)
-      .single();
+      .maybeSingle();
 
-    if (!teacher?.is_active) {
+    if (teacher && !teacher.is_active) {
       toast.error("Account not activated");
       await supabase.auth.signOut();
       setLoading(false);

@@ -127,7 +127,7 @@ export default function TeacherAIAssistantPage() {
           .from('teachers')
           .select('school_id')
           .eq('user_id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (!userProfile) return null;
         schoolId = userProfile.school_id;

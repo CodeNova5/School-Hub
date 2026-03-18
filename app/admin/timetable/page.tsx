@@ -55,12 +55,45 @@ export default function TimetablePage() {
   const [teacherTimetable, setTeacherTimetable] = useState<any>({});
   const [isTeacherTableModalOpen, setIsTeacherTableModalOpen] = useState(false);
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [religions, setReligions] = useState<any[]>([]);
 
   useEffect(() => {
     if (schoolId) {
       fetchAll();
     }
   }, [schoolId]);
+
+  function relationName(rel: any) {
+    const obj = Array.isArray(rel) ? rel[0] : rel;
+    return obj?.name || "";
+  }
+
+  function getSubjectDepartmentName(subjectClass: any) {
+    return relationName(subjectClass?.school_departments);
+  }
+
+  function getSubjectReligionName(subjectClass: any) {
+    return relationName(subjectClass?.school_religions);
+  }
+
+  function getEntryDepartmentName(entry: any) {
+    return (
+      getSubjectDepartmentName(entry?.subject_classes) ||
+      relationName(entry?.school_departments) ||
+      departments.find((d) => d.id === entry?.department_id)?.name ||
+      ""
+    );
+  }
+
+  function getEntryReligionName(entry: any) {
+    return (
+      getSubjectReligionName(entry?.subject_classes) ||
+      relationName(entry?.school_religions) ||
+      religions.find((r) => r.id === entry?.religion_id)?.name ||
+      ""
+    );
+  }
 
   async function updatePeriodSlot(id: number, start: string, end: string) {
     if (!schoolId) return;
@@ -80,32 +113,47 @@ export default function TimetablePage() {
 
   async function fetchAll() {
     if (!schoolId) return;
-    const [timetableRes, classRes, subjectClassRes, teacherRes] = await Promise.all([
+    const [timetableRes, classRes, subjectClassRes, teacherRes, departmentRes, religionRes] = await Promise.all([
       supabase
         .from("timetable_entries")
         .select(`
           *,
-          classes(name, level),
+          classes(name, school_class_levels(name, code)),
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
+          school_departments!timetable_entries_department_id_fkey(name),
+          school_religions!timetable_entries_religion_id_fkey(name),
           subject_classes (
             id,
             subject_code,
-            subjects ( name, department, religion ),
+            teacher_id,
+            department_id,
+            religion_id,
+            school_departments!subject_classes_department_id_fkey(name),
+            school_religions!subject_classes_religion_id_fkey(name),
+            subjects ( name ),
             teachers ( first_name, last_name )
           )
         `)
         .eq("school_id", schoolId)
-        .order("period_number", { ascending: true }),
-      supabase.from("classes").select("*").eq("school_id", schoolId).order("name"),
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("classes")
+        .select("*, school_class_levels(name, code)")
+        .eq("school_id", schoolId)
+        .order("name"),
       supabase.from("subject_classes").select(`
         *,
-        subjects!subject_classes_subject_id_fkey ( name, department, religion ),
+        school_departments!subject_classes_department_id_fkey ( name ),
+        school_religions!subject_classes_religion_id_fkey ( name ),
+        subjects!subject_classes_subject_id_fkey ( name ),
         teachers ( first_name, last_name ),
-        classes ( name, level )
+        classes ( name, school_class_levels(name, code) )
       `)
       .eq("school_id", schoolId)
       .order("subject_code"),
       supabase.from("teachers").select("*").eq("school_id", schoolId).order("first_name, last_name"),
+      supabase.from("school_departments").select("id, name").eq("school_id", schoolId).eq("is_active", true),
+      supabase.from("school_religions").select("id, name").eq("school_id", schoolId).eq("is_active", true),
     ]);
 
     const { data: periodSlots } = await supabase
@@ -117,8 +165,23 @@ export default function TimetablePage() {
     if (periodSlots) setPeriodSlots(periodSlots);
     if (timetableRes.data) setEntries(timetableRes.data);
     if (classRes.data) setClasses(classRes.data);
-    if (subjectClassRes.data) setSubjectClasses(subjectClassRes.data);
+    if (subjectClassRes.data) {
+      const normalizedSubjectClasses = subjectClassRes.data.map((sc: any) => {
+        const subjectObj = Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects;
+        return {
+          ...sc,
+          subjects: {
+            ...(subjectObj || {}),
+            department: getSubjectDepartmentName(sc),
+            religion: getSubjectReligionName(sc),
+          },
+        };
+      });
+      setSubjectClasses(normalizedSubjectClasses);
+    }
     if (teacherRes.data) setTeachers(teacherRes.data);
+    if (departmentRes.data) setDepartments(departmentRes.data);
+    if (religionRes.data) setReligions(religionRes.data);
   }
 
   // Group period slots by day
@@ -204,18 +267,19 @@ export default function TimetablePage() {
 
 
     // Check if the entry is departmental
-    const hasDepartmentalRows = groupedRows.some((row) => row.department);
-    const hasReligiousRows = groupedRows.some((row) => row.religion);
+    const hasDepartmentalRows = groupedRows.some((row) => !!getEntryDepartmentName(row));
+    const hasReligiousRows = groupedRows.some((row) => !!getEntryReligionName(row));
 
     if (hasDepartmentalRows) {
       setDepartmentalMode(true);
 
       groupedRows.forEach((row) => {
-        if (row.department === "Science") {
+        const rowDepartmentName = getEntryDepartmentName(row);
+        if (rowDepartmentName === "Science") {
           setFormScienceSubjectClassId(row.subject_class_id || "");
-        } else if (row.department === "Arts") {
+        } else if (rowDepartmentName === "Arts") {
           setFormArtsSubjectClassId(row.subject_class_id || "");
-        } else if (row.department === "Commercial") {
+        } else if (rowDepartmentName === "Commercial") {
           setFormCommercialSubjectClassId(row.subject_class_id || "");
         }
       });
@@ -223,8 +287,8 @@ export default function TimetablePage() {
       // Check if the entry is religious
       setReligionMode(true);
 
-      const christianRow = groupedRows.find((row) => row.religion === "Christian");
-      const muslimRow = groupedRows.find((row) => row.religion === "Muslim");
+      const christianRow = groupedRows.find((row) => getEntryReligionName(row) === "Christian");
+      const muslimRow = groupedRows.find((row) => getEntryReligionName(row) === "Muslim");
 
       if (christianRow) setFormChristianSubjectClassId(christianRow.subject_class_id || "");
       if (muslimRow) setFormMuslimSubjectClassId(muslimRow.subject_class_id || "");
@@ -265,8 +329,10 @@ export default function TimetablePage() {
     return subjectClasses
       .filter((sc) => {
         if (sc.class_id !== formClassId) return false;
-        if (!dept) return !sc.subjects?.department && !sc.subjects?.religion;
-        return sc.subjects?.department === dept;
+        const scDept = getSubjectDepartmentName(sc);
+        const scReligion = getSubjectReligionName(sc);
+        if (!dept) return !scDept && !scReligion;
+        return scDept === dept;
       })
       .sort((a, b) => {
         const nameA = a.subjects?.name?.toLowerCase() || "";
@@ -279,8 +345,10 @@ export default function TimetablePage() {
     return subjectClasses
       .filter((sc) => {
         if (sc.class_id !== formClassId) return false;
-        if (!religion) return !sc.subjects?.religion && !sc.subjects?.department;
-        return sc.subjects?.religion === religion;
+        const scDept = getSubjectDepartmentName(sc);
+        const scReligion = getSubjectReligionName(sc);
+        if (!religion) return !scReligion && !scDept;
+        return scReligion === religion;
       })
       .sort((a, b) => {
         const nameA = a.subjects?.name?.toLowerCase() || "";
@@ -318,7 +386,7 @@ export default function TimetablePage() {
     if (!schoolId || teacherIds.length === 0) return null;
 
     // Get the period slot info
-    const targetSlot = periodSlots.find(s => s.id === periodSlotId);
+    const targetSlot = periodSlots.find((s) => s.id === periodSlotId);
     if (!targetSlot) return null;
 
     const { data, error } = await supabase
@@ -327,7 +395,10 @@ export default function TimetablePage() {
         id,
         class_id,
         period_slot_id,
-        religion,
+        department_id,
+        religion_id,
+        school_departments!timetable_entries_department_id_fkey(name),
+        school_religions!timetable_entries_religion_id_fkey(name),
         period_slots (
           day_of_week,
           period_number,
@@ -338,7 +409,11 @@ export default function TimetablePage() {
         subject_classes (
           id,
           teacher_id,
-          subjects ( name, department, religion ),
+          department_id,
+          religion_id,
+          school_departments!subject_classes_department_id_fkey(name),
+          school_religions!subject_classes_religion_id_fkey(name),
+          subjects ( name ),
           teachers ( first_name, last_name )
         )
       `)
@@ -399,37 +474,49 @@ export default function TimetablePage() {
           body: JSON.stringify({
             operation: 'delete',
             table: 'timetable_entries',
-            filters: { id: editingEntry.id },
+            filters: {
+              period_slot_id: editingEntry.period_slot_id,
+              class_id: editingEntry.class_id,
+            },
           }),
         });
 
         const inserts: any[] = [];
-        if (formScienceSubjectClassId)
+        if (formScienceSubjectClassId) {
+          const sc = subjectClasses.find((x) => x.id === formScienceSubjectClassId);
           inserts.push({
             school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formScienceSubjectClassId,
-            department: "Science",
+            department_id: sc?.department_id || null,
+            religion_id: null,
           });
+        }
 
-        if (formArtsSubjectClassId)
+        if (formArtsSubjectClassId) {
+          const sc = subjectClasses.find((x) => x.id === formArtsSubjectClassId);
           inserts.push({
             school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formArtsSubjectClassId,
-            department: "Arts",
+            department_id: sc?.department_id || null,
+            religion_id: null,
           });
+        }
 
-        if (formCommercialSubjectClassId)
+        if (formCommercialSubjectClassId) {
+          const sc = subjectClasses.find((x) => x.id === formCommercialSubjectClassId);
           inserts.push({
             school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formCommercialSubjectClassId,
-            department: "Commercial",
+            department_id: sc?.department_id || null,
+            religion_id: null,
           });
+        }
 
         if (inserts.length === 0) {
           toast.error("Pick at least one departmental subject");
@@ -495,28 +582,34 @@ export default function TimetablePage() {
           .eq("school_id", schoolId)
           .eq("period_slot_id", editingEntry.period_slot_id)
           .eq("class_id", editingEntry.class_id)
-          .not("religion", "is", null);
+          .not("religion_id", "is", null);
 
         await del;
 
 
         const inserts: any[] = [];
-        if (formChristianSubjectClassId)
+        if (formChristianSubjectClassId) {
+          const sc = subjectClasses.find((x) => x.id === formChristianSubjectClassId);
           inserts.push({
             school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formChristianSubjectClassId,
-            religion: "Christian",
+            religion_id: sc?.religion_id || null,
+            department_id: null,
           });
-        if (formMuslimSubjectClassId)
+        }
+        if (formMuslimSubjectClassId) {
+          const sc = subjectClasses.find((x) => x.id === formMuslimSubjectClassId);
           inserts.push({
             school_id: schoolId,
             period_slot_id: formPeriodSlotId,
             class_id: formClassId,
             subject_class_id: formMuslimSubjectClassId,
-            religion: "Muslim",
+            religion_id: sc?.religion_id || null,
+            department_id: null,
           });
+        }
 
         if (inserts.length === 0) {
           toast.error("Choose at least one religious subject to update");
@@ -571,8 +664,8 @@ export default function TimetablePage() {
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formSubjectClassId || null,
-        department: null,
-        religion: null,
+        department_id: null,
+        religion_id: null,
       };
 
       const { error } = await supabase
@@ -598,8 +691,8 @@ export default function TimetablePage() {
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formSubjectClassId || null,
-        department: null,
-        religion: null,
+        department_id: null,
+        religion_id: null,
       };
 
       const selectedSubjectClass = subjectClasses.find((sc) => sc.id === formSubjectClassId);
@@ -670,22 +763,28 @@ export default function TimetablePage() {
       }
 
       const inserts: any[] = [];
-      if (formChristianSubjectClassId)
+      if (formChristianSubjectClassId) {
+        const sc = subjectClasses.find((x) => x.id === formChristianSubjectClassId);
         inserts.push({
           school_id: schoolId,
           period_slot_id: formPeriodSlotId,
           class_id: formClassId,
           subject_class_id: formChristianSubjectClassId,
-          religion: "Christian",
+          religion_id: sc?.religion_id || null,
+          department_id: null,
         });
-      if (formMuslimSubjectClassId)
+      }
+      if (formMuslimSubjectClassId) {
+        const sc = subjectClasses.find((x) => x.id === formMuslimSubjectClassId);
         inserts.push({
           school_id: schoolId,
           period_slot_id: formPeriodSlotId,
           class_id: formClassId,
           subject_class_id: formMuslimSubjectClassId,
-          religion: "Muslim",
+          religion_id: sc?.religion_id || null,
+          department_id: null,
         });
+      }
 
       if (inserts.length === 0) {
         toast.error("Choose at least one religious subject to add");
@@ -743,30 +842,39 @@ export default function TimetablePage() {
     }
 
     const inserts: any[] = [];
-    if (formScienceSubjectClassId)
+    if (formScienceSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formScienceSubjectClassId);
       inserts.push({
         school_id: schoolId,
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formScienceSubjectClassId,
-        department: "Science",
+        department_id: sc?.department_id || null,
+        religion_id: null,
       });
-    if (formArtsSubjectClassId)
+    }
+    if (formArtsSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formArtsSubjectClassId);
       inserts.push({
         school_id: schoolId,
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formArtsSubjectClassId,
-        department: "Arts",
+        department_id: sc?.department_id || null,
+        religion_id: null,
       });
-    if (formCommercialSubjectClassId)
+    }
+    if (formCommercialSubjectClassId) {
+      const sc = subjectClasses.find((x) => x.id === formCommercialSubjectClassId);
       inserts.push({
         school_id: schoolId,
         period_slot_id: formPeriodSlotId,
         class_id: formClassId,
         subject_class_id: formCommercialSubjectClassId,
-        department: "Commercial",
+        department_id: sc?.department_id || null,
+        religion_id: null,
       });
+    }
 
     if (inserts.length === 0) {
       toast.error("Choose at least one department subject to add");
@@ -865,8 +973,8 @@ export default function TimetablePage() {
 
       g.raw.forEach((r: any) => {
         const sname = r.subject_classes?.subjects?.name || "";
-        const sdept = r.subject_classes?.subjects?.department || r.department || "";
-        const sreligion = r.subject_classes?.subjects?.religion || r.religion || "";
+        const sdept = getEntryDepartmentName(r);
+        const sreligion = getEntryReligionName(r);
         const code = shortCode(sname);
         const teacherName = teacherForSubjectClass(r.subject_classes);
         if (sreligion) {
@@ -920,7 +1028,7 @@ export default function TimetablePage() {
     });
 
     return results;
-  }, [entries]);
+  }, [entries, departments, religions]);
 
   async function showTimetable(classId: string) {
     if (!schoolId) return;
@@ -931,12 +1039,19 @@ export default function TimetablePage() {
       .select(`
         *,
         period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
-        religion,
+        department_id,
+        religion_id,
+        school_departments!timetable_entries_department_id_fkey(name),
+        school_religions!timetable_entries_religion_id_fkey(name),
         subject_classes (
           id,
           subject_code,
           teacher_id,
-          subjects ( name, department, religion ),
+          department_id,
+          religion_id,
+          school_departments!subject_classes_department_id_fkey(name),
+          school_religions!subject_classes_religion_id_fkey(name),
+          subjects ( name ),
           teachers ( first_name, last_name )
         )
       `)
@@ -976,8 +1091,8 @@ export default function TimetablePage() {
 
       rows.forEach((r: any) => {
         const sname = r.subject_classes?.subjects?.name || "";
-        const sdept = r.subject_classes?.subjects?.department || r.department || "";
-        const sreligion = r.subject_classes?.subjects?.religion || r.religion || "";
+        const sdept = getEntryDepartmentName(r);
+        const sreligion = getEntryReligionName(r);
         const code = shortCode(sname);
         const teacherName = teacherForSubjectClass(r.subject_classes);
         if (sreligion) {
@@ -1033,14 +1148,21 @@ export default function TimetablePage() {
       .from("timetable_entries")
       .select(`
         *,
-        classes(id, name, level),
+        classes(id, name, school_class_levels(name, code)),
         period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
-        religion,
+        department_id,
+        religion_id,
+        school_departments!timetable_entries_department_id_fkey(name),
+        school_religions!timetable_entries_religion_id_fkey(name),
         subject_classes (
           id,
           subject_code,
           teacher_id,
-          subjects!subject_classes_subject_id_fkey ( name, department, religion ),
+          department_id,
+          religion_id,
+          school_departments!subject_classes_department_id_fkey(name),
+          school_religions!subject_classes_religion_id_fkey(name),
+          subjects!subject_classes_subject_id_fkey ( name ),
           teachers ( first_name, last_name )
         )
       `)
@@ -1110,8 +1232,12 @@ export default function TimetablePage() {
     `${g.class_name || ""} ${g.subject_display || ""}`.toLowerCase().includes(search.toLowerCase())
   );
 
-  const selectedClassLevel = classes.find((c) => c.id === formClassId)?.level || "";
-  const isSelectedClassSSS = selectedClassLevel.startsWith("SSS");
+  const selectedClassObj = classes.find((c) => c.id === formClassId);
+  const selectedClassLevel =
+    selectedClassObj?.level ||
+    relationName(selectedClassObj?.school_class_levels) ||
+    "";
+  const isSelectedClassSSS = selectedClassLevel.toUpperCase().startsWith("SSS");
 
   // Get available periods for the selected day
   const availablePeriodsForDay = useMemo(() => {

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 import { Plus, AlertTriangle, CheckCircle2, Loader2, RefreshCw, Sparkles } from "lucide-react";
 
 interface AutoTimetableWizardProps {
@@ -25,6 +26,8 @@ interface SubjectFrequency {
   frequency: number;
   department?: string;
   religion?: string;
+  departmentId?: string | null;
+  religionId?: string | null;
   allowedDays?: string[]; // Days this subject can be taught on
   departmentGroup?: string; // For grouping departmental subjects (e.g., "Group1")
 }
@@ -45,11 +48,14 @@ interface GeneratedEntry {
   teacherName: string;
   department?: string;
   religion?: string;
+  departmentId?: string | null;
+  religionId?: string | null;
   // For CRS/IRS pairing
   pairedSubjectClassId?: string;
   pairedSubjectName?: string;
   pairedTeacherName?: string;
   pairedReligion?: string;
+  pairedReligionId?: string | null;
   isPaired?: boolean;
   // For departmental grouping
   departmentGroup?: string;
@@ -58,6 +64,7 @@ interface GeneratedEntry {
     subjectName: string;
     teacherName: string;
     department: string;
+    departmentId?: string | null;
   }>;
 }
 
@@ -71,6 +78,7 @@ export function AutoTimetableWizard({
   periodSlots,
   onGenerated,
 }: AutoTimetableWizardProps) {
+  const { schoolId } = useSchoolContext();
   const [step, setStep] = useState(1);
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [subjectFrequencies, setSubjectFrequencies] = useState<SubjectFrequency[]>([]);
@@ -93,8 +101,25 @@ export function AutoTimetableWizard({
   // Departmental grouping - stores groups with their subject mappings (like CRS/IRS pairing but max 3 subjects)
   const [departmentalGroups, setDepartmentalGroups] = useState<Record<string, string[]>>({});
 
+  function relationName(rel: any) {
+    const obj = Array.isArray(rel) ? rel[0] : rel;
+    return obj?.name || "";
+  }
+
+  function getClassLevelName(cls: any) {
+    return cls?.level || relationName(cls?.school_class_levels) || "";
+  }
+
+  function getSubjectDepartmentName(sc: any) {
+    return sc?.subjects?.department || relationName(sc?.school_departments) || "";
+  }
+
+  function getSubjectReligionName(sc: any) {
+    return sc?.subjects?.religion || relationName(sc?.school_religions) || "";
+  }
+
   const selectedClass = classes.find(c => c.id === selectedClassId);
-  const isSSS = selectedClass?.level?.startsWith("SSS");
+  const isSSS = getClassLevelName(selectedClass).toUpperCase().startsWith("SSS");
 
   // Filter classes by search
   const filteredClasses = classes.filter(c =>
@@ -187,8 +212,10 @@ export function AutoTimetableWizard({
           ? `${sc.teachers.first_name} ${sc.teachers.last_name}`
           : "No teacher",
         frequency: getDefaultFrequency(sc.subjects?.name),
-        department: sc.subjects?.department,
-        religion: sc.subjects?.religion,
+        department: getSubjectDepartmentName(sc),
+        religion: getSubjectReligionName(sc),
+        departmentId: sc.department_id || null,
+        religionId: sc.religion_id || null,
         allowedDays: getDefaultAllowedDays(sc.subjects?.name), // By default, subject-specific days
       }));
       setSubjectFrequencies(subjects);
@@ -240,34 +267,36 @@ export function AutoTimetableWizard({
     return [...DAYS];
   }
 
-  function assignDepartmentGroup(subjectClassId: string, groupName: string | null) {
-    setSubjectFrequencies(prev =>
-      prev.map(sf =>
-        sf.subjectClassId === subjectClassId
-          ? { ...sf, departmentGroup: groupName || undefined }
-          : sf
-      )
-    );
-  }
-
   function openGroupDialog() {
     setNewGroupName("");
     setSelectedGroupSubjects({});
     setShowGroupDialog(true);
   }
 
+  function autoPickGroupSubjects() {
+    const picks: Record<string, string> = {};
+    Array.from(availableDepartments.entries()).forEach(([dept, subjects]) => {
+      if (subjects.length > 0) {
+        picks[dept] = subjects[0].subjectClassId;
+      }
+    });
+    setSelectedGroupSubjects(picks);
+  }
+
   function createDepartmentGroup() {
+    const subjectIds = Object.values(selectedGroupSubjects).filter(Boolean);
     const trimmedName = newGroupName.trim();
-    if (!trimmedName) {
-      toast.error("Group name cannot be empty");
-      return;
-    }
-    if (departmentalGroups[trimmedName]) {
+    const autoName = `Group ${Object.keys(departmentalGroups).length + 1}`;
+    const groupName = trimmedName || autoName;
+
+    const hasDuplicateName = Object.keys(departmentalGroups).some(
+      (name) => name.toLowerCase() === groupName.toLowerCase()
+    );
+    if (hasDuplicateName) {
       toast.error("Group already exists");
       return;
     }
-    
-    const subjectIds = Object.values(selectedGroupSubjects).filter(Boolean);
+
     if (subjectIds.length === 0) {
       toast.error("Please select at least one subject");
       return;
@@ -280,7 +309,7 @@ export function AutoTimetableWizard({
     // Create group - subjects will share the same time slot (like CRS/IRS)
     setDepartmentalGroups(prev => ({
       ...prev,
-      [trimmedName]: subjectIds
+      [groupName]: subjectIds
     }));
     
     // Update subject frequencies to mark them as grouped with same frequency
@@ -290,7 +319,7 @@ export function AutoTimetableWizard({
     setSubjectFrequencies(prev =>
       prev.map(sf =>
         subjectIds.includes(sf.subjectClassId)
-          ? { ...sf, departmentGroup: trimmedName, frequency: groupFrequency }
+          ? { ...sf, departmentGroup: groupName, frequency: groupFrequency }
           : sf
       )
     );
@@ -298,7 +327,7 @@ export function AutoTimetableWizard({
     setShowGroupDialog(false);
     setNewGroupName("");
     setSelectedGroupSubjects({});
-    toast.success(`Created group: ${trimmedName}`);
+    toast.success(`Created group: ${groupName}`);
   }
 
   function deleteDepartmentGroup(groupName: string) {
@@ -320,12 +349,6 @@ export function AutoTimetableWizard({
       return updated;
     });
     toast.success(`Deleted group: ${groupName}`);
-  }
-
-  function getSubjectsByGroup(groupName: string): SubjectFrequency[] {
-    const groupSubjectIds = departmentalGroups[groupName];
-    if (!groupSubjectIds) return [];
-    return subjectFrequencies.filter(sf => groupSubjectIds.includes(sf.subjectClassId));
   }
 
   function updateGroupFrequency(groupName: string, frequency: number) {
@@ -477,6 +500,11 @@ export function AutoTimetableWizard({
   }
 
   async function handleGenerate() {
+    if (!schoolId) {
+      toast.error("School context not available");
+      return;
+    }
+
     setIsGenerating(true);
     setConflicts([]);
     
@@ -488,7 +516,8 @@ export function AutoTimetableWizard({
           *,
           period_slots(id, day_of_week, period_number),
           subject_classes(teacher_id)
-        `);
+        `)
+        .eq("school_id", schoolId);
 
       const generated = await generateTimetable(existingEntries || []);
       setGeneratedEntries(generated.entries);
@@ -511,7 +540,10 @@ export function AutoTimetableWizard({
     // Build teacher usage map from existing entries (other classes)
     const teacherSlotMap = new Map<string, Set<string>>();
     existingEntries.forEach(entry => {
-      const teacherId = entry.subject_classes?.teacher_id;
+      const subjectClassObj = Array.isArray(entry.subject_classes)
+        ? entry.subject_classes[0]
+        : entry.subject_classes;
+      const teacherId = subjectClassObj?.teacher_id;
       if (teacherId && entry.period_slot_id) {
         if (!teacherSlotMap.has(entry.period_slot_id)) {
           teacherSlotMap.set(entry.period_slot_id, new Set());
@@ -530,6 +562,8 @@ export function AutoTimetableWizard({
       teacherId?: string;
       department?: string;
       religion?: string;
+      departmentId?: string | null;
+      religionId?: string | null;
       assignedCount: number;
       targetCount: number;
       allowedDays: string[];
@@ -587,6 +621,8 @@ export function AutoTimetableWizard({
         teacherId: subjectClass?.teacher_id,
         department: sf.department,
         religion: sf.religion,
+        departmentId: sf.departmentId || null,
+        religionId: sf.religionId || null,
         assignedCount: 0,
         targetCount: sf.frequency,
         allowedDays,
@@ -803,6 +839,8 @@ export function AutoTimetableWizard({
                 teacherName: currentSubject.teacherName,
                 department: currentSubject.department,
                 religion: currentSubject.religion,
+                departmentId: currentSubject.departmentId || null,
+                religionId: currentSubject.religionId || null,
               };
               
               periodAssignments.set(alternativePlacement.period.id, altEntry);
@@ -910,11 +948,14 @@ export function AutoTimetableWizard({
                 teacherName: crs.teacherName,
                 department: crs.department,
                 religion: crs.religion,
+                departmentId: crs.departmentId || null,
+                religionId: crs.religionId || null,
                 isPaired: true,
                 pairedSubjectClassId: irs.subjectClassId,
                 pairedSubjectName: irs.subjectName,
                 pairedTeacherName: irs.teacherName,
                 pairedReligion: irs.religion,
+                pairedReligionId: irs.religionId || null,
               };
               
               periodAssignments.set(placement.period.id, entry);
@@ -980,12 +1021,14 @@ export function AutoTimetableWizard({
                   subjectName: primarySubject.subjectName,
                   teacherName: primarySubject.teacherName,
                   department: primarySubject.department,
+                  departmentId: primarySubject.departmentId || null,
                   departmentGroup: subjectGroup.groupName,
                   groupedSubjects: groupSubjects.slice(1).map(s => ({
                     subjectClassId: s.subjectClassId,
                     subjectName: s.subjectName,
                     teacherName: s.teacherName,
                     department: s.department!,
+                    departmentId: s.departmentId || null,
                   })),
                 };
                 
@@ -1040,6 +1083,8 @@ export function AutoTimetableWizard({
                 teacherName: primarySubject.teacherName,
                 department: primarySubject.department,
                 religion: primarySubject.religion,
+                departmentId: primarySubject.departmentId || null,
+                religionId: primarySubject.religionId || null,
               };
               
               periodAssignments.set(placement.period.id, entry);
@@ -1128,6 +1173,8 @@ export function AutoTimetableWizard({
             teacherName: candidate.teacherName,
             department: candidate.department,
             religion: candidate.religion,
+            departmentId: candidate.departmentId || null,
+            religionId: candidate.religionId || null,
           };
           entries.push(entry);
           usedPeriodSlots.add(period.id);
@@ -1208,7 +1255,7 @@ export function AutoTimetableWizard({
   }
 
   async function handleConfirm() {
-    if (!selectedClassId) return;
+    if (!selectedClassId || !schoolId) return;
 
     try {
       // Delete existing timetable for this class using API endpoint
@@ -1218,7 +1265,7 @@ export function AutoTimetableWizard({
         body: JSON.stringify({
           operation: 'delete',
           table: 'timetable_entries',
-          filters: { class_id: selectedClassId },
+          filters: { class_id: selectedClassId, school_id: schoolId },
         }),
       });
 
@@ -1232,21 +1279,23 @@ export function AutoTimetableWizard({
       generatedEntries.forEach(entry => {
         // Add the main entry
         inserts.push({
+          school_id: schoolId,
           period_slot_id: entry.periodSlotId,
           class_id: selectedClassId,
           subject_class_id: entry.subjectClassId,
-          department: entry.department || null,
-          religion: entry.religion || null,
+          department_id: entry.departmentId || null,
+          religion_id: entry.religionId || null,
         });
         
         // If paired (CRS/IRS), add the second entry for the same period
         if (entry.isPaired && entry.pairedSubjectClassId) {
           inserts.push({
+            school_id: schoolId,
             period_slot_id: entry.periodSlotId,
             class_id: selectedClassId,
             subject_class_id: entry.pairedSubjectClassId,
-            department: entry.department || null,
-            religion: entry.pairedReligion || null,
+            department_id: entry.departmentId || null,
+            religion_id: entry.pairedReligionId || null,
           });
         }
         
@@ -1254,11 +1303,12 @@ export function AutoTimetableWizard({
         if (entry.groupedSubjects && entry.groupedSubjects.length > 0) {
           entry.groupedSubjects.forEach(grouped => {
             inserts.push({
+              school_id: schoolId,
               period_slot_id: entry.periodSlotId,
               class_id: selectedClassId,
               subject_class_id: grouped.subjectClassId,
-              department: grouped.department || null,
-              religion: null,
+              department_id: grouped.departmentId || null,
+              religion_id: null,
             });
           });
         }
@@ -1303,6 +1353,10 @@ export function AutoTimetableWizard({
     setSubjectFrequencies([]);
     setGeneratedEntries([]);
     setConflicts([]);
+    setDepartmentalGroups({});
+    setSelectedGroupSubjects({});
+    setNewGroupName("");
+    setExpandedSubject(null);
     setSearchClass("");
     setSearchSubject("");
     onClose();
@@ -1385,7 +1439,7 @@ export function AutoTimetableWizard({
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-semibold">{cls.name}</div>
-                        <div className="text-xs text-gray-500">{cls.level}</div>
+                        <div className="text-xs text-gray-500">{getClassLevelName(cls)}</div>
                       </div>
                       {selectedClassId === cls.id && (
                         <CheckCircle2 className="w-5 h-5 text-blue-600" />
@@ -1714,27 +1768,19 @@ export function AutoTimetableWizard({
                     const hasRestrictions = allowedDays.length < DAYS.length;
                     
                     // Calculate AI priority for display
-                    let aiPriority = 0;
-                    let constraint: 'high' | 'medium' | 'low' = 'low';
                     let priorityLabel = 'Low';
                     let priorityColor = 'text-gray-500';
                     let priorityBg = 'bg-gray-100';
                     
                     if (allowedDays.length === 1) {
-                      aiPriority = 1000;
-                      constraint = 'high';
                       priorityLabel = 'Critical';
                       priorityColor = 'text-red-700';
                       priorityBg = 'bg-red-100';
                     } else if (allowedDays.length === 2) {
-                      aiPriority = 500;
-                      constraint = 'high';
                       priorityLabel = 'High';
                       priorityColor = 'text-orange-700';
                       priorityBg = 'bg-orange-100';
                     } else if (allowedDays.length < DAYS.length || sf.religion || sf.departmentGroup) {
-                      aiPriority = 250;
-                      constraint = 'medium';
                       priorityLabel = 'Medium';
                       priorityColor = 'text-blue-700';
                       priorityBg = 'bg-blue-100';
@@ -1744,10 +1790,6 @@ export function AutoTimetableWizard({
                     const pairedSubject = sf.religion === 'Christian' 
                       ? subjectFrequencies.find(s => s.religion === 'Muslim')
                       : null;
-                    
-                    // Check if subject can be assigned to groups (not religious subjects)
-                    const canBeGrouped = isSSS && !sf.religion && sf.department;
-                    const availableGroups = Object.keys(departmentalGroups);
                     
                     return (
                       <React.Fragment key={sf.subjectClassId}>
@@ -1861,7 +1903,7 @@ export function AutoTimetableWizard({
                                     onClick={() => toggleAllDays(sf.subjectClassId)}
                                     className="text-xs"
                                   >
-                                    {allowedDays.length === DAYS.length ? "Clear All" : "Select All"}
+                                    Reset Days
                                   </Button>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
@@ -2097,9 +2139,9 @@ export function AutoTimetableWizard({
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label className="text-sm font-semibold mb-2 block">Group Name</Label>
+                <Label className="text-sm font-semibold mb-2 block">Group Name (Optional)</Label>
                 <Input
-                  placeholder="e.g., Science Group 1, Arts Group A"
+                  placeholder="Leave empty to auto-name (e.g., Group 1)"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
                 />
@@ -2112,6 +2154,17 @@ export function AutoTimetableWizard({
                 <p className="text-xs text-gray-600 mb-3">
                   Choose one subject from each department to group together. They will share the same time slot.
                 </p>
+                <div className="mb-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={autoPickGroupSubjects}
+                    disabled={availableDepartments.size === 0}
+                  >
+                    Auto-pick one per department
+                  </Button>
+                </div>
                 
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {Array.from(availableDepartments.entries()).map(([dept, subjects]) => (
@@ -2166,7 +2219,7 @@ export function AutoTimetableWizard({
                 </Button>
                 <Button
                   onClick={createDepartmentGroup}
-                  disabled={Object.values(selectedGroupSubjects).filter(Boolean).length === 0 || !newGroupName.trim()}
+                  disabled={Object.values(selectedGroupSubjects).filter(Boolean).length === 0}
                   className="bg-purple-600 hover:bg-purple-700"
                 >
                   Create Group

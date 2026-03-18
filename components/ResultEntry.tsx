@@ -15,6 +15,8 @@ import { Save, Printer, ArrowLeft, Loader2, Medal, FileDown } from "lucide-react
 interface SubjectScore {
   subject_class_id: string;
   subject_name: string;
+  full_mark_obtainable: number;
+  pass_mark: number;
   welcome_test: number;
   mid_term_test: number;
   vetting: number;
@@ -306,6 +308,8 @@ export default function ResultEntry({
       let initialScores: SubjectScore[] = filteredSubjectClasses.map((sc: any) => ({
         subject_class_id: sc.id,
         subject_name: sc.subjects?.name ?? "Unknown",
+        full_mark_obtainable: Number(sc.full_mark_obtainable) || 100,
+        pass_mark: Number(sc.pass_mark) || 40,
         welcome_test: 0,
         mid_term_test: 0,
         vetting: 0,
@@ -419,7 +423,7 @@ export default function ResultEntry({
               exam: res.exam || 0,
             };
             const total = calculateTotalScoreWithMode(initialScores[idx], currentCalculationMode);
-            const { grade, remark } = calculateGradeWithMode(total, currentCalculationMode);
+            const { grade, remark } = calculateGradeWithMode(initialScores[idx], total, currentCalculationMode);
             initialScores[idx].total = total;
             initialScores[idx].grade = grade;
             initialScores[idx].remark = res.remark || remark;
@@ -546,18 +550,16 @@ export default function ResultEntry({
     }
   }
 
-  function getMaxPossibleScore(): number {
-    // For students/parents, calculate based on published components
+  function getVisibleWeightTotal(): number {
     if ((role === 'student' || role === 'parent') && publicationSettings) {
-      let max = 0;
-      if (publicationSettings.welcome_test_published) max += 10;
-      if (publicationSettings.mid_term_test_published) max += 20;
-      if (publicationSettings.vetting_published) max += 10;
-      if (publicationSettings.exam_published) max += 60;
-      return max > 0 ? max : 100; // Fallback to 100 if nothing published yet
+      let weight = 0;
+      if (publicationSettings.welcome_test_published) weight += 10;
+      if (publicationSettings.mid_term_test_published) weight += 20;
+      if (publicationSettings.vetting_published) weight += 10;
+      if (publicationSettings.exam_published) weight += 60;
+      return weight > 0 ? weight : 100;
     }
 
-    // For admins/teachers, use scoreCalculationMode
     switch (scoreCalculationMode) {
       case 'welcome_only':
         return 10;
@@ -571,7 +573,7 @@ export default function ResultEntry({
     }
   }
 
-  function getMaxPossibleScoreWithMode(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
+  function getVisibleWeightTotalWithMode(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
     switch (mode) {
       case 'welcome_only':
         return 10;
@@ -585,50 +587,84 @@ export default function ResultEntry({
     }
   }
 
-  function calculateGrade(total: number) {
-    const maxScore = getMaxPossibleScore();
+  function getSubjectMaxPossibleScore(score: SubjectScore): number {
+    const visibleWeight = getVisibleWeightTotal();
+    return (score.full_mark_obtainable * visibleWeight) / 100;
+  }
+
+  function getSubjectMaxPossibleScoreWithMode(score: SubjectScore, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
+    const visibleWeight = getVisibleWeightTotalWithMode(mode);
+    return (score.full_mark_obtainable * visibleWeight) / 100;
+  }
+
+  function getScaledPassMark(score: SubjectScore): number {
+    const maxScore = getSubjectMaxPossibleScore(score);
+    return (score.pass_mark / score.full_mark_obtainable) * maxScore;
+  }
+
+  function getScaledPassMarkWithMode(score: SubjectScore, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
+    const maxScore = getSubjectMaxPossibleScoreWithMode(score, mode);
+    return (score.pass_mark / score.full_mark_obtainable) * maxScore;
+  }
+
+  function calculateGrade(score: SubjectScore, total: number) {
+    const maxScore = getSubjectMaxPossibleScore(score);
+    const scaledPassMark = getScaledPassMark(score);
+    if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
     const percentage = (total / maxScore) * 100;
+    const passPercentage = (scaledPassMark / maxScore) * 100;
     if (percentage >= 75) return { grade: "A1", remark: "Excellent" };
     if (percentage >= 70) return { grade: "B2", remark: "Very Good" };
     if (percentage >= 65) return { grade: "B3", remark: "Good" };
     if (percentage >= 60) return { grade: "C4", remark: "Credit" };
     if (percentage >= 55) return { grade: "C5", remark: "Credit" };
     if (percentage >= 50) return { grade: "C6", remark: "Credit" };
-    if (percentage >= 45) return { grade: "D7", remark: "Pass" };
-    if (percentage >= 40) return { grade: "E8", remark: "Pass" };
+    if (percentage >= Math.max(45, passPercentage)) return { grade: "D7", remark: "Pass" };
+    if (percentage >= passPercentage) return { grade: "E8", remark: "Pass" };
     return { grade: "F9", remark: "Fail" };
   }
 
-  function calculateGradeWithMode(total: number, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
-    const maxScore = getMaxPossibleScoreWithMode(mode);
+  function calculateGradeWithMode(score: SubjectScore, total: number, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
+    const maxScore = getSubjectMaxPossibleScoreWithMode(score, mode);
+    const scaledPassMark = getScaledPassMarkWithMode(score, mode);
+    if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
     const percentage = (total / maxScore) * 100;
+    const passPercentage = (scaledPassMark / maxScore) * 100;
     if (percentage >= 75) return { grade: "A1", remark: "Excellent" };
     if (percentage >= 70) return { grade: "B2", remark: "Very Good" };
     if (percentage >= 65) return { grade: "B3", remark: "Good" };
     if (percentage >= 60) return { grade: "C4", remark: "Credit" };
     if (percentage >= 55) return { grade: "C5", remark: "Credit" };
     if (percentage >= 50) return { grade: "C6", remark: "Credit" };
-    if (percentage >= 45) return { grade: "D7", remark: "Pass" };
-    if (percentage >= 40) return { grade: "E8", remark: "Pass" };
+    if (percentage >= Math.max(45, passPercentage)) return { grade: "D7", remark: "Pass" };
+    if (percentage >= passPercentage) return { grade: "E8", remark: "Pass" };
     return { grade: "F9", remark: "Fail" };
+  }
+
+  function getComponentLimit(score: SubjectScore, field: keyof SubjectScore): number {
+    const fullMark = score.full_mark_obtainable || 100;
+    const componentWeight: Record<string, number> = {
+      welcome_test: 10,
+      mid_term_test: 20,
+      vetting: 10,
+      exam: 60,
+    };
+    const weight = componentWeight[field as string];
+    if (!weight) return fullMark;
+    return (fullMark * weight) / 100;
   }
 
   function updateScore(index: number, field: keyof SubjectScore, value: string) {
     if (isReadOnly || !canEdit) return;
     const newScores = [...scores];
     let num = Math.max(0, Number(value) || 0);
-    const limits: Record<string, number> = {
-      welcome_test: 10,
-      mid_term_test: 20,
-      vetting: 10,
-      exam: 60, // Ensure exam does not exceed 60
-    };
-    if (limits[field]) {
-      num = Math.min(num, limits[field]);
+    const componentLimit = getComponentLimit(newScores[index], field);
+    if (Number.isFinite(componentLimit)) {
+      num = Math.min(num, componentLimit);
     }
     (newScores[index] as any)[field] = num;
     const total = calculateTotalScore(newScores[index]);
-    const { grade, remark } = calculateGrade(total);
+    const { grade, remark } = calculateGrade(newScores[index], total);
     newScores[index].total = total;
     newScores[index].grade = grade;
     newScores[index].remark = remark;
@@ -639,7 +675,7 @@ export default function ResultEntry({
     if (scores.length > 0) {
       const updatedScores = scores.map(score => {
         const total = calculateTotalScore(score);
-        const { grade, remark } = calculateGrade(total);
+        const { grade, remark } = calculateGrade(score, total);
         return { ...score, total, grade, remark };
       });
       setScores(updatedScores);
@@ -658,12 +694,21 @@ export default function ResultEntry({
   })();
 
   const totalScore = scores.reduce((sum, s) => sum + s.total, 0);
-  const overallGrade = (() => {
-    const avgScore = scores.length > 0 ? totalScore / scores.length : 0;
-    return calculateGrade(avgScore).grade;
-  })();
-  const maxTotalScore = scores.length * getMaxPossibleScore();
+  const totalPassMark = scores.reduce((sum, s) => sum + getScaledPassMark(s), 0);
+  const maxTotalScore = scores.reduce((sum, s) => sum + getSubjectMaxPossibleScore(s), 0);
   const averagePercentage = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
+  const overallGrade = (() => {
+    const overallPassPercentage = maxTotalScore > 0 ? (totalPassMark / maxTotalScore) * 100 : 40;
+    if (averagePercentage >= 75) return "A1";
+    if (averagePercentage >= 70) return "B2";
+    if (averagePercentage >= 65) return "B3";
+    if (averagePercentage >= 60) return "C4";
+    if (averagePercentage >= 55) return "C5";
+    if (averagePercentage >= 50) return "C6";
+    if (averagePercentage >= Math.max(45, overallPassPercentage)) return "D7";
+    if (averagePercentage >= overallPassPercentage) return "E8";
+    return "F9";
+  })();
 
   const getPositionDisplay = (position: number | null | undefined) => {
     if (!position) return null;
@@ -945,7 +990,7 @@ export default function ResultEntry({
                       </th>
                     )}
                     <th className="border border-gray-300 px-3 py-2 text-center w-20">
-                      Total ({getMaxPossibleScore()})
+                      Total
                     </th>
                     <th className="border border-gray-300 px-3 py-2 text-center w-16">Grade</th>
                     <th className="border border-gray-300 px-3 py-2 text-center">Remark</th>
@@ -956,6 +1001,9 @@ export default function ResultEntry({
                     <tr key={score.subject_class_id}>
                       <td className="border border-gray-300 px-3 py-2 font-medium">
                         {score.subject_name}
+                        <div className="text-xs text-gray-500">
+                          Pass: {getScaledPassMark(score).toFixed(1)} / {getSubjectMaxPossibleScore(score).toFixed(1)}
+                        </div>
                       </td>
                       {isComponentVisible('welcome_test') && (
                         <td className="border border-gray-300 px-3 py-2 text-center font-bold">
@@ -963,7 +1011,7 @@ export default function ResultEntry({
                             <input
                               type="number"
                               min="0"
-                              max="10"
+                              max={getComponentLimit(score, 'welcome_test')}
                               value={score.welcome_test || ''}
                               onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
                               className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
@@ -980,7 +1028,7 @@ export default function ResultEntry({
                             <input
                               type="number"
                               min="0"
-                              max="20"
+                              max={getComponentLimit(score, 'mid_term_test')}
                               value={score.mid_term_test || ''}
                               onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
                               className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
@@ -997,7 +1045,7 @@ export default function ResultEntry({
                             <input
                               type="number"
                               min="0"
-                              max="10"
+                              max={getComponentLimit(score, 'vetting')}
                               value={score.vetting || ''}
                               onChange={(e) => updateScore(index, 'vetting', e.target.value)}
                               className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
@@ -1014,7 +1062,7 @@ export default function ResultEntry({
                             <input
                               type="number"
                               min="0"
-                              max="60"
+                              max={getComponentLimit(score, 'exam')}
                               value={score.exam || ''}
                               onChange={(e) => updateScore(index, 'exam', e.target.value)}
                               className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"

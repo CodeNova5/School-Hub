@@ -32,9 +32,9 @@ export default function AdminStudentsPage() {
   const [terms, setTerms] = useState<Term[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [religions, setReligions] = useState<any[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSubjectsModalOpen, setIsSubjectsModalOpen] = useState(false);
   const [isEditStudentOpen, setIsEditStudentOpen] = useState(false);
   const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -62,6 +62,7 @@ export default function AdminStudentsPage() {
     address: '',
     class_id: '',
     department_id: '',
+    religion_id: '',
     parent_name: '',
     parent_email: '',
     parent_phone: '',
@@ -152,22 +153,22 @@ export default function AdminStudentsPage() {
       }
 
       // Use Supabase client instead of API - ALL queries now filter by school_id
-      const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }, { data: departmentsList, error: departmentsError }] = await Promise.all([
+      const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }, { data: departmentsList, error: departmentsError }, { data: religionsList, error: religionsError }] = await Promise.all([
         supabase.from('students').select('*').eq('school_id', schoolId).order('first_name', { ascending: true }),
         supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
         supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
         supabase.from('classes').select('*').eq('school_id', schoolId).order('name', { ascending: true }),
         supabase.from('school_departments').select('*').eq('school_id', schoolId).eq('is_active', true).order('name', { ascending: true }),
+        supabase.from('school_religions').select('*').eq('school_id', schoolId).eq('is_active', true).order('name', { ascending: true }),
       ]);
 
-      if (studentsError || sessionsError || termsError || classesError || departmentsError) {
+      if (studentsError || sessionsError || termsError || classesError || departmentsError || religionsError) {
         throw new Error(
           studentsError?.message ||
           sessionsError?.message ||
           termsError?.message ||
           classesError?.message ||
-          departmentsError?.message ||
-          'Unknown error'
+          departmentsError?.message ||          religionsError?.message ||          'Unknown error'
         );
       }
 
@@ -223,6 +224,7 @@ export default function AdminStudentsPage() {
       setTerms(termsList || []);
       setClasses(classList || []);
       setDepartments(departmentsList || []);
+      setReligions(religionsList || []);
     } catch (error: any) {
       toast.error('Failed to load data: ' + error.message);
     } finally {
@@ -302,10 +304,12 @@ export default function AdminStudentsPage() {
       }
 
       toast.success(`Successfully transferred ${selectedStudent.first_name} ${selectedStudent.last_name} to another class`);
+      // Update student in list with new class
+      const updatedStudent = { ...selectedStudent, class_id: targetClassId };
+      setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
       setIsTransferStudentOpen(false);
       setTransferTargetClassId("");
       setSelectedStudent(null);
-      router.refresh();
     } catch (error: any) {
       toast.error("Failed to transfer student: " + (error.message || error));
     }
@@ -334,8 +338,9 @@ export default function AdminStudentsPage() {
 
       toast.success("Student and all related data deleted.");
       setIsDeleteDialogOpen(false);
+      // Remove student from list immediately
+      setStudents(students.filter(s => s.id !== student.id));
       setStudentToDelete(null);
-      router.refresh();
     } catch (error: any) {
       toast.error("Failed to delete student: " + (error.message || error));
     } finally {
@@ -371,8 +376,9 @@ export default function AdminStudentsPage() {
 
       toast.success("Student and all related data deleted.");
       setIsDeleteDialogOpen(false);
+      // Remove student from list immediately
+      setStudents(students.filter(s => s.id !== studentToDelete.id));
       setStudentToDelete(null);
-      router.refresh();
     } catch (error: any) {
       toast.error("Failed to delete student: " + (error.message || error));
     } finally {
@@ -381,7 +387,8 @@ export default function AdminStudentsPage() {
   }
 
   function handleEditStudentSuccess(updatedStudent: Student) {
-    router.refresh();
+    // Update the student in the list
+    setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
   }
 
   async function handleCreateStudent(e: React.FormEvent) {
@@ -426,6 +433,11 @@ export default function AdminStudentsPage() {
         toast.warning(result.warnings.join(' | '));
       }
 
+      // Add the new student to the list immediately
+      if (result.student) {
+        setStudents([...students, result.student]);
+      }
+
       // Reset form
       setFormData({
         first_name: '',
@@ -437,6 +449,7 @@ export default function AdminStudentsPage() {
         address: '',
         class_id: '',
         department_id: '',
+        religion_id: '',
         parent_name: '',
         parent_email: '',
         parent_phone: '',
@@ -444,7 +457,6 @@ export default function AdminStudentsPage() {
       });
 
       setIsCreateDialogOpen(false);
-      router.refresh();
     } catch (error: any) {
       toast.error(error.message || 'Failed to create student');
     } finally {
@@ -638,6 +650,22 @@ export default function AdminStudentsPage() {
                           {departments.map((dept) => (
                             <option key={dept.id} value={dept.id}>
                               {dept.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="religion_id">Religion</Label>
+                        <select
+                          id="religion_id"
+                          value={formData.religion_id}
+                          onChange={(e) => setFormData({ ...formData, religion_id: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-md"
+                        >
+                          <option value="">Select religion (optional)</option>
+                          {religions.map((religion) => (
+                            <option key={religion.id} value={religion.id}>
+                              {religion.name}
                             </option>
                           ))}
                         </select>

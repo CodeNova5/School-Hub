@@ -130,7 +130,7 @@ export default function TimetablePage() {
             religion_id,
             school_departments!subject_classes_department_id_fkey(name),
             school_religions!subject_classes_religion_id_fkey(name),
-            subjects ( name ),
+            subjects!subject_classes_subject_id_fkey ( name ),
             teachers ( first_name, last_name )
           )
         `)
@@ -413,7 +413,7 @@ export default function TimetablePage() {
           religion_id,
           school_departments!subject_classes_department_id_fkey(name),
           school_religions!subject_classes_religion_id_fkey(name),
-          subjects ( name ),
+          subjects!subject_classes_subject_id_fkey ( name ),
           teachers ( first_name, last_name )
         )
       `)
@@ -1034,7 +1034,7 @@ export default function TimetablePage() {
     if (!schoolId) return;
     setSelectedClass(classId);
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("timetable_entries")
       .select(`
         *,
@@ -1051,12 +1051,18 @@ export default function TimetablePage() {
           religion_id,
           school_departments!subject_classes_department_id_fkey(name),
           school_religions!subject_classes_religion_id_fkey(name),
-          subjects ( name ),
+          subjects!subject_classes_subject_id_fkey ( name ),
           teachers ( first_name, last_name )
         )
       `)
       .eq("school_id", schoolId)
       .eq("class_id", classId);
+
+    if (error) {
+      console.error("Failed to load class timetable", error);
+      toast.error("Failed to load class timetable");
+      return;
+    }
 
     if (!data) return;
 

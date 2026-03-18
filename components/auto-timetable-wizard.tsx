@@ -85,6 +85,7 @@ export function AutoTimetableWizard({
   const [searchClass, setSearchClass] = useState("");
   const [searchSubject, setSearchSubject] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState("");
   const [generatedEntries, setGeneratedEntries] = useState<GeneratedEntry[]>([]);
@@ -1257,24 +1258,28 @@ export function AutoTimetableWizard({
   async function handleConfirm() {
     if (!selectedClassId || !schoolId) return;
 
+    setIsSaving(true);
     try {
-      // Delete existing timetable for this class using API endpoint
-      const deleteResponse = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'delete',
-          table: 'timetable_entries',
-          filters: { class_id: selectedClassId, school_id: schoolId },
-        }),
-      });
+      // Delete existing timetable for this class directly from client-side Supabase.
+      const { error: deleteError } = await supabase
+        .from("timetable_entries")
+        .delete()
+        .eq("class_id", selectedClassId)
+        .eq("school_id", schoolId);
 
-      if (!deleteResponse.ok) {
-        throw new Error('Failed to delete existing timetable');
+      if (deleteError) {
+        throw new Error(deleteError.message || "Failed to delete existing timetable");
       }
 
       // Insert new entries - create two entries for paired CRS/IRS periods
-      const inserts: any[] = [];
+      const inserts: Array<{
+        school_id: string;
+        period_slot_id: string;
+        class_id: string;
+        subject_class_id: string;
+        department_id: string | null;
+        religion_id: string | null;
+      }> = [];
       
       generatedEntries.forEach(entry => {
         // Add the main entry
@@ -1314,20 +1319,17 @@ export function AutoTimetableWizard({
         }
       });
 
-      // Use API endpoint to insert (bypasses RLS with service role)
-      const insertResponse = await fetch('/api/admin-operation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          operation: 'insert',
-          table: 'timetable_entries',
-          data: inserts,
-        }),
-      });
+      // Insert in chunks to avoid large payload issues.
+      const chunkSize = 250;
+      for (let i = 0; i < inserts.length; i += chunkSize) {
+        const chunk = inserts.slice(i, i + chunkSize);
+        const { error: insertError } = await supabase
+          .from("timetable_entries")
+          .insert(chunk);
 
-      if (!insertResponse.ok) {
-        const errorData = await insertResponse.json();
-        throw new Error(errorData.error || 'Failed to insert timetable entries');
+        if (insertError) {
+          throw new Error(insertError.message || "Failed to insert timetable entries");
+        }
       }
 
       const totalPeriods = generatedEntries.length;
@@ -1344,6 +1346,8 @@ export function AutoTimetableWizard({
     } catch (error) {
       console.error("Save error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to save timetable");
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -2348,9 +2352,18 @@ export function AutoTimetableWizard({
               <Button variant="outline" onClick={() => setStep(3)}>← Back</Button>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleClose}>Cancel</Button>
-                <Button onClick={handleConfirm} className="bg-green-600 hover:bg-green-700">
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Confirm & Save
+                <Button onClick={handleConfirm} className="bg-green-600 hover:bg-green-700" disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Confirm & Save
+                    </>
+                  )}
                 </Button>
               </div>
             </div>

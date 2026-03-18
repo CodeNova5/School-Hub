@@ -66,23 +66,29 @@ export function generatePeriodSchedule(
   // Sort breaks by afterPeriod to process them in order
   const sortedBreaks = [...breakSchedule].sort((a, b) => a.afterPeriod - b.afterPeriod);
 
-  let currentTime = startTime;
-  let periodCount = 1;
+  const schoolEndMinutes = calculateDuration('00:00', endTime);
 
   // Generate periods for each day
   for (const day of DAYS_OF_WEEK) {
-    currentTime = startTime; // Reset time for each day
-    periodCount = 1;
-    let nextBreakIndex = 0; // Track which break we're looking for
+    let currentTime = startTime; // Reset time for each day
+    let periodCount = 1;
 
     while (periodCount <= numberOfPeriods) {
+      // Check if period would exceed school end time BEFORE adding it
+      const periodEndTime = addMinutesToTime(currentTime, periodDuration);
+      const periodEndMinutes = calculateDuration('00:00', periodEndTime);
+      
+      if (periodEndMinutes > schoolEndMinutes) {
+        // Stop adding periods if we exceed school end time
+        break;
+      }
+
       // Check if there's a break scheduled after the current period
       const breakAfterThisPeriod = sortedBreaks.find(
         (b) => b.afterPeriod === periodCount
       );
 
       // Add class period
-      const periodEndTime = addMinutesToTime(currentTime, periodDuration);
       periods.push({
         day_of_week: day,
         period_number: periodCount,
@@ -97,6 +103,13 @@ export function generatePeriodSchedule(
       // Add break if scheduled after this period
       if (breakAfterThisPeriod) {
         const breakEndTime = addMinutesToTime(currentTime, breakAfterThisPeriod.duration);
+        const breakEndMinutes = calculateDuration('00:00', breakEndTime);
+        
+        // Check if break would exceed school end time
+        if (breakEndMinutes > schoolEndMinutes) {
+          break;
+        }
+        
         periods.push({
           day_of_week: day,
           period_number: null,

@@ -191,14 +191,13 @@ export function AutoTimetableWizard({
     return total;
   }, [subjectFrequencies]);
   
-  // Calculate available periods (excluding breaks, limited to first 8 periods per day)
+  // Calculate available periods (excluding breaks)
   const availablePeriods = useMemo(() => {
     let count = 0;
     DAYS.forEach(day => {
       const dayPeriods = periodSlots
         .filter(p => p.day_of_week === day && !p.is_break)
-        .sort((a, b) => a.period_number - b.period_number)
-        .slice(0, 8); // Only count first 8 periods per day
+        .sort((a, b) => (a.period_number ?? Number.MAX_SAFE_INTEGER) - (b.period_number ?? Number.MAX_SAFE_INTEGER));
       count += dayPeriods.length;
     });
     return count;
@@ -668,8 +667,7 @@ export function AutoTimetableWizard({
     DAYS.forEach(day => {
       const nonBreakPeriods = periodSlots
         .filter(p => p.day_of_week === day && !p.is_break)
-        .sort((a, b) => a.period_number - b.period_number)
-        .slice(0, 8);
+        .sort((a, b) => (a.period_number ?? Number.MAX_SAFE_INTEGER) - (b.period_number ?? Number.MAX_SAFE_INTEGER));
       periodsByDay[day] = nonBreakPeriods;
     });
 
@@ -1122,18 +1120,19 @@ export function AutoTimetableWizard({
           }
         }
         
-        // If still not placed after all attempts, log conflict
-        if (!placed && primarySubject.assignedCount < primarySubject.targetCount) {
-          const dayRestriction = primarySubject.allowedDays.length < DAYS.length 
-            ? ` (restricted to: ${primarySubject.allowedDays.join(", ")})`
-            : "";
-          
-          conflicts.push({
-            type: "unassigned",
-            severity: primarySubject.constraint === 'high' ? "error" : "warning",
-            message: `Unable to fully schedule ${primarySubject.subjectName} - ${primarySubject.assignedCount}/${primarySubject.targetCount} assigned${dayRestriction}`,
-          });
-        }
+      }
+
+      // Report unassigned subjects once per subject/group (avoid duplicate warnings per instance)
+      if (primarySubject.assignedCount < primarySubject.targetCount) {
+        const dayRestriction = primarySubject.allowedDays.length < DAYS.length
+          ? ` (restricted to: ${primarySubject.allowedDays.join(", ")})`
+          : "";
+
+        conflicts.push({
+          type: "unassigned",
+          severity: primarySubject.constraint === 'high' ? "error" : "warning",
+          message: `Unable to fully schedule ${primarySubject.subjectName} - ${primarySubject.assignedCount}/${primarySubject.targetCount} assigned${dayRestriction}`,
+        });
       }
     }
     
@@ -1222,36 +1221,6 @@ export function AutoTimetableWizard({
     
     console.log(`🤖 AI Scheduler Performance: ${assignmentRate}% subjects fully assigned (${fullyAssigned}/${totalSubjects})`);
     console.log(`📊 Generated ${entries.length} timetable entries with ${conflicts.length} conflicts`);
-    
-
-    // Check for unassigned subjects
-    subjectPool.forEach(s => {
-      if (s.assignedCount < s.targetCount) {
-        const dayRestriction = s.allowedDays.length < DAYS.length 
-          ? ` (only available on: ${s.allowedDays.join(", ")})`
-          : "";
-        conflicts.push({
-          type: "unassigned",
-          severity: "warning",
-          message: `${s.subjectName} only assigned ${s.assignedCount}/${s.targetCount} periods${dayRestriction}`,
-        });
-      }
-    });
-
-    // Check for workload warnings
-    Object.entries(teacherDailyLoad).forEach(([teacherId, dailyLoad]) => {
-      Object.entries(dailyLoad).forEach(([day, load]) => {
-        if (load > 6) {
-          const teacher = subjectPool.find(s => s.teacherId === teacherId)?.teacherName || "Unknown";
-          conflicts.push({
-            type: "workload_warning",
-            severity: "warning",
-            message: `${teacher} has ${load} periods on ${day} (recommended max: 6)`,
-          });
-        }
-      });
-    });
-
     return { entries, conflicts };
   }
 

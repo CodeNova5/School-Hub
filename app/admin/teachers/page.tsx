@@ -26,6 +26,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { TeachersSkeleton } from '@/components/skeletons';
 
 type SubjectAssignment = {
   classId: string;

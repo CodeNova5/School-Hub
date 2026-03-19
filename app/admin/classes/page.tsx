@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { BulkCreateClassesDialog } from "@/components/bulk-create-classes-dialog";
 import { useSchoolConfig } from "@/hooks/use-school-config";
+import { ClassesSkeleton } from "@/components/skeletons";
 
 interface ClassWithRelations extends Class {
   school_class_levels?: {

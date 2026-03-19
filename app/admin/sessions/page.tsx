@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-
+import { SessionsSkeleton } from '@/components/skeletons';
 export default function SessionsPage() {
   const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -687,9 +687,7 @@ export default function SessionsPage() {
   if (schoolLoading) {
     return (
       <DashboardLayout role="admin">
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading sessions...</p>
-        </div>
+        <SessionsSkeleton />
       </DashboardLayout>
     );
   }

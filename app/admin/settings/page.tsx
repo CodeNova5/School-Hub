@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { SettingsSkeleton } from '@/components/skeletons';
 
 interface SchoolSettings {
   school_name: string;
@@ -261,9 +262,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <DashboardLayout role="admin">
-        <div className="flex items-center justify-center h-screen">
-          <p className="text-gray-600">Loading settings...</p>
-        </div>
+        <SettingsSkeleton />
       </DashboardLayout>
     );
   }

@@ -15,6 +15,7 @@ import { Search, Wrench, ArrowRight, BookOpen, GraduationCap, CheckCircle2, Aler
 import { supabase } from "@/lib/supabase";
 import { Department, EducationLevelSubjectPreset, Religion, Subject, Teacher } from "@/lib/types";
 import { useSchoolContext } from "@/hooks/use-school-context";
+import { SubjectsSkeleton } from "@/components/skeletons";
 import { useSchoolConfig } from "@/hooks/use-school-config";
 import {
   PredefinedSubject,
@@ -732,6 +733,14 @@ export default function SubjectsPage() {
     setDefaultFullMark("100");
     setDefaultPassMark("40");
     setIncludeOptionalSubjects(true);
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <SubjectsSkeleton />
+      </DashboardLayout>
+    );
   }
 
   return (

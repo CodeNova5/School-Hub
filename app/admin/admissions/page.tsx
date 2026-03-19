@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AdmissionsSkeleton } from "@/components/skeletons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -302,6 +303,14 @@ export default function AdminAdmissionsPage() {
     approved: applications.filter((a) => a.status === "approved").length,
     rejected: applications.filter((a) => a.status === "rejected").length,
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <AdmissionsSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">

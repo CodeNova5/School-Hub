@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, AlertCircle, Clock, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useSchoolContext } from '@/hooks/use-school-context';
-import { PeriodsSetupWizard } from '@/components/periods-setup-wizard';
+import { useSchoolContext } from '@/hooks/use-school-context';import { PeriodsSkeleton } from "@/components/skeletons";import { PeriodsSetupWizard } from '@/components/periods-setup-wizard';
 import {
   Dialog,
   DialogContent,
@@ -278,9 +277,7 @@ export default function PeriodsPage() {
   if (isLoading) {
     return (
       <DashboardLayout role="admin">
-        <div className="flex justify-center items-center h-96">
-          <div className="text-gray-500">Loading periods...</div>
-        </div>
+        <PeriodsSkeleton />
       </DashboardLayout>
     );
   }

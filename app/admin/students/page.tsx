@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
+import { StudentsSkeleton } from '@/components/skeletons';
 
 export default function AdminStudentsPage() {
   const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
@@ -499,9 +500,7 @@ export default function AdminStudentsPage() {
   if (schoolLoading || isLoading) {
     return (
       <DashboardLayout role="admin">
-        <div className="flex items-center justify-center h-96">
-          <p className="text-gray-500">Loading students...</p>
-        </div>
+        <StudentsSkeleton />
       </DashboardLayout>
     );
   }

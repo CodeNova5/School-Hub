@@ -17,6 +17,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { NotificationsSkeleton } from '@/components/skeletons';
 import {
   LineChart,
   Line,
@@ -142,6 +143,14 @@ export default function NotificationsPage() {
         return target;
     }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <NotificationsSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">

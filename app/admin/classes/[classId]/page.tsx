@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Users, BookOpen, Settings, GraduationCap, Calendar, Clock, UserPlus } from "lucide-react";
+import { Users, BookOpen, GraduationCap, Calendar, Clock, UserPlus } from "lucide-react";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import { SubjectsTab } from "./components/SubjectsTab";
 import { StudentsTab } from "./components/StudentsTab";
@@ -526,72 +526,132 @@ export default function ClassPage() {
   }
 
   if (loading || !classData) {
-    return <DashboardLayout role="admin"><div className="p-6">Loading...</div></DashboardLayout>;
+    return (
+      <DashboardLayout role="admin">
+        <div className="space-y-6 p-6">
+          <div className="h-12 bg-gradient-to-r from-slate-200 to-slate-100 rounded-lg animate-pulse" />
+          <div className="grid gap-4 md:grid-cols-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-32 bg-gradient-to-r from-slate-100 to-slate-50 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
   }
 
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-6">
+      <div className="space-y-8">
 
         {/* ================= HEADER ================= */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <GraduationCap className="h-7 w-7" />
-              {classData.name}
-            </h1>
-            <div className="flex gap-2 mt-2">
-              {classData.school_class_levels?.school_education_levels && (
-                <Badge>{classData.school_class_levels.school_education_levels.name}</Badge>
-              )}
-              {classData.school_class_levels && (
-                <Badge variant="outline">{classData.school_class_levels.name}</Badge>
-              )}
-            </div>
-          </div>
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg blur opacity-20" />
+          <div className="relative bg-white rounded-lg border border-slate-200 p-6 md:p-8 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <GraduationCap className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-slate-900">
+                    {classData.name}
+                  </h1>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {classData.school_class_levels?.school_education_levels && (
+                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">
+                      {classData.school_class_levels.school_education_levels.name}
+                    </Badge>
+                  )}
+                  {classData.school_class_levels && (
+                    <Badge variant="outline" className="border-slate-300">
+                      {classData.school_class_levels.name}
+                    </Badge>
+                  )}
+                </div>
+              </div>
 
-          <div className="flex gap-3">
-            <Badge variant="secondary">{subjects.length} Subjects</Badge>
-            <Badge variant="secondary">{students.length} Students</Badge>
+              <div className="flex flex-col sm:flex-row gap-3 md:justify-end">
+                <div className="px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-sm text-slate-600 font-medium">Total Students</p>
+                  <p className="text-2xl font-bold text-slate-900">{students.length}</p>
+                </div>
+                <div className="px-4 py-2 bg-slate-50 rounded-lg border border-slate-200">
+                  <p className="text-sm text-slate-600 font-medium">Subjects</p>
+                  <p className="text-2xl font-bold text-slate-900">{subjects.length}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* ================= STATS ================= */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <StatCard title="Students" value={students.length} icon={Users} />
-          <StatCard title="Subjects" value={subjects.length} icon={BookOpen} />
-          <StatCard title="Teachers" value={teachers.length} icon={UserPlus} />
-          <StatCard title="Settings" value="Manage" icon={Settings} />
+        {/* ================= STATS CARDS ================= */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <StatCard 
+            title="Total Students" 
+            value={students.length} 
+            icon={Users}
+            color="blue"
+          />
+          <StatCard 
+            title="Subjects" 
+            value={subjects.length} 
+            icon={BookOpen}
+            color="purple"
+          />
+          <StatCard 
+            title="Teachers Available" 
+            value={teachers.length} 
+            icon={UserPlus}
+            color="emerald"
+          />
         </div>
 
         {/* ================= TABS ================= */}
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto">
-            <TabsTrigger value="subjects" className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">Subjects</span>
-            </TabsTrigger>
-            <TabsTrigger value="students" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline">Students</span>
-            </TabsTrigger>
-            <TabsTrigger value="timetable" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              <span className="hidden sm:inline">Timetable</span>
-            </TabsTrigger>
-            <TabsTrigger value="attendance" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              <span className="hidden sm:inline">Attendance</span>
-            </TabsTrigger>
-            <TabsTrigger value="results" className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">Results</span>
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">Settings</span>
-            </TabsTrigger>
-          </TabsList>
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <div className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-200">
+              <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5 gap-0 bg-transparent p-0 h-auto rounded-none">
+                <TabsTrigger 
+                  value="subjects" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span className="hidden sm:inline">Subjects</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="students" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                >
+                  <Users className="h-4 w-4" />
+                  <span className="hidden sm:inline">Students</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="timetable" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                >
+                  <Clock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Timetable</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="attendance" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                >
+                  <Calendar className="h-4 w-4" />
+                  <span className="hidden sm:inline">Attendance</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="results" 
+                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-blue-50 py-3 text-sm font-medium transition-colors hover:bg-slate-100 flex items-center justify-center gap-2"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span className="hidden sm:inline">Results</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="p-6">
 
           {/* ================= SUBJECTS TAB ================= */}
           <TabsContent value="subjects">
@@ -638,27 +698,54 @@ export default function ClassPage() {
           <TabsContent value="results">
             <ResultsTab classId={classId} className={classData?.name} students={students} />
           </TabsContent>
-
-          {/* ================= SETTINGS TAB ================= */}
-          <TabsContent value="settings">
-            <Card><CardContent className="p-6">Settings coming soon</CardContent></Card>
-          </TabsContent>
-        </Tabs>
+            </div>
+          </Tabs>
+        </div>
       </div>
     </DashboardLayout>
   );
 }
 
-/* ================= SMALL STAT CARD ================= */
-function StatCard({ title, value, icon: Icon }: any) {
+/* ================= STAT CARD ================= */
+function StatCard({ 
+  title, 
+  value, 
+  icon: Icon,
+  color = "blue"
+}: {
+  title: string;
+  value: number;
+  icon: any;
+  color?: "blue" | "purple" | "emerald" | "orange" | "rose";
+}) {
+  const colorStyles = {
+    blue: "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100",
+    purple: "bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100",
+    emerald: "bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100",
+    orange: "bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100",
+    rose: "bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100",
+  };
+
+  const iconBgStyles = {
+    blue: "bg-blue-100",
+    purple: "bg-purple-100",
+    emerald: "bg-emerald-100",
+    orange: "bg-orange-100",
+    rose: "bg-rose-100",
+  };
+
   return (
-    <Card>
-      <CardContent className="p-4 flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-2xl font-bold">{value}</p>
+    <Card className={`border-2 transition-all duration-200 hover:shadow-md cursor-default ${colorStyles[color]}`}>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-slate-600 mb-2">{title}</p>
+            <p className="text-3xl font-bold text-slate-900">{value}</p>
+          </div>
+          <div className={`p-3 rounded-lg ${iconBgStyles[color]}`}>
+            <Icon className="h-6 w-6" />
+          </div>
         </div>
-        <Icon className="h-6 w-6 text-muted-foreground" />
       </CardContent>
     </Card>
   );

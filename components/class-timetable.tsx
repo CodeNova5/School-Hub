@@ -223,33 +223,37 @@ export function ClassTimetable({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="overflow-x-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <CardTitle>Class Timetable</CardTitle>
+    <div className="space-y-4">
+      <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-4 md:p-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-slate-900">Class Timetable</h3>
+            {className && <p className="text-sm text-slate-600 mt-1">{className}</p>}
+          </div>
           {showExportButtons && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 size="sm"
-                variant="outline"
                 onClick={handleExportPDF}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <FileDown className="h-4 w-4 mr-1" />
-                Export PDF
+                PDF
               </Button>
               <Button
                 size="sm"
-                variant="outline"
                 onClick={handleExportExcel}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <Download className="h-4 w-4 mr-1" />
-                Export Excel
+                Excel
               </Button>
             </div>
           )}
         </div>
-      </CardHeader>
-      <CardContent>
+      </div>
+      <Card className="border-slate-200">
+      <CardContent className="p-4 md:p-6">
         {/* Mobile Day View */}
         <div className="md:hidden space-y-4">
           {/* Day Selector */}
@@ -260,7 +264,11 @@ export function ClassTimetable({
                 onClick={() => setSelectedDay(day)}
                 variant={selectedDay === day ? "default" : "outline"}
                 size="sm"
-                className="flex-shrink-0 whitespace-nowrap"
+                className={`flex-shrink-0 whitespace-nowrap ${
+                  selectedDay === day 
+                    ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                }`}
               >
                 {day.slice(0, 3)}
               </Button>
@@ -295,10 +303,10 @@ export function ClassTimetable({
                   return (
                     <div
                       key={period.id}
-                      className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-center"
+                      className="p-4 bg-orange-50 border-2 border-orange-200 rounded-lg text-center hover:bg-orange-100 transition-colors"
                     >
-                      <div className="font-semibold text-yellow-800">BREAK TIME</div>
-                      <div className="text-sm text-yellow-700 mt-1">
+                      <div className="font-semibold text-orange-900">☕ BREAK</div>
+                      <div className="text-xs text-orange-700 mt-1 font-medium">
                         {period.start_time} - {period.end_time}
                       </div>
                     </div>
@@ -308,29 +316,29 @@ export function ClassTimetable({
                 return (
                   <div
                     key={period.id}
-                    className={`p-4 border rounded-lg transition-colors cursor-pointer ${
+                    className={`p-4 border-2 rounded-lg transition-all cursor-pointer ${
                       entries.length > 0
-                        ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100"
-                        : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                        ? "bg-blue-50 border-blue-300 hover:bg-blue-100 hover:border-blue-400"
+                        : "bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300"
                     }`}
                     onClick={() => onEntryClick?.(entries[0] || null, period.id, selectedDay)}
                   >
-                    <div className="flex flex-col gap-1">
-                      <div className="text-sm font-semibold text-gray-600">
-                        Period {idx + 1} • {period.start_time} - {period.end_time}
+                    <div className="flex flex-col gap-2">
+                      <div className="text-xs font-semibold text-slate-600 uppercase tracking-tight">
+                        Period {idx + 1} • {period.start_time}–{period.end_time}
                       </div>
                       {entries.length > 0 ? (
-                        <div className="space-y-2">
-                          <div className="text-lg font-bold text-gray-900">
+                        <div className="space-y-1.5">
+                          <div className="text-base font-bold text-slate-900">
                             {subjectDisplay || "—"}
                           </div>
-                          <div className="text-sm text-blue-700">
+                          <div className="text-sm text-blue-700 font-medium">
                             {uniqueTeachers || "No teacher"}
                           </div>
                         </div>
                       ) : (
-                        <div className="text-gray-500 italic flex items-center gap-2">
-                          <Plus className="w-4 h-4 opacity-50" />
+                        <div className="text-slate-500 text-sm flex items-center gap-2">
+                          <Plus className="w-4 h-4 opacity-40" />
                           <span>{onEntryClick ? "Add Subject" : "Free Period"}</span>
                         </div>
                       )}
@@ -348,15 +356,16 @@ export function ClassTimetable({
         </div>
 
         {/* Desktop Table View */}
-        <div className="hidden md:block border rounded-lg overflow-x-auto" id={`class-timetable-${classId}`}>
-          <table className="w-full border-collapse">
+        <div className="hidden md:block border border-slate-200 rounded-lg overflow-hidden" id={`class-timetable-${classId}`}>
+          <div className="overflow-x-auto">
+          <table className="w-full border-collapse bg-white">
             <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[100px]">
+              <tr className="bg-gradient-to-r from-slate-50 to-white border-b-2 border-slate-200">
+                <th className="px-4 py-3 font-semibold text-slate-700 text-left text-sm w-24">
                   Period
                 </th>
                 {DAYS.map((day) => (
-                  <th key={day} className="border border-gray-300 p-3 font-semibold text-gray-700 min-w-[180px]">
+                  <th key={day} className="px-4 py-3 font-semibold text-slate-700 text-center text-sm border-l border-slate-200">
                     {day}
                   </th>
                 ))}
@@ -364,15 +373,15 @@ export function ClassTimetable({
             </thead>
             <tbody>
               {Array.from({ length: maxPeriods }, (_, i) => (
-                <tr key={i}>
-                  <td className="border border-gray-300 p-3 bg-gray-50 text-center font-medium">
-                    Period {i + 1}
+                <tr key={i} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 bg-slate-50 text-center font-semibold text-slate-700 text-sm w-24 border-r border-slate-200">
+                    P{i + 1}
                   </td>
                   {DAYS.map((day) => {
                     const period = periodsByDay[day]?.[i];
                     if (!period) {
                       return (
-                        <td key={day} className="border border-gray-300 p-3 text-center text-gray-400">
+                        <td key={day} className="px-4 py-3 text-center text-slate-400 border-l border-slate-200">
                           —
                         </td>
                       );
@@ -380,11 +389,11 @@ export function ClassTimetable({
 
                     if (period.is_break) {
                       return (
-                        <td key={day} className="border border-gray-300 p-3 bg-yellow-50">
+                        <td key={day} className="px-4 py-3 bg-orange-50 border-l border-slate-200">
                           <div className="text-center">
-                            <div className="font-semibold text-yellow-800">BREAK</div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {period.start_time} - {period.end_time}
+                            <div className="font-semibold text-orange-900 text-sm">☕ BREAK</div>
+                            <div className="text-xs text-orange-700 mt-1">
+                              {period.start_time}–{period.end_time}
                             </div>
                           </div>
                         </td>
@@ -413,27 +422,27 @@ export function ClassTimetable({
 
                     const cellContent = entries.length > 0 ? (
                       <>
-                        <div className="text-xs text-gray-600 text-center">
-                          {period.start_time} - {period.end_time}
+                        <div className="text-xs text-slate-500 text-center font-medium">
+                          {period.start_time}–{period.end_time}
                         </div>
-                        <div className="font-semibold text-gray-800 text-center">
+                        <div className="font-semibold text-slate-900 text-center text-sm mt-1">
                           {subjectDisplay || "—"}
                         </div>
-                        <div className="text-xs text-gray-600 text-center">
+                        <div className="text-xs text-blue-700 text-center mt-1 font-medium">
                           {uniqueTeachers || "No teacher"}
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="text-xs text-gray-600 text-center">
-                          {period.start_time} - {period.end_time}
+                        <div className="text-xs text-slate-500 text-center font-medium">
+                          {period.start_time}–{period.end_time}
                         </div>
-                        <div className="text-gray-400 text-center py-2">
+                        <div className="text-slate-400 text-center py-1">
                           {onEntryClick && (
-                            <Plus className="w-4 h-4 mx-auto mb-1 opacity-50" />
+                            <Plus className="w-3.5 h-3.5 mx-auto mb-0.5 opacity-40" />
                           )}
                           <span className="text-xs">
-                            {onEntryClick ? "Add Subject" : "Free Period"}
+                            {onEntryClick ? "Add" : "Free"}
                           </span>
                         </div>
                       </>
@@ -442,12 +451,12 @@ export function ClassTimetable({
                     return (
                       <td
                         key={day}
-                        className={`border border-gray-300 p-3 ${
+                        className={`px-4 py-3 border-l border-slate-200 ${
                           onEntryClick ? "cursor-pointer hover:bg-blue-50 transition-colors" : ""
-                        }`}
+                        } ${entries.length > 0 ? "bg-blue-50" : "bg-white"}`}
                         onClick={() => onEntryClick?.(entries[0] || null, period.id, day)}
                       >
-                        <div className="space-y-1">{cellContent}</div>
+                        <div className="space-y-0.5">{cellContent}</div>
                       </td>
                     );
                   })}
@@ -455,13 +464,15 @@ export function ClassTimetable({
               ))}
             </tbody>
           </table>
+          </div>
           {periodSlots.length === 0 && (
-            <div className="p-8 text-center text-muted-foreground">
-              No timetable configured yet. Please set up period slots and entries in the Timetable Management page.
+            <div className="p-8 text-center text-slate-500">
+              No timetable configured yet.
             </div>
           )}
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 }

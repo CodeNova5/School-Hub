@@ -25,17 +25,24 @@ function compareSlotTime(a: PeriodSlot, b: PeriodSlot) {
   return (a.period_number ?? Number.MAX_SAFE_INTEGER) - (b.period_number ?? Number.MAX_SAFE_INTEGER);
 }
 
+function shortCode(name: string | undefined | null) {
+  if (!name) return "";
+  const cleaned = name.trim();
+  if (cleaned.length <= 3) return cleaned.toUpperCase();
+  return cleaned.slice(0, 3).toUpperCase();
+}
+
 type TimetableEntry = {
   id: string;
   class_id: string;
   period_slot_id: string;
   day_of_week: string;
-  classes?: { name: string; level: string };
+  classes?: { name: string };
   period_slots?: PeriodSlot;
   subject_classes?: {
     id: string;
     subject_code: string;
-    subjects?: { name: string; department?: string; religion?: string };
+    subjects?: { name: string };
     teachers?: { first_name: string; last_name: string };
   };
 };
@@ -74,12 +81,12 @@ export function ClassTimetable({
       .from("timetable_entries")
       .select(`
         *,
-        classes(name, level),
+        classes(name),
         period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
         subject_classes (
           id,
           subject_code,
-          subjects!subject_classes_subject_id_fkey ( name, department, religion ),
+          subjects!subject_classes_subject_id_fkey ( name ),
           teachers ( first_name, last_name )
         )
       `)
@@ -117,6 +124,19 @@ export function ClassTimetable({
     });
     return dayMap;
   }, [periodSlots]);
+
+  // Group entries by period slot to handle multiple subjects (departmental/religious)
+  const groupedEntries = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    timetableEntries.forEach((entry) => {
+      const key = `${entry.period_slot_id}`;
+      if (!map[key]) {
+        map[key] = [];
+      }
+      map[key].push(entry);
+    });
+    return map;
+  }, [timetableEntries]);
 
   const maxPeriods = useMemo(() => {
     return Math.max(...Object.values(periodsByDay).map(p => p.length), 0);
@@ -156,19 +176,30 @@ export function ClassTimetable({
           return;
         }
 
-        const entry = timetableEntries.find(
-          e => e.period_slot_id === period.id
-        );
-
-        if (entry && entry.subject_classes) {
-          const subject = entry.subject_classes.subjects?.name || "";
-          const teacher = entry.subject_classes.teachers 
-            ? `${entry.subject_classes.teachers.first_name} ${entry.subject_classes.teachers.last_name}`
-            : "";
-          row[day] = `${subject} - ${teacher}`;
-        } else {
+        const entries = groupedEntries[period.id] || [];
+        if (entries.length === 0) {
           row[day] = "Free Period";
+          return;
         }
+
+        // Only use abbreviated codes if multiple subjects, otherwise full name
+        let subjectDisplay = "";
+        if (entries.length > 1) {
+          subjectDisplay = Array.from(new Set(
+            entries
+              .filter(e => e.subject_classes?.subjects?.name)
+              .map(e => shortCode(e.subject_classes?.subjects?.name))
+          )).join("/");
+        } else if (entries.length === 1 && entries[0].subject_classes?.subjects?.name) {
+          subjectDisplay = entries[0].subject_classes.subjects.name;
+        }
+
+        const teachers = entries
+          .filter(e => e.subject_classes?.teachers)
+          .map(e => `${e.subject_classes.teachers.first_name} ${e.subject_classes.teachers.last_name}`);
+        const uniqueTeachers = Array.from(new Set(teachers)).join(", ");
+
+        row[day] = `${subjectDisplay} - ${uniqueTeachers}`;
       });
 
       exportData.push(row);
@@ -241,9 +272,24 @@ export function ClassTimetable({
             {periodSlots
               .filter((p) => p.day_of_week === selectedDay)
               .map((period, idx) => {
-                const entry = timetableEntries.find(
-                  e => e.period_slot_id === period.id
-                );
+                const entries = groupedEntries[period.id] || [];
+                
+                // Only use abbreviated codes if multiple subjects, otherwise full name
+                let subjectDisplay = "";
+                if (entries.length > 1) {
+                  subjectDisplay = Array.from(new Set(
+                    entries
+                      .filter(e => e.subject_classes?.subjects?.name)
+                      .map(e => shortCode(e.subject_classes?.subjects?.name))
+                  )).join("/");
+                } else if (entries.length === 1 && entries[0].subject_classes?.subjects?.name) {
+                  subjectDisplay = entries[0].subject_classes.subjects.name;
+                }
+
+                const teachers = entries
+                  .filter(e => e.subject_classes?.teachers)
+                  .map(e => `${e.subject_classes.teachers.first_name} ${e.subject_classes.teachers.last_name}`);
+                const uniqueTeachers = Array.from(new Set(teachers)).join(", ");
 
                 if (period.is_break) {
                   return (
@@ -263,25 +309,23 @@ export function ClassTimetable({
                   <div
                     key={period.id}
                     className={`p-4 border rounded-lg transition-colors cursor-pointer ${
-                      entry
+                      entries.length > 0
                         ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 hover:from-blue-100 hover:to-indigo-100"
                         : "bg-gray-50 border-gray-200 hover:bg-gray-100"
                     }`}
-                    onClick={() => onEntryClick?.(entry || null, period.id, selectedDay)}
+                    onClick={() => onEntryClick?.(entries[0] || null, period.id, selectedDay)}
                   >
                     <div className="flex flex-col gap-1">
                       <div className="text-sm font-semibold text-gray-600">
                         Period {idx + 1} • {period.start_time} - {period.end_time}
                       </div>
-                      {entry && entry.subject_classes ? (
+                      {entries.length > 0 ? (
                         <div className="space-y-2">
                           <div className="text-lg font-bold text-gray-900">
-                            {entry.subject_classes.subjects?.name || "—"}
+                            {subjectDisplay || "—"}
                           </div>
                           <div className="text-sm text-blue-700">
-                            {entry.subject_classes.teachers
-                              ? `${entry.subject_classes.teachers.first_name} ${entry.subject_classes.teachers.last_name}`
-                              : "No teacher"}
+                            {uniqueTeachers || "No teacher"}
                           </div>
                         </div>
                       ) : (
@@ -347,23 +391,36 @@ export function ClassTimetable({
                       );
                     }
 
-                    // Find entry for this period slot
-                    const entry = timetableEntries.find(
-                      e => e.period_slot_id === period.id
-                    );
+                    // Find entries for this period slot
+                    const entries = groupedEntries[period.id] || [];
+                    
+                    // Only use abbreviated codes if multiple subjects, otherwise full name
+                    let subjectDisplay = "";
+                    if (entries.length > 1) {
+                      subjectDisplay = Array.from(new Set(
+                        entries
+                          .filter(e => e.subject_classes?.subjects?.name)
+                          .map(e => shortCode(e.subject_classes?.subjects?.name))
+                      )).join("/");
+                    } else if (entries.length === 1 && entries[0].subject_classes?.subjects?.name) {
+                      subjectDisplay = entries[0].subject_classes.subjects.name;
+                    }
 
-                    const cellContent = entry && entry.subject_classes ? (
+                    const teachers = entries
+                      .filter(e => e.subject_classes?.teachers)
+                      .map(e => `${e.subject_classes.teachers.first_name} ${e.subject_classes.teachers.last_name}`);
+                    const uniqueTeachers = Array.from(new Set(teachers)).join(", ");
+
+                    const cellContent = entries.length > 0 ? (
                       <>
                         <div className="text-xs text-gray-600 text-center">
                           {period.start_time} - {period.end_time}
                         </div>
                         <div className="font-semibold text-gray-800 text-center">
-                          {entry.subject_classes.subjects?.name || "—"}
+                          {subjectDisplay || "—"}
                         </div>
                         <div className="text-xs text-gray-600 text-center">
-                          {entry.subject_classes.teachers
-                            ? `${entry.subject_classes.teachers.first_name} ${entry.subject_classes.teachers.last_name}`
-                            : "No teacher"}
+                          {uniqueTeachers || "No teacher"}
                         </div>
                       </>
                     ) : (
@@ -388,7 +445,7 @@ export function ClassTimetable({
                         className={`border border-gray-300 p-3 ${
                           onEntryClick ? "cursor-pointer hover:bg-blue-50 transition-colors" : ""
                         }`}
-                        onClick={() => onEntryClick?.(entry || null, period.id, day)}
+                        onClick={() => onEntryClick?.(entries[0] || null, period.id, day)}
                       >
                         <div className="space-y-1">{cellContent}</div>
                       </td>

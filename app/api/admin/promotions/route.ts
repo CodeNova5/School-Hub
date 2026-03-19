@@ -78,14 +78,19 @@ export async function GET(request: NextRequest) {
         last_name,
         status,
         class_id,
-        department,
+        department_id,
         classes:class_id (
           id,
           name,
-          level,
-          stream,
-          education_level,
-          department
+          school_class_levels (
+            name
+          ),
+          school_streams (
+            name
+          ),
+          school_departments (
+            name
+          )
         )
       `
       )
@@ -179,7 +184,7 @@ export async function GET(request: NextRequest) {
         : meetsPassMark;
 
       // Check if SSS 3 (graduating class)
-      const classLevel = (student.classes as any)?.level || "";
+      const classLevel = (student.classes as any)?.school_class_levels?.name || "";
       const isGraduating = classLevel === "SSS 3";
 
       return {
@@ -189,9 +194,9 @@ export async function GET(request: NextRequest) {
         current_class_id: student.class_id,
         current_class_name: (student.classes as any)?.name || "",
         current_class_level: classLevel,
-        current_class_stream: (student.classes as any)?.stream || "",
-        education_level: (student.classes as any)?.education_level || "",
-        department: student.department,
+        current_class_stream: (student.classes as any)?.school_streams?.name || "",
+        education_level: "",
+        department: (student.classes as any)?.school_departments?.name || "",
         terms_completed: termsWithResults,
         total_terms: terms?.length || 0,
         cumulative_average: cumulativeAverage,

@@ -17,21 +17,24 @@ async function checkIsAdmin() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { authorized: false, error: "Unauthorized", status: 401 };
+    return { authorized: false, error: "Unauthorized", status: 401, schoolId: null };
   }
 
   const { data: isAdmin } = await supabase.rpc("is_admin");
 
   if (!isAdmin) {
-    return { authorized: false, error: "Forbidden", status: 403 };
+    return { authorized: false, error: "Forbidden", status: 403, schoolId: null };
   }
 
-  return { authorized: true };
+  // Get user's school_id
+  const { data: schoolId } = await supabase.rpc("get_my_school_id");
+
+  return { authorized: true, schoolId };
 }
 
 export async function GET(request: NextRequest) {
   try {
-    // Check if user is admin
+    // Check if user is admin and get school_id
     const authCheck = await checkIsAdmin();
     if (!authCheck.authorized) {
       return NextResponse.json(
@@ -40,27 +43,38 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (!authCheck.schoolId) {
+      return NextResponse.json(
+        { error: "User is not assigned to a school" },
+        { status: 403 }
+      );
+    }
+
+    const schoolId = authCheck.schoolId;
+
     // Query tokens using ADMIN client (bypasses RLS policies)
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    console.log("Fetching token diagnostics with admin client...");
+    console.log("Fetching token diagnostics for school:", schoolId);
 
-    // Get all tokens using admin client
+    // Get all tokens for this school using admin client
     const { data: allTokens, error: allError } = await supabaseAdmin
       .from("notification_tokens")
-      .select("id, is_active, created_at, last_registered_at, role, user_id");
+      .select("id, is_active, created_at, last_registered_at, role, user_id, school_id")
+      .eq("school_id", schoolId);
 
     if (allError) {
       console.error("Error querying all tokens:", allError);
       throw allError;
     }
 
-    // Get active tokens
+    // Get active tokens for this school
     const { data: activeTokens, error: activeError } = await supabaseAdmin
       .from("notification_tokens")
       .select("id, last_registered_at")
+      .eq("school_id", schoolId)
       .eq("is_active", true);
 
     if (activeError) {
@@ -69,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(
-      `✓ Token diagnostics fetched: Total=${allTokens?.length || 0}, Active=${activeTokens?.length || 0}`
+      `✓ Token diagnostics fetched: Total=${allTokens?.length || 0}, Active=${activeTokens?.length || 0} for school ${schoolId}`
     );
 
     // Identify stale tokens

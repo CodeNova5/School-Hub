@@ -16,21 +16,24 @@ async function checkIsAdmin() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        return { authorized: false, error: "Unauthorized", status: 401 };
+        return { authorized: false, error: "Unauthorized", status: 401, schoolId: null };
     }
 
     const { data: isAdmin } = await supabase.rpc("is_admin");
 
     if (!isAdmin) {
-        return { authorized: false, error: "Forbidden", status: 403 };
+        return { authorized: false, error: "Forbidden", status: 403, schoolId: null };
     }
 
-    return { authorized: true };
+    // Get user's school_id
+    const { data: schoolId } = await supabase.rpc("get_my_school_id");
+
+    return { authorized: true, schoolId };
 }
 
 export async function GET(request: NextRequest) {
     try {
-        // Check if user is admin  
+        // Check if user is admin and get school_id
         const authCheck = await checkIsAdmin();
         if (!authCheck.authorized) {
             return NextResponse.json(
@@ -39,12 +42,22 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Get total notifications sent
+        if (!authCheck.schoolId) {
+            return NextResponse.json(
+                { error: "User is not assigned to a school" },
+                { status: 403 }
+            );
+        }
+
+        const schoolId = authCheck.schoolId;
+
+        // Get total notifications sent for this school
         const { count: totalSent } = await supabaseAdmin
             .from("notification_logs")
-            .select("*", { count: "exact" });
+            .select("*", { count: "exact" })
+            .eq("school_id", schoolId);
 
-        // Get today's count
+        // Get today's count for this school
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayString = today.toISOString();
@@ -52,12 +65,14 @@ export async function GET(request: NextRequest) {
         const { count: todayCount } = await supabaseAdmin
             .from("notification_logs")
             .select("*", { count: "exact" })
+            .eq("school_id", schoolId)
             .gte("created_at", todayString);
 
-        // Get all notification logs for calculations
+        // Get all notification logs for this school for calculations
         const { data: allNotifications, error: notifError } = await supabaseAdmin
             .from("notification_logs")
             .select("*")
+            .eq("school_id", schoolId)
             .order("created_at", { ascending: false })
             .limit(100);
 

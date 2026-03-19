@@ -34,6 +34,7 @@ interface ClassOption {
   id: string;
   name: string;
   level: string;
+  classLevelOrder: number;
 }
 
 interface UserSearchResult {
@@ -74,8 +75,8 @@ export function AdminSendNotificationComponent() {
       
       const { data, error } = await supabase
         .from("classes")
-        .select("id, name, level")
-        .order("level", { ascending: true });
+        .select("id, name, school_class_levels(name, order_sequence)")
+        .order("name", { ascending: true });
 
       if (error) {
         console.error("Error fetching classes:", error);
@@ -83,7 +84,21 @@ export function AdminSendNotificationComponent() {
       }
 
       if (data) {
-        setClasses(data);
+        const formattedClasses: ClassOption[] = data.map((classItem: any) => ({
+          id: classItem.id,
+          name: classItem.name,
+          level: classItem.school_class_levels?.name || "N/A",
+          classLevelOrder: classItem.school_class_levels?.order_sequence ?? 999,
+        }));
+
+        formattedClasses.sort((a, b) => {
+          if (a.classLevelOrder !== b.classLevelOrder) {
+            return a.classLevelOrder - b.classLevelOrder;
+          }
+          return a.name.localeCompare(b.name);
+        });
+
+        setClasses(formattedClasses);
       }
     } catch (error) {
       console.error("Failed to fetch classes:", error);

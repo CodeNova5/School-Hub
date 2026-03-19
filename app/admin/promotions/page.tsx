@@ -269,7 +269,7 @@ export default function PromotionsPage() {
       // Get next class for each student
       const { data: allClasses, error: classesError } = await supabase
         .from("classes")
-        .select("*")
+        .select("id, name, school_class_levels(name), school_streams(name), school_departments(name)")
         .eq("school_id", schoolId);
 
       if (classesError) throw classesError;
@@ -396,15 +396,15 @@ export default function PromotionsPage() {
       // Get all streams at current level
       const currentLevelStreams = new Set(
         allClasses
-          .filter((c) => c.level === currentClassLevel && c.stream)
-          .map((c) => c.stream)
+          .filter((c) => c.school_class_levels?.name === currentClassLevel && c.school_streams?.name)
+          .map((c) => c.school_streams?.name)
       );
 
       // Get all streams at next level
       const nextLevelStreams = new Set(
         allClasses
-          .filter((c) => c.level === nextClassLevel && c.stream)
-          .map((c) => c.stream)
+          .filter((c) => c.school_class_levels?.name === nextClassLevel && c.school_streams?.name)
+          .map((c) => c.school_streams?.name)
       );
 
       // Check if stream setup is complete (all current streams have next level equivalents)
@@ -416,14 +416,19 @@ export default function PromotionsPage() {
         // Promote to same stream (e.g., SSS 1 A -> SSS 2 A)
         const nextClassWithStream = allClasses.find(
           (c) =>
-            c.level === nextClassLevel &&
-            c.stream === stream &&
-            (!department || !c.department || c.department === department)
+            c.school_class_levels?.name === nextClassLevel &&
+            c.school_streams?.name === stream &&
+            (!department || !c.school_departments?.name || c.school_departments?.name === department)
         );
         
         if (nextClassWithStream) {
           console.log(`Complete stream setup found. Promoting ${currentClassLevel} ${stream} -> ${nextClassLevel} ${stream}`);
-          return nextClassWithStream;
+          return {
+            id: nextClassWithStream.id,
+            name: nextClassWithStream.name,
+            education_level: educationLevel,
+            department: nextClassWithStream.school_departments?.name,
+          };
         }
       } else {
         console.log(`Incomplete stream setup. Current level has streams ${Array.from(currentLevelStreams).join(', ')}, next level has ${Array.from(nextLevelStreams).join(', ') || 'none'}`);
@@ -432,30 +437,46 @@ export default function PromotionsPage() {
       // If not complete or stream class not found, fall back to non-stream class
       const nextClassWithoutStream = allClasses.find(
         (c) =>
-          c.level === nextClassLevel &&
-          !c.stream &&
-          (!department || !c.department || c.department === department)
+          c.school_class_levels?.name === nextClassLevel &&
+          !c.school_streams?.name &&
+          (!department || !c.school_departments?.name || c.school_departments?.name === department)
       );
       
       if (nextClassWithoutStream) {
         console.log(`Combining streams. Promoting ${currentClassLevel} ${stream} -> ${nextClassLevel} (no stream)`);
-        return nextClassWithoutStream;
+        return {
+          id: nextClassWithoutStream.id,
+          name: nextClassWithoutStream.name,
+          education_level: educationLevel,
+          department: nextClassWithoutStream.school_departments?.name,
+        };
       }
     }
 
     // If student doesn't have a stream or no suitable class found yet
-    return allClasses.find(
+    const nextClass = allClasses.find(
       (c) => {
-        if (c.level !== nextClassLevel) return false;
+        if (c.school_class_levels?.name !== nextClassLevel) return false;
         
         // For SSS, match department if specified
-        if (nextClassLevel.startsWith("SSS") && department && c.department) {
-          return c.department === department;
+        if (nextClassLevel.startsWith("SSS") && department && c.school_departments?.name) {
+          return c.school_departments?.name === department;
         }
         
         return true;
       }
     );
+
+    if (nextClass) {
+      return {
+        id: nextClass.id,
+        name: nextClass.name,
+        education_level: educationLevel,
+        department: nextClass.school_departments?.name,
+      };
+    }
+
+    return undefined;
   }
 
   function calculateGrade(average: number): string {

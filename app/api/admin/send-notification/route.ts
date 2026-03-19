@@ -28,16 +28,19 @@ async function checkIsAdmin() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-        return { authorized: false, error: "Unauthorized", status: 401, user: null };
+        return { authorized: false, error: "Unauthorized", status: 401, user: null, schoolId: null };
     }
 
     const { data: isAdmin } = await supabase.rpc("is_admin");
 
     if (!isAdmin) {
-        return { authorized: false, error: "Forbidden", status: 403, user: null };
+        return { authorized: false, error: "Forbidden", status: 403, user: null, schoolId: null };
     }
 
-    return { authorized: true, user };
+    // Get user's school_id
+    const { data: schoolId } = await supabase.rpc("get_my_school_id");
+
+    return { authorized: true, user, schoolId };
 }
 
 // check if user is teacher
@@ -47,16 +50,19 @@ async function checkIsTeacher() {
         data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-        return { authorized: false, error: "Unauthorized", status: 401, user: null };
+        return { authorized: false, error: "Unauthorized", status: 401, user: null, schoolId: null };
     }
 
     const { data: isTeacher } = await supabase.rpc("is_teacher");
 
     if (!isTeacher) {
-        return { authorized: false, error: "Forbidden", status: 403, user: null };
+        return { authorized: false, error: "Forbidden", status: 403, user: null, schoolId: null };
     }
 
-    return { authorized: true, user };
+    // Get user's school_id
+    const { data: schoolId } = await supabase.rpc("get_my_school_id");
+
+    return { authorized: true, user, schoolId };
 }
 
 // Function to log notification to the database
@@ -69,12 +75,13 @@ async function logNotification(
     failureCount: number,
     totalRecipients: number,
     sentBy: string,
+    schoolId: string,
     imageUrl?: string,
     link?: string,
     targetName?: string
 ) {
     try {
-        console.log("📝 Attempting to log notification to database...", { sentBy, target });
+        console.log("📝 Attempting to log notification to database...", { sentBy, target, schoolId });
         
         const { data, error } = await supabaseAdmin
             .from("notification_logs")
@@ -89,7 +96,8 @@ async function logNotification(
                 success_count: successCount,
                 failure_count: failureCount,
                 total_recipients: totalRecipients,
-                sent_by: sentBy
+                sent_by: sentBy,
+                school_id: schoolId
             });
 
         if (error) {
@@ -113,6 +121,9 @@ export async function POST(request: NextRequest) {
     try {
         // Check if user is admin or teacher
         const authCheck = await checkIsAdmin();
+        let schoolId: string | null = null;
+        let userId: string | undefined = undefined;
+
         if (!authCheck.authorized) {
             const teacherCheck = await checkIsTeacher();
             if (!teacherCheck.authorized) {
@@ -121,9 +132,19 @@ export async function POST(request: NextRequest) {
                     { status: authCheck.status }
                 );
             }
+            schoolId = teacherCheck.schoolId;
+            userId = teacherCheck.user?.id;
+        } else {
+            schoolId = authCheck.schoolId;
+            userId = authCheck.user?.id;
         }
-        
-        const userId = authCheck.user?.id;
+
+        if (!schoolId) {
+            return NextResponse.json(
+                { error: "User is not assigned to a school" },
+                { status: 403 }
+            );
+        }
 
         const { title, body, imageUrl, link, target, targetValue, targetName, data: customData } =
             await request.json();
@@ -139,26 +160,28 @@ export async function POST(request: NextRequest) {
         // Get tokens based on target
         let tokens: any[] = [];
 
-        // FIRST - Debug: Check total tokens vs active tokens
+        // FIRST - Debug: Check total tokens vs active tokens for this school
         try {
             const { count: totalCount } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token", { count: "exact" })
-                ;
+                .eq("school_id", schoolId);
 
             const { count: activeCount } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token", { count: "exact" })
+                .eq("school_id", schoolId)
                 .eq("is_active", true);
 
             const { data: inactiveTokensSample } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token, user_id, is_active")
+                .eq("school_id", schoolId)
                 .eq("is_active", false)
                 .limit(3);
 
             console.log(`
-📊 Token Status Check:
+📊 Token Status Check for school ${schoolId}:
 ├─ Total tokens in database: ${totalCount || 0}
 ├─ Active tokens (is_active=true): ${activeCount || 0}
 ├─ Inactive tokens: ${(totalCount || 0) - (activeCount || 0)}
@@ -167,7 +190,7 @@ export async function POST(request: NextRequest) {
 
             if ((totalCount || 0) > 0 && (activeCount || 0) === 0) {
                 console.warn(
-                    "⚠️ ALERT: Found tokens but ALL are marked as INACTIVE (is_active=false)!"
+                    "⚠️ ALERT: Found tokens but ALL are marked as INACTIVE (is_active=false) for this school!"
                 );
             }
         } catch (debugError) {
@@ -175,10 +198,11 @@ export async function POST(request: NextRequest) {
         }
 
         if (target === "all") {
-            // Get all active tokens
+            // Get all active tokens for this school
             const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token")
+                .eq("school_id", schoolId)
                 .eq("is_active", true);
 
             if (error) {
@@ -186,13 +210,14 @@ export async function POST(request: NextRequest) {
                 throw error;
             }
             
-            console.log(`Found ${data?.length || 0} active tokens for target 'all'`);
+            console.log(`Found ${data?.length || 0} active tokens for target 'all' in school ${schoolId}`);
             tokens = data || [];
         } else if (target === "role") {
-            // Get tokens by role
+            // Get tokens by role for this school
             const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token")
+                .eq("school_id", schoolId)
                 .eq("role", targetValue)
                 .eq("is_active", true);
 
@@ -201,37 +226,40 @@ export async function POST(request: NextRequest) {
                 throw error;
             }
             
-            console.log(`Found ${data?.length || 0} active tokens for role '${targetValue}'`);
+            console.log(`Found ${data?.length || 0} active tokens for role '${targetValue}' in school ${schoolId}`);
             tokens = data || [];
         } else if (target === "user") {
-            // Get tokens for specific user - need to resolve profile ID to auth user_id
+            // Get tokens for specific user in this school - need to resolve profile ID to auth user_id
             let authUserId = targetValue;
             
-            // Try to find the user_id from students table
+            // Try to find the user_id from students table in this school
             const { data: studentData } = await supabaseAdmin
                 .from("students")
                 .select("user_id")
                 .eq("id", targetValue)
+                .eq("school_id", schoolId)
                 .single();
             
             if (studentData?.user_id) {
                 authUserId = studentData.user_id;
             } else {
-                // Try teachers table
+                // Try teachers table in this school
                 const { data: teacherData } = await supabaseAdmin
                     .from("teachers")
                     .select("user_id")
                     .eq("id", targetValue)
+                    .eq("school_id", schoolId)
                     .single();
                 
                 if (teacherData?.user_id) {
                     authUserId = teacherData.user_id;
                 } else {
-                    // Try parents table
+                    // Try parents table in this school
                     const { data: parentData } = await supabaseAdmin
                         .from("parents")
                         .select("user_id")
                         .eq("id", targetValue)
+                        .eq("school_id", schoolId)
                         .single();
                     
                     if (parentData?.user_id) {
@@ -240,12 +268,13 @@ export async function POST(request: NextRequest) {
                 }
             }
 
-            console.log(`Resolved user profile '${targetValue}' to auth user '${authUserId}'`);
+            console.log(`Resolved user profile '${targetValue}' to auth user '${authUserId}' in school ${schoolId}`);
 
-            // Get tokens for the resolved auth user_id
+            // Get tokens for the resolved auth user_id in this school
             const { data, error } = await supabaseAdmin
                 .from("notification_tokens")
                 .select("token")
+                .eq("school_id", schoolId)
                 .eq("user_id", authUserId)
                 .eq("is_active", true);
 
@@ -254,22 +283,43 @@ export async function POST(request: NextRequest) {
                 throw error;
             }
             
-            console.log(`Found ${data?.length || 0} active tokens for user '${authUserId}'`);
+            console.log(`Found ${data?.length || 0} active tokens for user '${authUserId}' in school ${schoolId}`);
             tokens = data || [];
         } else if (target === "class") {
-            // Get tokens for students in a class
-            const { data, error } = await supabaseAdmin
-                .from("notification_tokens")
-                .select("token")
-                .eq("is_active", true);
+            // Get tokens for students in a class in this school
+            const { data: classStudents, error: classError } = await supabaseAdmin
+                .from("students")
+                .select("user_id")
+                .eq("class_id", targetValue)
+                .eq("school_id", schoolId);
 
-            if (error) {
-                console.error(`Error fetching tokens:`, error);
-                throw error;
+            if (classError) {
+                console.error(`Error fetching students for class:`, classError);
+                throw classError;
             }
+
+            const studentUserIds = classStudents?.map(s => s.user_id) || [];
             
-            console.log(`Found ${data?.length || 0} active tokens for class`);
-            tokens = data || [];
+            if (studentUserIds.length === 0) {
+                console.log(`No students found in class ${targetValue} for school ${schoolId}`);
+                tokens = [];
+            } else {
+                // Get tokens for all students in the class
+                const { data, error } = await supabaseAdmin
+                    .from("notification_tokens")
+                    .select("token")
+                    .eq("school_id", schoolId)
+                    .in("user_id", studentUserIds)
+                    .eq("is_active", true);
+
+                if (error) {
+                    console.error(`Error fetching tokens for class:`, error);
+                    throw error;
+                }
+                
+                console.log(`Found ${data?.length || 0} active tokens for class ${targetValue} in school ${schoolId}`);
+                tokens = data || [];
+            }
         }
 
         if (tokens.length === 0) {
@@ -341,6 +391,7 @@ export async function POST(request: NextRequest) {
                 result.failureCount,
                 tokensList.length,
                 userId,
+                schoolId,
                 imageUrl,
                 link,
                 targetName
@@ -354,7 +405,7 @@ export async function POST(request: NextRequest) {
 
         // Log notification send details for debugging
         console.log(`
-📊 Notification Send Summary:
+📊 Notification Send Summary for school ${schoolId}:
 ├─ Title: ${title}
 ├─ Target: ${target === "all" ? "All Users" : `${target} (${targetValue})`}
 ├─ Success: ${result.successCount}

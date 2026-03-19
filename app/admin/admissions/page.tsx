@@ -79,9 +79,9 @@ interface Application {
 interface Class {
   id: string;
   name: string;
-  level: string;
-  education_level: string;
-  department: string | null;
+  level?: string;
+  education_level?: string;
+  department?: string | null;
 }
 
 export default function AdminAdmissionsPage() {
@@ -152,7 +152,7 @@ export default function AdminAdmissionsPage() {
     try {
       const { data, error } = await supabase
         .from("classes")
-        .select("id, name, level, education_level, department")
+        .select("id, name, school_class_levels(name), school_departments(name)")
         .eq("school_id", schoolId);
 
       if (error) throw error;

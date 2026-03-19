@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { Session, Term } from '@/lib/types';
+import { formatDateLong } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -41,6 +42,8 @@ export default function SessionsPage() {
       const init = async () => {
         await fetchSessions();
         await fetchTerms();
+        // Auto-sync all sessions' end dates with their latest terms
+        await syncAllSessionsEndDates();
       };
       init();
     }
@@ -295,9 +298,13 @@ export default function SessionsPage() {
         return;
       }
 
+      // Auto-sync the session's end_date with the latest term
+      await syncSessionEndDate(selectedSession);
+
       setIsTermDialogOpen(false);
       setSelectedSession('');
       await fetchTerms();
+      await fetchSessions();
     } finally {
       setIsLoading(false);
     }
@@ -397,9 +404,13 @@ export default function SessionsPage() {
         return;
       }
 
+      // Auto-sync the session's end_date with the latest term
+      await syncSessionEndDate(editingTerm.session_id);
+
       setIsEditTermDialogOpen(false);
       setEditingTerm(null);
       await fetchTerms();
+      await fetchSessions();
     } finally {
       setIsLoading(false);
     }
@@ -431,6 +442,51 @@ export default function SessionsPage() {
 
   function isPast(date: string) {
     return new Date(date) < new Date(new Date().toDateString());
+  }
+
+  // Auto-sync all sessions' end dates to their latest term's end_date
+  async function syncAllSessionsEndDates() {
+    if (!schoolId) return;
+    try {
+      // Get all sessions for this school
+      const { data: allSessions } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('school_id', schoolId);
+
+      if (allSessions && allSessions.length > 0) {
+        // Sync each session
+        for (const session of allSessions) {
+          await syncSessionEndDate(session.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing all sessions end dates:', error);
+    }
+  }
+
+  // Auto-sync session end_date to the latest term's end_date in that session
+  async function syncSessionEndDate(sessionId: string) {
+    try {
+      // Get all terms for this session
+      const { data: sessionTerms } = await supabase
+        .from('terms')
+        .select('end_date')
+        .eq('session_id', sessionId)
+        .order('end_date', { ascending: false })
+        .limit(1);
+
+      if (sessionTerms && sessionTerms.length > 0) {
+        const latestEndDate = sessionTerms[0].end_date;
+        // Update the session's end_date to match the latest term
+        await supabase
+          .from('sessions')
+          .update({ end_date: latestEndDate })
+          .eq('id', sessionId);
+      }
+    } catch (error) {
+      console.error('Error syncing session end date:', error);
+    }
   }
 
   // Set current session
@@ -467,10 +523,10 @@ export default function SessionsPage() {
         if (today < startDate || today > endDate) {
           // Show warning confirmation
           const confirmed = confirm(
-            `⚠️ WARNING: Today (${new Date().toLocaleDateString()}) does not fall within this term.\n\n` +
+            `⚠️ WARNING: Today (${formatDateLong(today)}) does not fall within this term.\n\n` +
             `Term: ${term.name}\n` +
-            `Start Date: ${new Date(startDate).toLocaleDateString()}\n` +
-            `End Date: ${new Date(endDate).toLocaleDateString()}\n\n` +
+            `Start Date: ${formatDateLong(startDate)}\n` +
+            `End Date: ${formatDateLong(endDate)}\n\n` +
             `Do you want to set this as the current term anyway?`
           );
 
@@ -725,24 +781,6 @@ export default function SessionsPage() {
             <p className="text-gray-600 mt-1">Manage academic sessions and terms</p>
           </div>
           <div className="flex gap-2 items-center">
-            <label className="font-medium">Current Session:</label>
-            <select
-              className="border rounded px-2 py-1"
-              value={currentSessionId}
-              onChange={e => handleSetCurrentSession(e.target.value)}
-              disabled={isLoading}
-            >
-              <option value="">Select session</option>
-              {Array.from({ length: 2050 - 2026 + 1 }, (_, i) => {
-                const year1 = 2026 + i;
-                const year2 = year1 + 1;
-                const label = `${year1}/${year2}`;
-                const session = sessions.find(s => s.name === label);
-                return (
-                  <option key={label} value={session?.id || ''}>{label}</option>
-                );
-              })}
-            </select>
             <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
               <DialogTrigger asChild>
                 <Button disabled={isLoading}>
@@ -826,34 +864,22 @@ export default function SessionsPage() {
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3 flex items-start gap-3">
                           <AlertCircle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                           <p className="text-sm text-yellow-800 font-medium">
-                            Date Mismatch: Today ({new Date().toLocaleDateString()}) is not within this term's dates
+                            Date Mismatch: Today ({formatDateLong(new Date().toISOString().split('T')[0])}) is not within this term's dates
                           </p>
                         </div>
                       )}
 
-                      {/* Warning if session has ended */}
-                      {!isSessionActive && session && (
-                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3 flex items-start gap-3">
-                          <AlertCircle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                          <p className="text-sm text-orange-800 font-medium">
-                            Session Ended: The session ({session.name}) ended on {new Date(session.end_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
+                      <div className={`flex items-center justify-between p-4 border rounded-lg ${isTermActive ? 'border-green-300 bg-green-50' : 'border-yellow-300 bg-yellow-50'}`}>
                         <div>
                           <p className="font-medium text-lg">{term.name}</p>
                           <p className="text-sm text-gray-600">{session?.name}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {new Date(term.start_date).toLocaleDateString()} - {new Date(term.end_date).toLocaleDateString()}
+                            {formatDateLong(term.start_date)} - {formatDateLong(term.end_date)}
                           </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={isTermActive ? "bg-green-600 text-white" : "bg-yellow-600 text-white"}>
-                            {isTermActive ? "Active" : "Out of Date Range"}
-                          </Badge>
-                        </div>
+                        <Badge className={isTermActive ? "bg-green-600 text-white" : "bg-yellow-600 text-white"}>
+                          {isTermActive ? "Active" : "Out of Date Range"}
+                        </Badge>
                       </div>
                     </div>
                   );
@@ -896,7 +922,7 @@ export default function SessionsPage() {
                     <div>
                       <p className="font-semibold text-lg">{viewingSession.name}</p>
                       <p className="text-sm text-gray-600 mt-1">
-                        {new Date(viewingSession.start_date).toLocaleDateString()} - {new Date(viewingSession.end_date).toLocaleDateString()}
+                        {formatDateLong(viewingSession.start_date)} - {formatDateLong(viewingSession.end_date)}
                       </p>
                       {viewingSession.is_current && (
                         <Badge className="bg-blue-600 text-white mt-2">Current Session</Badge>
@@ -979,7 +1005,7 @@ export default function SessionsPage() {
                             <div>
                               <p className="font-medium">{term.name}</p>
                               <p className="text-xs text-gray-500 mt-1">
-                                {new Date(term.start_date).toLocaleDateString()} - {new Date(term.end_date).toLocaleDateString()}
+                                {formatDateLong(term.start_date)} - {formatDateLong(term.end_date)}
                               </p>
                               {term.is_current && (
                                 <Badge className="bg-green-600 text-white mt-2 text-xs">Active</Badge>

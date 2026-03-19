@@ -1,5 +1,5 @@
 // Main Dashboard Skeleton
-export { DashboardSkeleton } from './dashboard-skeleton';
+export { DashboardSkeleton } from '../dashboard-skeleton';
 
 // Page-specific Skeletons
 export { SessionsSkeleton } from './sessions-skeleton';

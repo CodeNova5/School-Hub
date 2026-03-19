@@ -306,9 +306,7 @@ export default function ClassesPage() {
   if (schoolLoading || !schoolId) {
     return (
       <DashboardLayout role="admin">
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
-        </div>
+       <ClassesSkeleton />
       </DashboardLayout>
     );
   }

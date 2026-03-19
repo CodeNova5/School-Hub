@@ -274,7 +274,9 @@ export default function PromotionsPage() {
 
       if (classesError) throw classesError;
 
-      console.log("All classes:", allClasses);
+      // Sort classes by progression order to ensure consistent class assignment
+      const sortedClasses = sortClassesByProgression(allClasses || []);
+      console.log("All classes (sorted by progression):", sortedClasses);
 
       const promotions = students
         .filter((s) => selectedStudents.has(s.student_id))
@@ -293,7 +295,7 @@ export default function PromotionsPage() {
               student.current_class_stream, // Pass stream
               student.education_level,
               student.department,
-              allClasses || []
+              sortedClasses
             );
             
             console.log(`Next class for ${student.student_name} (${student.current_class_level} ${student.current_class_stream || ''}):`, nextClass);
@@ -362,6 +364,51 @@ export default function PromotionsPage() {
     }
   }
 
+  // Helper function to define the complete progression sequence
+  function getProgressionSequence(): string[] {
+    return [
+      "Creche",
+      "KG 1", "KG 2",
+      "Nursery 1", "Nursery 2",
+      "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6",
+      "JSS 1", "JSS 2", "JSS 3",
+      "SSS 1", "SSS 2", "SSS 3",
+    ];
+  }
+
+  // Helper function to get the position of a class level in the progression sequence
+  function getProgressionIndex(classLevel: string): number {
+    const sequence = getProgressionSequence();
+    return sequence.indexOf(classLevel);
+  }
+
+  // Helper function to sort classes by their progression order
+  function sortClassesByProgression(classes: any[]): any[] {
+    return [...classes].sort((a, b) => {
+      const levelA = a.school_class_levels?.name || "";
+      const levelB = b.school_class_levels?.name || "";
+      const indexA = getProgressionIndex(levelA);
+      const indexB = getProgressionIndex(levelB);
+
+      // If levels are different, sort by progression
+      if (indexA !== indexB) {
+        return indexA - indexB;
+      }
+
+      // If same level, sort by stream (A, B, C, etc.)
+      const streamA = a.school_streams?.name || "";
+      const streamB = b.school_streams?.name || "";
+      if (streamA !== streamB) {
+        return streamA.localeCompare(streamB);
+      }
+
+      // If same level and stream, sort by department
+      const deptA = a.school_departments?.name || "";
+      const deptB = b.school_departments?.name || "";
+      return deptA.localeCompare(deptB);
+    });
+  }
+
   function getNextClass(
     currentClassLevel: string,
     stream: string | undefined,
@@ -370,11 +417,11 @@ export default function PromotionsPage() {
     allClasses: any[]
   ): NextClass | undefined {
     const progressionMap: Record<string, string> = {
-      "Creche": "Nursery 1",
-      "Nursery 1": "Nursery 2",
-      "Nursery 2": "KG 1",
+      "Creche": "KG 1",
       "KG 1": "KG 2",
-      "KG 2": "Primary 1",
+      "KG 2": "Nursery 1",
+      "Nursery 1": "Nursery 2",
+      "Nursery 2": "Primary 1",
       "Primary 1": "Primary 2",
       "Primary 2": "Primary 3",
       "Primary 3": "Primary 4",
@@ -389,7 +436,20 @@ export default function PromotionsPage() {
     };
 
     const nextClassLevel = progressionMap[currentClassLevel];
-    if (!nextClassLevel) return undefined;
+    if (!nextClassLevel) {
+      console.warn(`No progression defined for class level: ${currentClassLevel}`);
+      return undefined;
+    }
+
+    // Get all available classes at the next level
+    const classesAtNextLevel = allClasses.filter(
+      (c) => c.school_class_levels?.name === nextClassLevel
+    );
+
+    if (classesAtNextLevel.length === 0) {
+      console.warn(`No classes found at next level: ${nextClassLevel}`);
+      return undefined;
+    }
 
     // If current student has a stream, check if next level has complete stream setup
     if (stream) {
@@ -414,15 +474,14 @@ export default function PromotionsPage() {
 
       if (isComplete) {
         // Promote to same stream (e.g., SSS 1 A -> SSS 2 A)
-        const nextClassWithStream = allClasses.find(
+        const nextClassWithStream = classesAtNextLevel.find(
           (c) =>
-            c.school_class_levels?.name === nextClassLevel &&
             c.school_streams?.name === stream &&
             (!department || !c.school_departments?.name || c.school_departments?.name === department)
         );
         
         if (nextClassWithStream) {
-          console.log(`Complete stream setup found. Promoting ${currentClassLevel} ${stream} -> ${nextClassLevel} ${stream}`);
+          console.log(`✓ Complete stream setup found. Promoting ${currentClassLevel} ${stream} → ${nextClassLevel} ${stream}`);
           return {
             id: nextClassWithStream.id,
             name: nextClassWithStream.name,
@@ -431,19 +490,18 @@ export default function PromotionsPage() {
           };
         }
       } else {
-        console.log(`Incomplete stream setup. Current level has streams ${Array.from(currentLevelStreams).join(', ')}, next level has ${Array.from(nextLevelStreams).join(', ') || 'none'}`);
+        console.log(`⚠ Incomplete stream setup. Current level has streams [${Array.from(currentLevelStreams).join(', ')}], next level has [${Array.from(nextLevelStreams).join(', ') || 'none'}]`);
       }
 
       // If not complete or stream class not found, fall back to non-stream class
-      const nextClassWithoutStream = allClasses.find(
+      const nextClassWithoutStream = classesAtNextLevel.find(
         (c) =>
-          c.school_class_levels?.name === nextClassLevel &&
           !c.school_streams?.name &&
           (!department || !c.school_departments?.name || c.school_departments?.name === department)
       );
       
       if (nextClassWithoutStream) {
-        console.log(`Combining streams. Promoting ${currentClassLevel} ${stream} -> ${nextClassLevel} (no stream)`);
+        console.log(`→ Combining streams. Promoting ${currentClassLevel} ${stream} → ${nextClassLevel} (no stream)`);
         return {
           id: nextClassWithoutStream.id,
           name: nextClassWithoutStream.name,
@@ -454,10 +512,8 @@ export default function PromotionsPage() {
     }
 
     // If student doesn't have a stream or no suitable class found yet
-    const nextClass = allClasses.find(
+    const nextClass = classesAtNextLevel.find(
       (c) => {
-        if (c.school_class_levels?.name !== nextClassLevel) return false;
-        
         // For SSS, match department if specified
         if (nextClassLevel.startsWith("SSS") && department && c.school_departments?.name) {
           return c.school_departments?.name === department;
@@ -468,6 +524,8 @@ export default function PromotionsPage() {
     );
 
     if (nextClass) {
+      const streamInfo = stream ? ` ${stream}` : "";
+      console.log(`→ Promoting ${currentClassLevel}${streamInfo} → ${nextClassLevel} (${nextClass.name})`);
       return {
         id: nextClass.id,
         name: nextClass.name,
@@ -476,6 +534,7 @@ export default function PromotionsPage() {
       };
     }
 
+    console.warn(`✗ No suitable next class found for ${currentClassLevel}${stream ? ` ${stream}` : ""} → ${nextClassLevel}`);
     return undefined;
   }
 

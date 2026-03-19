@@ -388,7 +388,7 @@ export async function POST(request: NextRequest) {
             // 1. Fetch student's department and religion
             const { data: studentData, error: studentError } = await supabaseAdmin
               .from("students")
-              .select("department, religion")
+              .select("department_id, religion")
               .eq("id", student_id)
               .single();
 
@@ -413,12 +413,14 @@ export async function POST(request: NextRequest) {
                 .select(`
                   id,
                   subject_id,
+                  department_id,
+                  religion_id,
                   subjects (
                     id,
                     name,
                     is_optional,
-                    department,
-                    religion
+                    department_id,
+                    religion_id
                   )
                 `)
                 .eq("class_id", next_class_id);
@@ -426,25 +428,21 @@ export async function POST(request: NextRequest) {
               if (scError) {
                 console.error(`Failed to fetch subject_classes for ${student_name}:`, scError);
               } else if (subjectClasses) {
-                // 5. Filter subjects based on student's department and religion
+                // 5. Filter subjects based on student's department_id and religion_id
                 const filteredSubjects = subjectClasses.filter((sc: any) => {
-                  const subject = sc.subjects;
-
-                  // Filter by department if applicable
-                  if (subject.department && studentData.department) {
-                    if (subject.department !== studentData.department) {
-                      return false;
-                    }
+                  // If subject_class has a department_id constraint, match it with student's department_id
+                  if (sc.department_id && studentData.department_id) {
+                    return sc.department_id === studentData.department_id;
                   }
 
-                  // Filter by religion if applicable
-                  if (subject.religion && studentData.religion) {
-                    if (subject.religion !== studentData.religion) {
-                      return false;
-                    }
+                  // If subject_class has no department constraint, include it (mandatory for all)
+                  if (!sc.department_id) {
+                    return true;
                   }
 
-                  return true;
+                  // Subject has department constraint but student has no department assigned
+                  // Don't include this subject
+                  return false;
                 });
 
                 // 6. Auto-select all compulsory subjects

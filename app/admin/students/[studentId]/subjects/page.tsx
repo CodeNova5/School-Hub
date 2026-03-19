@@ -19,13 +19,21 @@ import {
 } from "@/components/ui/dialog";
 
 interface Subject {
+  is_optional: any;
   id: string;
   name: string;
   subject_code: string;
-  education_level: string;
-  department: string | null;
-  religion: string | null;
-  is_optional: boolean;
+  education_level_id: string | null;
+}
+
+interface Department {
+  id: string;
+  name: string;
+}
+
+interface Religion {
+  id: string;
+  name: string;
 }
 
 interface SubjectClass {
@@ -33,11 +41,16 @@ interface SubjectClass {
   subject_id: string;
   class_id: string;
   teacher_id: string | null;
+  department_id: string | null;
+  religion_id: string | null;
+  is_optional: boolean;
   subjects: Subject;
   teachers: {
     first_name: string;
     last_name: string;
   } | null;
+  school_departments: Department | null;
+  school_religions: Religion | null;
 }
 
 interface StudentSubject {
@@ -58,10 +71,11 @@ export default function StudentSubjectsPage() {
   const [studentClass, setStudentClass] = useState<any>(null);
   const [availableSubjects, setAvailableSubjects] = useState<SubjectClass[]>([]);
   const [selectedSubjects, setSelectedSubjects] = useState<Set<string>>(new Set());
-  const [studentDepartment, setStudentDepartment] = useState<string | null>(null);
+  const [studentDepartmentId, setStudentDepartmentId] = useState<string | null>(null);
+  const [studentDepartmentName, setStudentDepartmentName] = useState<string | null>(null);
   const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
-  const [newDepartment, setNewDepartment] = useState<string>("");
-  const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
+  const [newDepartmentId, setNewDepartmentId] = useState<string>("");
+  const [availableDepartments, setAvailableDepartments] = useState<Department[]>([]);
   const [isChangingDepartment, setIsChangingDepartment] = useState(false);
 
   useEffect(() => {
@@ -85,14 +99,24 @@ export default function StudentSubjectsPage() {
           first_name,
           last_name,
           class_id,
-          department,
-          religion,
+          department_id,
+          religion_id,
           classes (
             id,
             name,
-            level,
-            education_level,
-            department
+            class_level_id,
+            school_class_levels (
+              id,
+              name
+            )
+          ),
+          school_departments (
+            id,
+            name
+          ),
+          school_religions (
+            id,
+            name
           )
         `)
         .eq("school_id", schoolId)
@@ -107,28 +131,32 @@ export default function StudentSubjectsPage() {
 
       setStudentName(`${studentData.first_name} ${studentData.last_name}`);
       setStudentClass(studentData.classes);
-      setStudentDepartment(studentData.department);
+      setStudentDepartmentId(studentData.department_id);
+      setStudentDepartmentName(studentData.school_departments?.name || null);
 
-      // Fetch available departments from all subjects for this class - filtered by school_id
-      const { data: allSubjectClassesData } = await supabase
+      // Fetch available departments from subject_classes for the student's class
+      const { data: departmentData } = await supabase
         .from("subject_classes")
         .select(`
-          subjects (
-            department
+          department_id,
+          school_departments (
+            id,
+            name
           )
         `)
         .eq("school_id", schoolId)
-        .eq("class_id", studentData.class_id);
+        .eq("class_id", studentData.class_id)
+        .not("department_id", "is", null);
 
-      const departments = new Set<string>();
-      (allSubjectClassesData || []).forEach((sc: any) => {
-        if (sc.subjects?.department) {
-          departments.add(sc.subjects.department);
+      const departments = new Map<string, Department>();
+      (departmentData || []).forEach((sc: any) => {
+        if (sc.school_departments) {
+          departments.set(sc.department_id, sc.school_departments);
         }
       });
-      setAvailableDepartments(Array.from(departments).sort());
+      setAvailableDepartments(Array.from(departments.values()).sort((a, b) => a.name.localeCompare(b.name)));
 
-      // Fetch available subject_classes for the student's class - filtered by school_id
+      // Fetch available subject_classes for the student's class
       const { data: subjectClassesData, error: subjectClassesError } = await supabase
         .from("subject_classes")
         .select(`
@@ -136,18 +164,26 @@ export default function StudentSubjectsPage() {
           subject_id,
           class_id,
           teacher_id,
-          subjects (
+          department_id,
+          religion_id,
+          is_optional,
+          subjects!subject_classes_subject_id_fkey (
             id,
             name,
             subject_code,
-            education_level,
-            department,
-            religion,
-            is_optional
+            education_level_id
           ),
           teachers (
             first_name,
             last_name
+          ),
+          school_departments (
+            id,
+            name
+          ),
+          school_religions (
+            id,
+            name
           )
         `)
         .eq("school_id", schoolId)
@@ -161,18 +197,16 @@ export default function StudentSubjectsPage() {
 
       // Filter subjects based on student's department and religion
       const filteredSubjects = (subjectClassesData || []).filter((sc: any) => {
-        const subject = sc.subjects;
-        
         // Filter by department if applicable
-        if (subject.department && studentData.department) {
-          if (subject.department !== studentData.department) {
+        if (sc.department_id && studentData.department_id) {
+          if (sc.department_id !== studentData.department_id) {
             return false;
           }
         }
 
         // Filter by religion if applicable
-        if (subject.religion && studentData.religion) {
-          if (subject.religion !== studentData.religion) {
+        if (sc.religion_id && studentData.religion_id) {
+          if (sc.religion_id !== studentData.religion_id) {
             return false;
           }
         }
@@ -184,6 +218,8 @@ export default function StudentSubjectsPage() {
         ...sc,
         subjects: Array.isArray(sc.subjects) ? sc.subjects[0] : sc.subjects,
         teachers: Array.isArray(sc.teachers) ? sc.teachers[0] : sc.teachers,
+        school_departments: Array.isArray(sc.school_departments) ? sc.school_departments[0] : sc.school_departments,
+        school_religions: Array.isArray(sc.school_religions) ? sc.school_religions[0] : sc.school_religions,
       }));
       
       setAvailableSubjects(mappedSubjects);
@@ -203,7 +239,7 @@ export default function StudentSubjectsPage() {
         
         // Automatically select all compulsory subjects
         mappedSubjects.forEach((sc: any) => {
-          if (!sc.subjects.is_optional) {
+          if (!sc.is_optional) {
             subjectClassIds.add(sc.id);
           }
         });
@@ -275,12 +311,12 @@ export default function StudentSubjectsPage() {
   }
 
   async function handleChangeDepartment() {
-    if (!newDepartment) {
+    if (!newDepartmentId) {
       toast.error("Please select a department");
       return;
     }
 
-    if (newDepartment === studentDepartment) {
+    if (newDepartmentId === studentDepartmentId) {
       toast.info("Same department selected");
       setIsDepartmentDialogOpen(false);
       return;
@@ -288,24 +324,28 @@ export default function StudentSubjectsPage() {
 
     setIsChangingDepartment(true);
     try {
-      // Update student's department - filtered by school_id
+      // Update student's department_id
       const { error: updateError } = await supabase
         .from("students")
-        .update({ department: newDepartment })
+        .update({ department_id: newDepartmentId })
         .eq("school_id", schoolId)
         .eq("id", studentId);
 
       if (updateError) throw updateError;
 
-      toast.success(studentDepartment ? "Department changed successfully" : "Department added successfully");
-      setStudentDepartment(newDepartment);
+      toast.success(studentDepartmentId ? "Department changed successfully" : "Department added successfully");
+      
+      // Find the department name
+      const selectedDept = availableDepartments.find((d) => d.id === newDepartmentId);
+      setStudentDepartmentId(newDepartmentId);
+      setStudentDepartmentName(selectedDept?.name || null);
       setIsDepartmentDialogOpen(false);
 
       // Remove old departmental subjects from selectedSubjects (only if there was a previous department)
-      if (studentDepartment) {
+      if (studentDepartmentId) {
         const newSelected = new Set(selectedSubjects);
         availableSubjects.forEach((sc) => {
-          if (sc.subjects.department === studentDepartment) {
+          if (sc.department_id === studentDepartmentId) {
             newSelected.delete(sc.id);
           }
         });
@@ -315,7 +355,7 @@ export default function StudentSubjectsPage() {
       // Reload the page to get new available subjects and add compulsory departmental subjects
       await new Promise(resolve => setTimeout(resolve, 500));
       loadStudentData();
-      setNewDepartment("");
+      setNewDepartmentId("");
     } catch (error: any) {
       console.error("Error updating department:", error);
       toast.error("Failed to update department: " + error.message);
@@ -383,20 +423,22 @@ export default function StudentSubjectsPage() {
                   <Badge variant="outline" className="text-sm">
                     {studentClass.name}
                   </Badge>
-                  <Badge variant="outline" className="text-sm">
-                    {studentClass.education_level}
-                  </Badge>
-                  {studentDepartment && (
+                  {studentClass.school_class_levels && (
+                    <Badge variant="outline" className="text-sm">
+                      {studentClass.school_class_levels.name}
+                    </Badge>
+                  )}
+                  {studentDepartmentName && (
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="text-sm">
-                        {studentDepartment}
+                        {studentDepartmentName}
                       </Badge>
                       {availableDepartments.length > 1 && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            setNewDepartment(studentDepartment || "");
+                            setNewDepartmentId(studentDepartmentId || "");
                             setIsDepartmentDialogOpen(true);
                           }}
                           className="h-6 px-2"
@@ -406,12 +448,12 @@ export default function StudentSubjectsPage() {
                       )}
                     </div>
                   )}
-                  {!studentDepartment && availableDepartments.length > 0 && (
+                  {!studentDepartmentName && availableDepartments.length > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setNewDepartment("");
+                        setNewDepartmentId("");
                         setIsDepartmentDialogOpen(true);
                       }}
                       className="text-xs"
@@ -523,14 +565,14 @@ export default function StudentSubjectsPage() {
                           <Badge variant="default" className="text-xs">
                             Required
                           </Badge>
-                          {subjectClass.subjects.department && (
+                          {subjectClass.school_departments && (
                             <Badge variant="secondary" className="text-xs">
-                              {subjectClass.subjects.department}
+                              {subjectClass.school_departments.name}
                             </Badge>
                           )}
-                          {subjectClass.subjects.religion && (
+                          {subjectClass.school_religions && (
                             <Badge variant="secondary" className="text-xs">
-                              {subjectClass.subjects.religion}
+                              {subjectClass.school_religions.name}
                             </Badge>
                           )}
                         </div>
@@ -604,14 +646,14 @@ export default function StudentSubjectsPage() {
                             <Badge variant="secondary" className="text-xs">
                               Optional
                             </Badge>
-                            {subjectClass.subjects.department && (
+                            {subjectClass.school_departments && (
                               <Badge variant="secondary" className="text-xs">
-                                {subjectClass.subjects.department}
+                                {subjectClass.school_departments.name}
                               </Badge>
                             )}
-                            {subjectClass.subjects.religion && (
+                            {subjectClass.school_religions && (
                               <Badge variant="secondary" className="text-xs">
-                                {subjectClass.subjects.religion}
+                                {subjectClass.school_religions.name}
                               </Badge>
                             )}
                           </div>
@@ -640,28 +682,28 @@ export default function StudentSubjectsPage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {studentDepartment ? "Change Student Department" : "Add Student Department"}
+                {studentDepartmentName ? "Change Student Department" : "Add Student Department"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                {studentDepartment && (
+                {studentDepartmentName && (
                   <p className="text-sm text-muted-foreground mb-3">
-                    Current Department: <span className="font-semibold text-foreground">{studentDepartment}</span>
+                    Current Department: <span className="font-semibold text-foreground">{studentDepartmentName}</span>
                   </p>
                 )}
                 <label className="block text-sm font-medium mb-2">
-                  {studentDepartment ? "Select New Department" : "Select Department"}
+                  {studentDepartmentName ? "Select New Department" : "Select Department"}
                 </label>
                 <select
-                  value={newDepartment}
-                  onChange={(e) => setNewDepartment(e.target.value)}
+                  value={newDepartmentId}
+                  onChange={(e) => setNewDepartmentId(e.target.value)}
                   className="w-full px-3 py-2 border rounded-md bg-background"
                 >
                   <option value="">-- Select Department --</option>
                   {availableDepartments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
                     </option>
                   ))}
                 </select>
@@ -670,7 +712,7 @@ export default function StudentSubjectsPage() {
               <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
                 <p className="text-sm text-amber-900">
                   <strong>Note:</strong> 
-                  {studentDepartment 
+                  {studentDepartmentName 
                     ? " Subjects from the old department will be removed, and all compulsory subjects from the new department will be automatically added."
                     : " All compulsory subjects from the selected department will be automatically added."}
                 </p>
@@ -681,7 +723,7 @@ export default function StudentSubjectsPage() {
                   variant="outline"
                   onClick={() => {
                     setIsDepartmentDialogOpen(false);
-                    setNewDepartment("");
+                    setNewDepartmentId("");
                   }}
                   disabled={isChangingDepartment}
                 >
@@ -689,15 +731,15 @@ export default function StudentSubjectsPage() {
                 </Button>
                 <Button
                   onClick={handleChangeDepartment}
-                  disabled={isChangingDepartment || !newDepartment}
+                  disabled={isChangingDepartment || !newDepartmentId}
                 >
                   {isChangingDepartment ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {studentDepartment ? "Changing..." : "Adding..."}
+                      {studentDepartmentId ? "Changing..." : "Adding..."}
                     </>
                   ) : (
-                    studentDepartment ? "Change Department" : "Add Department"
+                    studentDepartmentId ? "Change Department" : "Add Department"
                   )}
                 </Button>
               </div>

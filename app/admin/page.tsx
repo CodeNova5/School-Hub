@@ -3,11 +3,11 @@
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { StatCard } from '@/components/stat-card';
+import { DashboardSkeleton } from '@/components/dashboard-skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Users,
   BookOpen,
@@ -26,7 +26,6 @@ import {
   Settings,
   Download,
   Plus,
-  Loader2,
   UserPlus,
   Bell,
 } from 'lucide-react';
@@ -189,11 +188,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <DashboardLayout role="admin">
-        <div className="space-y-8">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          </div>
-        </div>
+        <DashboardSkeleton />
       </DashboardLayout>
     );
   }

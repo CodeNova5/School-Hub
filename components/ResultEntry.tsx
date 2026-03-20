@@ -960,7 +960,7 @@ export default function ResultEntry({
       const { data: savedRows, error } = await supabase
         .from("results")
         .upsert(saveDataArray, {
-          onConflict: "student_id,session_id,term_id,subject_class_id,school_id",
+          onConflict: "student_id,subject_class_id,session_id,term_id",
         })
         .select("id, subject_class_id");
 

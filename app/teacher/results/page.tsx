@@ -296,7 +296,7 @@ export default function SubjectResultEntryPage() {
         school_id: schoolId,
       }));
       const { error } = await supabase.from('results').upsert(records, {
-        onConflict: 'student_id,subject_class_id,session_id,term_id,school_id',
+        onConflict: 'student_id,subject_class_id,session_id,term_id',
       });
       if (error) throw error;
       toast.success('Subject results saved successfully');

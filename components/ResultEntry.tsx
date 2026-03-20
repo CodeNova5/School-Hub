@@ -1,16 +1,13 @@
 "use client";
 
-import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Student, Class as ClassType, Session, Term } from "@/lib/types";
 import { toast } from "sonner";
-import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
-import { Save, Printer, ArrowLeft, Loader2, Medal, FileDown } from "lucide-react";
+import { Save, Printer, Loader2, FileDown } from "lucide-react";
 
 interface SubjectScore {
   subject_class_id: string;
@@ -39,25 +36,6 @@ interface ResultGradeScale {
   remark: string;
   display_order: number;
 }
-
-const LEGACY_COMPONENTS: ResultComponentTemplate[] = [
-  { component_key: "welcome_test", component_name: "Welcome Test", max_score: 10, display_order: 1, is_active: true },
-  { component_key: "mid_term_test", component_name: "Mid-Term Test", max_score: 20, display_order: 2, is_active: true },
-  { component_key: "vetting", component_name: "Vetting", max_score: 10, display_order: 3, is_active: true },
-  { component_key: "exam", component_name: "Exam", max_score: 60, display_order: 4, is_active: true },
-];
-
-const LEGACY_GRADE_SCALE: ResultGradeScale[] = [
-  { grade_label: "A1", min_percentage: 75, remark: "Excellent", display_order: 1 },
-  { grade_label: "B2", min_percentage: 70, remark: "Very Good", display_order: 2 },
-  { grade_label: "B3", min_percentage: 65, remark: "Good", display_order: 3 },
-  { grade_label: "C4", min_percentage: 60, remark: "Credit", display_order: 4 },
-  { grade_label: "C5", min_percentage: 55, remark: "Credit", display_order: 5 },
-  { grade_label: "C6", min_percentage: 50, remark: "Credit", display_order: 6 },
-  { grade_label: "D7", min_percentage: 45, remark: "Pass", display_order: 7 },
-  { grade_label: "E8", min_percentage: 40, remark: "Pass", display_order: 8 },
-  { grade_label: "F9", min_percentage: 0, remark: "Fail", display_order: 9 },
-];
 
 interface ResultEntryProps {
   studentId: string;
@@ -94,12 +72,11 @@ export default function ResultEntry({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [teacherName, setTeacherName] = useState<string>(initialTeacherName);
-  const [scoreCalculationMode, setScoreCalculationMode] = useState<'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'>('all');
   const [classPosition, setClassPosition] = useState<number | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [classAverage, setClassAverage] = useState<number | null>(null);
-  const [resultComponents, setResultComponents] = useState<ResultComponentTemplate[]>(LEGACY_COMPONENTS);
-  const [gradeScale, setGradeScale] = useState<ResultGradeScale[]>(LEGACY_GRADE_SCALE);
+  const [resultComponents, setResultComponents] = useState<ResultComponentTemplate[]>([]);
+  const [gradeScale, setGradeScale] = useState<ResultGradeScale[]>([]);
   const [configuredPassPercentage, setConfiguredPassPercentage] = useState<number>(40);
 
   // Publication settings
@@ -110,24 +87,6 @@ export default function ResultEntry({
     if (studentId) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, sessionId, termId]);
-
-  function isLegacyComponentKey(componentKey: string): componentKey is 'welcome_test' | 'mid_term_test' | 'vetting' | 'exam' {
-    return componentKey === 'welcome_test' || componentKey === 'mid_term_test' || componentKey === 'vetting' || componentKey === 'exam';
-  }
-
-  function getModeComponentKeys(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): string[] {
-    const available = new Set(resultComponents.filter((c) => c.is_active).map((c) => c.component_key));
-    if (mode === 'welcome_only') return available.has('welcome_test') ? ['welcome_test'] : Array.from(available);
-    if (mode === 'welcome_midterm') {
-      const keys = ['welcome_test', 'mid_term_test'].filter((k) => available.has(k));
-      return keys.length > 0 ? keys : Array.from(available);
-    }
-    if (mode === 'welcome_midterm_vetting') {
-      const keys = ['welcome_test', 'mid_term_test', 'vetting'].filter((k) => available.has(k));
-      return keys.length > 0 ? keys : Array.from(available);
-    }
-    return Array.from(available);
-  }
 
   function getComponentScore(score: SubjectScore, componentKey: string): number {
     const dynamicValue = score.component_scores?.[componentKey];
@@ -157,7 +116,7 @@ export default function ResultEntry({
     return next;
   }
 
-  function getVisibleComponentKeys(mode?: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): string[] {
+  function getVisibleComponentKeys(): string[] {
     const active = resultComponents.filter((component) => component.is_active).map((component) => component.component_key);
 
     if (role === 'student' || role === 'parent') {
@@ -165,15 +124,11 @@ export default function ResultEntry({
       return active.filter((key) => isComponentVisible(key));
     }
 
-    if (mode) {
-      return getModeComponentKeys(mode);
-    }
-
-    return getModeComponentKeys(scoreCalculationMode);
+    return active;
   }
 
-  function getVisibleComponentTemplates(mode?: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
-    const visibleKeys = new Set(getVisibleComponentKeys(mode));
+  function getVisibleComponentTemplates() {
+    const visibleKeys = new Set(getVisibleComponentKeys());
     return resultComponents.filter((component) => component.is_active && visibleKeys.has(component.component_key));
   }
 
@@ -251,7 +206,7 @@ export default function ResultEntry({
         schoolId = studentData.school_id;
       }
 
-      // 1.5 Load configurable result settings (fallback to legacy defaults)
+      // 1.5 Load configurable result settings from school setup
       if (schoolId) {
         const [{ data: settingsData }, { data: componentRows }, { data: gradeRows }] = await Promise.all([
           supabase
@@ -275,20 +230,16 @@ export default function ResultEntry({
         if (settingsData?.is_configured && componentRows && componentRows.length > 0) {
           setConfiguredPassPercentage(Number(settingsData.pass_percentage) || 40);
           setResultComponents(componentRows as ResultComponentTemplate[]);
-          if (gradeRows && gradeRows.length > 0) {
-            setGradeScale(gradeRows as ResultGradeScale[]);
-          } else {
-            setGradeScale(LEGACY_GRADE_SCALE);
-          }
+          setGradeScale((gradeRows || []) as ResultGradeScale[]);
         } else {
-          setConfiguredPassPercentage(40);
-          setResultComponents(LEGACY_COMPONENTS);
-          setGradeScale(LEGACY_GRADE_SCALE);
+          setConfiguredPassPercentage(Number(settingsData?.pass_percentage) || 40);
+          setResultComponents([]);
+          setGradeScale((gradeRows || []) as ResultGradeScale[]);
         }
       } else {
         setConfiguredPassPercentage(40);
-        setResultComponents(LEGACY_COMPONENTS);
-        setGradeScale(LEGACY_GRADE_SCALE);
+        setResultComponents([]);
+        setGradeScale([]);
       }
 
       // 2. Class
@@ -353,7 +304,6 @@ export default function ResultEntry({
       setTerm(termData);
 
       // 3.5 Load publication settings (for students and parents)
-      let currentCalculationMode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all' = 'all';
       if (role === 'student' || role === 'parent') {
         let pubQuery = supabase
           .from("results_publication")
@@ -375,11 +325,6 @@ export default function ResultEntry({
             setIsPublished(pubSettings.is_published_to_parents);
           } else {
             setIsPublished(pubSettings.is_published);
-          }
-          // Set calculation mode to match published mode
-          if (pubSettings.calculation_mode) {
-            currentCalculationMode = pubSettings.calculation_mode;
-            setScoreCalculationMode(pubSettings.calculation_mode);
           }
         } else {
           // No publication settings = results not visible to students/parents
@@ -640,8 +585,8 @@ export default function ResultEntry({
               vetting: res.vetting || 0,
               exam: res.exam || 0,
             };
-            const total = calculateTotalScoreWithMode(initialScores[idx], currentCalculationMode);
-            const { grade, remark } = calculateGradeWithMode(initialScores[idx], total, currentCalculationMode);
+            const total = calculateTotalScore(initialScores[idx]);
+            const { grade, remark } = calculateGrade(initialScores[idx], total);
             initialScores[idx].total = total;
             initialScores[idx].grade = grade;
             initialScores[idx].remark = res.remark || remark;
@@ -723,27 +668,11 @@ export default function ResultEntry({
       return publicationSettings.published_component_keys.includes(component);
     }
 
-    if (!isLegacyComponentKey(component)) {
-      return true;
-    }
-
-    const visibilityMap = {
-      'welcome_test': publicationSettings.welcome_test_published,
-      'mid_term_test': publicationSettings.mid_term_test_published,
-      'vetting': publicationSettings.vetting_published,
-      'exam': publicationSettings.exam_published,
-    };
-
-    return visibilityMap[component] || false;
+    return false;
   }
 
   function calculateTotalScore(score: SubjectScore): number {
     const keys = getVisibleComponentKeys();
-    return keys.reduce((sum, key) => sum + getComponentScore(score, key), 0);
-  }
-
-  function calculateTotalScoreWithMode(score: SubjectScore, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
-    const keys = getVisibleComponentKeys(mode);
     return keys.reduce((sum, key) => sum + getComponentScore(score, key), 0);
   }
 
@@ -753,29 +682,12 @@ export default function ResultEntry({
     return total > 0 ? total : 100;
   }
 
-  function getVisibleWeightTotalWithMode(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
-    const visible = getVisibleComponentTemplates(mode);
-    const total = visible.reduce((sum, component) => sum + Number(component.max_score || 0), 0);
-    return total > 0 ? total : 100;
-  }
-
   function getSubjectMaxPossibleScore(): number {
     return getVisibleWeightTotal();
   }
 
-  function getSubjectMaxPossibleScoreWithMode(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
-    return getVisibleWeightTotalWithMode(mode);
-  }
-
   function calculateGrade(_score: SubjectScore, total: number) {
     const maxScore = getSubjectMaxPossibleScore();
-    if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
-    const percentage = (total / maxScore) * 100;
-    return resolveGradeFromPercentage(percentage, configuredPassPercentage);
-  }
-
-  function calculateGradeWithMode(_score: SubjectScore, total: number, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
-    const maxScore = getSubjectMaxPossibleScoreWithMode(mode);
     if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
     const percentage = (total / maxScore) * 100;
     return resolveGradeFromPercentage(percentage, configuredPassPercentage);
@@ -818,7 +730,7 @@ export default function ResultEntry({
       setScores(updatedScores);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scoreCalculationMode, publicationSettings, role]);
+  }, [publicationSettings, role, resultComponents, gradeScale, configuredPassPercentage]);
 
   // Calculate visible columns count for table alignment (columns before Total column)
   const visibleColumnsCount = (() => {
@@ -1056,22 +968,19 @@ export default function ResultEntry({
 
   if (!student) return null;
 
+  if (resultComponents.length === 0) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800">
+        Result components are not configured for this school. Please configure them in School Config - Result Settings.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 mb-12">
       <div className="flex items-center justify-between print:hidden">
         {/* No back button here, parent page should handle navigation */}
         <div className="flex gap-2">
-          <Select value={scoreCalculationMode} onValueChange={(value: any) => setScoreCalculationMode(value)} disabled={isReadOnly || !canEdit}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select calculation method" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="welcome_only">Welcome Test Only</SelectItem>
-              <SelectItem value="welcome_midterm">Welcome + Mid-Term</SelectItem>
-              <SelectItem value="welcome_midterm_vetting">Welcome + Mid-Term + Vetting</SelectItem>
-              <SelectItem value="all">All Configured Components</SelectItem>
-            </SelectContent>
-          </Select>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="h-4 w-4 mr-2" />
             Print
@@ -1173,9 +1082,6 @@ export default function ResultEntry({
                     <tr key={score.subject_class_id}>
                       <td className="border border-gray-300 px-3 py-2 font-medium">
                         {score.subject_name}
-                        <div className="text-xs text-gray-500">
-                          Pass threshold: {configuredPassPercentage.toFixed(1)}%
-                        </div>
                       </td>
                       {getVisibleComponentTemplates().map((component) => (
                         <td key={component.component_key} className="border border-gray-300 px-3 py-2 text-center font-bold">

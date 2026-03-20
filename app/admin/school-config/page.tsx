@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { SchoolSetupWizard } from "@/components/school-setup-wizard";
+import { BulkCreateSubjectsDialog } from "@/components/bulk-create-subjects-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,9 +57,12 @@ import {
 import type {
   EducationLevel,
   ClassLevel,
+  Class as SchoolClass,
   Stream,
   Department,
   Religion,
+  Subject,
+  Teacher,
   EducationLevelSubjectPreset,
 } from "@/lib/types";
 import { getSubjectsForLevel } from "@/lib/nigerian-subjects";
@@ -75,6 +79,14 @@ const blankSubjectPreset = () => ({
   department_id: "",
   religion_id: "",
   order_sequence: 1,
+  is_active: true,
+});
+const blankOperationalSubject = () => ({
+  name: "",
+  education_level_id: "",
+  department_id: "",
+  religion_id: "",
+  is_optional: false,
   is_active: true,
 });
 
@@ -583,6 +595,20 @@ export default function SchoolConfigPage() {
      EDUCATION LEVEL SUBJECT PRESETS
   ═══════════════════════════════════════ */
   const [subjectPresets, setSubjectPresets] = useState<EducationLevelSubjectPreset[]>([]);
+  const [operationalSubjects, setOperationalSubjects] = useState<Subject[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [classes, setClasses] = useState<SchoolClass[]>([]);
+  const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
+  const [editingOperationalSubject, setEditingOperationalSubject] = useState<Subject | null>(null);
+  const [subjectForm, setSubjectForm] = useState(blankOperationalSubject());
+  const [subjectSaving, setSubjectSaving] = useState(false);
+  const [applyDialogOpen, setApplyDialogOpen] = useState(false);
+  const [applyTargetSubject, setApplyTargetSubject] = useState<Subject | null>(null);
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
+  const [teacherByClassId, setTeacherByClassId] = useState<Record<string, string>>({});
+  const [assignmentsByClassId, setAssignmentsByClassId] = useState<Record<string, string>>({});
+  const [applyingSubject, setApplyingSubject] = useState(false);
+  const [opSubjectsLoading, setOpSubjectsLoading] = useState(false);
   const [spLoading, setSpLoading] = useState(false);
   const [spDialogOpen, setSpDialogOpen] = useState(false);
   const [editingSp, setEditingSp] = useState<EducationLevelSubjectPreset | null>(null);
@@ -618,6 +644,205 @@ export default function SchoolConfigPage() {
 
     setSpLoading(false);
   }, [schoolId, selectedPresetLevelId]);
+
+  const fetchOperationalSubjects = useCallback(async () => {
+    if (!schoolId) return;
+
+    setOpSubjectsLoading(true);
+    const { data, error } = await supabase
+      .from("subjects")
+      .select("*")
+      .eq("school_id", schoolId)
+      .order("name", { ascending: true });
+
+    if (error) {
+      toast.error(error.message || "Failed to load subject catalog");
+    } else {
+      setOperationalSubjects((data ?? []) as Subject[]);
+    }
+
+    setOpSubjectsLoading(false);
+  }, [schoolId]);
+
+  const fetchTeachers = useCallback(async () => {
+    if (!schoolId) return;
+
+    const { data, error } = await supabase
+      .from("teachers")
+      .select("id, staff_id, first_name, last_name, email, phone, address, qualification, specialization, hire_date, photo_url, bio, status, created_at, school_id")
+      .eq("school_id", schoolId)
+      .order("first_name", { ascending: true });
+
+    if (error) {
+      toast.error(error.message || "Failed to load teachers");
+    } else {
+      setTeachers((data ?? []) as Teacher[]);
+    }
+  }, [schoolId]);
+
+  const fetchClasses = useCallback(async () => {
+    if (!schoolId) return;
+
+    const { data, error } = await supabase
+      .from("classes")
+      .select("id, school_id, name, class_level_id, stream_id, department_id, room_number, class_teacher_id, session_id, academic_year, created_at, updated_at")
+      .eq("school_id", schoolId)
+      .order("name", { ascending: true });
+
+    if (error) {
+      toast.error(error.message || "Failed to load classes");
+    } else {
+      setClasses((data ?? []) as SchoolClass[]);
+    }
+  }, [schoolId]);
+
+  function getSubjectCodeForClass(subjectName: string, className: string) {
+    const prefix = subjectName.replace(/\s+/g, "").slice(0, 3).toUpperCase();
+    return `${prefix}-${className}`;
+  }
+
+  async function saveOperationalSubject(e: React.FormEvent) {
+    e.preventDefault();
+    if (!schoolId) return;
+
+    const payload = {
+      school_id: schoolId,
+      name: subjectForm.name.trim(),
+      education_level_id: subjectForm.education_level_id || null,
+      department_id: subjectForm.department_id || null,
+      religion_id: subjectForm.religion_id || null,
+      is_optional: subjectForm.is_optional,
+      is_active: subjectForm.is_active,
+    };
+
+    if (!payload.name) {
+      toast.error("Subject name is required");
+      return;
+    }
+
+    if (!payload.education_level_id) {
+      toast.error("Education level is required");
+      return;
+    }
+
+    setSubjectSaving(true);
+    try {
+      if (editingOperationalSubject) {
+        const { error: updateError } = await supabase
+          .from("subjects")
+          .update(payload)
+          .eq("id", editingOperationalSubject.id)
+          .eq("school_id", schoolId);
+
+        if (updateError) throw updateError;
+
+        const { error: propagateError } = await supabase
+          .from("subject_classes")
+          .update({
+            department_id: payload.department_id,
+            religion_id: payload.religion_id,
+            is_optional: payload.is_optional,
+          })
+          .eq("school_id", schoolId)
+          .eq("subject_id", editingOperationalSubject.id);
+
+        if (propagateError) throw propagateError;
+
+        toast.success("Subject updated and class assignments synchronized");
+      } else {
+        const { error: insertError } = await supabase
+          .from("subjects")
+          .insert(payload);
+
+        if (insertError) throw insertError;
+        toast.success("Subject created");
+      }
+
+      setSubjectDialogOpen(false);
+      setEditingOperationalSubject(null);
+      setSubjectForm(blankOperationalSubject());
+      fetchOperationalSubjects();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save subject");
+    } finally {
+      setSubjectSaving(false);
+    }
+  }
+
+  async function openApplyDialog(subject: Subject) {
+    if (!schoolId) return;
+
+    setApplyTargetSubject(subject);
+    setSelectedClassIds([]);
+    setTeacherByClassId({});
+    setAssignmentsByClassId({});
+    setApplyDialogOpen(true);
+
+    const { data, error } = await supabase
+      .from("subject_classes")
+      .select("class_id, teacher_id")
+      .eq("school_id", schoolId)
+      .eq("subject_id", subject.id);
+
+    if (error) {
+      toast.error(error.message || "Failed to load existing assignments");
+      return;
+    }
+
+    const map: Record<string, string> = {};
+    const teacherMap: Record<string, string> = {};
+    for (const row of data ?? []) {
+      map[row.class_id] = row.class_id;
+      teacherMap[row.class_id] = row.teacher_id || "";
+    }
+
+    setAssignmentsByClassId(map);
+    setTeacherByClassId(teacherMap);
+  }
+
+  async function applySubjectToClasses() {
+    if (!schoolId || !applyTargetSubject) return;
+    if (selectedClassIds.length === 0) {
+      toast.error("Select at least one class");
+      return;
+    }
+
+    setApplyingSubject(true);
+    try {
+      const selectedClasses = classes.filter((item) => selectedClassIds.includes(item.id));
+      const payload = selectedClasses.map((classItem) => ({
+        school_id: schoolId,
+        subject_id: applyTargetSubject.id,
+        class_id: classItem.id,
+        teacher_id: teacherByClassId[classItem.id] || null,
+        subject_code: getSubjectCodeForClass(applyTargetSubject.name, classItem.name),
+        department_id: applyTargetSubject.department_id || null,
+        religion_id: applyTargetSubject.religion_id || null,
+        is_optional: applyTargetSubject.is_optional,
+        is_active: true,
+      }));
+
+      const { error } = await supabase
+        .from("subject_classes")
+        .upsert(payload, {
+          onConflict: "school_id,subject_id,class_id",
+          ignoreDuplicates: false,
+        });
+
+      if (error) throw error;
+
+      toast.success(`Applied subject to ${selectedClassIds.length} class(es)`);
+      setApplyDialogOpen(false);
+      setApplyTargetSubject(null);
+      setSelectedClassIds([]);
+      setTeacherByClassId({});
+      setAssignmentsByClassId({});
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to apply subject");
+    } finally {
+      setApplyingSubject(false);
+    }
+  }
 
   async function saveSubjectPreset(e: React.FormEvent) {
     e.preventDefault();
@@ -772,6 +997,9 @@ export default function SchoolConfigPage() {
       fetchStreams();
       fetchDepartments();
       fetchReligions();
+      fetchOperationalSubjects();
+      fetchTeachers();
+      fetchClasses();
     }
   }, [schoolId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -833,6 +1061,20 @@ export default function SchoolConfigPage() {
     clFilterEdu === "all"
       ? classLevels
       : classLevels.filter((cl) => cl.education_level_id === clFilterEdu);
+
+  const applyClassesForTarget = (() => {
+    if (!applyTargetSubject?.education_level_id) {
+      return [] as SchoolClass[];
+    }
+
+    const levelClassLevelIds = new Set(
+      classLevels
+        .filter((classLevel) => classLevel.education_level_id === applyTargetSubject.education_level_id)
+        .map((classLevel) => classLevel.id)
+    );
+
+    return classes.filter((classItem) => levelClassLevelIds.has(classItem.class_level_id));
+  })();
 
   /* ═══════════════════════════════════════
      RENDER
@@ -941,7 +1183,7 @@ export default function SchoolConfigPage() {
               <Library className="h-3.5 w-3.5" />
               Subjects
               <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
-                {subjectPresets.length}
+                {operationalSubjects.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="streams" className="gap-1.5">
@@ -1245,7 +1487,147 @@ export default function SchoolConfigPage() {
               TAB: SUBJECT PRESETS
           ══════════════════════════════════════ */}
           <TabsContent value="subjects" className="mt-4">
-            <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-card p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="font-semibold text-sm">Operational Subject Catalog</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Create and assign subjects from School Config. This writes to both subject catalog and class assignments.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEditingOperationalSubject(null);
+                        setSubjectForm(blankOperationalSubject());
+                        setSubjectDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Add Subject
+                    </Button>
+                    {schoolId && (
+                      <BulkCreateSubjectsDialog
+                        schoolId={schoolId}
+                        onSuccess={() => {
+                          fetchOperationalSubjects();
+                        }}
+                        educationLevels={educationLevels}
+                        departments={departments}
+                        religions={religions}
+                        teachers={teachers}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Catalog Subjects</p>
+                    <p className="text-2xl font-semibold">{operationalSubjects.length}</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Active Subjects</p>
+                    <p className="text-2xl font-semibold">
+                      {operationalSubjects.filter((subject) => subject.is_active).length}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Teachers Available</p>
+                    <p className="text-2xl font-semibold">{teachers.length}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                        <th className="px-3 py-2 text-left">Subject</th>
+                        <th className="px-3 py-2 text-left">Level</th>
+                        <th className="px-3 py-2 text-left">Department</th>
+                        <th className="px-3 py-2 text-left">Religion</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-center">Status</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {opSubjectsLoading ? (
+                        <LoadingRow />
+                      ) : operationalSubjects.length === 0 ? (
+                        <EmptyRow message="No catalog subjects yet. Use Bulk Create to add and assign subjects." />
+                      ) : (
+                        operationalSubjects.slice(0, 12).map((subject) => {
+                          const level = educationLevels.find((el) => el.id === subject.education_level_id);
+                          const department = departments.find((dp) => dp.id === subject.department_id);
+                          const religion = religions.find((rl) => rl.id === subject.religion_id);
+
+                          return (
+                            <tr key={subject.id} className="hover:bg-muted/20 transition-colors">
+                              <td className="px-3 py-2 font-medium">{subject.name}</td>
+                              <td className="px-3 py-2 text-xs text-muted-foreground">{level?.name || "—"}</td>
+                              <td className="px-3 py-2 text-xs text-muted-foreground">{department?.name || "—"}</td>
+                              <td className="px-3 py-2 text-xs text-muted-foreground">{religion?.name || "—"}</td>
+                              <td className="px-3 py-2">
+                                {subject.is_optional ? (
+                                  <Badge variant="secondary" className="text-xs">Optional</Badge>
+                                ) : (
+                                  <Badge className="text-xs">Core</Badge>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <Badge variant={subject.is_active ? "default" : "outline"} className="text-xs">
+                                  {subject.is_active ? "Active" : "Inactive"}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingOperationalSubject(subject);
+                                      setSubjectForm({
+                                        name: subject.name,
+                                        education_level_id: subject.education_level_id || "",
+                                        department_id: subject.department_id || "",
+                                        religion_id: subject.religion_id || "",
+                                        is_optional: subject.is_optional,
+                                        is_active: subject.is_active,
+                                      });
+                                      setSubjectDialogOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      void openApplyDialog(subject);
+                                    }}
+                                  >
+                                    Apply
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {operationalSubjects.length > 12 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Showing first 12 subjects. Use class pages for detailed per-class edits.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl border bg-card overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
                 <div>
                   <h3 className="font-semibold text-sm">Education Level Subjects</h3>
@@ -1380,6 +1762,7 @@ export default function SchoolConfigPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           </TabsContent>
 
@@ -1670,6 +2053,263 @@ export default function SchoolConfigPage() {
             </div>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={subjectDialogOpen} onOpenChange={setSubjectDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingOperationalSubject ? "Edit Subject" : "Add Subject"}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={saveOperationalSubject} className="space-y-4">
+              <div>
+                <Label>Subject Name *</Label>
+                <Input
+                  value={subjectForm.name}
+                  onChange={(e) => setSubjectForm((current) => ({ ...current, name: e.target.value }))}
+                  placeholder="e.g. English Language"
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label>Education Level *</Label>
+                <Select
+                  value={subjectForm.education_level_id}
+                  onValueChange={(value) => setSubjectForm((current) => ({ ...current, education_level_id: value }))}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select education level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {educationLevels.map((level) => (
+                      <SelectItem key={level.id} value={level.id}>{level.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Department</Label>
+                  <Select
+                    value={subjectForm.department_id || "none"}
+                    onValueChange={(value) =>
+                      setSubjectForm((current) => ({
+                        ...current,
+                        department_id: value === "none" ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Optional department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {departments.map((department) => (
+                        <SelectItem key={department.id} value={department.id}>{department.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Religion</Label>
+                  <Select
+                    value={subjectForm.religion_id || "none"}
+                    onValueChange={(value) =>
+                      setSubjectForm((current) => ({
+                        ...current,
+                        religion_id: value === "none" ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Optional religion" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {religions.map((religion) => (
+                        <SelectItem key={religion.id} value={religion.id}>{religion.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-md border p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Optional Subject</p>
+                    <p className="text-xs text-muted-foreground">Affects all class assignments on save</p>
+                  </div>
+                  <Switch
+                    checked={subjectForm.is_optional}
+                    onCheckedChange={(checked) =>
+                      setSubjectForm((current) => ({ ...current, is_optional: checked }))
+                    }
+                  />
+                </div>
+
+                <div className="rounded-md border p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Active</p>
+                    <p className="text-xs text-muted-foreground">Show in operational flows</p>
+                  </div>
+                  <Switch
+                    checked={subjectForm.is_active}
+                    onCheckedChange={(checked) =>
+                      setSubjectForm((current) => ({ ...current, is_active: checked }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setSubjectDialogOpen(false);
+                    setEditingOperationalSubject(null);
+                    setSubjectForm(blankOperationalSubject());
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={subjectSaving || !subjectForm.name.trim() || !subjectForm.education_level_id}>
+                  {subjectSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingOperationalSubject ? "Save Subject" : "Create Subject"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={applyDialogOpen} onOpenChange={setApplyDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                Apply Subject to Classes {applyTargetSubject ? `- ${applyTargetSubject.name}` : ""}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3">
+              {applyClassesForTarget.length === 0 ? (
+                <div className="rounded-md border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  No classes found under this subject's education level.
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Select classes and assign teachers (optional per class).
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const allIds = applyClassesForTarget.map((classItem) => classItem.id);
+                        setSelectedClassIds(allIds);
+                      }}
+                    >
+                      Select All
+                    </Button>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto rounded-md border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                          <th className="px-3 py-2 text-left w-14">Use</th>
+                          <th className="px-3 py-2 text-left">Class</th>
+                          <th className="px-3 py-2 text-left">Current Status</th>
+                          <th className="px-3 py-2 text-left">Teacher</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {applyClassesForTarget.map((classItem) => {
+                          const isSelected = selectedClassIds.includes(classItem.id);
+                          const isAlreadyAssigned = Boolean(assignmentsByClassId[classItem.id]);
+
+                          return (
+                            <tr key={classItem.id} className="hover:bg-muted/10 transition-colors">
+                              <td className="px-3 py-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(event) => {
+                                    const checked = event.target.checked;
+                                    setSelectedClassIds((current) => {
+                                      if (checked) {
+                                        return Array.from(new Set([...current, classItem.id]));
+                                      }
+                                      return current.filter((id) => id !== classItem.id);
+                                    });
+                                  }}
+                                />
+                              </td>
+                              <td className="px-3 py-2 font-medium">{classItem.name}</td>
+                              <td className="px-3 py-2">
+                                {isAlreadyAssigned ? (
+                                  <Badge variant="secondary" className="text-xs">Already assigned</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">New assignment</Badge>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                <Select
+                                  value={teacherByClassId[classItem.id] || "none"}
+                                  onValueChange={(value) => {
+                                    setTeacherByClassId((current) => ({
+                                      ...current,
+                                      [classItem.id]: value === "none" ? "" : value,
+                                    }));
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-xs min-w-[180px]">
+                                    <SelectValue placeholder="Unassigned" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">Unassigned</SelectItem>
+                                    {teachers.map((teacher) => (
+                                      <SelectItem key={teacher.id} value={teacher.id}>
+                                        {teacher.first_name} {teacher.last_name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setApplyDialogOpen(false);
+                  setApplyTargetSubject(null);
+                  setSelectedClassIds([]);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={applySubjectToClasses}
+                disabled={applyingSubject || selectedClassIds.length === 0 || !applyTargetSubject}
+              >
+                {applyingSubject && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Apply to Selected Classes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* ═══════════════════════════════════════════════
             DIALOGS — Education Level
@@ -2213,6 +2853,9 @@ export default function SchoolConfigPage() {
               fetchStreams();
               fetchDepartments();
               fetchReligions();
+              fetchOperationalSubjects();
+              fetchTeachers();
+              fetchClasses();
             }}
           />
         )}

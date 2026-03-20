@@ -618,6 +618,12 @@ export default function SchoolConfigPage() {
   const [selectedPresetLevelId, setSelectedPresetLevelId] = useState<string>("");
   const [loadDefaultsConfirmOpen, setLoadDefaultsConfirmOpen] = useState(false);
 
+  /* ── Operational Subjects Filters ── */
+  const [opSubjectsSearch, setOpSubjectsSearch] = useState<string>("");
+  const [opEducationLevelFilter, setOpEducationLevelFilter] = useState<string>("all");
+  const [opDepartmentFilter, setOpDepartmentFilter] = useState<string>("all");
+  const [opStatusFilter, setOpStatusFilter] = useState<"all" | "active" | "inactive">("all");
+
   const fetchSubjectPresets = useCallback(async (levelId?: string) => {
     if (!schoolId) return;
 
@@ -1486,112 +1492,199 @@ export default function SchoolConfigPage() {
           {/* ══════════════════════════════════════
               TAB: SUBJECTS
           ══════════════════════════════════════ */}
-          <TabsContent value="subjects" className="mt-4">
-            <Tabs defaultValue="operational" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 max-w-md">
-                <TabsTrigger value="operational">Operational</TabsTrigger>
-                <TabsTrigger value="presets">Preset Templates</TabsTrigger>
-              </TabsList>
+          <TabsContent value="subjects" className="mt-4 space-y-6">
+            {/* ──────────────────────────
+                SECTION 1: OPERATIONAL SUBJECTS
+            ────────────────────────── */}
+            <div>
+              <h2 className="mb-3 text-lg font-semibold flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Operational Subject Catalog
+              </h2>
+               <p className="mb-4 text-sm text-muted-foreground">
+                Create, edit, and apply real subjects to classes. This is the primary workflow for active school operations.
+              </p>
 
-              <TabsContent value="operational" className="mt-0">
-                <div className="rounded-xl border bg-card p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="font-semibold text-sm">Operational Subject Catalog</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Create, edit, and apply real subjects to classes. This is the primary workflow for active school operations.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setEditingOperationalSubject(null);
-                          setSubjectForm(blankOperationalSubject());
-                          setSubjectDialogOpen(true);
+              <div className="rounded-xl border bg-card p-4">
+                {/* Header & Actions */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-sm">Manage Subjects</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Create new subjects or bulk import them
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setEditingOperationalSubject(null);
+                        setSubjectForm(blankOperationalSubject());
+                        setSubjectDialogOpen(true);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Add Subject
+                    </Button>
+                    {schoolId && (
+                      <BulkCreateSubjectsDialog
+                        schoolId={schoolId}
+                        onSuccess={() => {
+                          fetchOperationalSubjects();
                         }}
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Add Subject
-                      </Button>
-                      {schoolId && (
-                        <BulkCreateSubjectsDialog
-                          schoolId={schoolId}
-                          onSuccess={() => {
-                            fetchOperationalSubjects();
-                          }}
-                          educationLevels={educationLevels}
-                          departments={departments}
-                          religions={religions}
-                          teachers={teachers}
-                        />
-                      )}
+                        educationLevels={educationLevels}
+                        departments={departments}
+                        religions={religions}
+                        teachers={teachers}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Metrics Cards */}
+                <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Total Subjects</p>
+                    <p className="text-2xl font-semibold">{operationalSubjects.length}</p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Active</p>
+                    <p className="text-2xl font-semibold">
+                      {operationalSubjects.filter((s) => s.is_active).length}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-muted/20 p-3">
+                    <p className="text-xs text-muted-foreground">Levels Covered</p>
+                    <p className="text-2xl font-semibold">
+                      {new Set(operationalSubjects.map((s) => s.education_level_id)).size}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filter Panel */}
+                <div className="mb-4 rounded-lg border bg-muted/10 p-3 space-y-3">
+                  <p className="text-sm font-semibold">Filters</p>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Search */}
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Search</Label>
+                      <Input
+                        placeholder="Subject name..."
+                        value={opSubjectsSearch}
+                        onChange={(e) => setOpSubjectsSearch(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+
+                    {/* Education Level */}
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Level</Label>
+                      <Select value={opEducationLevelFilter} onValueChange={setOpEducationLevelFilter}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Levels</SelectItem>
+                          {educationLevels.map((el) => (
+                            <SelectItem key={el.id} value={el.id}>
+                              {el.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Department */}
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Department</Label>
+                      <Select value={opDepartmentFilter} onValueChange={setOpDepartmentFilter}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Departments</SelectItem>
+                          {departments.map((dp) => (
+                            <SelectItem key={dp.id} value={dp.id}>
+                              {dp.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Status</Label>
+                      <Select value={opStatusFilter} onValueChange={(val: any) => setOpStatusFilter(val)}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All</SelectItem>
+                          <SelectItem value="active">Active Only</SelectItem>
+                          <SelectItem value="inactive">Inactive Only</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
+                </div>
+                {/* Table */}
+                <div className="rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                        <th className="px-3 py-2 text-left">Subject</th>
+                        <th className="px-3 py-2 text-left hidden sm:table-cell">Level</th>
+                        <th className="px-3 py-2 text-left hidden lg:table-cell">Dept</th>
+                        <th className="px-3 py-2 text-left">Type</th>
+                        <th className="px-3 py-2 text-center">Status</th>
+                        <th className="px-3 py-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {opSubjectsLoading ? (
+                        <LoadingRow />
+                      ) : (() => {
+                        const filtered = operationalSubjects.filter((s) => {
+                          if (opSubjectsSearch && !s.name.toLowerCase().includes(opSubjectsSearch.toLowerCase())) return false;
+                          if (opEducationLevelFilter !== "all" && s.education_level_id !== opEducationLevelFilter) return false;
+                          if (opDepartmentFilter !== "all" && s.department_id !== opDepartmentFilter) return false;
+                          if (opStatusFilter === "active" && !s.is_active) return false;
+                          if (opStatusFilter === "inactive" && s.is_active) return false;
+                          return true;
+                        });
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <p className="text-xs text-muted-foreground">Catalog Subjects</p>
-                      <p className="text-2xl font-semibold">{operationalSubjects.length}</p>
-                    </div>
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <p className="text-xs text-muted-foreground">Active Subjects</p>
-                      <p className="text-2xl font-semibold">
-                        {operationalSubjects.filter((subject) => subject.is_active).length}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <p className="text-xs text-muted-foreground">Teachers Available</p>
-                      <p className="text-2xl font-semibold">{teachers.length}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-lg border overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
-                          <th className="px-3 py-2 text-left">Subject</th>
-                          <th className="px-3 py-2 text-left">Level</th>
-                          <th className="px-3 py-2 text-left">Department</th>
-                          <th className="px-3 py-2 text-left">Religion</th>
-                          <th className="px-3 py-2 text-left">Type</th>
-                          <th className="px-3 py-2 text-center">Status</th>
-                          <th className="px-3 py-2 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {opSubjectsLoading ? (
-                          <LoadingRow />
-                        ) : operationalSubjects.length === 0 ? (
-                          <EmptyRow message="No catalog subjects yet. Use Add Subject or Bulk Create to get started." />
+                        return filtered.length === 0 ? (
+                          <EmptyRow message="No subjects match the selected filters." />
                         ) : (
-                          operationalSubjects.slice(0, 12).map((subject) => {
+                          filtered.slice(0, 15).map((subject) => {
                             const level = educationLevels.find((el) => el.id === subject.education_level_id);
                             const department = departments.find((dp) => dp.id === subject.department_id);
-                            const religion = religions.find((rl) => rl.id === subject.religion_id);
 
                             return (
                               <tr key={subject.id} className="hover:bg-muted/20 transition-colors">
-                                <td className="px-3 py-2 font-medium">{subject.name}</td>
-                                <td className="px-3 py-2 text-xs text-muted-foreground">{level?.name || "—"}</td>
-                                <td className="px-3 py-2 text-xs text-muted-foreground">{department?.name || "—"}</td>
-                                <td className="px-3 py-2 text-xs text-muted-foreground">{religion?.name || "—"}</td>
-                                <td className="px-3 py-2">
+                                <td className="px-3 py-3 font-medium">{subject.name}</td>
+                                <td className="px-3 py-3 text-xs text-muted-foreground hidden sm:table-cell">{level?.name || "—"}</td>
+                                <td className="px-3 py-3 text-xs text-muted-foreground hidden lg:table-cell">
+                                  {department?.name ? <Badge variant="secondary" className="text-xs">{department.name}</Badge> : "—"}
+                                </td>
+                                <td className="px-3 py-3">
                                   {subject.is_optional ? (
                                     <Badge variant="secondary" className="text-xs">Optional</Badge>
                                   ) : (
                                     <Badge className="text-xs">Core</Badge>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 text-center">
+                                <td className="px-3 py-3 text-center">
                                   <Badge variant={subject.is_active ? "default" : "outline"} className="text-xs">
                                     {subject.is_active ? "Active" : "Inactive"}
                                   </Badge>
                                 </td>
-                                <td className="px-3 py-2 text-right">
+                                <td className="px-3 py-3 text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     <Button
                                       variant="ghost"
                                       size="sm"
+                                      className="h-7 text-xs"
                                       onClick={() => {
                                         setEditingOperationalSubject(subject);
                                         setSubjectForm({
@@ -1610,6 +1703,7 @@ export default function SchoolConfigPage() {
                                     <Button
                                       variant="outline"
                                       size="sm"
+                                      className="h-7 text-xs"
                                       onClick={() => {
                                         void openApplyDialog(subject);
                                       }}
@@ -1621,41 +1715,53 @@ export default function SchoolConfigPage() {
                               </tr>
                             );
                           })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {operationalSubjects.length > 12 && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Showing first 12 subjects. Use class pages for detailed per-class edits.
-                    </p>
-                  )}
+                        );
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
-              </TabsContent>
 
-              <TabsContent value="presets" className="mt-0">
-                <div className="rounded-xl border bg-card overflow-hidden">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
-                    <div>
-                      <h3 className="font-semibold text-sm">Subject Preset Templates</h3>
-                      <p className="text-xs text-muted-foreground">
-                        Manage reusable subject templates by education level for future onboarding and bulk setup.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Select value={selectedPresetLevelId} onValueChange={setSelectedPresetLevelId}>
-                        <SelectTrigger className="h-8 text-xs w-48">
-                          <SelectValue placeholder="Select education level" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {educationLevels.map((el) => (
-                            <SelectItem key={el.id} value={el.id}>
-                              {el.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                {operationalSubjects.length > 15 && (
+                  <p className="mt-2 px-3 text-xs text-muted-foreground">
+                    Showing first 15 subjects. Use filters to narrow down the list.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* ──────────────────────────
+                SECTION 2: PRESET TEMPLATES
+            ────────────────────────── */}
+            <div>
+              <h2 className="mb-3 text-lg font-semibold flex items-center gap-2">
+                <Sparkles className="h-5 w-5" />
+                Subject Preset Templates
+              </h2>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Manage reusable subject templates by education level for future onboarding and bulk setup.
+              </p>
+
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
+                  <div>
+                    <h3 className="font-semibold text-sm">Configure Templates</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Select an education level to view and manage its templates.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select value={selectedPresetLevelId} onValueChange={setSelectedPresetLevelId}>
+                      <SelectTrigger className="h-8 text-xs w-48">
+                        <SelectValue placeholder="Select education level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {educationLevels.map((el) => (
+                          <SelectItem key={el.id} value={el.id}>
+                            {el.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
                       <Button
                         size="sm"
@@ -1770,9 +1876,8 @@ export default function SchoolConfigPage() {
                       </tbody>
                     </table>
                   </div>
-                </div>
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </TabsContent>
 
           {/* ══════════════════════════════════════

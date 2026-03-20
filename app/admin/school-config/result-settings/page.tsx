@@ -5,6 +5,13 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { useResultSettings } from "@/hooks/use-result-settings";
 import { Loader2, Plus, Trash2 } from "lucide-react";
@@ -26,6 +33,64 @@ interface EditableGrade {
 const DEFAULT_COMPONENTS: EditableComponent[] = [
   { component_key: "ca", component_name: "CA", max_score: 40, is_active: true },
   { component_key: "exam", component_name: "Exam", max_score: 60, is_active: true },
+];
+
+const COMPONENT_PRESETS: Array<{
+  key: string;
+  label: string;
+  description: string;
+  components: EditableComponent[];
+}> = [
+  {
+    key: "welcome_mid_vetting_exam",
+    label: "Welcome(10) + Mid(20) + Vetting(10) + Exam(60)",
+    description: "Common 4-part setup",
+    components: [
+      { component_key: "welcome_test", component_name: "Welcome Test", max_score: 10, is_active: true },
+      { component_key: "mid_term_test", component_name: "Mid Term Test", max_score: 20, is_active: true },
+      { component_key: "vetting", component_name: "Vetting", max_score: 10, is_active: true },
+      { component_key: "exam", component_name: "Exam", max_score: 60, is_active: true },
+    ],
+  },
+  {
+    key: "ca_exam",
+    label: "CA(40) + Exam(60)",
+    description: "Simple continuous assessment and exam setup",
+    components: [
+      { component_key: "ca", component_name: "CA", max_score: 40, is_active: true },
+      { component_key: "exam", component_name: "Exam", max_score: 60, is_active: true },
+    ],
+  },
+  {
+    key: "assignment_test_exam",
+    label: "Assignment(20) + Test(20) + Exam(60)",
+    description: "Balanced coursework + exam setup",
+    components: [
+      { component_key: "assignment", component_name: "Assignment", max_score: 20, is_active: true },
+      { component_key: "test", component_name: "Test", max_score: 20, is_active: true },
+      { component_key: "exam", component_name: "Exam", max_score: 60, is_active: true },
+    ],
+  },
+  {
+    key: "ca_practical_exam",
+    label: "CA(30) + Practical(20) + Exam(50)",
+    description: "Useful for science/technical schools",
+    components: [
+      { component_key: "ca", component_name: "CA", max_score: 30, is_active: true },
+      { component_key: "practical", component_name: "Practical", max_score: 20, is_active: true },
+      { component_key: "exam", component_name: "Exam", max_score: 50, is_active: true },
+    ],
+  },
+  {
+    key: "project_ca_exam",
+    label: "Project(20) + CA(30) + Exam(50)",
+    description: "Project-oriented grading setup",
+    components: [
+      { component_key: "project", component_name: "Project", max_score: 20, is_active: true },
+      { component_key: "ca", component_name: "CA", max_score: 30, is_active: true },
+      { component_key: "exam", component_name: "Exam", max_score: 50, is_active: true },
+    ],
+  },
 ];
 
 const DEFAULT_GRADES: EditableGrade[] = [
@@ -56,6 +121,18 @@ export default function ResultSettingsPage() {
   const [passPercentage, setPassPercentage] = useState(40);
   const [components, setComponents] = useState<EditableComponent[]>(DEFAULT_COMPONENTS);
   const [grades, setGrades] = useState<EditableGrade[]>(DEFAULT_GRADES);
+  const [selectedPresetKey, setSelectedPresetKey] = useState<string>("welcome_mid_vetting_exam");
+
+  const applySelectedPreset = () => {
+    const preset = COMPONENT_PRESETS.find((item) => item.key === selectedPresetKey);
+    if (!preset) {
+      toast.error("Select a preset first");
+      return;
+    }
+
+    setComponents(preset.components.map((item) => ({ ...item })));
+    toast.success(`Applied preset: ${preset.label}. You can still edit it.`);
+  };
 
   useEffect(() => {
     if (!data) return;
@@ -177,6 +254,33 @@ export default function ResultSettingsPage() {
                 <Plus className="mr-2 h-4 w-4" />
                 Add Component
               </Button>
+            </div>
+
+            <div className="mb-4 grid grid-cols-1 gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-12">
+              <div className="md:col-span-8">
+                <Label>Quick Presets</Label>
+                <Select value={selectedPresetKey} onValueChange={setSelectedPresetKey}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a preset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMPONENT_PRESETS.map((preset) => (
+                      <SelectItem key={preset.key} value={preset.key}>
+                        {preset.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {COMPONENT_PRESETS.find((item) => item.key === selectedPresetKey)?.description ||
+                    "Choose a preset to quickly start."}
+                </p>
+              </div>
+              <div className="md:col-span-4 md:self-end">
+                <Button type="button" className="w-full" variant="secondary" onClick={applySelectedPreset}>
+                  Apply Preset
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3">

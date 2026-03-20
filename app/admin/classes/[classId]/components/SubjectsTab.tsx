@@ -30,8 +30,6 @@ type SubjectClass = {
   id: string;
   subject_code: string;
   subject_id: string;
-  full_mark_obtainable: number;
-  pass_mark: number;
   department_id: string | null;
   religion_id: string | null;
   subject: {
@@ -131,8 +129,6 @@ export function SubjectsTab({
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingSubjectClass, setEditingSubjectClass] = useState<SubjectClass | null>(null);
-  const [editFullMark, setEditFullMark] = useState(100);
-  const [editPassMark, setEditPassMark] = useState(40);
   const [editIsOptional, setEditIsOptional] = useState(false);
   const [editDepartmentId, setEditDepartmentId] = useState<string | null>(null);
   const [editReligionId, setEditReligionId] = useState<string | null>(null);
@@ -174,8 +170,6 @@ export function SubjectsTab({
 
   function openEditDialog(sc: SubjectClass) {
     setEditingSubjectClass(sc);
-    setEditFullMark(sc.full_mark_obtainable);
-    setEditPassMark(sc.pass_mark);
     setEditIsOptional(sc.subject.is_optional);
     setEditDepartmentId(sc.department_id || null);
     setEditReligionId(sc.religion_id || null);
@@ -188,19 +182,12 @@ export function SubjectsTab({
       return;
     }
 
-    if (editFullMark <= 0 || editPassMark < 0 || editPassMark > editFullMark) {
-      toast.error("Invalid marks configuration");
-      return;
-    }
-
     setIsEditSubmitting(true);
 
     try {
       const { error } = await supabase
         .from("subject_classes")
         .update({
-          full_mark_obtainable: editFullMark,
-          pass_mark: editPassMark,
           is_optional: editIsOptional,
           department_id: editDepartmentId,
           religion_id: editReligionId,
@@ -502,33 +489,6 @@ export function SubjectsTab({
                 onCheckedChange={setEditIsOptional}
               />
             </div>
-
-            {/* Full Mark Obtainable */}
-            <div>
-              <Label htmlFor="edit_full_mark">Full Mark Obtainable</Label>
-              <Input
-                id="edit_full_mark"
-                type="number"
-                min="1"
-                value={editFullMark}
-                onChange={(e) => setEditFullMark(Math.max(1, parseInt(e.target.value) || 0))}
-              />
-            </div>
-
-            {/* Pass Mark */}
-            <div>
-              <Label htmlFor="edit_pass_mark">Pass Mark</Label>
-              <Input
-                id="edit_pass_mark"
-                type="number"
-                min="0"
-                max={editFullMark}
-                value={editPassMark}
-                onChange={(e) => setEditPassMark(Math.min(editFullMark, Math.max(0, parseInt(e.target.value) || 0)))}
-              />
-            </div>
-
-
 
             {/* Department */}
             {departments.length > 0 && (

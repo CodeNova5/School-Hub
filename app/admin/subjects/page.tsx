@@ -71,8 +71,6 @@ type WizardClassConfig = {
   classId: string;
   className: string;
   teacherId: string;
-  fullMark: string;
-  passMark: string;
   includeOptionalSubjects: boolean;
   selectedSubjectNames: string[];
 };
@@ -148,8 +146,6 @@ export default function SubjectsPage() {
 
   const [selectedEducationLevelId, setSelectedEducationLevelId] = useState("");
   const [defaultTeacherId, setDefaultTeacherId] = useState("");
-  const [defaultFullMark, setDefaultFullMark] = useState("100");
-  const [defaultPassMark, setDefaultPassMark] = useState("40");
   const [includeOptionalSubjects, setIncludeOptionalSubjects] = useState(true);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   const [wizardClassConfigs, setWizardClassConfigs] = useState<WizardClassConfig[]>([]);
@@ -246,17 +242,6 @@ export default function SubjectsPage() {
   const wizardHasClassValidationErrors = useMemo(
     () =>
       wizardClassConfigs.some((classConfig) => {
-        const fullMark = Number(classConfig.fullMark);
-        const passMark = Number(classConfig.passMark);
-
-        if (!Number.isFinite(fullMark) || fullMark <= 0) {
-          return true;
-        }
-
-        if (!Number.isFinite(passMark) || passMark < 0 || passMark > fullMark) {
-          return true;
-        }
-
         return classConfig.selectedSubjectNames.length === 0;
       }),
     [wizardClassConfigs]
@@ -431,20 +416,9 @@ export default function SubjectsPage() {
       return;
     }
 
-    const invalidClass = wizardClassConfigs.find((classConfig) => {
-      const fullMark = Number(classConfig.fullMark);
-      const passMark = Number(classConfig.passMark);
-
-      if (!Number.isFinite(fullMark) || fullMark <= 0) {
-        return true;
-      }
-
-      if (!Number.isFinite(passMark) || passMark < 0 || passMark > fullMark) {
-        return true;
-      }
-
-      return classConfig.selectedSubjectNames.length === 0;
-    });
+    const invalidClass = wizardClassConfigs.find((classConfig) =>
+      classConfig.selectedSubjectNames.length === 0
+    );
 
     if (invalidClass) {
       toast.error(`Please complete valid configuration for ${invalidClass.className}`);
@@ -535,8 +509,6 @@ export default function SubjectsPage() {
         department_id: string | null;
         religion_id: string | null;
         is_optional: boolean;
-        full_mark_obtainable: number;
-        pass_mark: number;
         subject_code: string;
         is_active: boolean;
       }> = [];
@@ -548,9 +520,6 @@ export default function SubjectsPage() {
         if (!classItem) {
           continue;
         }
-
-        const fullMark = Number(classConfig.fullMark);
-        const passMark = Number(classConfig.passMark);
 
         for (const subjectName of classConfig.selectedSubjectNames) {
           const subjectId = catalogByName.get(subjectName.toLowerCase());
@@ -588,8 +557,6 @@ export default function SubjectsPage() {
             department_id: defaultDepartmentCache.get(subjectName) || null,
             religion_id: defaultReligionCache.get(subjectName) || null,
             is_optional: Boolean(setupSubject?.isOptional),
-            full_mark_obtainable: fullMark,
-            pass_mark: passMark,
             subject_code: generateSubjectCode(subjectName, classItem.name, subjectId, selectedSubjectNames),
             is_active: true,
           });
@@ -637,19 +604,6 @@ export default function SubjectsPage() {
       return;
     }
 
-    const fullMark = Number(defaultFullMark);
-    const passMark = Number(defaultPassMark);
-
-    if (!Number.isFinite(fullMark) || fullMark <= 0) {
-      toast.error("Default full mark must be greater than 0");
-      return;
-    }
-
-    if (!Number.isFinite(passMark) || passMark < 0 || passMark > fullMark) {
-      toast.error("Default pass mark must be between 0 and full mark");
-      return;
-    }
-
     if (classesInSelectedLevel.length === 0) {
       toast.error("No classes found under this education level");
       return;
@@ -669,8 +623,6 @@ export default function SubjectsPage() {
         classId: classItem.id,
         className: classItem.name,
         teacherId: defaultTeacherId,
-        fullMark: defaultFullMark,
-        passMark: defaultPassMark,
         includeOptionalSubjects,
         selectedSubjectNames: initialSubjects.map((subject) => subject.name),
       }))
@@ -730,8 +682,6 @@ export default function SubjectsPage() {
     setWizardClassConfigs([]);
     setSelectedEducationLevelId("");
     setDefaultTeacherId("");
-    setDefaultFullMark("100");
-    setDefaultPassMark("40");
     setIncludeOptionalSubjects(true);
   }
 
@@ -926,10 +876,6 @@ export default function SubjectsPage() {
         setSelectedEducationLevelId={setSelectedEducationLevelId}
         defaultTeacherId={defaultTeacherId}
         setDefaultTeacherId={setDefaultTeacherId}
-        defaultFullMark={defaultFullMark}
-        setDefaultFullMark={setDefaultFullMark}
-        defaultPassMark={defaultPassMark}
-        setDefaultPassMark={setDefaultPassMark}
         includeOptionalSubjects={includeOptionalSubjects}
         setIncludeOptionalSubjects={setIncludeOptionalSubjects}
         wizardClassConfigs={wizardClassConfigs}
@@ -965,10 +911,6 @@ interface WizardModalProps {
   setSelectedEducationLevelId: (id: string) => void;
   defaultTeacherId: string;
   setDefaultTeacherId: (id: string) => void;
-  defaultFullMark: string;
-  setDefaultFullMark: (mark: string) => void;
-  defaultPassMark: string;
-  setDefaultPassMark: (mark: string) => void;
   includeOptionalSubjects: boolean;
   setIncludeOptionalSubjects: (include: boolean) => void;
   wizardClassConfigs: WizardClassConfig[];
@@ -1000,10 +942,6 @@ function WizardModal({
   setSelectedEducationLevelId,
   defaultTeacherId,
   setDefaultTeacherId,
-  defaultFullMark,
-  setDefaultFullMark,
-  defaultPassMark,
-  setDefaultPassMark,
   includeOptionalSubjects,
   setIncludeOptionalSubjects,
   wizardClassConfigs,
@@ -1069,10 +1007,6 @@ function WizardModal({
               setSelectedEducationLevelId={setSelectedEducationLevelId}
               defaultTeacherId={defaultTeacherId}
               setDefaultTeacherId={setDefaultTeacherId}
-              defaultFullMark={defaultFullMark}
-              setDefaultFullMark={setDefaultFullMark}
-              defaultPassMark={defaultPassMark}
-              setDefaultPassMark={setDefaultPassMark}
               teachers={teachers}
               includeOptionalSubjects={includeOptionalSubjects}
               setIncludeOptionalSubjects={setIncludeOptionalSubjects}
@@ -1160,10 +1094,6 @@ function Step1Content({
   setSelectedEducationLevelId,
   defaultTeacherId,
   setDefaultTeacherId,
-  defaultFullMark,
-  setDefaultFullMark,
-  defaultPassMark,
-  setDefaultPassMark,
   teachers,
   includeOptionalSubjects,
   setIncludeOptionalSubjects,
@@ -1175,10 +1105,6 @@ function Step1Content({
   setSelectedEducationLevelId: (id: string) => void;
   defaultTeacherId: string;
   setDefaultTeacherId: (id: string) => void;
-  defaultFullMark: string;
-  setDefaultFullMark: (mark: string) => void;
-  defaultPassMark: string;
-  setDefaultPassMark: (mark: string) => void;
   teachers: Teacher[];
   includeOptionalSubjects: boolean;
   setIncludeOptionalSubjects: (include: boolean) => void;
@@ -1204,7 +1130,7 @@ function Step1Content({
         </select>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-1">
         <div>
           <Label htmlFor="step1_teacher" className="font-medium">Default Teacher (optional)</Label>
           <select
@@ -1220,30 +1146,6 @@ function Step1Content({
               </option>
             ))}
           </select>
-        </div>
-
-        <div>
-          <Label htmlFor="step1_full_mark" className="font-medium">Default Full Mark</Label>
-          <Input
-            id="step1_full_mark"
-            type="number"
-            min="1"
-            value={defaultFullMark}
-            onChange={(e) => setDefaultFullMark(e.target.value)}
-            className="mt-2"
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="step1_pass_mark" className="font-medium">Default Pass Mark</Label>
-          <Input
-            id="step1_pass_mark"
-            type="number"
-            min="0"
-            value={defaultPassMark}
-            onChange={(e) => setDefaultPassMark(e.target.value)}
-            className="mt-2"
-          />
         </div>
       </div>
 
@@ -1318,7 +1220,7 @@ function Step2Content({
       {wizardHasClassValidationErrors && (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 flex gap-2">
           <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <p>Fix invalid marks or zero selected subjects before proceeding</p>
+          <p>Select at least one subject for each class before proceeding</p>
         </div>
       )}
 
@@ -1359,14 +1261,7 @@ function ClassConfigCard({
   validatedPredefined: { loadable: SetupSubjectOption[]; warnings: string[] };
 }) {
   const classSubjects = getLoadableSubjectsForClass(classConfig);
-  const fullMark = Number(classConfig.fullMark);
-  const passMark = Number(classConfig.passMark);
-  const hasInvalidMarks =
-    !Number.isFinite(fullMark) ||
-    fullMark <= 0 ||
-    !Number.isFinite(passMark) ||
-    passMark < 0 ||
-    passMark > fullMark;
+  const hasValidationError = classConfig.selectedSubjectNames.length === 0;
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -1379,14 +1274,14 @@ function ClassConfigCard({
           <Badge variant={classConfig.selectedSubjectNames.length > 0 ? "default" : "outline"}>
             {classConfig.selectedSubjectNames.length} subject(s)
           </Badge>
-          {hasInvalidMarks && <Badge variant="destructive">Error</Badge>}
+          {hasValidationError && <Badge variant="destructive">Error</Badge>}
         </div>
         <p className="text-xs text-gray-600">{isExpanded ? "▼" : "▶"}</p>
       </button>
 
       {isExpanded && (
         <div className="p-4 space-y-3 border-t">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-1">
             <div>
               <Label className="text-xs font-medium">Teacher</Label>
               <select
@@ -1407,45 +1302,7 @@ function ClassConfigCard({
                 ))}
               </select>
             </div>
-
-            <div>
-              <Label className="text-xs font-medium">Full Mark</Label>
-              <Input
-                type="number"
-                min="1"
-                value={classConfig.fullMark}
-                onChange={(e) =>
-                  updateClassConfig(classConfig.classId, (current) => ({
-                    ...current,
-                    fullMark: e.target.value,
-                  }))
-                }
-                className="mt-1 text-sm"
-              />
-            </div>
-
-            <div>
-              <Label className="text-xs font-medium">Pass Mark</Label>
-              <Input
-                type="number"
-                min="0"
-                value={classConfig.passMark}
-                onChange={(e) =>
-                  updateClassConfig(classConfig.classId, (current) => ({
-                    ...current,
-                    passMark: e.target.value,
-                  }))
-                }
-                className="mt-1 text-sm"
-              />
-            </div>
           </div>
-
-          {hasInvalidMarks && (
-            <p className="text-xs text-red-600">
-              Pass mark must be between 0 and full mark
-            </p>
-          )}
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -1548,12 +1405,6 @@ function Step3Content({
               <tr>
                 <td className="pr-4">Teacher:</td>
                 <td>{classConfig.teacherId ? "Assigned" : "Unassigned"}</td>
-              </tr>
-              <tr>
-                <td className="pr-4">Marks:</td>
-                <td>
-                  {classConfig.passMark}/{classConfig.fullMark}
-                </td>
               </tr>
               <tr>
                 <td className="pr-4">Subjects:</td>

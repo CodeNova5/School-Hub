@@ -325,16 +325,11 @@ CREATE TABLE IF NOT EXISTS subject_classes (
   department_id uuid REFERENCES school_departments(id) ON DELETE SET NULL,
   religion_id uuid REFERENCES school_religions(id) ON DELETE SET NULL,
   is_optional boolean DEFAULT false,
-  full_mark_obtainable integer DEFAULT 100,
-  pass_mark integer DEFAULT 40,
   prerequisite_subject_id uuid REFERENCES subjects(id) ON DELETE SET NULL,
   prerequisite_min_score numeric,
   is_active boolean DEFAULT true,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
-  CHECK (pass_mark >= 0),
-  CHECK (full_mark_obtainable > 0),
-  CHECK (pass_mark <= full_mark_obtainable),
   CHECK (prerequisite_min_score IS NULL OR prerequisite_min_score >= 0),
   UNIQUE(school_id, subject_id, class_id)
 );

@@ -193,8 +193,6 @@ export interface SubjectClassAssignment {
   department_id?: string | null;
   religion_id?: string | null;
   is_optional: boolean;
-  full_mark_obtainable: number;
-  pass_mark: number;
   prerequisite_subject_id?: string | null;
   prerequisite_min_score?: number | null;
   is_active: boolean;

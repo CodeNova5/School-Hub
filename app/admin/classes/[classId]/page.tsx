@@ -47,8 +47,6 @@ type SubjectClass = {
   id: string;
   subject_code: string;
   subject_id: string;
-  full_mark_obtainable: number;
-  pass_mark: number;
   department_id: string | null;
   religion_id: string | null;
   subject: {
@@ -170,8 +168,6 @@ export default function ClassPage() {
           id,
           subject_code,
           subject_id,
-          full_mark_obtainable,
-          pass_mark,
           department_id,
           religion_id,
           is_optional,
@@ -187,8 +183,6 @@ export default function ClassPage() {
           id: item.id,
           subject_code: item.subject_code,
           subject_id: item.subject_id,
-          full_mark_obtainable: item.full_mark_obtainable,
-          pass_mark: item.pass_mark,
           department_id: item.department_id,
           religion_id: item.religion_id,
           subject: {

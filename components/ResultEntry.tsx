@@ -15,8 +15,6 @@ import { Save, Printer, ArrowLeft, Loader2, Medal, FileDown } from "lucide-react
 interface SubjectScore {
   subject_class_id: string;
   subject_name: string;
-  full_mark_obtainable: number;
-  pass_mark: number;
   component_scores: Record<string, number>;
   welcome_test: number;
   mid_term_test: number;
@@ -389,8 +387,6 @@ export default function ResultEntry({
           id,
           subject_code,
           subject_id,
-          full_mark_obtainable,
-          pass_mark,
           department_id,
           religion_id,
           is_optional,
@@ -468,8 +464,6 @@ export default function ResultEntry({
       let initialScores: SubjectScore[] = filteredSubjectClasses.map((sc: any) => ({
         subject_class_id: sc.id,
         subject_name: sc.subjects?.name ?? "Unknown",
-        full_mark_obtainable: Number(sc.full_mark_obtainable) || 100,
-        pass_mark: Number(sc.pass_mark) || 40,
         component_scores: {},
         welcome_test: 0,
         mid_term_test: 0,
@@ -755,42 +749,26 @@ export default function ResultEntry({
     return total > 0 ? total : 100;
   }
 
-  function getSubjectMaxPossibleScore(score: SubjectScore): number {
-    const visibleWeight = getVisibleWeightTotal();
-    return (score.full_mark_obtainable * visibleWeight) / 100;
+  function getSubjectMaxPossibleScore(): number {
+    return getVisibleWeightTotal();
   }
 
-  function getSubjectMaxPossibleScoreWithMode(score: SubjectScore, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
-    const visibleWeight = getVisibleWeightTotalWithMode(mode);
-    return (score.full_mark_obtainable * visibleWeight) / 100;
+  function getSubjectMaxPossibleScoreWithMode(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
+    return getVisibleWeightTotalWithMode(mode);
   }
 
-  function getScaledPassMark(score: SubjectScore): number {
-    const maxScore = getSubjectMaxPossibleScore(score);
-    return (score.pass_mark / score.full_mark_obtainable) * maxScore;
-  }
-
-  function getScaledPassMarkWithMode(score: SubjectScore, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
-    const maxScore = getSubjectMaxPossibleScoreWithMode(score, mode);
-    return (score.pass_mark / score.full_mark_obtainable) * maxScore;
-  }
-
-  function calculateGrade(score: SubjectScore, total: number) {
-    const maxScore = getSubjectMaxPossibleScore(score);
-    const scaledPassMark = getScaledPassMark(score);
+  function calculateGrade(_score: SubjectScore, total: number) {
+    const maxScore = getSubjectMaxPossibleScore();
     if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
     const percentage = (total / maxScore) * 100;
-    const passPercentage = (scaledPassMark / maxScore) * 100;
-    return resolveGradeFromPercentage(percentage, Math.max(configuredPassPercentage, passPercentage));
+    return resolveGradeFromPercentage(percentage, configuredPassPercentage);
   }
 
-  function calculateGradeWithMode(score: SubjectScore, total: number, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
-    const maxScore = getSubjectMaxPossibleScoreWithMode(score, mode);
-    const scaledPassMark = getScaledPassMarkWithMode(score, mode);
+  function calculateGradeWithMode(_score: SubjectScore, total: number, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
+    const maxScore = getSubjectMaxPossibleScoreWithMode(mode);
     if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
     const percentage = (total / maxScore) * 100;
-    const passPercentage = (scaledPassMark / maxScore) * 100;
-    return resolveGradeFromPercentage(percentage, Math.max(configuredPassPercentage, passPercentage));
+    return resolveGradeFromPercentage(percentage, configuredPassPercentage);
   }
 
   function getComponentLimit(field: string): number {
@@ -844,12 +822,10 @@ export default function ResultEntry({
   })();
 
   const totalScore = scores.reduce((sum, s) => sum + s.total, 0);
-  const totalPassMark = scores.reduce((sum, s) => sum + getScaledPassMark(s), 0);
-  const maxTotalScore = scores.reduce((sum, s) => sum + getSubjectMaxPossibleScore(s), 0);
+  const maxTotalScore = scores.reduce((sum) => sum + getSubjectMaxPossibleScore(), 0);
   const averagePercentage = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
   const overallGrade = (() => {
-    const overallPassPercentage = maxTotalScore > 0 ? (totalPassMark / maxTotalScore) * 100 : 40;
-    return resolveGradeFromPercentage(averagePercentage, Math.max(configuredPassPercentage, overallPassPercentage)).grade;
+    return resolveGradeFromPercentage(averagePercentage, configuredPassPercentage).grade;
   })();
 
   const getPositionDisplay = (position: number | null | undefined) => {
@@ -1177,7 +1153,7 @@ export default function ResultEntry({
                       <td className="border border-gray-300 px-3 py-2 font-medium">
                         {score.subject_name}
                         <div className="text-xs text-gray-500">
-                          Pass: {getScaledPassMark(score).toFixed(1)} / {getSubjectMaxPossibleScore(score).toFixed(1)}
+                          Pass threshold: {configuredPassPercentage.toFixed(1)}%
                         </div>
                       </td>
                       {getVisibleComponentTemplates().map((component) => (

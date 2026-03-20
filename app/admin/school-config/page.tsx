@@ -859,10 +859,21 @@ export default function SchoolConfigPage() {
               streams, departments, and religions.
             </p>
           </div>
-          <Button onClick={() => setShowWizard(true)} className="shrink-0 gap-2">
-            <Sparkles className="h-4 w-4" />
-            Setup Wizard
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                window.location.href = "/admin/school-config/result-settings";
+              }}
+              className="shrink-0"
+            >
+              Result Settings
+            </Button>
+            <Button onClick={() => setShowWizard(true)} className="shrink-0 gap-2">
+              <Sparkles className="h-4 w-4" />
+              Setup Wizard
+            </Button>
+          </div>
         </div>
 
         {/* ── Empty-state banner ── */}

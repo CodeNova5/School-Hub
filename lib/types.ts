@@ -107,6 +107,39 @@ export interface EducationLevelSubjectPreset {
   updated_at: string;
 }
 
+export interface ResultSchoolSettings {
+  id: string;
+  school_id: string;
+  pass_percentage: number;
+  is_configured: boolean;
+  configured_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResultComponentTemplate {
+  id: string;
+  school_id: string;
+  component_key: string;
+  component_name: string;
+  max_score: number;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResultGradeScale {
+  id: string;
+  school_id: string;
+  grade_label: string;
+  min_percentage: number;
+  remark?: string;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Classes ────────────────────────────────────────────────────────────────
 
 export interface Class {

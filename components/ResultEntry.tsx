@@ -196,7 +196,7 @@ export default function ResultEntry({
       const { data: { session: authSession } } = await supabase.auth.getSession();
       const user = authSession?.user;
 
-      // Get school_id from teacher or student profile
+      // Get school_id from teacher, admin, or student profile
       let schoolId = null;
       if (user) {
         const { data: teacherData } = await supabase
@@ -208,12 +208,22 @@ export default function ResultEntry({
         if (teacherData) {
           schoolId = teacherData.school_id;
         } else {
-          const { data: studentData } = await supabase
-            .from('students')
+          const { data: adminData } = await supabase
+            .from('admins')
             .select('school_id')
             .eq('user_id', user.id)
             .maybeSingle();
-          if (studentData) schoolId = studentData.school_id;
+
+          if (adminData) {
+            schoolId = adminData.school_id;
+          } else {
+            const { data: studentData } = await supabase
+              .from('students')
+              .select('school_id')
+              .eq('user_id', user.id)
+              .maybeSingle();
+            if (studentData) schoolId = studentData.school_id;
+          }
         }
       }
 
@@ -925,12 +935,23 @@ export default function ResultEntry({
       const user = authSession?.user;
       let schoolId: string | null = null;
       if (user) {
+        // Try to get school_id from teachers table first
         const { data: teacherData } = await supabase
           .from('teachers')
           .select('school_id')
           .eq('user_id', user.id)
           .maybeSingle();
-        if (teacherData) schoolId = teacherData.school_id;
+        if (teacherData) {
+          schoolId = teacherData.school_id;
+        } else {
+          // If not a teacher, try admins table
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('school_id')
+            .eq('user_id', user.id)
+            .maybeSingle();
+          if (adminData) schoolId = adminData.school_id;
+        }
       }
 
       // Save each subject's result separately using Supabase upsert

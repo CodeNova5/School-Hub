@@ -1484,286 +1484,295 @@ export default function SchoolConfigPage() {
           </TabsContent>
 
           {/* ══════════════════════════════════════
-              TAB: SUBJECT PRESETS
+              TAB: SUBJECTS
           ══════════════════════════════════════ */}
           <TabsContent value="subjects" className="mt-4">
-            <div className="space-y-4">
-              <div className="rounded-xl border bg-card p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 className="font-semibold text-sm">Operational Subject Catalog</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Create and assign subjects from School Config. This writes to both subject catalog and class assignments.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setEditingOperationalSubject(null);
-                        setSubjectForm(blankOperationalSubject());
-                        setSubjectDialogOpen(true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-1" /> Add Subject
-                    </Button>
-                    {schoolId && (
-                      <BulkCreateSubjectsDialog
-                        schoolId={schoolId}
-                        onSuccess={() => {
-                          fetchOperationalSubjects();
+            <Tabs defaultValue="operational" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2 max-w-md">
+                <TabsTrigger value="operational">Operational</TabsTrigger>
+                <TabsTrigger value="presets">Preset Templates</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="operational" className="mt-0">
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-semibold text-sm">Operational Subject Catalog</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Create, edit, and apply real subjects to classes. This is the primary workflow for active school operations.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditingOperationalSubject(null);
+                          setSubjectForm(blankOperationalSubject());
+                          setSubjectDialogOpen(true);
                         }}
-                        educationLevels={educationLevels}
-                        departments={departments}
-                        religions={religions}
-                        teachers={teachers}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-xs text-muted-foreground">Catalog Subjects</p>
-                    <p className="text-2xl font-semibold">{operationalSubjects.length}</p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-xs text-muted-foreground">Active Subjects</p>
-                    <p className="text-2xl font-semibold">
-                      {operationalSubjects.filter((subject) => subject.is_active).length}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-xs text-muted-foreground">Teachers Available</p>
-                    <p className="text-2xl font-semibold">{teachers.length}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-lg border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
-                        <th className="px-3 py-2 text-left">Subject</th>
-                        <th className="px-3 py-2 text-left">Level</th>
-                        <th className="px-3 py-2 text-left">Department</th>
-                        <th className="px-3 py-2 text-left">Religion</th>
-                        <th className="px-3 py-2 text-left">Type</th>
-                        <th className="px-3 py-2 text-center">Status</th>
-                        <th className="px-3 py-2 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {opSubjectsLoading ? (
-                        <LoadingRow />
-                      ) : operationalSubjects.length === 0 ? (
-                        <EmptyRow message="No catalog subjects yet. Use Bulk Create to add and assign subjects." />
-                      ) : (
-                        operationalSubjects.slice(0, 12).map((subject) => {
-                          const level = educationLevels.find((el) => el.id === subject.education_level_id);
-                          const department = departments.find((dp) => dp.id === subject.department_id);
-                          const religion = religions.find((rl) => rl.id === subject.religion_id);
-
-                          return (
-                            <tr key={subject.id} className="hover:bg-muted/20 transition-colors">
-                              <td className="px-3 py-2 font-medium">{subject.name}</td>
-                              <td className="px-3 py-2 text-xs text-muted-foreground">{level?.name || "—"}</td>
-                              <td className="px-3 py-2 text-xs text-muted-foreground">{department?.name || "—"}</td>
-                              <td className="px-3 py-2 text-xs text-muted-foreground">{religion?.name || "—"}</td>
-                              <td className="px-3 py-2">
-                                {subject.is_optional ? (
-                                  <Badge variant="secondary" className="text-xs">Optional</Badge>
-                                ) : (
-                                  <Badge className="text-xs">Core</Badge>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-center">
-                                <Badge variant={subject.is_active ? "default" : "outline"} className="text-xs">
-                                  {subject.is_active ? "Active" : "Inactive"}
-                                </Badge>
-                              </td>
-                              <td className="px-3 py-2 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      setEditingOperationalSubject(subject);
-                                      setSubjectForm({
-                                        name: subject.name,
-                                        education_level_id: subject.education_level_id || "",
-                                        department_id: subject.department_id || "",
-                                        religion_id: subject.religion_id || "",
-                                        is_optional: subject.is_optional,
-                                        is_active: subject.is_active,
-                                      });
-                                      setSubjectDialogOpen(true);
-                                    }}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      void openApplyDialog(subject);
-                                    }}
-                                  >
-                                    Apply
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Add Subject
+                      </Button>
+                      {schoolId && (
+                        <BulkCreateSubjectsDialog
+                          schoolId={schoolId}
+                          onSuccess={() => {
+                            fetchOperationalSubjects();
+                          }}
+                          educationLevels={educationLevels}
+                          departments={departments}
+                          religions={religions}
+                          teachers={teachers}
+                        />
                       )}
-                    </tbody>
-                  </table>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Catalog Subjects</p>
+                      <p className="text-2xl font-semibold">{operationalSubjects.length}</p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Active Subjects</p>
+                      <p className="text-2xl font-semibold">
+                        {operationalSubjects.filter((subject) => subject.is_active).length}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Teachers Available</p>
+                      <p className="text-2xl font-semibold">{teachers.length}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-lg border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                          <th className="px-3 py-2 text-left">Subject</th>
+                          <th className="px-3 py-2 text-left">Level</th>
+                          <th className="px-3 py-2 text-left">Department</th>
+                          <th className="px-3 py-2 text-left">Religion</th>
+                          <th className="px-3 py-2 text-left">Type</th>
+                          <th className="px-3 py-2 text-center">Status</th>
+                          <th className="px-3 py-2 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {opSubjectsLoading ? (
+                          <LoadingRow />
+                        ) : operationalSubjects.length === 0 ? (
+                          <EmptyRow message="No catalog subjects yet. Use Add Subject or Bulk Create to get started." />
+                        ) : (
+                          operationalSubjects.slice(0, 12).map((subject) => {
+                            const level = educationLevels.find((el) => el.id === subject.education_level_id);
+                            const department = departments.find((dp) => dp.id === subject.department_id);
+                            const religion = religions.find((rl) => rl.id === subject.religion_id);
+
+                            return (
+                              <tr key={subject.id} className="hover:bg-muted/20 transition-colors">
+                                <td className="px-3 py-2 font-medium">{subject.name}</td>
+                                <td className="px-3 py-2 text-xs text-muted-foreground">{level?.name || "—"}</td>
+                                <td className="px-3 py-2 text-xs text-muted-foreground">{department?.name || "—"}</td>
+                                <td className="px-3 py-2 text-xs text-muted-foreground">{religion?.name || "—"}</td>
+                                <td className="px-3 py-2">
+                                  {subject.is_optional ? (
+                                    <Badge variant="secondary" className="text-xs">Optional</Badge>
+                                  ) : (
+                                    <Badge className="text-xs">Core</Badge>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <Badge variant={subject.is_active ? "default" : "outline"} className="text-xs">
+                                    {subject.is_active ? "Active" : "Inactive"}
+                                  </Badge>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingOperationalSubject(subject);
+                                        setSubjectForm({
+                                          name: subject.name,
+                                          education_level_id: subject.education_level_id || "",
+                                          department_id: subject.department_id || "",
+                                          religion_id: subject.religion_id || "",
+                                          is_optional: subject.is_optional,
+                                          is_active: subject.is_active,
+                                        });
+                                        setSubjectDialogOpen(true);
+                                      }}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        void openApplyDialog(subject);
+                                      }}
+                                    >
+                                      Apply
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {operationalSubjects.length > 12 && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Showing first 12 subjects. Use class pages for detailed per-class edits.
+                    </p>
+                  )}
                 </div>
+              </TabsContent>
 
-                {operationalSubjects.length > 12 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Showing first 12 subjects. Use class pages for detailed per-class edits.
-                  </p>
-                )}
-              </div>
+              <TabsContent value="presets" className="mt-0">
+                <div className="rounded-xl border bg-card overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
+                    <div>
+                      <h3 className="font-semibold text-sm">Subject Preset Templates</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Manage reusable subject templates by education level for future onboarding and bulk setup.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedPresetLevelId} onValueChange={setSelectedPresetLevelId}>
+                        <SelectTrigger className="h-8 text-xs w-48">
+                          <SelectValue placeholder="Select education level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {educationLevels.map((el) => (
+                            <SelectItem key={el.id} value={el.id}>
+                              {el.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
 
-              <div className="rounded-xl border bg-card overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
-                <div>
-                  <h3 className="font-semibold text-sm">Education Level Subjects</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Set and edit initial subject templates per education level. Subject setup uses these presets first.
-                  </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={loadDefaultSubjectsForPresetLevel}
+                        disabled={!selectedPresetLevelId}
+                      >
+                        Load Defaults
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditingSp(null);
+                          setSpForm({
+                            ...blankSubjectPreset(),
+                            order_sequence: subjectPresets.length + 1,
+                          });
+                          setSpDialogOpen(true);
+                        }}
+                        disabled={!selectedPresetLevelId}
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Add Template
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
+                          <th className="px-4 py-2 text-left w-16">Order</th>
+                          <th className="px-4 py-2 text-left">Subject Name</th>
+                          <th className="px-4 py-2 text-left">Optional</th>
+                          <th className="px-4 py-2 text-left">Department</th>
+                          <th className="px-4 py-2 text-left">Religion</th>
+                          <th className="px-4 py-2 text-center">Active</th>
+                          <th className="px-4 py-2 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {!selectedPresetLevelId ? (
+                          <EmptyRow message="Select an education level to manage preset templates." />
+                        ) : spLoading ? (
+                          <LoadingRow />
+                        ) : subjectPresets.length === 0 ? (
+                          <EmptyRow message="No preset templates configured for this level yet." />
+                        ) : (
+                          subjectPresets.map((preset) => {
+                            const department = departments.find((d) => d.id === preset.department_id);
+                            const religion = religions.find((r) => r.id === preset.religion_id);
+
+                            return (
+                              <tr key={preset.id} className="hover:bg-muted/20 transition-colors">
+                                <td className="px-4 py-3 text-xs text-muted-foreground">{preset.order_sequence}</td>
+                                <td className="px-4 py-3 font-medium">{preset.name}</td>
+                                <td className="px-4 py-3">
+                                  {preset.is_optional ? (
+                                    <Badge variant="secondary" className="text-xs">Optional</Badge>
+                                  ) : (
+                                    <Badge className="text-xs">Core</Badge>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                  {department?.name || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                  {religion?.name || "—"}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <Switch
+                                    checked={preset.is_active}
+                                    onCheckedChange={() => toggleSubjectPresetActive(preset)}
+                                    className="scale-90"
+                                  />
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => {
+                                        setEditingSp(preset);
+                                        setSpForm({
+                                          name: preset.name,
+                                          is_optional: preset.is_optional,
+                                          department_id: preset.department_id ?? "",
+                                          religion_id: preset.religion_id ?? "",
+                                          order_sequence: preset.order_sequence,
+                                          is_active: preset.is_active,
+                                        });
+                                        setSpDialogOpen(true);
+                                      }}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => setDeleteSpId(preset.id)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Select value={selectedPresetLevelId} onValueChange={setSelectedPresetLevelId}>
-                    <SelectTrigger className="h-8 text-xs w-48">
-                      <SelectValue placeholder="Select education level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {educationLevels.map((el) => (
-                        <SelectItem key={el.id} value={el.id}>
-                          {el.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={loadDefaultSubjectsForPresetLevel}
-                    disabled={!selectedPresetLevelId}
-                  >
-                    Load Defaults
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setEditingSp(null);
-                      setSpForm({
-                        ...blankSubjectPreset(),
-                        order_sequence: subjectPresets.length + 1,
-                      });
-                      setSpDialogOpen(true);
-                    }}
-                    disabled={!selectedPresetLevelId}
-                  >
-                    <Plus className="h-4 w-4 mr-1" /> Add Subject
-                  </Button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
-                      <th className="px-4 py-2 text-left w-16">Order</th>
-                      <th className="px-4 py-2 text-left">Subject Name</th>
-                      <th className="px-4 py-2 text-left">Optional</th>
-                      <th className="px-4 py-2 text-left">Department</th>
-                      <th className="px-4 py-2 text-left">Religion</th>
-                      <th className="px-4 py-2 text-center">Active</th>
-                      <th className="px-4 py-2 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {!selectedPresetLevelId ? (
-                      <EmptyRow message="Select an education level to manage subject presets." />
-                    ) : spLoading ? (
-                      <LoadingRow />
-                    ) : subjectPresets.length === 0 ? (
-                      <EmptyRow message="No subjects configured for this level yet." />
-                    ) : (
-                      subjectPresets.map((preset) => {
-                        const department = departments.find((d) => d.id === preset.department_id);
-                        const religion = religions.find((r) => r.id === preset.religion_id);
-
-                        return (
-                          <tr key={preset.id} className="hover:bg-muted/20 transition-colors">
-                            <td className="px-4 py-3 text-xs text-muted-foreground">{preset.order_sequence}</td>
-                            <td className="px-4 py-3 font-medium">{preset.name}</td>
-                            <td className="px-4 py-3">
-                              {preset.is_optional ? (
-                                <Badge variant="secondary" className="text-xs">Optional</Badge>
-                              ) : (
-                                <Badge className="text-xs">Core</Badge>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">
-                              {department?.name || "—"}
-                            </td>
-                            <td className="px-4 py-3 text-xs text-muted-foreground">
-                              {religion?.name || "—"}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <Switch
-                                checked={preset.is_active}
-                                onCheckedChange={() => toggleSubjectPresetActive(preset)}
-                                className="scale-90"
-                              />
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => {
-                                    setEditingSp(preset);
-                                    setSpForm({
-                                      name: preset.name,
-                                      is_optional: preset.is_optional,
-                                      department_id: preset.department_id ?? "",
-                                      religion_id: preset.religion_id ?? "",
-                                      order_sequence: preset.order_sequence,
-                                      is_active: preset.is_active,
-                                    });
-                                    setSpDialogOpen(true);
-                                  }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                  onClick={() => setDeleteSpId(preset.id)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            </div>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* ══════════════════════════════════════

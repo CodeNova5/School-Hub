@@ -17,6 +17,7 @@ interface SubjectScore {
   subject_name: string;
   full_mark_obtainable: number;
   pass_mark: number;
+  component_scores: Record<string, number>;
   welcome_test: number;
   mid_term_test: number;
   vetting: number;
@@ -25,6 +26,40 @@ interface SubjectScore {
   grade: string;
   remark: string;
 }
+
+interface ResultComponentTemplate {
+  component_key: string;
+  component_name: string;
+  max_score: number;
+  display_order: number;
+  is_active: boolean;
+}
+
+interface ResultGradeScale {
+  grade_label: string;
+  min_percentage: number;
+  remark: string;
+  display_order: number;
+}
+
+const LEGACY_COMPONENTS: ResultComponentTemplate[] = [
+  { component_key: "welcome_test", component_name: "Welcome Test", max_score: 10, display_order: 1, is_active: true },
+  { component_key: "mid_term_test", component_name: "Mid-Term Test", max_score: 20, display_order: 2, is_active: true },
+  { component_key: "vetting", component_name: "Vetting", max_score: 10, display_order: 3, is_active: true },
+  { component_key: "exam", component_name: "Exam", max_score: 60, display_order: 4, is_active: true },
+];
+
+const LEGACY_GRADE_SCALE: ResultGradeScale[] = [
+  { grade_label: "A1", min_percentage: 75, remark: "Excellent", display_order: 1 },
+  { grade_label: "B2", min_percentage: 70, remark: "Very Good", display_order: 2 },
+  { grade_label: "B3", min_percentage: 65, remark: "Good", display_order: 3 },
+  { grade_label: "C4", min_percentage: 60, remark: "Credit", display_order: 4 },
+  { grade_label: "C5", min_percentage: 55, remark: "Credit", display_order: 5 },
+  { grade_label: "C6", min_percentage: 50, remark: "Credit", display_order: 6 },
+  { grade_label: "D7", min_percentage: 45, remark: "Pass", display_order: 7 },
+  { grade_label: "E8", min_percentage: 40, remark: "Pass", display_order: 8 },
+  { grade_label: "F9", min_percentage: 0, remark: "Fail", display_order: 9 },
+];
 
 interface ResultEntryProps {
   studentId: string;
@@ -65,6 +100,9 @@ export default function ResultEntry({
   const [classPosition, setClassPosition] = useState<number | null>(null);
   const [totalStudents, setTotalStudents] = useState<number | null>(null);
   const [classAverage, setClassAverage] = useState<number | null>(null);
+  const [resultComponents, setResultComponents] = useState<ResultComponentTemplate[]>(LEGACY_COMPONENTS);
+  const [gradeScale, setGradeScale] = useState<ResultGradeScale[]>(LEGACY_GRADE_SCALE);
+  const [configuredPassPercentage, setConfiguredPassPercentage] = useState<number>(40);
 
   // Publication settings
   const [publicationSettings, setPublicationSettings] = useState<any>(null);
@@ -74,6 +112,84 @@ export default function ResultEntry({
     if (studentId) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId, sessionId, termId]);
+
+  function isLegacyComponentKey(componentKey: string): componentKey is 'welcome_test' | 'mid_term_test' | 'vetting' | 'exam' {
+    return componentKey === 'welcome_test' || componentKey === 'mid_term_test' || componentKey === 'vetting' || componentKey === 'exam';
+  }
+
+  function getModeComponentKeys(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): string[] {
+    const available = new Set(resultComponents.filter((c) => c.is_active).map((c) => c.component_key));
+    if (mode === 'welcome_only') return available.has('welcome_test') ? ['welcome_test'] : Array.from(available);
+    if (mode === 'welcome_midterm') {
+      const keys = ['welcome_test', 'mid_term_test'].filter((k) => available.has(k));
+      return keys.length > 0 ? keys : Array.from(available);
+    }
+    if (mode === 'welcome_midterm_vetting') {
+      const keys = ['welcome_test', 'mid_term_test', 'vetting'].filter((k) => available.has(k));
+      return keys.length > 0 ? keys : Array.from(available);
+    }
+    return Array.from(available);
+  }
+
+  function getComponentScore(score: SubjectScore, componentKey: string): number {
+    const dynamicValue = score.component_scores?.[componentKey];
+    if (typeof dynamicValue === 'number') return dynamicValue;
+
+    if (componentKey === 'welcome_test') return score.welcome_test || 0;
+    if (componentKey === 'mid_term_test') return score.mid_term_test || 0;
+    if (componentKey === 'vetting') return score.vetting || 0;
+    if (componentKey === 'exam') return score.exam || 0;
+    return 0;
+  }
+
+  function setComponentScore(score: SubjectScore, componentKey: string, value: number): SubjectScore {
+    const next: SubjectScore = {
+      ...score,
+      component_scores: {
+        ...score.component_scores,
+        [componentKey]: value,
+      },
+    };
+
+    if (componentKey === 'welcome_test') next.welcome_test = value;
+    if (componentKey === 'mid_term_test') next.mid_term_test = value;
+    if (componentKey === 'vetting') next.vetting = value;
+    if (componentKey === 'exam') next.exam = value;
+
+    return next;
+  }
+
+  function getVisibleComponentKeys(mode?: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): string[] {
+    const active = resultComponents.filter((component) => component.is_active).map((component) => component.component_key);
+
+    if (role === 'student' || role === 'parent') {
+      if (!publicationSettings || !isPublished) return [];
+      return active.filter((key) => isComponentVisible(key));
+    }
+
+    if (mode) {
+      return getModeComponentKeys(mode);
+    }
+
+    return getModeComponentKeys(scoreCalculationMode);
+  }
+
+  function getVisibleComponentTemplates(mode?: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
+    const visibleKeys = new Set(getVisibleComponentKeys(mode));
+    return resultComponents.filter((component) => component.is_active && visibleKeys.has(component.component_key));
+  }
+
+  function resolveGradeFromPercentage(percentage: number, passPercentage: number) {
+    const sortedScale = [...gradeScale].sort((a, b) => b.min_percentage - a.min_percentage);
+    const fallback = sortedScale[sortedScale.length - 1] || { grade_label: "F9", remark: "Fail", min_percentage: 0, display_order: 99 };
+    const matched = sortedScale.find((item) => percentage >= item.min_percentage) || fallback;
+
+    if (percentage < passPercentage) {
+      return { grade: fallback.grade_label, remark: fallback.remark || "Fail" };
+    }
+
+    return { grade: matched.grade_label, remark: matched.remark || "" };
+  }
 
   async function loadData() {
     setIsLoading(true);
@@ -122,6 +238,50 @@ export default function ResultEntry({
       }
 
       setStudent(studentData);
+
+      if (!schoolId && studentData.school_id) {
+        schoolId = studentData.school_id;
+      }
+
+      // 1.5 Load configurable result settings (fallback to legacy defaults)
+      if (schoolId) {
+        const [{ data: settingsData }, { data: componentRows }, { data: gradeRows }] = await Promise.all([
+          supabase
+            .from("result_school_settings")
+            .select("pass_percentage, is_configured")
+            .eq("school_id", schoolId)
+            .maybeSingle(),
+          supabase
+            .from("result_component_templates")
+            .select("component_key, component_name, max_score, display_order, is_active")
+            .eq("school_id", schoolId)
+            .eq("is_active", true)
+            .order("display_order", { ascending: true }),
+          supabase
+            .from("result_grade_scales")
+            .select("grade_label, min_percentage, remark, display_order")
+            .eq("school_id", schoolId)
+            .order("display_order", { ascending: true }),
+        ]);
+
+        if (settingsData?.is_configured && componentRows && componentRows.length > 0) {
+          setConfiguredPassPercentage(Number(settingsData.pass_percentage) || 40);
+          setResultComponents(componentRows as ResultComponentTemplate[]);
+          if (gradeRows && gradeRows.length > 0) {
+            setGradeScale(gradeRows as ResultGradeScale[]);
+          } else {
+            setGradeScale(LEGACY_GRADE_SCALE);
+          }
+        } else {
+          setConfiguredPassPercentage(40);
+          setResultComponents(LEGACY_COMPONENTS);
+          setGradeScale(LEGACY_GRADE_SCALE);
+        }
+      } else {
+        setConfiguredPassPercentage(40);
+        setResultComponents(LEGACY_COMPONENTS);
+        setGradeScale(LEGACY_GRADE_SCALE);
+      }
 
       // 2. Class
       let classQuery = supabase
@@ -310,6 +470,7 @@ export default function ResultEntry({
         subject_name: sc.subjects?.name ?? "Unknown",
         full_mark_obtainable: Number(sc.full_mark_obtainable) || 100,
         pass_mark: Number(sc.pass_mark) || 40,
+        component_scores: {},
         welcome_test: 0,
         mid_term_test: 0,
         vetting: 0,
@@ -398,6 +559,32 @@ export default function ResultEntry({
 
       const { data: existingResults } = await existingResultsQuery;
 
+      const resultIdBySubjectClass: Record<string, string> = {};
+      const existingResultIds: string[] = [];
+      if (existingResults && existingResults.length > 0) {
+        for (const row of existingResults as any[]) {
+          if (row.id) {
+            existingResultIds.push(row.id);
+            resultIdBySubjectClass[row.subject_class_id] = row.id;
+          }
+        }
+      }
+
+      let componentScoreRows: Array<{ result_id: string; component_key: string; score: number }> = [];
+      if (existingResultIds.length > 0) {
+        let componentScoresQuery = supabase
+          .from("result_component_scores")
+          .select("result_id, component_key, score")
+          .in("result_id", existingResultIds);
+
+        if (schoolId) {
+          componentScoresQuery = componentScoresQuery.eq("school_id", schoolId);
+        }
+
+        const { data } = await componentScoresQuery;
+        componentScoreRows = (data || []) as Array<{ result_id: string; component_key: string; score: number }>;
+      }
+
       if (existingResults && existingResults.length > 0) {
         const first = existingResults[0];
         setClassTeacherRemark(first.class_teacher_remark || "");
@@ -415,6 +602,33 @@ export default function ResultEntry({
             (s) => s.subject_class_id === res.subject_class_id
           );
           if (idx >= 0) {
+            let merged = {
+              ...initialScores[idx],
+              welcome_test: res.welcome_test || 0,
+              mid_term_test: res.mid_term_test || 0,
+              vetting: res.vetting || 0,
+              exam: res.exam || 0,
+              component_scores: {
+                ...initialScores[idx].component_scores,
+              },
+            };
+
+            // Legacy fallback mapping
+            merged.component_scores.welcome_test = res.welcome_test || 0;
+            merged.component_scores.mid_term_test = res.mid_term_test || 0;
+            merged.component_scores.vetting = res.vetting || 0;
+            merged.component_scores.exam = res.exam || 0;
+
+            const resId = resultIdBySubjectClass[res.subject_class_id];
+            if (resId) {
+              const rows = componentScoreRows.filter((row) => row.result_id === resId);
+              for (const row of rows) {
+                merged.component_scores[row.component_key] = Number(row.score) || 0;
+              }
+            }
+
+            initialScores[idx] = merged;
+
             initialScores[idx] = {
               ...initialScores[idx],
               welcome_test: res.welcome_test || 0,
@@ -494,12 +708,20 @@ export default function ResultEntry({
   }
 
   // Helper to check if a component should be visible
-  function isComponentVisible(component: 'welcome_test' | 'mid_term_test' | 'vetting' | 'exam'): boolean {
+  function isComponentVisible(component: string): boolean {
     // Admin and teachers can always see all components
     if (role !== 'student' && role !== 'parent') return true;
 
     // Students and parents can only see published components
     if (!publicationSettings || !isPublished) return false;
+
+    if (Array.isArray(publicationSettings.published_component_keys) && publicationSettings.published_component_keys.length > 0) {
+      return publicationSettings.published_component_keys.includes(component);
+    }
+
+    if (!isLegacyComponentKey(component)) {
+      return true;
+    }
 
     const visibilityMap = {
       'welcome_test': publicationSettings.welcome_test_published,
@@ -512,79 +734,25 @@ export default function ResultEntry({
   }
 
   function calculateTotalScore(score: SubjectScore): number {
-    // For students/parents, only include published components
-    if ((role === 'student' || role === 'parent') && publicationSettings) {
-      let total = 0;
-      if (publicationSettings.welcome_test_published) total += score.welcome_test;
-      if (publicationSettings.mid_term_test_published) total += score.mid_term_test;
-      if (publicationSettings.vetting_published) total += score.vetting;
-      if (publicationSettings.exam_published) total += score.exam;
-      return total;
-    }
-
-    // For admins/teachers, use scoreCalculationMode
-    switch (scoreCalculationMode) {
-      case 'welcome_only':
-        return score.welcome_test;
-      case 'welcome_midterm':
-        return score.welcome_test + score.mid_term_test;
-      case 'welcome_midterm_vetting':
-        return score.welcome_test + score.mid_term_test + score.vetting;
-      case 'all':
-      default:
-        return score.welcome_test + score.mid_term_test + score.vetting + score.exam;
-    }
+    const keys = getVisibleComponentKeys();
+    return keys.reduce((sum, key) => sum + getComponentScore(score, key), 0);
   }
 
   function calculateTotalScoreWithMode(score: SubjectScore, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
-    switch (mode) {
-      case 'welcome_only':
-        return score.welcome_test;
-      case 'welcome_midterm':
-        return score.welcome_test + score.mid_term_test;
-      case 'welcome_midterm_vetting':
-        return score.welcome_test + score.mid_term_test + score.vetting;
-      case 'all':
-      default:
-        return score.welcome_test + score.mid_term_test + score.vetting + score.exam;
-    }
+    const keys = getVisibleComponentKeys(mode);
+    return keys.reduce((sum, key) => sum + getComponentScore(score, key), 0);
   }
 
   function getVisibleWeightTotal(): number {
-    if ((role === 'student' || role === 'parent') && publicationSettings) {
-      let weight = 0;
-      if (publicationSettings.welcome_test_published) weight += 10;
-      if (publicationSettings.mid_term_test_published) weight += 20;
-      if (publicationSettings.vetting_published) weight += 10;
-      if (publicationSettings.exam_published) weight += 60;
-      return weight > 0 ? weight : 100;
-    }
-
-    switch (scoreCalculationMode) {
-      case 'welcome_only':
-        return 10;
-      case 'welcome_midterm':
-        return 30;
-      case 'welcome_midterm_vetting':
-        return 40;
-      case 'all':
-      default:
-        return 100;
-    }
+    const visible = getVisibleComponentTemplates();
+    const total = visible.reduce((sum, component) => sum + Number(component.max_score || 0), 0);
+    return total > 0 ? total : 100;
   }
 
   function getVisibleWeightTotalWithMode(mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all'): number {
-    switch (mode) {
-      case 'welcome_only':
-        return 10;
-      case 'welcome_midterm':
-        return 30;
-      case 'welcome_midterm_vetting':
-        return 40;
-      case 'all':
-      default:
-        return 100;
-    }
+    const visible = getVisibleComponentTemplates(mode);
+    const total = visible.reduce((sum, component) => sum + Number(component.max_score || 0), 0);
+    return total > 0 ? total : 100;
   }
 
   function getSubjectMaxPossibleScore(score: SubjectScore): number {
@@ -613,15 +781,7 @@ export default function ResultEntry({
     if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
     const percentage = (total / maxScore) * 100;
     const passPercentage = (scaledPassMark / maxScore) * 100;
-    if (percentage >= 75) return { grade: "A1", remark: "Excellent" };
-    if (percentage >= 70) return { grade: "B2", remark: "Very Good" };
-    if (percentage >= 65) return { grade: "B3", remark: "Good" };
-    if (percentage >= 60) return { grade: "C4", remark: "Credit" };
-    if (percentage >= 55) return { grade: "C5", remark: "Credit" };
-    if (percentage >= 50) return { grade: "C6", remark: "Credit" };
-    if (percentage >= Math.max(45, passPercentage)) return { grade: "D7", remark: "Pass" };
-    if (percentage >= passPercentage) return { grade: "E8", remark: "Pass" };
-    return { grade: "F9", remark: "Fail" };
+    return resolveGradeFromPercentage(percentage, Math.max(configuredPassPercentage, passPercentage));
   }
 
   function calculateGradeWithMode(score: SubjectScore, total: number, mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all') {
@@ -630,44 +790,33 @@ export default function ResultEntry({
     if (maxScore <= 0) return { grade: "F9", remark: "Fail" };
     const percentage = (total / maxScore) * 100;
     const passPercentage = (scaledPassMark / maxScore) * 100;
-    if (percentage >= 75) return { grade: "A1", remark: "Excellent" };
-    if (percentage >= 70) return { grade: "B2", remark: "Very Good" };
-    if (percentage >= 65) return { grade: "B3", remark: "Good" };
-    if (percentage >= 60) return { grade: "C4", remark: "Credit" };
-    if (percentage >= 55) return { grade: "C5", remark: "Credit" };
-    if (percentage >= 50) return { grade: "C6", remark: "Credit" };
-    if (percentage >= Math.max(45, passPercentage)) return { grade: "D7", remark: "Pass" };
-    if (percentage >= passPercentage) return { grade: "E8", remark: "Pass" };
-    return { grade: "F9", remark: "Fail" };
+    return resolveGradeFromPercentage(percentage, Math.max(configuredPassPercentage, passPercentage));
   }
 
-  function getComponentLimit(score: SubjectScore, field: keyof SubjectScore): number {
-    const fullMark = score.full_mark_obtainable || 100;
-    const componentWeight: Record<string, number> = {
-      welcome_test: 10,
-      mid_term_test: 20,
-      vetting: 10,
-      exam: 60,
-    };
-    const weight = componentWeight[field as string];
-    if (!weight) return fullMark;
-    return (fullMark * weight) / 100;
+  function getComponentLimit(field: string): number {
+    const component = resultComponents.find((item) => item.component_key === field);
+    return Number(component?.max_score || 100);
   }
 
-  function updateScore(index: number, field: keyof SubjectScore, value: string) {
+  function updateScore(index: number, field: string, value: string) {
     if (isReadOnly || !canEdit) return;
     const newScores = [...scores];
     let num = Math.max(0, Number(value) || 0);
-    const componentLimit = getComponentLimit(newScores[index], field);
+    const componentLimit = getComponentLimit(field);
     if (Number.isFinite(componentLimit)) {
       num = Math.min(num, componentLimit);
     }
-    (newScores[index] as any)[field] = num;
+
+    newScores[index] = setComponentScore(newScores[index], field, num);
+
     const total = calculateTotalScore(newScores[index]);
     const { grade, remark } = calculateGrade(newScores[index], total);
-    newScores[index].total = total;
-    newScores[index].grade = grade;
-    newScores[index].remark = remark;
+    newScores[index] = {
+      ...newScores[index],
+      total,
+      grade,
+      remark,
+    };
     setScores(newScores);
   }
 
@@ -686,10 +835,11 @@ export default function ResultEntry({
   // Calculate visible columns count for table alignment (columns before Total column)
   const visibleColumnsCount = (() => {
     let count = 1; // Subject name column
-    if (isComponentVisible('welcome_test')) count++;
-    if (isComponentVisible('mid_term_test')) count++;
-    if (isComponentVisible('vetting')) count++;
-    if (isComponentVisible('exam')) count++;
+    for (const component of resultComponents) {
+      if (component.is_active && isComponentVisible(component.component_key)) {
+        count++;
+      }
+    }
     return count;
   })();
 
@@ -699,15 +849,7 @@ export default function ResultEntry({
   const averagePercentage = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
   const overallGrade = (() => {
     const overallPassPercentage = maxTotalScore > 0 ? (totalPassMark / maxTotalScore) * 100 : 40;
-    if (averagePercentage >= 75) return "A1";
-    if (averagePercentage >= 70) return "B2";
-    if (averagePercentage >= 65) return "B3";
-    if (averagePercentage >= 60) return "C4";
-    if (averagePercentage >= 55) return "C5";
-    if (averagePercentage >= 50) return "C6";
-    if (averagePercentage >= Math.max(45, overallPassPercentage)) return "D7";
-    if (averagePercentage >= overallPassPercentage) return "E8";
-    return "F9";
+    return resolveGradeFromPercentage(averagePercentage, Math.max(configuredPassPercentage, overallPassPercentage)).grade;
   })();
 
   const getPositionDisplay = (position: number | null | undefined) => {
@@ -821,10 +963,10 @@ export default function ResultEntry({
         session_id: session.id,
         term_id: term.id,
         subject_class_id: score.subject_class_id,
-        welcome_test: score.welcome_test,
-        mid_term_test: score.mid_term_test,
-        vetting: score.vetting,
-        exam: score.exam,
+        welcome_test: getComponentScore(score, "welcome_test"),
+        mid_term_test: getComponentScore(score, "mid_term_test"),
+        vetting: getComponentScore(score, "vetting"),
+        exam: getComponentScore(score, "exam"),
         total: score.total,
         grade: score.grade,
         remark: score.remark,
@@ -839,16 +981,64 @@ export default function ResultEntry({
       }));
 
       // Upsert all results at once
-      const { error } = await supabase
+      const { data: savedRows, error } = await supabase
         .from("results")
         .upsert(saveDataArray, {
           onConflict: "student_id,session_id,term_id,subject_class_id,school_id",
-        });
+        })
+        .select("id, subject_class_id");
 
       if (error) {
         console.error("Error saving results:", error);
         toast.error(error.message || "Failed to save results");
       } else {
+        const rows = (savedRows || []) as Array<{ id: string; subject_class_id: string }>;
+        if (rows.length > 0) {
+          const rowIds = rows.map((row) => row.id);
+
+          let deleteQuery = supabase
+            .from("result_component_scores")
+            .delete()
+            .in("result_id", rowIds);
+
+          if (schoolId || student.school_id) {
+            deleteQuery = deleteQuery.eq("school_id", schoolId || student.school_id);
+          }
+
+          await deleteQuery;
+
+          const resultIdBySubjectClass: Record<string, string> = {};
+          for (const row of rows) {
+            resultIdBySubjectClass[row.subject_class_id] = row.id;
+          }
+
+          const componentRows = scores.flatMap((score) => {
+            const resultId = resultIdBySubjectClass[score.subject_class_id];
+            if (!resultId) return [];
+
+            return resultComponents
+              .filter((component) => component.is_active)
+              .map((component) => ({
+                school_id: schoolId || student.school_id,
+                result_id: resultId,
+                component_key: component.component_key,
+                score: getComponentScore(score, component.component_key),
+              }));
+          });
+
+          if (componentRows.length > 0) {
+            const { error: componentSaveError } = await supabase
+              .from("result_component_scores")
+              .upsert(componentRows, { onConflict: "result_id,component_key" });
+
+            if (componentSaveError) {
+              console.error("Error saving component scores:", componentSaveError);
+              toast.error(componentSaveError.message || "Results saved, but component scores failed");
+              return;
+            }
+          }
+        }
+
         toast.success("Results saved successfully");
       }
     } catch (err) {
@@ -879,10 +1069,10 @@ export default function ResultEntry({
               <SelectValue placeholder="Select calculation method" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="welcome_only">Welcome Test Only (10)</SelectItem>
-              <SelectItem value="welcome_midterm">Welcome + Mid-Term (30)</SelectItem>
-              <SelectItem value="welcome_midterm_vetting">Welcome + Mid-Term + Vetting (40)</SelectItem>
-              <SelectItem value="all">All Components (100)</SelectItem>
+              <SelectItem value="welcome_only">Welcome Test Only</SelectItem>
+              <SelectItem value="welcome_midterm">Welcome + Mid-Term</SelectItem>
+              <SelectItem value="welcome_midterm_vetting">Welcome + Mid-Term + Vetting</SelectItem>
+              <SelectItem value="all">All Configured Components</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={handlePrint}>
@@ -969,26 +1159,11 @@ export default function ResultEntry({
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 px-3 py-2 text-left">Subject</th>
-                    {isComponentVisible('welcome_test') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
-                        Welcome Test (10)
+                    {getVisibleComponentTemplates().map((component) => (
+                      <th key={component.component_key} className="border border-gray-300 px-3 py-2 text-center w-24">
+                        {component.component_name} ({component.max_score})
                       </th>
-                    )}
-                    {isComponentVisible('mid_term_test') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
-                        Mid-Term (20)
-                      </th>
-                    )}
-                    {isComponentVisible('vetting') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
-                        Vetting (10)
-                      </th>
-                    )}
-                    {isComponentVisible('exam') && (
-                      <th className="border border-gray-300 px-3 py-2 text-center w-20">
-                        Exam (60)
-                      </th>
-                    )}
+                    ))}
                     <th className="border border-gray-300 px-3 py-2 text-center w-20">
                       Total
                     </th>
@@ -1005,74 +1180,23 @@ export default function ResultEntry({
                           Pass: {getScaledPassMark(score).toFixed(1)} / {getSubjectMaxPossibleScore(score).toFixed(1)}
                         </div>
                       </td>
-                      {isComponentVisible('welcome_test') && (
-                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
+                      {getVisibleComponentTemplates().map((component) => (
+                        <td key={component.component_key} className="border border-gray-300 px-3 py-2 text-center font-bold">
                           {canEdit && !isReadOnly ? (
                             <input
                               type="number"
                               min="0"
-                              max={getComponentLimit(score, 'welcome_test')}
-                              value={score.welcome_test || ''}
-                              onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
+                              max={getComponentLimit(component.component_key)}
+                              value={getComponentScore(score, component.component_key) || ''}
+                              onChange={(e) => updateScore(index, component.component_key, e.target.value)}
                               className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
                               disabled={isReadOnly || !canEdit}
                             />
                           ) : (
-                            score.welcome_test
+                            getComponentScore(score, component.component_key)
                           )}
                         </td>
-                      )}
-                      {isComponentVisible('mid_term_test') && (
-                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
-                          {canEdit && !isReadOnly ? (
-                            <input
-                              type="number"
-                              min="0"
-                              max={getComponentLimit(score, 'mid_term_test')}
-                              value={score.mid_term_test || ''}
-                              onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
-                              disabled={isReadOnly || !canEdit}
-                            />
-                          ) : (
-                            score.mid_term_test
-                          )}
-                        </td>
-                      )}
-                      {isComponentVisible('vetting') && (
-                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
-                          {canEdit && !isReadOnly ? (
-                            <input
-                              type="number"
-                              min="0"
-                              max={getComponentLimit(score, 'vetting')}
-                              value={score.vetting || ''}
-                              onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
-                              disabled={isReadOnly || !canEdit}
-                            />
-                          ) : (
-                            score.vetting
-                          )}
-                        </td>
-                      )}
-                      {isComponentVisible('exam') && (
-                        <td className="border border-gray-300 px-3 py-2 text-center font-bold">
-                          {canEdit && !isReadOnly ? (
-                            <input
-                              type="number"
-                              min="0"
-                              max={getComponentLimit(score, 'exam')}
-                              value={score.exam || ''}
-                              onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                              className="w-full text-center border-0 focus:ring-1 focus:ring-blue-500 rounded bg-transparent font-bold"
-                              disabled={isReadOnly || !canEdit}
-                            />
-                          ) : (
-                            score.exam
-                          )}
-                        </td>
-                      )}
+                      ))}
                       <td className="border border-gray-300 px-3 py-2 text-center font-bold">
                         {score.total}
                       </td>

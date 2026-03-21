@@ -74,6 +74,7 @@ ON promotion_class_progress(school_id);
 -- ============================================================================
 -- Function: get_next_class_options
 -- Purpose: Get available destination classes for a source class
+-- Uses school_class_levels.order_sequence to determine progression
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION get_next_class_options(
@@ -89,43 +90,43 @@ RETURNS TABLE(
 ) 
 LANGUAGE sql STABLE
 AS $$
-  -- Get the source class's education level
+  -- Get the source class's class level and its order sequence
   WITH source_class_info AS (
     SELECT 
       c.school_id,
-      sol.order_sequence as source_order,
-      sol.id as source_level_id
+      scl.id as class_level_id,
+      scl.order_sequence as source_order,
+      scl.education_level_id
     FROM classes c
     JOIN school_class_levels scl ON c.class_level_id = scl.id
-    JOIN school_education_levels sol ON scl.education_level_id = sol.id
     WHERE c.id = p_source_class_id
   ),
-  -- Get next education level
-  next_level AS (
+  -- Get the next class level by order sequence
+  next_class_level AS (
     SELECT 
-      sol.id,
-      sol.name,
-      sol.order_sequence
-    FROM school_education_levels sol
-    WHERE sol.school_id = p_school_id
-      AND sol.order_sequence > (SELECT source_order FROM source_class_info)
-    ORDER BY sol.order_sequence ASC
+      scl.id,
+      scl.name,
+      scl.order_sequence,
+      sol.name as education_level_name
+    FROM school_class_levels scl
+    JOIN school_education_levels sol ON scl.education_level_id = sol.id
+    WHERE scl.school_id = p_school_id
+      AND scl.order_sequence > (SELECT source_order FROM source_class_info)
+    ORDER BY scl.order_sequence ASC
     LIMIT 1
   )
-  -- Get classes in the next level
+  -- Get all classes in the next class level
   SELECT
     c.id,
     c.name,
-    sol.name,
+    ncl.name,
     STRING_AGG(ss.name, ', ') FILTER(WHERE ss.name IS NOT NULL),
     (ss.id IS NOT NULL)::boolean
   FROM classes c
-  JOIN school_class_levels scl ON c.class_level_id = scl.id
-  JOIN school_education_levels sol ON scl.education_level_id = sol.id
+  JOIN next_class_level ncl ON c.class_level_id = ncl.id
   LEFT JOIN school_streams ss ON c.stream_id = ss.id
-  WHERE sol.id = (SELECT id FROM next_level)
-    AND c.school_id = p_school_id
-  GROUP BY c.id, c.name, sol.name, ss.id
+  WHERE c.school_id = p_school_id
+  GROUP BY c.id, c.name, ncl.name, ss.id
   ORDER BY (ss.id IS NOT NULL) ASC, c.name ASC;
 $$;
 

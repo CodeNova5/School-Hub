@@ -934,19 +934,6 @@ export default function PromotionsPage() {
                           )}
                         </SelectContent>
                       </Select>
-                      {destinationOptions.length === 0 && (
-                        <div className="bg-amber-50 border border-amber-200 p-3 rounded text-sm text-amber-800">
-                          <p className="font-medium mb-1">⚠️ No destination classes available</p>
-                          <div className="text-xs">
-                            <p>This might mean:</p>
-                            <ul className="list-disc ml-4 mt-1">
-                              <li>{selectedClass.name} is a terminal level (final year)</li>
-                              <li>The next class level has no classes configured</li>
-                              <li>Class levels need order_sequence values</li>
-                            </ul>
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     {selectedDestinationClass && (

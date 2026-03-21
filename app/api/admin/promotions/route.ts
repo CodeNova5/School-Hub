@@ -108,6 +108,100 @@ function resolveNextClass(
 }
 
 
+// Extract eligibility calculation into a reusable function
+async function calculateStudentEligibility(
+  student: any,
+  terms: any[],
+  results: any[],
+  subjectClasses: any[],
+  classesById: Map<string, PromotionClass>,
+  orderedClassLevelIds: string[],
+  classesByLevelId: Map<string, PromotionClass[]>,
+  promotionSettings: any
+) {
+  const currentClassSubjects = subjectClasses?.filter(
+    (sc) => sc.class_id === student.class_id
+  ) || [];
+
+  const currentClassSubjectIds = currentClassSubjects.map((sc) => sc.id);
+
+  const studentResults = results?.filter(
+    (r) => r.student_id === student.id && currentClassSubjectIds.includes(r.subject_class_id)
+  ) || [];
+
+  const termResults = new Map();
+  studentResults.forEach((result: any) => {
+    if (!termResults.has(result.term_id)) {
+      termResults.set(result.term_id, []);
+    }
+    termResults.get(result.term_id).push(result);
+  });
+
+  const termAverages: { term_id: string; average: number }[] = [];
+  let totalAverage = 0;
+  let termsWithResults = 0;
+
+  terms?.forEach((term) => {
+    const termData = termResults.get(term.id);
+    if (termData && termData.length > 0) {
+      const avg =
+        termData.reduce((sum: number, r: any) => sum + (r.total || 0), 0) /
+        termData.length;
+      termAverages.push({ term_id: term.id, average: avg });
+      totalAverage += avg;
+      termsWithResults++;
+    } else {
+      termAverages.push({ term_id: term.id, average: 0 });
+    }
+  });
+
+  const cumulativeAverage =
+    termsWithResults > 0 ? totalAverage / termsWithResults : 0;
+
+  const meetsPassMark =
+    cumulativeAverage >= promotionSettings.minimum_pass_percentage;
+
+  const hasRequiredTerms = promotionSettings.require_all_terms
+    ? termsWithResults === terms?.length
+    : termsWithResults > 0;
+
+  const isEligible = promotionSettings.require_all_terms
+    ? (hasRequiredTerms && meetsPassMark)
+    : meetsPassMark;
+
+  const classLevel = (student.classes as any)?.school_class_levels?.name || "";
+  const nextClass = resolveNextClass(
+    student.class_id,
+    classesById,
+    orderedClassLevelIds,
+    classesByLevelId
+  );
+  const isTerminalLevel = !nextClass;
+  const isGraduating = isTerminalLevel;
+
+  return {
+    student_id: student.id,
+    student_number: student.student_id,
+    student_name: `${student.first_name} ${student.last_name}`,
+    current_class_id: student.class_id,
+    current_class_name: (student.classes as any)?.name || "",
+    current_class_level: classLevel,
+    current_class_stream: (student.classes as any)?.school_streams?.name || "",
+    next_class_id: nextClass?.id || null,
+    next_class_name: nextClass?.name || null,
+    is_terminal_level: isTerminalLevel,
+    education_level: "",
+    department: (student.classes as any)?.school_departments?.name || "",
+    terms_completed: termsWithResults,
+    total_terms: terms?.length || 0,
+    cumulative_average: cumulativeAverage,
+    is_eligible: isEligible,
+    is_graduating: isGraduating,
+    needs_manual_review: !isEligible && termsWithResults > 0,
+    term_averages: termAverages,
+  };
+}
+
 // GET - Get promotion eligibility for a session
 export async function GET(request: NextRequest) {
   try {
@@ -121,6 +215,11 @@ export async function GET(request: NextRequest) {
     }
     const searchParams = request.nextUrl.searchParams;
     const sessionId = searchParams.get("sessionId");
+    const limit = Math.min(parseInt(searchParams.get("limit") || "100"), 100);
+    const offset = Math.max(parseInt(searchParams.get("offset") || "0"), 0);
+    const search = searchParams.get("search") || "";
+    const statusFilter = searchParams.get("statusFilter") || "all";
+    const classFilter = searchParams.get("classFilter") || "all";
 
     if (!sessionId) {
       return NextResponse.json(
@@ -268,96 +367,56 @@ export async function GET(request: NextRequest) {
     if (resultsError) throw resultsError;
 
     // Calculate eligibility for each student
-    const eligibilityData = students?.map((student: any) => {
-      // Only include results from the student's current class
-      const currentClassSubjects = subjectClasses?.filter(
-        (sc) => sc.class_id === student.class_id
-      ) || [];
+    const eligibilityData = await Promise.all(
+      (students || []).map((student: any) =>
+        calculateStudentEligibility(
+          student,
+          terms,
+          results,
+          subjectClasses,
+          classesById,
+          orderedClassLevelIds,
+          classesByLevelId,
+          promotionSettings
+        )
+      )
+    );
 
-      const currentClassSubjectIds = currentClassSubjects.map((sc) => sc.id);
+    // Apply client-side filters (search, status, class)
+    let filteredData = eligibilityData;
 
-      const studentResults = results?.filter(
-        (r) => r.student_id === student.id && currentClassSubjectIds.includes(r.subject_class_id)
-      ) || [];
-
-      // Group by term
-      const termResults = new Map();
-      studentResults.forEach((result: any) => {
-        if (!termResults.has(result.term_id)) {
-          termResults.set(result.term_id, []);
-        }
-        termResults.get(result.term_id).push(result);
-      });
-
-      // Calculate term averages
-      const termAverages: { term_id: string; average: number }[] = [];
-      let totalAverage = 0;
-      let termsWithResults = 0;
-
-      terms?.forEach((term) => {
-        const termData = termResults.get(term.id);
-        if (termData && termData.length > 0) {
-          const avg =
-            termData.reduce((sum: number, r: any) => sum + (r.total || 0), 0) /
-            termData.length;
-          termAverages.push({ term_id: term.id, average: avg });
-          totalAverage += avg;
-          termsWithResults++;
-        } else {
-          termAverages.push({ term_id: term.id, average: 0 });
-        }
-      });
-
-      const cumulativeAverage =
-        termsWithResults > 0 ? totalAverage / termsWithResults : 0;
-
-      // Determine eligibility
-      const meetsPassMark =
-        cumulativeAverage >= promotionSettings.minimum_pass_percentage;
-
-      const hasRequiredTerms = promotionSettings.require_all_terms
-        ? termsWithResults === terms?.length
-        : termsWithResults > 0;
-
-      // If require_all_terms is false, only the pass mark matters
-      // If require_all_terms is true, both all terms AND pass mark are required
-      const isEligible = promotionSettings.require_all_terms
-        ? (hasRequiredTerms && meetsPassMark)
-        : meetsPassMark;
-
-      // Check if SSS 3 (graduating class)
-      const classLevel = (student.classes as any)?.school_class_levels?.name || "";
-      const nextClass = resolveNextClass(
-        student.class_id,
-        classesById,
-        orderedClassLevelIds,
-        classesByLevelId
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredData = filteredData.filter(
+        (s: any) =>
+          s.student_name.toLowerCase().includes(searchLower) ||
+          s.student_number.toLowerCase().includes(searchLower)
       );
-      const isTerminalLevel = !nextClass;
-      const isGraduating = isTerminalLevel;
+    }
 
-      return {
-        student_id: student.id,
-        student_number: student.student_id,
-        student_name: `${student.first_name} ${student.last_name}`,
-        current_class_id: student.class_id,
-        current_class_name: (student.classes as any)?.name || "",
-        current_class_level: classLevel,
-        current_class_stream: (student.classes as any)?.school_streams?.name || "",
-        next_class_id: nextClass?.id || null,
-        next_class_name: nextClass?.name || null,
-        is_terminal_level: isTerminalLevel,
-        education_level: "",
-        department: (student.classes as any)?.school_departments?.name || "",
-        terms_completed: termsWithResults,
-        total_terms: terms?.length || 0,
-        cumulative_average: cumulativeAverage,
-        is_eligible: isEligible,
-        is_graduating: isGraduating,
-        needs_manual_review: !isEligible && termsWithResults > 0,
-        term_averages: termAverages,
-      };
-    }) || [];
+    // Status filter
+    if (statusFilter === "eligible") {
+      filteredData = filteredData.filter((s: any) => s.is_eligible);
+    } else if (statusFilter === "needs_review") {
+      filteredData = filteredData.filter((s: any) => s.needs_manual_review);
+    }
+
+    // Class filter
+    if (classFilter !== "all") {
+      filteredData = filteredData.filter(
+        (s: any) => s.current_class_name === classFilter
+      );
+    }
+
+    // Sort by student name for consistency
+    filteredData.sort((a: any, b: any) =>
+      a.student_name.localeCompare(b.student_name)
+    );
+
+    // Apply pagination
+    const totalCount = filteredData.length;
+    const paginatedData = filteredData.slice(offset, offset + limit);
 
     interface PromotionResponse {
       settings: {
@@ -365,16 +424,16 @@ export async function GET(request: NextRequest) {
         require_all_terms: boolean;
         auto_promote: boolean;
       };
-      students: typeof eligibilityData;
+      students: typeof paginatedData;
       total_students: number;
       eligible_count: number;
       graduating_count: number;
       needs_review_count: number;
-    }
-
-    interface TermAverage {
-      term_id: string;
-      average: number;
+      pagination: {
+        offset: number;
+        limit: number;
+        total: number;
+      };
     }
 
     interface PromotionStudent {
@@ -396,7 +455,7 @@ export async function GET(request: NextRequest) {
       is_eligible: boolean;
       is_graduating: boolean;
       needs_manual_review: boolean;
-      term_averages: TermAverage[];
+      term_averages: { term_id: string; average: number }[];
     }
 
     interface PromotionSettings {
@@ -407,7 +466,7 @@ export async function GET(request: NextRequest) {
 
     const response: PromotionResponse = {
       settings: promotionSettings,
-      students: eligibilityData,
+      students: paginatedData,
       total_students: eligibilityData.length,
       eligible_count: eligibilityData.filter((s: PromotionStudent) => s.is_eligible).length,
       graduating_count: eligibilityData.filter(
@@ -415,6 +474,11 @@ export async function GET(request: NextRequest) {
       ).length,
       needs_review_count: eligibilityData.filter((s: PromotionStudent) => s.needs_manual_review)
         .length,
+      pagination: {
+        offset,
+        limit,
+        total: totalCount,
+      },
     };
 
     return NextResponse.json(response);

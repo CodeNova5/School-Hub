@@ -47,6 +47,7 @@
     "@radix-ui/react-tooltip": "^1.1.2",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/supabase-js": "^2.58.0",
+    "@tanstack/react-table": "^8.21.3",
     "@tiptap/extension-blockquote": "^3.13.0",
     "@tiptap/extension-code-block": "^3.13.0",
     "@tiptap/extension-color": "^3.14.0",

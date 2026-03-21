@@ -14,9 +14,8 @@ import { Plus, Zap, CheckCircle, Trash2, BookMarked, ChevronRight, ChevronLeft }
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { Subject, EducationLevel, Department, Religion, Teacher } from "@/lib/types";
+import { Subject, EducationLevel, Department, Religion, Teacher, EducationLevelSubjectPreset } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
-import { getSubjectsForLevel, getSmartDepartmentId, getSmartReligionId, validatePredefinedSubjectsForSchool } from "@/lib/nigerian-subjects";
 
 interface BulkCreateSubjectsProps {
   schoolId: string;
@@ -25,6 +24,7 @@ interface BulkCreateSubjectsProps {
   departments: Department[];
   religions: Religion[];
   teachers: Teacher[];
+  subjectPresets: EducationLevelSubjectPreset[];
 }
 
 interface SubjectToCreate {
@@ -45,6 +45,7 @@ export function BulkCreateSubjectsDialog({
   departments,
   religions,
   teachers,
+  subjectPresets,
 }: BulkCreateSubjectsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState<WizardStep>("level");
@@ -57,7 +58,6 @@ export function BulkCreateSubjectsDialog({
   const [newSubjectReligionId, setNewSubjectReligionId] = useState("");
   const [newSubjectIsOptional, setNewSubjectIsOptional] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [configWarnings, setConfigWarnings] = useState<string[]>([]);
 
   // Fetch existing subjects for selected level
   useEffect(() => {
@@ -133,76 +133,48 @@ export function BulkCreateSubjectsDialog({
     );
   }
 
-  function loadPredefinedSubjects() {
+  function loadPresetSubjects() {
     if (!selectedEducationLevelId) {
       toast.error("Please select an education level first");
       return;
     }
 
-    // Find the selected level name
-    const selectedLevel = educationLevels.find(l => l.id === selectedEducationLevelId);
-    if (!selectedLevel) {
-      toast.error("Could not find selected education level");
-      return;
-    }
-
-    // Get predefined subjects for this level
-    const predefinedSubjects = getSubjectsForLevel(selectedLevel.name);
-    
-    if (predefinedSubjects.length === 0) {
-      toast.error(`No predefined subjects found for ${selectedLevel.name} level`);
-      return;
-    }
-
-    // Validate subjects against school's configuration
-    const { loadable: validatedSubjects, warnings } = validatePredefinedSubjectsForSchool(
-      predefinedSubjects,
-      religions
+    // Get presets for the selected education level
+    const presetsForLevel = subjectPresets.filter(
+      (preset) => preset.education_level_id === selectedEducationLevelId
     );
 
-    if (validatedSubjects.length === 0) {
-      toast.error("No subjects can be loaded with current school configuration");
-      if (warnings.length > 0) {
-        console.warn("Configuration warnings:", warnings);
-        setConfigWarnings(warnings);
-      }
+    if (presetsForLevel.length === 0) {
+      toast.error("No preset subjects configured for this education level. Configure them in the Subject Preset Templates section first.");
       return;
     }
 
-    // Show warnings if any subjects were skipped
-    if (warnings.length > 0) {
-      setConfigWarnings(warnings);
-      toast.warning(`${warnings.length} subject(s) skipped due to school configuration`);
-    }
-
-    // Map validated subjects to our format, filtering out duplicates
-    const newSubjects: SubjectToCreate[] = validatedSubjects
-      .filter(ps => {
-        // Check if subject already exists
+    // Map presets to our format, filtering out duplicates
+    const newSubjects: SubjectToCreate[] = presetsForLevel
+      .filter((preset) => {
+        // Check if subject already exists in operational subjects or pending creation
         const alreadyExists = existingSubjects.some(
-          s => s.name.toLowerCase() === ps.name.toLowerCase()
+          (s) => s.name.toLowerCase() === preset.name.toLowerCase()
         ) || subjectsToCreate.some(
-          s => s.name.toLowerCase() === ps.name.toLowerCase()
+          (s) => s.name.toLowerCase() === preset.name.toLowerCase()
         );
         return !alreadyExists;
       })
-      .map((ps) => ({
+      .map((preset) => ({
         id: Math.random().toString(36).substr(2, 9),
-        name: ps.name,
-        // Smart department mapping based on subject category
-        department_id: getSmartDepartmentId(ps.name, departments),
-        // Smart religion mapping for religion-specific subjects
-        religion_id: getSmartReligionId(ps.name, religions),
-        is_optional: ps.isOptional || false,
+        name: preset.name,
+        department_id: preset.department_id || "",
+        religion_id: preset.religion_id || "",
+        is_optional: preset.is_optional,
       }));
 
     if (newSubjects.length === 0) {
-      toast.info("All predefined subjects for this level already exist");
+      toast.info("All preset subjects for this level already exist");
       return;
     }
 
     setSubjectsToCreate([...subjectsToCreate, ...newSubjects]);
-    toast.success(`Loaded ${newSubjects.length} predefined subjects`);
+    toast.success(`Loaded ${newSubjects.length} preset subjects`);
   }
 
   async function handleBulkCreate() {
@@ -345,7 +317,6 @@ export function BulkCreateSubjectsDialog({
     setNewSubjectDeptId("");
     setNewSubjectReligionId("");
     setNewSubjectIsOptional(false);
-    setConfigWarnings([]);
   }
 
   function goToNextStep() {
@@ -456,34 +427,15 @@ export function BulkCreateSubjectsDialog({
                 </div>
               )}
 
-              {/* Load predefined button */}
+              {/* Load preset subjects button */}
               <Button
                 type="button"
-                onClick={loadPredefinedSubjects}
+                onClick={loadPresetSubjects}
                 className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-2 rounded-lg transition-all duration-300"
               >
                 <BookMarked className="mr-2 h-4 w-4" />
-                Load Predefined Nigerian Subjects
+                Load Preset Subjects from School Configuration
               </Button>
-
-              {/* Configuration warnings */}
-              {configWarnings.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <p className="text-sm font-semibold text-amber-900 mb-2 flex items-center gap-2">
-                    ⚠️ Configuration Notes
-                  </p>
-                  <ul className="space-y-1">
-                    {configWarnings.map((warning, index) => (
-                      <li key={index} className="text-xs text-amber-800 leading-relaxed">
-                        • {warning}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-xs text-amber-700 mt-2 italic">
-                    These subjects were skipped. You can configure missing religions in School Settings to load them.
-                  </p>
-                </div>
-              )}
 
               {/* Add custom subject form */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">

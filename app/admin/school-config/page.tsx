@@ -617,6 +617,7 @@ export default function SchoolConfigPage() {
   const [spSaving, setSpSaving] = useState(false);
   const [selectedPresetLevelId, setSelectedPresetLevelId] = useState<string>("");
   const [loadDefaultsConfirmOpen, setLoadDefaultsConfirmOpen] = useState(false);
+  const [subjectTabValue, setSubjectTabValue] = useState("operational");
 
   /* ── Operational Subjects Filters ── */
   const [opSubjectsSearch, setOpSubjectsSearch] = useState<string>("");
@@ -1490,40 +1491,53 @@ export default function SchoolConfigPage() {
           </TabsContent>
 
           {/* ══════════════════════════════════════
-              TAB: SUBJECTS
+              TAB: SUBJECTS (with nested tabs)
           ══════════════════════════════════════ */}
-          <TabsContent value="subjects" className="mt-4 space-y-6">
-            {/* ──────────────────────────
-                SECTION 1: OPERATIONAL SUBJECTS
-            ────────────────────────── */}
-            <div>
-              <h2 className="mb-3 text-lg font-semibold flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Operational Subject Catalog
-              </h2>
-               <p className="mb-4 text-sm text-muted-foreground">
-                Create, edit, and apply real subjects to classes. This is the primary workflow for active school operations.
-              </p>
+          <TabsContent value="subjects" className="mt-4">
+            <Tabs value={subjectTabValue} onValueChange={setSubjectTabValue} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="operational" className="gap-1.5">
+                  <BookOpen className="h-4 w-4" />
+                  Operational Subjects
+                  <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                    {operationalSubjects.length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="presets" className="gap-1.5">
+                  <Sparkles className="h-4 w-4" />
+                  Subject Presets
+                  <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
+                    {subjectPresets.length}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
 
-              <div className="rounded-xl border bg-card p-4">
-                {/* Header & Actions */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-sm">Manage Subjects</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Create new subjects or bulk import them
-                    </p>
+              {/* ──────────────────────────
+                  NESTED TAB 1: OPERATIONAL SUBJECTS
+              ────────────────────────── */}
+              <TabsContent value="operational" className="space-y-4">
+                {/* Header Section */}
+                <div className="rounded-xl border bg-card overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/20 dark:to-blue-950/10 px-6 py-4 border-b">
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">Subject Catalog</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Create, edit, and apply real subjects to classes. Bulk create wizard allows fast setup for multiple subjects.
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  {/* Action Buttons - Prominent Section */}
+                  <div className="px-6 py-4 border-b bg-muted/20 flex flex-col sm:flex-row gap-3">
                     <Button
-                      size="sm"
                       onClick={() => {
                         setEditingOperationalSubject(null);
                         setSubjectForm(blankOperationalSubject());
                         setSubjectDialogOpen(true);
                       }}
+                      className="gap-2 flex-1 sm:flex-none"
                     >
-                      <Plus className="h-4 w-4 mr-1" /> Add Subject
+                      <Plus className="h-4 w-4" /> Add Subject
                     </Button>
                     {schoolId && (
                       <BulkCreateSubjectsDialog
@@ -1535,35 +1549,35 @@ export default function SchoolConfigPage() {
                         departments={departments}
                         religions={religions}
                         teachers={teachers}
+                        subjectPresets={subjectPresets}
                       />
                     )}
                   </div>
-                </div>
 
-                {/* Metrics Cards */}
-                <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-xs text-muted-foreground">Total Subjects</p>
-                    <p className="text-2xl font-semibold">{operationalSubjects.length}</p>
+                  {/* Metrics Cards - Full Width */}
+                  <div className="px-6 py-4 border-b grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-lg border bg-card p-4">
+                      <p className="text-xs text-muted-foreground font-medium">Total Subjects</p>
+                      <p className="text-3xl font-bold mt-2">{operationalSubjects.length}</p>
+                    </div>
+                    <div className="rounded-lg border bg-card p-4">
+                      <p className="text-xs text-muted-foreground font-medium">Active</p>
+                      <p className="text-3xl font-bold mt-2">
+                        {operationalSubjects.filter((s) => s.is_active).length}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-card p-4">
+                      <p className="text-xs text-muted-foreground font-medium">Levels Covered</p>
+                      <p className="text-3xl font-bold mt-2">
+                        {new Set(operationalSubjects.map((s) => s.education_level_id)).size}
+                      </p>
+                    </div>
                   </div>
-                  <div className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-xs text-muted-foreground">Active</p>
-                    <p className="text-2xl font-semibold">
-                      {operationalSubjects.filter((s) => s.is_active).length}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border bg-muted/20 p-3">
-                    <p className="text-xs text-muted-foreground">Levels Covered</p>
-                    <p className="text-2xl font-semibold">
-                      {new Set(operationalSubjects.map((s) => s.education_level_id)).size}
-                    </p>
-                  </div>
-                </div>
 
-                {/* Filter Panel */}
-                <div className="mb-4 rounded-lg border bg-muted/10 p-3 space-y-3">
-                  <p className="text-sm font-semibold">Filters</p>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Filter Panel */}
+                  <div className="px-6 py-4 border-b space-y-3">
+                    <p className="text-sm font-semibold">Filters</p>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                     {/* Search */}
                     <div className="flex flex-col gap-1">
                       <Label className="text-xs">Search</Label>
@@ -1625,11 +1639,13 @@ export default function SchoolConfigPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    </div>
                   </div>
-                </div>
-                {/* Table */}
-                <div className="rounded-lg border overflow-hidden">
-                  <table className="w-full text-sm">
+
+                  {/* Table */}
+                  <div className="px-6 py-4 border-t">
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
                         <th className="px-3 py-2 text-left">Subject</th>
@@ -1717,80 +1733,83 @@ export default function SchoolConfigPage() {
                           })
                         );
                       })()}
-                    </tbody>
-                  </table>
-                </div>
+                      </tbody>
+                    </table>
 
-                {operationalSubjects.length > 15 && (
-                  <p className="mt-2 px-3 text-xs text-muted-foreground">
-                    Showing first 15 subjects. Use filters to narrow down the list.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* ──────────────────────────
-                SECTION 2: PRESET TEMPLATES
-            ────────────────────────── */}
-            <div>
-              <h2 className="mb-3 text-lg font-semibold flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
-                Subject Preset Templates
-              </h2>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Manage reusable subject templates by education level for future onboarding and bulk setup.
-              </p>
-
-              <div className="rounded-xl border bg-card overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
-                  <div>
-                    <h3 className="font-semibold text-sm">Configure Templates</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Select an education level to view and manage its templates.
-                    </p>
+                    {operationalSubjects.length > 15 && (
+                      <p className="px-4 py-3 text-xs text-muted-foreground border-t bg-muted/30\">
+                        Showing first 15 subjects. Use filters to narrow down the list.
+                      </p>
+                    )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Select value={selectedPresetLevelId} onValueChange={setSelectedPresetLevelId}>
-                      <SelectTrigger className="h-8 text-xs w-48">
-                        <SelectValue placeholder="Select education level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {educationLevels.map((el) => (
-                          <SelectItem key={el.id} value={el.id}>
-                            {el.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                </div>
+              </TabsContent>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={loadDefaultSubjectsForPresetLevel}
-                        disabled={!selectedPresetLevelId}
-                      >
-                        Load Defaults
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setEditingSp(null);
-                          setSpForm({
-                            ...blankSubjectPreset(),
-                            order_sequence: subjectPresets.length + 1,
-                          });
-                          setSpDialogOpen(true);
-                        }}
-                        disabled={!selectedPresetLevelId}
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Add Template
-                      </Button>
+              {/* ──────────────────────────
+                  NESTED TAB 2: SUBJECT PRESETS
+              ────────────────────────── */}
+              <TabsContent value="presets" className="space-y-4">
+                <div className="rounded-xl border bg-card overflow-hidden">
+                  {/* Header Section */}
+                  <div className="bg-gradient-to-r from-amber-50 to-amber-50/50 dark:from-amber-950/20 dark:to-amber-950/10 px-6 py-4 border-b">
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-lg">Subject Preset Templates</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Manage reusable subject templates by education level for future onboarding and bulk setup.
+                      </p>
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                  {/* Level Selector & Actions */}
+                  <div className="px-6 py-4 border-b bg-muted/20 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-3 sm:justify-between">
+                      <div className="flex-1">
+                        <Label className="text-sm font-medium mb-2 block">Select Education Level</Label>
+                        <Select value={selectedPresetLevelId} onValueChange={setSelectedPresetLevelId}>
+                          <SelectTrigger className="h-9 text-sm">
+                            <SelectValue placeholder="Choose education level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {educationLevels.map((el) => (
+                              <SelectItem key={el.id} value={el.id}>
+                                {el.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={loadDefaultSubjectsForPresetLevel}
+                          disabled={!selectedPresetLevelId}
+                        >
+                          Load Defaults
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setEditingSp(null);
+                            setSpForm({
+                              ...blankSubjectPreset(),
+                              order_sequence: subjectPresets.length + 1,
+                            });
+                            setSpDialogOpen(true);
+                          }}
+                          disabled={!selectedPresetLevelId}
+                        >
+                          <Plus className="h-4 w-4 mr-1" /> Add Template
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="px-6 py-4 border-t">
+                    <div className="rounded-lg border overflow-hidden">
+                      <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b bg-muted/20 text-xs text-muted-foreground">
                           <th className="px-4 py-2 text-left w-16">Order</th>
@@ -1875,9 +1894,11 @@ export default function SchoolConfigPage() {
                         )}
                       </tbody>
                     </table>
+                    </div>
                   </div>
-              </div>
-            </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* ══════════════════════════════════════

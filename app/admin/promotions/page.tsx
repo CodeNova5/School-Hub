@@ -450,7 +450,8 @@ export default function PromotionsPage() {
       console.error("Error updating settings:", error);
       toast.error("Failed to update settings");
     }
-  }, [selectedSessionId, settings, fetchPromotionData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSessionId, settings]);
 
   const handlePromote = useCallback(async () => {
     if (!schoolId) return;
@@ -531,7 +532,8 @@ export default function PromotionsPage() {
     } finally {
       setProcessing(false);
     }
-  }, [schoolId, students, rowSelection, promotionActions, settings, selectedSessionId, fetchPromotionData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId, students, rowSelection, promotionActions, settings, selectedSessionId]);
 
   // ========================================================================
   // EFFECTS
@@ -543,12 +545,21 @@ export default function PromotionsPage() {
     }
   }, [schoolId, fetchSessions]);
 
+  // When session changes, reset pagination and fetch
   useEffect(() => {
     if (selectedSessionId && schoolId) {
       setPagination({ pageIndex: 0, pageSize: 50 });
+    }
+  }, [selectedSessionId, schoolId]);
+
+  // When pagination or filters change, fetch data
+  // Note: fetchPromotionData is stable thanks to useCallback, so we don't include it in deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (selectedSessionId && schoolId) {
       fetchPromotionData();
     }
-  }, [selectedSessionId, schoolId, fetchPromotionData]);
+  }, [selectedSessionId, schoolId, pagination, filterState]);
 
   // ========================================================================
   // MEMOIZED VALUES

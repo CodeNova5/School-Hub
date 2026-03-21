@@ -68,34 +68,34 @@ async function getDestinationOptionsFallback(
   // Build progression from School Config ordering:
   // 1) education level order_sequence
   // 2) class level order_sequence inside each education level
+  
+  // Fetch class levels and education levels separately (more reliable than join)
   const { data: classLevels, error: classLevelsError } = await supabaseAdmin
     .from("school_class_levels")
-    .select(
-      `
-      id,
-      name,
-      education_level_id,
-      order_sequence,
-      school_education_levels(order_sequence)
-    `
-    )
+    .select("id, name, education_level_id, order_sequence")
     .eq("school_id", schoolId)
     .eq("is_active", true);
 
   if (classLevelsError || !classLevels || classLevels.length === 0) {
-    throw new Error("Failed to fetch class levels");
+    return []; // Return empty array instead of throwing
   }
 
-  const normalizedLevels = classLevels.map((level: any) => {
-    const eduRel = Array.isArray(level.school_education_levels)
-      ? level.school_education_levels[0]
-      : level.school_education_levels;
+  // Fetch education levels to get their order_sequence
+  const { data: educationLevels, error: eduError } = await supabaseAdmin
+    .from("school_education_levels")
+    .select("id, order_sequence")
+    .eq("school_id", schoolId);
 
+  const eduMap = new Map(
+    (educationLevels || []).map((edu: any) => [edu.id, edu.order_sequence])
+  );
+
+  const normalizedLevels = classLevels.map((level: any) => {
     return {
       id: level.id,
       name: level.name,
       order: level.order_sequence,
-      educationOrder: eduRel?.order_sequence,
+      educationOrder: eduMap.get(level.education_level_id) ?? Number.MAX_SAFE_INTEGER,
     };
   });
 
@@ -121,6 +121,7 @@ async function getDestinationOptionsFallback(
 
   const nextLevel = sortedLevels[sourceLevelIndex + 1];
 
+  // Fetch destination classes for the next level
   const { data: classes, error: classesError } = await supabaseAdmin
     .from("classes")
     .select(
@@ -135,8 +136,9 @@ async function getDestinationOptionsFallback(
     .eq("class_level_id", nextLevel.id)
     .order("name", { ascending: true });
 
+  // Return empty array if query fails or no classes found
   if (classesError || !classes) {
-    throw new Error("Failed to fetch destination classes");
+    return [];
   }
 
   return classes.map((cls: any) => ({
@@ -208,10 +210,8 @@ export async function GET(request: NextRequest) {
       );
     } catch (sequenceError) {
       console.error("Destination lookup by School Config failed:", sequenceError);
-      return NextResponse.json(
-        { error: "Failed to fetch destination classes" },
-        { status: 500 }
-      );
+      // Return empty options on error - let frontend handle gracefully
+      destinationOptions = [];
     }
 
     return NextResponse.json({

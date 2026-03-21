@@ -1388,77 +1388,7 @@ export default function TimetablePage() {
             </Button>
           </div>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>All Entries</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Search by class or subject..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Class</th>
-                    <th className="text-left p-2">Day</th>
-                    <th className="text-left p-2">Period</th>
-                    <th className="text-left p-2">Time</th>
-                    <th className="text-left p-2">Subject(s)</th>
-                    <th className="text-left p-2">Teacher(s)</th>
-                    <th className="text-right p-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((entry) => {
-                    const periodSlot = periodSlots.find(p => p.id === entry.period_slot_id);
-                    return (
-                      <tr key={entry.id} className="border-b hover:bg-gray-50">
-                        <td className="p-2">{entry.class_name}</td>
-                        <td className="p-2">{entry.day_of_week}</td>
-                        <td className="p-2">{formatPeriodLabel(entry.period_number, entry.is_break)}</td>
-                        <td className="p-2 text-sm">
-                          {periodSlot ? `${periodSlot.start_time} - ${periodSlot.end_time}` : "—"}
-                        </td>
-                        <td className="p-2">{entry.subject_display}</td>
-                        <td className="p-2 text-sm text-gray-600">{entry.teacher_display}</td>
-                        <td className="p-2">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openEdit(entry.rows[0], entry.rows)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => deleteEntry(entry.rows[0].id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
+        
         <Card className="border-2 shadow-lg">
           <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
             <div className="flex items-center justify-between">

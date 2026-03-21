@@ -536,6 +536,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { sessionId, promotions, classId } = body;
+    const isClassWorkflow = Boolean(classId);
     const idempotencyKey =
       typeof body?.idempotencyKey === "string" && body.idempotencyKey.trim().length > 0
         ? body.idempotencyKey.trim()
@@ -565,51 +566,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Server-side guard against reprocessing an already-promoted session.
-    const { count: existingHistoryCount, error: existingHistoryError } =
-      await supabaseAdmin
-        .from("class_history")
-        .select("id", { count: "exact", head: true })
-        .eq("session_id", sessionId)
-        .limit(1);
+    if (!isClassWorkflow) {
+      // Server-side guard against reprocessing an already-promoted session.
+      const { count: existingHistoryCount, error: existingHistoryError } =
+        await supabaseAdmin
+          .from("class_history")
+          .select("id", { count: "exact", head: true })
+          .eq("session_id", sessionId)
+          .limit(1);
 
-    if (existingHistoryError) {
-      throw existingHistoryError;
-    }
-
-    if ((existingHistoryCount || 0) > 0) {
-      return NextResponse.json(
-        { error: "Promotions have already been processed for this session" },
-        { status: 409 }
-      );
-    }
-
-    const { data: acquired, error: lockError } = await supabaseAdmin.rpc(
-      "acquire_promotion_processing_lock",
-      {
-        p_session_id: sessionId,
-        p_lock_id: lockId,
-        p_lock_ttl_seconds: 900,
+      if (existingHistoryError) {
+        throw existingHistoryError;
       }
-    );
 
-    if (lockError) {
-      throw new Error(
-        `Failed to acquire promotion lock. Ensure latest migrations are applied. ${lockError.message}`
-      );
-    }
+      if ((existingHistoryCount || 0) > 0) {
+        return NextResponse.json(
+          { error: "Promotions have already been processed for this session" },
+          { status: 409 }
+        );
+      }
 
-    if (!acquired) {
-      return NextResponse.json(
+      const { data: acquired, error: lockError } = await supabaseAdmin.rpc(
+        "acquire_promotion_processing_lock",
         {
-          error:
-            "Promotions are currently being processed for this session, or have already been completed.",
-        },
-        { status: 409 }
+          p_session_id: sessionId,
+          p_lock_id: lockId,
+          p_lock_ttl_seconds: 900,
+        }
       );
-    }
 
-    lockAcquired = true;
+      if (lockError) {
+        throw new Error(
+          `Failed to acquire promotion lock. Ensure latest migrations are applied. ${lockError.message}`
+        );
+      }
+
+      if (!acquired) {
+        return NextResponse.json(
+          {
+            error:
+              "Promotions are currently being processed for this session, or have already been completed.",
+          },
+          { status: 409 }
+        );
+      }
+
+      lockAcquired = true;
+    }
 
     const results = {
       promoted: 0,
@@ -693,18 +696,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await supabaseAdmin
-      .from("promotion_settings")
-      .update(
-        {
-          last_processed_at: new Date().toISOString(),
-          processing_lock_id: null,
-          processing_started_at: null,
-          updated_at: new Date().toISOString(),
-        }
-      )
-      .eq("session_id", sessionId)
-      .eq("processing_lock_id", lockId);
+    if (!isClassWorkflow) {
+      await supabaseAdmin
+        .from("promotion_settings")
+        .update(
+          {
+            last_processed_at: new Date().toISOString(),
+            processing_lock_id: null,
+            processing_started_at: null,
+            updated_at: new Date().toISOString(),
+          }
+        )
+        .eq("session_id", sessionId)
+        .eq("processing_lock_id", lockId);
+    }
 
     // NEW: Update class progress if classId was provided
     if (classId) {

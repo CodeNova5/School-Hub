@@ -373,7 +373,9 @@ const ClassProgressCard = memo(
           {progress.mapping?.destination_class_id && (
             <div className="bg-gray-50 p-2 rounded text-xs">
               <div className="text-muted-foreground mb-1">Destination:</div>
-              <div className="font-medium text-sm">→ {progress.mapping.destination_class_id}</div>
+              <div className="font-medium text-sm">
+                → {progress.mapping.destination_class_name || progress.mapping.destination_class_id}
+              </div>
             </div>
           )}
         </CardContent>

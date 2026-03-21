@@ -108,7 +108,13 @@ export async function GET(request: NextRequest) {
     // Get mappings
     const { data: mappings, error: mappingsError } = await supabaseAdmin
       .from("promotion_class_mappings")
-      .select("*")
+      .select(
+        `
+        source_class_id,
+        destination_class_id,
+        classes:destination_class_id(name)
+      `
+      )
       .eq("session_id", sessionId);
 
     if (mappingsError) {
@@ -128,6 +134,9 @@ export async function GET(request: NextRequest) {
     const classProgress = classes?.map((cls: any) => {
       const p = progressMap.get(cls.id);
       const m = mappingMap.get(cls.id);
+      const destinationClass = Array.isArray(m?.classes)
+        ? m.classes[0]
+        : m?.classes;
       return {
         classId: cls.id,
         className: cls.name,
@@ -138,7 +147,12 @@ export async function GET(request: NextRequest) {
         promotedStudents: p?.promoted_students || 0,
         graduatedStudents: p?.graduated_students || 0,
         repeatedStudents: p?.repeated_students || 0,
-        mapping: m || null,
+        mapping: m
+          ? {
+              ...m,
+              destination_class_name: destinationClass?.name || null,
+            }
+          : null,
         completedAt: p?.completed_at,
       };
     });

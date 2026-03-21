@@ -215,17 +215,25 @@ export async function GET(request: NextRequest) {
     }
     const searchParams = request.nextUrl.searchParams;
     const sessionId = searchParams.get("sessionId");
+    const classId = searchParams.get("classId"); // NEW: class-by-class workflow
     const limit = Math.min(parseInt(searchParams.get("limit") || "100"), 100);
     const offset = Math.max(parseInt(searchParams.get("offset") || "0"), 0);
     const search = searchParams.get("search") || "";
     const statusFilter = searchParams.get("statusFilter") || "all";
     const classFilter = searchParams.get("classFilter") || "all";
+    const excludeProcessed = searchParams.get("excludeProcessed") === "true"; // NEW: exclude already processed
 
     if (!sessionId) {
       return NextResponse.json(
         { error: "Session ID is required" },
         { status: 400 }
       );
+    }
+
+    // NEW: If classId is provided, must use that for the class-by-class workflow
+    if (classId && classFilter === "all") {
+      // Override classFilter with the provided classId
+      // Will be handled below
     }
 
     const { data: session, error: sessionError } = await supabaseAdmin
@@ -382,8 +390,27 @@ export async function GET(request: NextRequest) {
       )
     );
 
+    // NEW: If excludeProcessed is true, filter out students already in class_history for this session
+    let dataToProcess = eligibilityData;
+    
+    if (excludeProcessed) {
+      // Get all processed student IDs for this session
+      const { data: processedHistory } = await supabaseAdmin
+        .from("class_history")
+        .select("student_id")
+        .eq("session_id", sessionId);
+      
+      const processedStudentIds = new Set(
+        (processedHistory || []).map((h: any) => h.student_id)
+      );
+      
+      dataToProcess = eligibilityData.filter(
+        (s: any) => !processedStudentIds.has(s.student_id)
+      );
+    }
+
     // Apply client-side filters (search, status, class)
-    let filteredData = eligibilityData;
+    let filteredData = dataToProcess;
 
     // Search filter
     if (search) {
@@ -402,11 +429,18 @@ export async function GET(request: NextRequest) {
       filteredData = filteredData.filter((s: any) => s.needs_manual_review);
     }
 
-    // Class filter
-    if (classFilter !== "all") {
-      filteredData = filteredData.filter(
-        (s: any) => s.current_class_name === classFilter
-      );
+    // Class filter - NEW: prioritize classId if provided
+    const filterByClassId = classId || (classFilter !== "all" ? classFilter : null);
+    
+    if (filterByClassId) {
+      filteredData = filteredData.filter((s: any) => {
+        // If classId is a UUID, filter by class_id; otherwise filter by class_name
+        if (classId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(classId)) {
+          return s.current_class_id === classId;
+        }
+        // Otherwise use class name filter (legacy behavior)
+        return s.current_class_name === filterByClassId;
+      });
     }
 
     // Sort by student name for consistency
@@ -501,7 +535,7 @@ export async function POST(request: NextRequest) {
     await requireAdmin();
 
     const body = await request.json();
-    const { sessionId, promotions } = body;
+    const { sessionId, promotions, classId } = body;
     const idempotencyKey =
       typeof body?.idempotencyKey === "string" && body.idempotencyKey.trim().length > 0
         ? body.idempotencyKey.trim()
@@ -671,6 +705,28 @@ export async function POST(request: NextRequest) {
       )
       .eq("session_id", sessionId)
       .eq("processing_lock_id", lockId);
+
+    // NEW: Update class progress if classId was provided
+    if (classId) {
+      const { error: progressError } = await supabaseAdmin
+        .from("promotion_class_progress")
+        .update({
+          processed_students: (results.promoted + results.graduated + results.repeated),
+          promoted_students: results.promoted,
+          graduated_students: results.graduated,
+          repeated_students: results.repeated,
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("session_id", sessionId)
+        .eq("class_id", classId);
+
+      if (progressError) {
+        console.error("Error updating class progress:", progressError);
+        // Don't fail the response, just log the warning
+      }
+    }
 
     return NextResponse.json({
       success: true,

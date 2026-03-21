@@ -61,9 +61,6 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  ListChecks,
-  Zap,
-  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Session } from "@/lib/types";
@@ -119,36 +116,10 @@ interface APIResponse {
   };
 }
 
-interface ClassProgress {
-  classId: string;
-  className: string;
-  classLevel: string;
-  totalStudents: number;
-  status: "pending" | "in_progress" | "completed";
-  processedStudents: number;
-  promotedStudents: number;
-  graduatedStudents: number;
-  repeatedStudents: number;
-  mapping: any;
-  completedAt: string | null;
-}
-
-interface ClassMapping {
-  source_class_id: string;
-  destination_class_id: string | null;
-}
-
-interface DestinationOption {
-  class_id: string;
-  class_name: string;
-  class_level: string;
-  stream_name?: string;
-  is_stream: boolean;
-}
-
 interface FilterState {
   search: string;
   statusFilter: "all" | "eligible" | "needs_review";
+  classFilter: string;
 }
 
 interface Stats {
@@ -193,16 +164,19 @@ const StudentPromotionRow = memo(
     student,
     isSelected,
     onSelectionChange,
+    onActionChange,
     promotionActions,
     settings,
   }: {
     student: StudentPromotion;
     isSelected: boolean;
     onSelectionChange: (checked: boolean) => void;
+    onActionChange?: (action: "promote" | "graduate" | "repeat") => void;
     promotionActions: Record<string, "promote" | "graduate" | "repeat">;
     settings: PromotionSettings;
   }) => {
     const action = determineAction(student);
+    const currentAction = promotionActions[student.student_id] || action;
 
     return (
       <tr
@@ -219,6 +193,16 @@ const StudentPromotionRow = memo(
             <p className="text-xs text-muted-foreground">
               {student.student_number}
             </p>
+          </div>
+        </td>
+        <td className="p-3">
+          <div>
+            <p className="font-medium text-sm">{student.current_class_name}</p>
+            {student.department && (
+              <p className="text-xs text-muted-foreground">
+                {student.department}
+              </p>
+            )}
           </div>
         </td>
         <td className="p-3 text-center">
@@ -263,7 +247,7 @@ const StudentPromotionRow = memo(
           {action === "repeat" && (
             <Badge className="bg-orange-100 text-orange-700 border-orange-300">
               <AlertTriangle className="h-3 w-3 mr-1" />
-              Needs Review
+              Review
             </Badge>
           )}
         </td>
@@ -294,96 +278,6 @@ const StudentPromotionRow = memo(
 
 StudentPromotionRow.displayName = "StudentPromotionRow";
 
-// Class Progress Card
-const ClassProgressCard = memo(
-  ({ progress, isSelected, onselect }: { progress: ClassProgress; isSelected: boolean; onselect: () => void }) => {
-    const completionPercent = progress.totalStudents > 0
-      ? Math.round((progress.processedStudents / progress.totalStudents) * 100)
-      : 0;
-
-    return (
-      <Card
-        className={`cursor-pointer transition-all ${
-          isSelected
-            ? "border-blue-500 bg-blue-50 shadow-md"
-            : "hover:shadow-md"
-        } ${progress.status === "completed" ? "border-green-200 bg-green-50" : ""}`}
-        onClick={onselect}
-      >
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <CardTitle className="text-base">{progress.className}</CardTitle>
-              <CardDescription className="text-xs mt-1">
-                {progress.classLevel}
-              </CardDescription>
-            </div>
-            {progress.status === "completed" && (
-              <Badge className="bg-green-600">✓ Done</Badge>
-            )}
-            {progress.status === "in_progress" && (
-              <Badge className="bg-blue-600">In Progress</Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {/* Progress bar */}
-          <div>
-            <div className="flex items-center justify-between text-sm mb-2">
-              <span className="text-muted-foreground">
-                {progress.processedStudents}/{progress.totalStudents} processed
-              </span>
-              <span className="font-medium">{completionPercent}%</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all ${
-                  progress.status === "completed"
-                    ? "bg-green-600"
-                    : "bg-blue-600"
-                }`}
-                style={{ width: `${completionPercent}%` }}
-              ></div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
-            <div className="bg-white p-2 rounded border">
-              <div className="text-green-600 font-semibold">
-                {progress.promotedStudents}
-              </div>
-              <div className="text-muted-foreground">Promoted</div>
-            </div>
-            <div className="bg-white p-2 rounded border">
-              <div className="text-purple-600 font-semibold">
-                {progress.graduatedStudents}
-              </div>
-              <div className="text-muted-foreground">Graduated</div>
-            </div>
-            <div className="bg-white p-2 rounded border">
-              <div className="text-orange-600 font-semibold">
-                {progress.repeatedStudents}
-              </div>
-              <div className="text-muted-foreground">Repeat</div>
-            </div>
-          </div>
-
-          {/* Destination mapping */}
-          {progress.mapping?.destination_class_id && (
-            <div className="bg-gray-50 p-2 rounded text-xs">
-              <div className="text-muted-foreground mb-1">Destination:</div>
-              <div className="font-medium text-sm">→ {progress.mapping.destination_class_id}</div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-);
-
-ClassProgressCard.displayName = "ClassProgressCard";
-
 // ============================================================================
 // MAIN PAGE COMPONENT
 // ============================================================================
@@ -394,23 +288,11 @@ export default function PromotionsPage() {
   // ========================================================================
   // STATE MANAGEMENT
   // ========================================================================
-
-  // Workflow phases
-  const [phase, setPhase] = useState<"overview" | "mapping" | "processing">("overview");
   
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
 
-  // Class-by-class workflow
-  const [classes, setClasses] = useState<any[]>([]);
-  const [selectedClass, setSelectedClass] = useState<any | null>(null);
-  const [classProgress, setClassProgress] = useState<ClassProgress[]>([]);
-  const [destinationOptions, setDestinationOptions] = useState<DestinationOption[]>([]);
-  const [selectedDestinationClass, setSelectedDestinationClass] = useState<string | null>(null);
-  const [loadingClasses, setLoadingClasses] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(false);
-
-  // Filter state for students
+  // Use reducer for filter state
   const [filterState, dispatchFilter] = useReducer(
     (state: FilterState, action: Partial<FilterState>) => ({
       ...state,
@@ -419,6 +301,7 @@ export default function PromotionsPage() {
     {
       search: "",
       statusFilter: "all" as const,
+      classFilter: "all",
     }
   );
 
@@ -443,6 +326,7 @@ export default function PromotionsPage() {
 
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [promotionsCompleted, setPromotionsCompleted] = useState(false);
 
   // Dialogs
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
@@ -482,79 +366,44 @@ export default function PromotionsPage() {
     }
   }, [schoolId]);
 
-  const fetchClassProgress = useCallback(async () => {
-    if (!selectedSessionId || !schoolId) return;
-    setLoadingProgress(true);
-    try {
-      const response = await fetch(
-        `/api/admin/promotions/class-progress?sessionId=${selectedSessionId}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch class progress");
-
-      const data = await response.json();
-      setClassProgress(data.classProgress || []);
-    } catch (error: any) {
-      console.error("Error fetching class progress:", error);
-      toast.error("Failed to load class progress");
-    } finally {
-      setLoadingProgress(false);
-    }
-  }, [selectedSessionId, schoolId]);
-
-  const fetchDestinationOptions = useCallback(async () => {
-    if (!selectedSessionId || !selectedClass?.id) return;
-    try {
-      const response = await fetch(
-        `/api/admin/promotions/class-mappings?sessionId=${selectedSessionId}&sourceClassId=${selectedClass.id}`
-      );
-      if (!response.ok) throw new Error("Failed to fetch destination options");
-
-      const data = await response.json();
-      setDestinationOptions(data.destinationOptions || []);
-      if (data.currentMapping?.destination_class_id) {
-        setSelectedDestinationClass(data.currentMapping.destination_class_id);
-      } else {
-        setSelectedDestinationClass(null);
-      }
-    } catch (error: any) {
-      console.error("Error fetching destination options:", error);
-      toast.error("Failed to load destination options");
-    }
-  }, [selectedSessionId, selectedClass]);
-
-  const saveClassMapping = useCallback(async () => {
-    if (!selectedSessionId || !selectedClass?.id) return;
-    try {
-      const response = await fetch("/api/admin/promotions/class-mappings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: selectedSessionId,
-          sourceClassId: selectedClass.id,
-          destinationClassId: selectedDestinationClass,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to save mapping");
-      toast.success("Class mapping saved successfully");
-    } catch (error: any) {
-      console.error("Error saving mapping:", error);
-      toast.error(error.message || "Failed to save mapping");
-    }
-  }, [selectedSessionId, selectedClass, selectedDestinationClass]);
-
   const fetchPromotionData = useCallback(async () => {
-    if (!selectedClass?.id || !selectedSessionId) return;
     setLoading(true);
     try {
+      // Check if promotions have already been processed
+      const historyResponse = await fetch(
+        `/api/admin/history?sessionId=${encodeURIComponent(selectedSessionId)}`
+      );
+
+      const historyData = await historyResponse.json();
+
+      if (!historyResponse.ok) {
+        throw new Error(
+          historyData.error || "Failed to verify promotion history"
+        );
+      }
+
+      if (historyData.history && historyData.history.length > 0) {
+        setPromotionsCompleted(true);
+        setStudents([]);
+        setStats({
+          total_students: 0,
+          eligible_count: 0,
+          graduating_count: 0,
+          needs_review_count: 0,
+        });
+        return;
+      }
+
+      setPromotionsCompleted(false);
+
+      // Build query params
       const params = new URLSearchParams({
         sessionId: selectedSessionId,
-        classId: selectedClass.id,
-        excludeProcessed: "true", // Exclude already processed students
         limit: String(pagination.pageSize),
         offset: String(pagination.pageIndex * pagination.pageSize),
         search: filterState.search,
         statusFilter: filterState.statusFilter,
+        classFilter: filterState.classFilter,
       });
 
       const response = await fetch(`/api/admin/promotions?${params}`);
@@ -579,7 +428,7 @@ export default function PromotionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSessionId, selectedClass, pagination, filterState]);
+  }, [selectedSessionId, pagination, filterState]);
 
   const handleUpdateSettings = useCallback(async () => {
     try {
@@ -596,14 +445,16 @@ export default function PromotionsPage() {
 
       toast.success("Promotion settings updated");
       setShowSettingsDialog(false);
+      fetchPromotionData();
     } catch (error: any) {
       console.error("Error updating settings:", error);
       toast.error("Failed to update settings");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSessionId, settings]);
 
   const handlePromote = useCallback(async () => {
-    if (!schoolId || !selectedClass?.id) return;
+    if (!schoolId) return;
     setProcessing(true);
     try {
       const selectedStudentsList = students.filter((s) =>
@@ -647,7 +498,6 @@ export default function PromotionsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId: selectedSessionId,
-          classId: selectedClass.id, // NEW: include classId for progress tracking
           idempotencyKey:
             typeof crypto !== "undefined" && crypto.randomUUID
               ? crypto.randomUUID()
@@ -675,18 +525,15 @@ export default function PromotionsPage() {
       setShowConfirmDialog(false);
       setRowSelection({});
       setPromotionActions({});
-      
-      // Refresh class progress and return to overview
-      await fetchClassProgress();
-      setPhase("overview");
-      setSelectedClass(null);
+      fetchPromotionData();
     } catch (error: any) {
       console.error("Error processing promotions:", error);
       toast.error(error?.message || "Failed to process promotions");
     } finally {
       setProcessing(false);
     }
-  }, [schoolId, students, rowSelection, promotionActions, settings, selectedSessionId, selectedClass, fetchClassProgress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schoolId, students, rowSelection, promotionActions, settings, selectedSessionId]);
 
   // ========================================================================
   // EFFECTS
@@ -698,29 +545,21 @@ export default function PromotionsPage() {
     }
   }, [schoolId, fetchSessions]);
 
-  // When session changes, fetch class progress
+  // When session changes, reset pagination and fetch
   useEffect(() => {
     if (selectedSessionId && schoolId) {
-      fetchClassProgress();
-      setPhase("overview");
-      setSelectedClass(null);
-    }
-  }, [selectedSessionId, schoolId, fetchClassProgress]);
-
-  // When selected class changes, fetch destination options and student data
-  useEffect(() => {
-    if (selectedClass?.id && selectedSessionId) {
-      fetchDestinationOptions();
       setPagination({ pageIndex: 0, pageSize: 50 });
     }
-  }, [selectedClass, selectedSessionId, fetchDestinationOptions]);
+  }, [selectedSessionId, schoolId]);
 
   // When pagination or filters change, fetch data
+  // Note: fetchPromotionData is stable thanks to useCallback, so we don't include it in deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (selectedClass?.id && selectedSessionId && phase === "processing") {
+    if (selectedSessionId && schoolId) {
       fetchPromotionData();
     }
-  }, [selectedSessionId, selectedClass, pagination, filterState, phase, fetchPromotionData]);
+  }, [selectedSessionId, schoolId, pagination, filterState]);
 
   // ========================================================================
   // MEMOIZED VALUES
@@ -751,7 +590,7 @@ export default function PromotionsPage() {
           <div>
             <h1 className="text-3xl font-bold">Student Promotions</h1>
             <p className="text-muted-foreground mt-1">
-              Class-by-class promotion workflow
+              Manage student promotions at the end of the session
             </p>
           </div>
           <Button
@@ -763,220 +602,73 @@ export default function PromotionsPage() {
           </Button>
         </div>
 
-        {/* Session Selection */}
-        {!selectedSessionId ? (
-          <Card>
+        {/* Promotions Completed Message */}
+        {promotionsCompleted ? (
+          <Card className="border-green-200 bg-green-50">
             <CardHeader>
-              <CardTitle>Select Session</CardTitle>
-              <CardDescription>
-                Choose the session for which you want to process promotions
+              <CardTitle className="text-green-900 flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5" />
+                Promotions Completed
+              </CardTitle>
+              <CardDescription className="text-green-800">
+                Promotions for this session have already been processed
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
-                <SelectTrigger className="w-full md:w-[300px]">
-                  <SelectValue placeholder="Select session" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sessions
-                    .filter((session) => session.is_current)
-                    .map((session) => (
-                      <SelectItem key={session.id} value={session.id}>
-                        {session.name} (Current)
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+            <CardContent className="space-y-4">
+              <p className="text-sm">
+                No further actions can be taken for this session. View the
+                complete promotion history and details in the History page.
+              </p>
+              <Button asChild>
+                <a href="/admin/history">
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  View Promotion History
+                </a>
+              </Button>
             </CardContent>
           </Card>
         ) : (
           <>
-            {/* PHASE 1: OVERVIEW & CLASS SELECTION */}
-            {phase === "overview" && (
-              <div className="space-y-6">
-                {/* Progress Summary */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <ListChecks className="h-5 w-5" />
-                      Overall Progress
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingProgress ? (
-                      <div className="text-center py-4 text-muted-foreground">
-                        Loading progress...
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="text-center">
-                          <div className="text-3xl font-bold">
-                            {classProgress.filter((c) => c.status === "completed").length}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Classes Completed
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-3xl font-bold">
-                            {classProgress.filter((c) => c.status === "in_progress").length}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            In Progress
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-3xl font-bold">
-                            {classProgress.filter((c) => c.status === "pending").length}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Pending
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-3xl font-bold">
-                            {classProgress.length}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Total Classes
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+            {/* Session Selection */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Select Session</CardTitle>
+                <CardDescription>
+                  Choose the session for which you want to process promotions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Select
+                  value={selectedSessionId}
+                  onValueChange={setSelectedSessionId}
+                >
+                  <SelectTrigger className="w-full md:w-[300px]">
+                    <SelectValue placeholder="Select session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessions
+                      .filter((session) => session.is_current)
+                      .map((session) => (
+                        <SelectItem key={session.id} value={session.id}>
+                          {session.name} (Current Session)
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Note: Only the current session can be used for promotions
+                </p>
+              </CardContent>
+            </Card>
 
-                {/* Classes Grid */}
-                {loadingProgress ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    Loading classes...
-                  </div>
-                ) : classProgress.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-12">
-                      <div className="text-center text-muted-foreground">
-                        No classes found for this session
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {classProgress.map((cp) => (
-                      <ClassProgressCard
-                        key={cp.classId}
-                        progress={cp}
-                        isSelected={selectedClass?.id === cp.classId}
-                        onselect={() => {
-                          setSelectedClass({ id: cp.classId, name: cp.className });
-                          setPhase("mapping");
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* PHASE 2: CLASS MAPPING */}
-            {phase === "mapping" && selectedClass && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setPhase("overview")}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-2" />
-                    Back to Overview
-                  </Button>
-                </div>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      Configure Class Mapping
-                    </CardTitle>
-                    <CardDescription>
-                      {selectedClass.name} → Select destination class
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Destination Class</Label>
-                      <Select
-                        value={selectedDestinationClass || ""}
-                        onValueChange={setSelectedDestinationClass}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select destination class..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {destinationOptions.map((option) => (
-                            <SelectItem 
-                              key={option.class_id} 
-                              value={option.class_id}
-                            >
-                              {option.class_name}
-                              {option.stream_name && ` (${option.stream_name})`}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {selectedDestinationClass && (
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <p className="text-sm">
-                          <strong>{selectedClass.name}</strong> will promote students to{" "}
-                          <strong>
-                            {destinationOptions.find(
-                              (o) => o.class_id === selectedDestinationClass
-                            )?.class_name}
-                          </strong>
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-4">
-                      <Button
-                        onClick={saveClassMapping}
-                      >
-                        Save Mapping
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setPhase("processing");
-                          setRowSelection({});
-                        }}
-                      >
-                        Continue to Processing
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            {/* PHASE 3: PROCESS STUDENTS */}
-            {phase === "processing" && selectedClass && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setPhase("mapping")}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-2" />
-                    Back to Mapping
-                  </Button>
-                </div>
-
-                {/* Stats */}
+            {selectedSessionId && (
+              <>
+                {/* Stats Cards */}
                 <div className="grid gap-4 md:grid-cols-4">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
-                        Students
+                        Total Students
                       </CardTitle>
                       <UserCheck className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
@@ -990,7 +682,7 @@ export default function PromotionsPage() {
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
-                        Eligible
+                        Eligible for Promotion
                       </CardTitle>
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                     </CardHeader>
@@ -998,13 +690,16 @@ export default function PromotionsPage() {
                       <div className="text-2xl font-bold text-green-600">
                         {stats.eligible_count}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        ≥{settings.minimum_pass_percentage}% average
+                      </p>
                     </CardContent>
                   </Card>
 
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
-                        Graduating
+                        Graduating (Final Level)
                       </CardTitle>
                       <GraduationCap className="h-4 w-4 text-purple-600" />
                     </CardHeader>
@@ -1018,38 +713,53 @@ export default function PromotionsPage() {
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">
-                        Review
+                        Needs Review
                       </CardTitle>
                       <AlertTriangle className="h-4 w-4 text-orange-600" />
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold text-orange-600">
-                        {stats.needs_review_count}
+                        {needsReviewCount}
                       </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Below pass mark
+                      </p>
                     </CardContent>
                   </Card>
                 </div>
 
-                {/* Students Table */}
+                {/* Filters and Actions */}
                 <Card>
                   <CardHeader>
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div>
-                        <CardTitle>Students for {selectedClass.name}</CardTitle>
+                        <CardTitle>Students</CardTitle>
                         <CardDescription>
-                          Not yet processed in this class
+                          Select students to promote or graduate
                         </CardDescription>
                       </div>
-                      <Button
-                        onClick={() => {
-                          setPromotionActions({});
-                          setShowConfirmDialog(true);
-                        }}
-                        disabled={selectedCount === 0 || processing}
-                      >
-                        <Zap className="h-4 w-4 mr-2" />
-                        Process {selectedCount} Student{selectedCount !== 1 ? "s" : ""}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={fetchPromotionData}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Refresh
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setPromotionActions({});
+                            setShowConfirmDialog(true);
+                          }}
+                          disabled={selectedCount === 0 || processing}
+                          size="sm"
+                        >
+                          <ArrowRight className="h-4 w-4 mr-2" />
+                          Promote {selectedCount} Student
+                          {selectedCount !== 1 ? "s" : ""}
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -1082,6 +792,29 @@ export default function PromotionsPage() {
                           <SelectItem value="needs_review">Needs Review</SelectItem>
                         </SelectContent>
                       </Select>
+
+                      <Select
+                        value={filterState.classFilter}
+                        onValueChange={(v) =>
+                          dispatchFilter({ classFilter: v })
+                        }
+                      >
+                        <SelectTrigger className="w-full md:w-[200px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Classes</SelectItem>
+                          {Array.from(
+                            new Set(students.map((s) => s.current_class_name))
+                          )
+                            .sort()
+                            .map((className) => (
+                              <SelectItem key={className} value={className}>
+                                {className}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     {/* Students Table */}
@@ -1091,7 +824,7 @@ export default function PromotionsPage() {
                       </div>
                     ) : students.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
-                        No students found - this class may be completed
+                        No students found
                       </div>
                     ) : (
                       <>
@@ -1101,6 +834,7 @@ export default function PromotionsPage() {
                               <tr>
                                 <th className="p-3 text-left w-12"></th>
                                 <th className="p-3 text-left">Student</th>
+                                <th className="p-3 text-left">Current Class</th>
                                 <th className="p-3 text-center">Terms</th>
                                 <th className="p-3 text-center">Average</th>
                                 <th className="p-3 text-center">Status</th>
@@ -1127,7 +861,7 @@ export default function PromotionsPage() {
                           </table>
                         </div>
 
-                        {/* Pagination */}
+                        {/* Pagination Controls */}
                         <div className="flex items-center justify-between gap-4">
                           <div className="text-sm text-muted-foreground">
                             Page {pagination.pageIndex + 1} of{" "}
@@ -1154,7 +888,9 @@ export default function PromotionsPage() {
                                   pageIndex: prev.pageIndex + 1,
                                 }))
                               }
-                              disabled={pagination.pageIndex >= totalPages - 1}
+                              disabled={
+                                pagination.pageIndex >= totalPages - 1
+                              }
                               variant="outline"
                               size="sm"
                             >
@@ -1166,7 +902,7 @@ export default function PromotionsPage() {
                     )}
                   </CardContent>
                 </Card>
-              </div>
+              </>
             )}
 
             {/* Settings Dialog */}
@@ -1197,6 +933,9 @@ export default function PromotionsPage() {
                         })
                       }
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Students must achieve at least this average to be promoted
+                    </p>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -1214,6 +953,22 @@ export default function PromotionsPage() {
                       Require all terms to have results
                     </Label>
                   </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="auto_promote"
+                      checked={settings.auto_promote}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          auto_promote: !!checked,
+                        })
+                      }
+                    />
+                    <Label htmlFor="auto_promote">
+                      Enable auto-promotion for eligible students
+                    </Label>
+                  </div>
                 </div>
 
                 <DialogFooter>
@@ -1229,12 +984,20 @@ export default function PromotionsPage() {
             </Dialog>
 
             {/* Confirmation Dialog */}
-            <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+            <AlertDialog
+              open={showConfirmDialog}
+              onOpenChange={(open) => {
+                setShowConfirmDialog(open);
+                if (!open) {
+                  setPromotionActions({});
+                }
+              }}
+            >
               <AlertDialogContent className="max-w-2xl">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirm Promotions</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Review and confirm the promotion of {selectedCount} student(s)
+                    Review students requiring attention (repeating students shown below)
                   </AlertDialogDescription>
                 </AlertDialogHeader>
 
@@ -1257,14 +1020,20 @@ export default function PromotionsPage() {
                           key={student.student_id}
                           className="border rounded-lg p-3 space-y-2"
                         >
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start justify-between gap-2">
                             <div className="flex-1">
                               <p className="font-medium text-sm">
                                 {student.student_name}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {student.student_number} • Average:{" "}
-                                {student.cumulative_average.toFixed(1)}%
+                                {student.student_number} •{" "}
+                                {student.current_class_name}
+                                {student.department && ` • ${student.department}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Average:{" "}
+                                {student.cumulative_average.toFixed(1)}% • Grade:{" "}
+                                {calculateGrade(student.cumulative_average)}
                               </p>
                             </div>
                           </div>
@@ -1277,6 +1046,21 @@ export default function PromotionsPage() {
                               const isSelected = currentAction === action;
                               const isDefault = defaultAction === action;
 
+                              const labels = {
+                                promote: {
+                                  label: "Promote",
+                                  description: "Move to next class",
+                                },
+                                graduate: {
+                                  label: "Graduate",
+                                  description: "Complete schooling",
+                                },
+                                repeat: {
+                                  label: "Repeat",
+                                  description: "Stay in current class",
+                                },
+                              };
+
                               return (
                                 <button
                                   key={action}
@@ -1286,19 +1070,20 @@ export default function PromotionsPage() {
                                       [student.student_id]: action,
                                     })
                                   }
-                                  className={`flex-1 min-w-[80px] px-2 py-2 text-xs rounded border-2 transition-all ${
+                                  className={`flex-1 min-w-[100px] px-3 py-2 text-sm rounded-lg border-2 transition-all ${
                                     isSelected
                                       ? "border-blue-500 bg-blue-50"
-                                      : "border-gray-200"
+                                      : "border-gray-200 hover:border-gray-300"
                                   } ${isDefault ? "ring-1 ring-green-500" : ""}`}
                                 >
-                                  <div className="font-medium">
-                                    {action === "promote" && "Promote"}
-                                    {action === "graduate" && "Graduate"}
-                                    {action === "repeat" && "Repeat"}
+                                  <div className="font-medium text-xs">
+                                    {labels[action].label}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {labels[action].description}
                                   </div>
                                   {isDefault && (
-                                    <div className="text-xs text-green-600">
+                                    <div className="text-xs mt-1 text-green-600 font-semibold">
                                       (default)
                                     </div>
                                   )}
@@ -1312,20 +1097,23 @@ export default function PromotionsPage() {
                 </div>
 
                 {/* Summary */}
-                <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
-                  <div className="font-medium">Summary:</div>
-                  <ul className="text-muted-foreground space-y-1 text-xs">
+                <div className="bg-muted p-3 rounded-lg space-y-1 text-sm">
+                  <div className="font-medium text-foreground">
+                    Summary of actions:
+                  </div>
+                  <ul className="space-y-1 text-muted-foreground">
                     <li>
                       • Promoted:{" "}
                       {
                         students
                           .filter((_, idx) => rowSelection[idx] === true)
                           .filter(
-                            (s) =>
-                              (promotionActions[s.student_id] ||
+                            (s, idx) =>
+                              (promotionActions[students.find(st => st.student_id === s.student_id)?.student_id || ""] ||
                                 determineAction(s)) === "promote"
                           ).length
-                      }
+                      }{" "}
+                      student(s)
                     </li>
                     <li>
                       • Graduated:{" "}
@@ -1337,7 +1125,8 @@ export default function PromotionsPage() {
                               (promotionActions[s.student_id] ||
                                 determineAction(s)) === "graduate"
                           ).length
-                      }
+                      }{" "}
+                      student(s)
                     </li>
                     <li>
                       • Repeating:{" "}
@@ -1349,11 +1138,11 @@ export default function PromotionsPage() {
                               (promotionActions[s.student_id] ||
                                 determineAction(s)) === "repeat"
                           ).length
-                      }
+                      }{" "}
+                      student(s)
                     </li>
                   </ul>
                 </div>
-
                 <AlertDialogFooter>
                   <AlertDialogCancel disabled={processing}>
                     Cancel

@@ -35,6 +35,78 @@ async function requireAdmin() {
   }
 }
 
+interface OrderedClassLevel {
+  id: string;
+  name: string;
+  order_sequence: number | null;
+  education_order_sequence: number | null;
+}
+
+interface PromotionClass {
+  id: string;
+  name: string;
+  class_level_id: string;
+  stream_id: string | null;
+}
+
+function sortClassLevels(levels: OrderedClassLevel[]): OrderedClassLevel[] {
+  return [...levels].sort((a, b) => {
+    const eduA = a.education_order_sequence ?? Number.MAX_SAFE_INTEGER;
+    const eduB = b.education_order_sequence ?? Number.MAX_SAFE_INTEGER;
+
+    if (eduA !== eduB) {
+      return eduA - eduB;
+    }
+
+    const levelA = a.order_sequence ?? Number.MAX_SAFE_INTEGER;
+    const levelB = b.order_sequence ?? Number.MAX_SAFE_INTEGER;
+
+    if (levelA !== levelB) {
+      return levelA - levelB;
+    }
+
+    return a.name.localeCompare(b.name);
+  });
+}
+
+function resolveNextClass(
+  currentClassId: string,
+  classesById: Map<string, PromotionClass>,
+  orderedLevelIds: string[],
+  classesByLevelId: Map<string, PromotionClass[]>
+): PromotionClass | undefined {
+  const currentClass = classesById.get(currentClassId);
+  if (!currentClass?.class_level_id) {
+    return undefined;
+  }
+
+  const currentLevelIndex = orderedLevelIds.indexOf(currentClass.class_level_id);
+  if (currentLevelIndex === -1) {
+    return undefined;
+  }
+
+  const nextLevelId = orderedLevelIds[currentLevelIndex + 1];
+  if (!nextLevelId) {
+    return undefined;
+  }
+
+  const nextLevelClasses = classesByLevelId.get(nextLevelId) || [];
+  if (nextLevelClasses.length === 0) {
+    return undefined;
+  }
+
+  const sortedNextLevelClasses = [...nextLevelClasses].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
+  // Promotions are intentionally stream-agnostic. Prefer non-stream classes,
+  // then fall back to the first deterministic class by name.
+  return (
+    sortedNextLevelClasses.find((cls) => !cls.stream_id) ||
+    sortedNextLevelClasses[0]
+  );
+}
+
 
 // GET - Get promotion eligibility for a session
 export async function GET(request: NextRequest) {
@@ -49,6 +121,26 @@ export async function GET(request: NextRequest) {
     }
     const searchParams = request.nextUrl.searchParams;
     const sessionId = searchParams.get("sessionId");
+
+    if (!sessionId) {
+      return NextResponse.json(
+        { error: "Session ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from("sessions")
+      .select("id, school_id")
+      .eq("id", sessionId)
+      .single();
+
+    if (sessionError || !session) {
+      return NextResponse.json(
+        { error: "Session not found" },
+        { status: 404 }
+      );
+    }
 
     // Get promotion settings for this session
     const { data: settings, error: settingsError } = await supabaseAdmin
@@ -82,6 +174,8 @@ export async function GET(request: NextRequest) {
         classes:class_id (
           id,
           name,
+          class_level_id,
+          stream_id,
           school_class_levels (
             name
           ),
@@ -94,6 +188,7 @@ export async function GET(request: NextRequest) {
         )
       `
       )
+      .eq("school_id", session.school_id)
       .in("status", ["active", "pending", "graduated", "withdrawn"]);
 
     if (studentsError) throw studentsError;
@@ -113,9 +208,56 @@ export async function GET(request: NextRequest) {
     // Get all subject_classes to map results to classes
     const { data: subjectClasses, error: subjectError } = await supabaseAdmin
       .from("subject_classes")
-      .select("*");
+      .select("*")
+      .eq("school_id", session.school_id);
 
     if (subjectError) throw subjectError;
+
+    const { data: classLevels, error: classLevelsError } = await supabaseAdmin
+      .from("school_class_levels")
+      .select(
+        `
+          id,
+          name,
+          order_sequence,
+          school_education_levels (
+            order_sequence
+          )
+        `
+      )
+      .eq("school_id", session.school_id)
+      .eq("is_active", true);
+
+    if (classLevelsError) throw classLevelsError;
+
+    const orderedClassLevels = sortClassLevels(
+      ((classLevels as any[]) || []).map((level) => ({
+        id: level.id,
+        name: level.name,
+        order_sequence: level.order_sequence ?? null,
+        education_order_sequence:
+          level.school_education_levels?.order_sequence ?? null,
+      }))
+    );
+
+    const orderedClassLevelIds = orderedClassLevels.map((level) => level.id);
+
+    const { data: classes, error: classesError } = await supabaseAdmin
+      .from("classes")
+      .select("id, name, class_level_id, stream_id")
+      .eq("school_id", session.school_id);
+
+    if (classesError) throw classesError;
+
+    const classesById = new Map<string, PromotionClass>();
+    const classesByLevelId = new Map<string, PromotionClass[]>();
+
+    ((classes as PromotionClass[]) || []).forEach((cls) => {
+      classesById.set(cls.id, cls);
+      const current = classesByLevelId.get(cls.class_level_id) || [];
+      current.push(cls);
+      classesByLevelId.set(cls.class_level_id, current);
+    });
 
     const { data: results, error: resultsError } = await supabaseAdmin
       .from("results")
@@ -185,7 +327,14 @@ export async function GET(request: NextRequest) {
 
       // Check if SSS 3 (graduating class)
       const classLevel = (student.classes as any)?.school_class_levels?.name || "";
-      const isGraduating = classLevel === "SSS 3";
+      const nextClass = resolveNextClass(
+        student.class_id,
+        classesById,
+        orderedClassLevelIds,
+        classesByLevelId
+      );
+      const isTerminalLevel = !nextClass;
+      const isGraduating = isTerminalLevel;
 
       return {
         student_id: student.id,
@@ -195,6 +344,9 @@ export async function GET(request: NextRequest) {
         current_class_name: (student.classes as any)?.name || "",
         current_class_level: classLevel,
         current_class_stream: (student.classes as any)?.school_streams?.name || "",
+        next_class_id: nextClass?.id || null,
+        next_class_name: nextClass?.name || null,
+        is_terminal_level: isTerminalLevel,
         education_level: "",
         department: (student.classes as any)?.school_departments?.name || "",
         terms_completed: termsWithResults,
@@ -233,6 +385,9 @@ export async function GET(request: NextRequest) {
       current_class_name: string;
       current_class_level: string;
       current_class_stream: string;
+      next_class_id?: string | null;
+      next_class_name?: string | null;
+      is_terminal_level?: boolean;
       education_level: string;
       department: string;
       terms_completed: number;
@@ -274,11 +429,22 @@ export async function GET(request: NextRequest) {
 
 // POST - Process promotions
 export async function POST(request: NextRequest) {
+  let lockAcquired = false;
+  let lockId = "";
+  let sessionIdForLock = "";
+
   try {
     await requireAdmin();
 
     const body = await request.json();
     const { sessionId, promotions } = body;
+    const idempotencyKey =
+      typeof body?.idempotencyKey === "string" && body.idempotencyKey.trim().length > 0
+        ? body.idempotencyKey.trim()
+        : `promo_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+
+    lockId = `${sessionId}:${idempotencyKey}`;
+    sessionIdForLock = sessionId || "";
 
     if (!sessionId || !promotions || !Array.isArray(promotions)) {
       return NextResponse.json(
@@ -300,6 +466,52 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Server-side guard against reprocessing an already-promoted session.
+    const { count: existingHistoryCount, error: existingHistoryError } =
+      await supabaseAdmin
+        .from("class_history")
+        .select("id", { count: "exact", head: true })
+        .eq("session_id", sessionId)
+        .limit(1);
+
+    if (existingHistoryError) {
+      throw existingHistoryError;
+    }
+
+    if ((existingHistoryCount || 0) > 0) {
+      return NextResponse.json(
+        { error: "Promotions have already been processed for this session" },
+        { status: 409 }
+      );
+    }
+
+    const { data: acquired, error: lockError } = await supabaseAdmin.rpc(
+      "acquire_promotion_processing_lock",
+      {
+        p_session_id: sessionId,
+        p_lock_id: lockId,
+        p_lock_ttl_seconds: 900,
+      }
+    );
+
+    if (lockError) {
+      throw new Error(
+        `Failed to acquire promotion lock. Ensure latest migrations are applied. ${lockError.message}`
+      );
+    }
+
+    if (!acquired) {
+      return NextResponse.json(
+        {
+          error:
+            "Promotions are currently being processed for this session, or have already been completed.",
+        },
+        { status: 409 }
+      );
+    }
+
+    lockAcquired = true;
 
     const results = {
       promoted: 0,
@@ -340,155 +552,37 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Record in class history
-        const { error: historyError } = await supabaseAdmin.from("class_history").upsert({
-          student_id,
-          class_id: current_class_id,
-          session_id: sessionId,
-          student_name,
-          student_number,
-          class_name: current_class_name,
-          education_level,
-          department,
-          terms_completed,
-          average_score: cumulative_average,
-          cumulative_grade,
-          position,
-          total_students,
-          promoted: action === "promote" || action === "graduate",
-          promotion_status: action === "graduate" ? "graduated" : action === "promote" ? "promoted" : "repeated",
-          promoted_to_class_id: next_class_id,
-          promotion_notes: notes,
-          promoted_at: new Date().toISOString(),
-        });
+        const { data: outcome, error: processError } = await supabaseAdmin.rpc(
+          "process_student_promotion_tx",
+          {
+            p_session_id: sessionId,
+            p_student_id: student_id,
+            p_student_name: student_name,
+            p_student_number: student_number,
+            p_current_class_id: current_class_id,
+            p_current_class_name: current_class_name,
+            p_education_level: education_level,
+            p_department: department ?? null,
+            p_terms_completed: terms_completed ?? 0,
+            p_cumulative_average: cumulative_average ?? 0,
+            p_cumulative_grade: cumulative_grade ?? null,
+            p_position: position ?? null,
+            p_total_students: total_students ?? null,
+            p_action: action,
+            p_next_class_id: next_class_id ?? null,
+            p_notes: notes ?? null,
+          }
+        );
 
-        if (historyError) {
-          console.error(`Error recording class history for ${student_name}:`, historyError);
-          throw new Error(`Failed to record class history: ${historyError.message}`);
+        if (processError) {
+          throw new Error(processError.message);
         }
 
-        // Update student record
-        if (action === "promote") {
-          console.log(`Promoting student ${student_name} from class ${current_class_id} to ${next_class_id}`);
-          const { error: updateError } = await supabaseAdmin
-            .from("students")
-            .update({
-              class_id: next_class_id,
-              status: "active",
-            })
-            .eq("id", student_id);
-
-          if (updateError) {
-            console.error(`Error updating student ${student_name}:`, updateError);
-            throw new Error(`Failed to update student record: ${updateError.message}`);
-          }
-
-          // Handle subject reassignment for promoted student
-          try {
-            // 1. Fetch student's department and religion
-            const { data: studentData, error: studentError } = await supabaseAdmin
-              .from("students")
-              .select("department_id, religion")
-              .eq("id", student_id)
-              .single();
-
-            if (studentError) {
-              console.error(`Failed to fetch student details for ${student_name}:`, studentError);
-            } else if (studentData) {
-              // 2. Delete old student_subjects
-              await supabaseAdmin
-                .from("student_subjects")
-                .delete()
-                .eq("student_id", student_id);
-
-              // 3. Delete old optional subjects
-              await supabaseAdmin
-                .from("student_optional_subjects")
-                .delete()
-                .eq("student_id", student_id);
-
-              // 4. Fetch available subject_classes for new class
-              const { data: subjectClasses, error: scError } = await supabaseAdmin
-                .from("subject_classes")
-                .select(`
-                  id,
-                  subject_id,
-                  department_id,
-                  religion_id,
-                  subjects (
-                    id,
-                    name,
-                    is_optional,
-                    department_id,
-                    religion_id
-                  )
-                `)
-                .eq("class_id", next_class_id);
-
-              if (scError) {
-                console.error(`Failed to fetch subject_classes for ${student_name}:`, scError);
-              } else if (subjectClasses) {
-                // 5. Filter subjects based on student's department_id and religion_id
-                const filteredSubjects = subjectClasses.filter((sc: any) => {
-                  // If subject_class has a department_id constraint, match it with student's department_id
-                  if (sc.department_id && studentData.department_id) {
-                    return sc.department_id === studentData.department_id;
-                  }
-
-                  // If subject_class has no department constraint, include it (mandatory for all)
-                  if (!sc.department_id) {
-                    return true;
-                  }
-
-                  // Subject has department constraint but student has no department assigned
-                  // Don't include this subject
-                  return false;
-                });
-
-                // 6. Auto-select all compulsory subjects
-                const subjectsToAssign = filteredSubjects
-                  .filter((sc: any) => !sc.subjects.is_optional)
-                  .map((sc: any) => ({
-                    student_id,
-                    subject_class_id: sc.id,
-                  }));
-
-                // 7. Insert compulsory subjects if any
-                if (subjectsToAssign.length > 0) {
-                  const { error: insertError } = await supabaseAdmin
-                    .from("student_subjects")
-                    .insert(subjectsToAssign);
-
-                  if (insertError) {
-                    console.error(`Failed to assign subjects for ${student_name}:`, insertError);
-                  } else {
-                    console.log(`Assigned ${subjectsToAssign.length} subjects to promoted student ${student_name}`);
-                  }
-                }
-              }
-            }
-          } catch (subjectError: any) {
-            console.error(`Error handling subject reassignment for ${student_name}:`, subjectError);
-            // Continue anyway - the promotion itself succeeded
-          }
-
+        if (outcome === "promoted") {
           results.promoted++;
-        } else if (action === "graduate") {
-          const { error: updateError } = await supabaseAdmin
-            .from("students")
-            .update({
-              status: "graduated",
-              class_id: current_class_id, // Keep in SSS 3
-            })
-            .eq("id", student_id);
-
-          if (updateError) {
-            console.error(`Error graduating student ${student_name}:`, updateError);
-            throw new Error(`Failed to graduate student: ${updateError.message}`);
-          }
+        } else if (outcome === "graduated") {
           results.graduated++;
-        } else if (action === "repeat") {
-          // Student stays in same class
+        } else {
           results.repeated++;
         }
       } catch (error: any) {
@@ -501,6 +595,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    await supabaseAdmin
+      .from("promotion_settings")
+      .update(
+        {
+          last_processed_at: new Date().toISOString(),
+          processing_lock_id: null,
+          processing_started_at: null,
+          updated_at: new Date().toISOString(),
+        }
+      )
+      .eq("session_id", sessionId)
+      .eq("processing_lock_id", lockId);
+
     return NextResponse.json({
       success: true,
       results,
@@ -512,6 +619,13 @@ export async function POST(request: NextRequest) {
       { error: error.message || "Failed to process promotions" },
       { status: 500 }
     );
+  } finally {
+    if (lockAcquired && lockId && sessionIdForLock) {
+      await supabaseAdmin.rpc("release_promotion_processing_lock", {
+        p_session_id: sessionIdForLock,
+        p_lock_id: lockId,
+      });
+    }
   }
 }
 

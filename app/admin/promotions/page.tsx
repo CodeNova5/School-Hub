@@ -69,6 +69,9 @@ interface StudentPromotion {
   current_class_name: string;
   current_class_level: string;
   current_class_stream?: string;
+  next_class_id?: string | null;
+  next_class_name?: string | null;
+  is_terminal_level?: boolean;
   education_level: string;
   department?: string;
   terms_completed: number;
@@ -78,13 +81,6 @@ interface StudentPromotion {
   is_graduating: boolean;
   needs_manual_review: boolean;
   term_averages: { term_id: string; average: number }[];
-}
-
-interface NextClass {
-  id: string;
-  name: string;
-  education_level: string;
-  department?: string;
 }
 
 export default function PromotionsPage() {
@@ -222,11 +218,7 @@ export default function PromotionsPage() {
   function determineAction(
     student: StudentPromotion
   ): "promote" | "graduate" | "repeat" {
-    // Only graduate if in SSS 3 AND meets pass percentage
-    if (
-      student.current_class_level === "SSS 3" &&
-      student.cumulative_average >= settings.minimum_pass_percentage
-    ) {
+    if (student.is_terminal_level && student.is_eligible) {
       return "graduate";
     }
     
@@ -267,44 +259,19 @@ export default function PromotionsPage() {
     if (!schoolId) return;
     setProcessing(true);
     try {
-      // Get next class for each student
-      const { data: allClasses, error: classesError } = await supabase
-        .from("classes")
-        .select("id, name, school_class_levels(name), school_streams(name), school_departments(name)")
-        .eq("school_id", schoolId);
-
-      if (classesError) throw classesError;
-
-      // Sort classes by progression order to ensure consistent class assignment
-      const sortedClasses = sortClassesByProgression(allClasses || []);
-      console.log("All classes (sorted by progression):", sortedClasses);
-
       const promotions = students
         .filter((s) => selectedStudents.has(s.student_id))
         .map((student) => {
           // Use override action if available, otherwise determine based on eligibility
           const overrideAction = promotionActions[student.student_id];
           const action = overrideAction || determineAction(student);
-          
+
           const isGraduating = action === "graduate";
-          let nextClass: NextClass | undefined;
 
-          if (!isGraduating) {
-            // Find next class based on progression
-            nextClass = getNextClass(
-              student.current_class_level, // Use level instead of name
-              student.current_class_stream, // Pass stream
-              student.education_level,
-              student.department,
-              sortedClasses
+          if (action === "promote" && !student.next_class_id) {
+            throw new Error(
+              `No next class configured for ${student.student_name} (${student.current_class_name}). Please configure the next class level in School Config.`
             );
-            
-            console.log(`Next class for ${student.student_name} (${student.current_class_level} ${student.current_class_stream || ''}):`, nextClass);
-
-            // Warn if next class not found for students who should be promoted
-            if (!nextClass && action === "promote") {
-              console.warn(`No next class found for ${student.student_name} in ${student.current_class_name}`);
-            }
           }
 
           return {
@@ -319,11 +286,11 @@ export default function PromotionsPage() {
             cumulative_average: student.cumulative_average,
             cumulative_grade: calculateGrade(student.cumulative_average),
             action: action,
-            next_class_id: isGraduating ? null : nextClass?.id,
+            next_class_id: action === "promote" ? student.next_class_id : null,
             notes: isGraduating
-              ? "Graduated from SSS 3"
+              ? "Graduated from final class level"
               : action === "promote"
-              ? `Promoted with ${student.cumulative_average.toFixed(1)}% average`
+              ? `Promoted to ${student.next_class_name || "next class"} with ${student.cumulative_average.toFixed(1)}% average`
               : `Repeated due to ${student.cumulative_average.toFixed(1)}% average (below ${settings.minimum_pass_percentage}%)`,
           };
         });
@@ -333,11 +300,18 @@ export default function PromotionsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionId: selectedSessionId,
+          idempotencyKey:
+            typeof crypto !== "undefined" && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `promo_${Date.now()}`,
           promotions,
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to process promotions");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to process promotions");
+      }
 
       const result = await response.json();
 
@@ -359,184 +333,10 @@ export default function PromotionsPage() {
       fetchPromotionData();
     } catch (error: any) {
       console.error("Error processing promotions:", error);
-      toast.error("Failed to process promotions");
+      toast.error(error?.message || "Failed to process promotions");
     } finally {
       setProcessing(false);
     }
-  }
-
-  // Helper function to define the complete progression sequence
-  function getProgressionSequence(): string[] {
-    return [
-      "Creche",
-      "KG 1", "KG 2",
-      "Nursery 1", "Nursery 2",
-      "Primary 1", "Primary 2", "Primary 3", "Primary 4", "Primary 5", "Primary 6",
-      "JSS 1", "JSS 2", "JSS 3",
-      "SSS 1", "SSS 2", "SSS 3",
-    ];
-  }
-
-  // Helper function to get the position of a class level in the progression sequence
-  function getProgressionIndex(classLevel: string): number {
-    const sequence = getProgressionSequence();
-    return sequence.indexOf(classLevel);
-  }
-
-  // Helper function to sort classes by their progression order
-  function sortClassesByProgression(classes: any[]): any[] {
-    return [...classes].sort((a, b) => {
-      const levelA = a.school_class_levels?.name || "";
-      const levelB = b.school_class_levels?.name || "";
-      const indexA = getProgressionIndex(levelA);
-      const indexB = getProgressionIndex(levelB);
-
-      // If levels are different, sort by progression
-      if (indexA !== indexB) {
-        return indexA - indexB;
-      }
-
-      // If same level, sort by stream (A, B, C, etc.)
-      const streamA = a.school_streams?.name || "";
-      const streamB = b.school_streams?.name || "";
-      if (streamA !== streamB) {
-        return streamA.localeCompare(streamB);
-      }
-
-      // If same level and stream, sort by department
-      const deptA = a.school_departments?.name || "";
-      const deptB = b.school_departments?.name || "";
-      return deptA.localeCompare(deptB);
-    });
-  }
-
-  function getNextClass(
-    currentClassLevel: string,
-    stream: string | undefined,
-    educationLevel: string,
-    department: string | undefined,
-    allClasses: any[]
-  ): NextClass | undefined {
-    const progressionMap: Record<string, string> = {
-      "Creche": "KG 1",
-      "KG 1": "KG 2",
-      "KG 2": "Nursery 1",
-      "Nursery 1": "Nursery 2",
-      "Nursery 2": "Primary 1",
-      "Primary 1": "Primary 2",
-      "Primary 2": "Primary 3",
-      "Primary 3": "Primary 4",
-      "Primary 4": "Primary 5",
-      "Primary 5": "Primary 6",
-      "Primary 6": "JSS 1",
-      "JSS 1": "JSS 2",
-      "JSS 2": "JSS 3",
-      "JSS 3": "SSS 1",
-      "SSS 1": "SSS 2",
-      "SSS 2": "SSS 3",
-    };
-
-    const nextClassLevel = progressionMap[currentClassLevel];
-    if (!nextClassLevel) {
-      console.warn(`No progression defined for class level: ${currentClassLevel}`);
-      return undefined;
-    }
-
-    // Get all available classes at the next level
-    const classesAtNextLevel = allClasses.filter(
-      (c) => c.school_class_levels?.name === nextClassLevel
-    );
-
-    if (classesAtNextLevel.length === 0) {
-      console.warn(`No classes found at next level: ${nextClassLevel}`);
-      return undefined;
-    }
-
-    // If current student has a stream, check if next level has complete stream setup
-    if (stream) {
-      // Get all streams at current level
-      const currentLevelStreams = new Set(
-        allClasses
-          .filter((c) => c.school_class_levels?.name === currentClassLevel && c.school_streams?.name)
-          .map((c) => c.school_streams?.name)
-      );
-
-      // Get all streams at next level
-      const nextLevelStreams = new Set(
-        allClasses
-          .filter((c) => c.school_class_levels?.name === nextClassLevel && c.school_streams?.name)
-          .map((c) => c.school_streams?.name)
-      );
-
-      // Check if stream setup is complete (all current streams have next level equivalents)
-      const isComplete = 
-        currentLevelStreams.size > 0 &&
-        Array.from(currentLevelStreams).every((s) => nextLevelStreams.has(s));
-
-      if (isComplete) {
-        // Promote to same stream (e.g., SSS 1 A -> SSS 2 A)
-        const nextClassWithStream = classesAtNextLevel.find(
-          (c) =>
-            c.school_streams?.name === stream &&
-            (!department || !c.school_departments?.name || c.school_departments?.name === department)
-        );
-        
-        if (nextClassWithStream) {
-          console.log(`✓ Complete stream setup found. Promoting ${currentClassLevel} ${stream} → ${nextClassLevel} ${stream}`);
-          return {
-            id: nextClassWithStream.id,
-            name: nextClassWithStream.name,
-            education_level: educationLevel,
-            department: nextClassWithStream.school_departments?.name,
-          };
-        }
-      } else {
-        console.log(`⚠ Incomplete stream setup. Current level has streams [${Array.from(currentLevelStreams).join(', ')}], next level has [${Array.from(nextLevelStreams).join(', ') || 'none'}]`);
-      }
-
-      // If not complete or stream class not found, fall back to non-stream class
-      const nextClassWithoutStream = classesAtNextLevel.find(
-        (c) =>
-          !c.school_streams?.name &&
-          (!department || !c.school_departments?.name || c.school_departments?.name === department)
-      );
-      
-      if (nextClassWithoutStream) {
-        console.log(`→ Combining streams. Promoting ${currentClassLevel} ${stream} → ${nextClassLevel} (no stream)`);
-        return {
-          id: nextClassWithoutStream.id,
-          name: nextClassWithoutStream.name,
-          education_level: educationLevel,
-          department: nextClassWithoutStream.school_departments?.name,
-        };
-      }
-    }
-
-    // If student doesn't have a stream or no suitable class found yet
-    const nextClass = classesAtNextLevel.find(
-      (c) => {
-        // For SSS, match department if specified
-        if (nextClassLevel.startsWith("SSS") && department && c.school_departments?.name) {
-          return c.school_departments?.name === department;
-        }
-        
-        return true;
-      }
-    );
-
-    if (nextClass) {
-      const streamInfo = stream ? ` ${stream}` : "";
-      console.log(`→ Promoting ${currentClassLevel}${streamInfo} → ${nextClassLevel} (${nextClass.name})`);
-      return {
-        id: nextClass.id,
-        name: nextClass.name,
-        education_level: educationLevel,
-        department: nextClass.school_departments?.name,
-      };
-    }
-
-    console.warn(`✗ No suitable next class found for ${currentClassLevel}${stream ? ` ${stream}` : ""} → ${nextClassLevel}`);
-    return undefined;
   }
 
   function calculateGrade(average: number): string {
@@ -672,7 +472,7 @@ export default function PromotionsPage() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Graduating (SSS 3)</CardTitle>
+                  <CardTitle className="text-sm font-medium">Graduating (Final Level)</CardTitle>
                   <GraduationCap className="h-4 w-4 text-purple-600" />
                 </CardHeader>
                 <CardContent>

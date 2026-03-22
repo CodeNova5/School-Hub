@@ -7,6 +7,7 @@ import React, {
   useEffect,
   memo,
   useReducer,
+  useRef,
 } from "react";
 import {
   useReactTable,
@@ -412,8 +413,10 @@ export default function PromotionsPage() {
   const [classProgress, setClassProgress] = useState<ClassProgress[]>([]);
   const [destinationOptions, setDestinationOptions] = useState<DestinationOption[]>([]);
   const [selectedDestinationClass, setSelectedDestinationClass] = useState<string | null>(null);
+  const [loadingDestinationOptions, setLoadingDestinationOptions] = useState(false);
   const [loadingClasses, setLoadingClasses] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(false);
+  const destinationFetchSeq = useRef(0);
 
   // Filter state for students
   const [filterState, dispatchFilter] = useReducer(
@@ -509,6 +512,8 @@ export default function PromotionsPage() {
 
   const fetchDestinationOptions = useCallback(async () => {
     if (!selectedSessionId || !selectedClass?.id) return;
+    const requestId = ++destinationFetchSeq.current;
+    setLoadingDestinationOptions(true);
     try {
       const response = await fetch(
         `/api/admin/promotions/class-mappings?sessionId=${selectedSessionId}&sourceClassId=${selectedClass.id}`
@@ -516,6 +521,8 @@ export default function PromotionsPage() {
       if (!response.ok) throw new Error("Failed to fetch destination options");
 
       const data = await response.json();
+      if (requestId !== destinationFetchSeq.current) return;
+
       setDestinationOptions(data.destinationOptions || []);
       if (data.currentMapping?.destination_class_id) {
         setSelectedDestinationClass(data.currentMapping.destination_class_id);
@@ -523,8 +530,13 @@ export default function PromotionsPage() {
         setSelectedDestinationClass(null);
       }
     } catch (error: any) {
+      if (requestId !== destinationFetchSeq.current) return;
       console.error("Error fetching destination options:", error);
       toast.error("Failed to load destination options");
+    } finally {
+      if (requestId === destinationFetchSeq.current) {
+        setLoadingDestinationOptions(false);
+      }
     }
   }, [selectedSessionId, selectedClass]);
 
@@ -553,14 +565,13 @@ export default function PromotionsPage() {
     if (!selectedClass?.id || !selectedSessionId) return;
     setLoading(true);
     try {
-      // Only exclude processed students if this class has already been partially processed
-      const selectedClassProgress = classProgress.find((cp) => cp.classId === selectedClass.id);
-      const hasProcessedStudents = selectedClassProgress && selectedClassProgress.processedStudents > 0;
-
       const params = new URLSearchParams({
         sessionId: selectedSessionId,
         classId: selectedClass.id,
-        excludeProcessed: String(hasProcessedStudents), // Only exclude if partially processed
+        // Always exclude already-decided students in class workflow.
+        // This prevents students promoted into this class earlier in the same session
+        // from showing up again for processing.
+        excludeProcessed: "true",
         limit: String(pagination.pageSize),
         offset: String(pagination.pageIndex * pagination.pageSize),
         search: filterState.search,
@@ -722,6 +733,8 @@ export default function PromotionsPage() {
   // When selected class changes, fetch destination options and student data
   useEffect(() => {
     if (selectedClass?.id && selectedSessionId) {
+      setDestinationOptions([]);
+      setSelectedDestinationClass(null);
       fetchDestinationOptions();
       setPagination({ pageIndex: 0, pageSize: 50 });
     }
@@ -927,6 +940,7 @@ export default function PromotionsPage() {
                                 progress={cp}
                                 isSelected={selectedClass?.id === cp.classId}
                                 onselect={() => {
+                                  setLoadingDestinationOptions(true);
                                   setSelectedClass({ id: cp.classId, name: cp.className });
                                   setPhase("mapping");
                                 }}
@@ -953,7 +967,24 @@ export default function PromotionsPage() {
                   </Button>
                 </div>
 
-                {destinationOptions.length === 0 ? (
+                {loadingDestinationOptions ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <RefreshCw className="h-5 w-5 animate-spin" />
+                        Loading Class Mapping
+                      </CardTitle>
+                      <CardDescription>
+                        Checking promotion destination options for {selectedClass.name}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-sm text-muted-foreground">
+                        Please wait...
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : destinationOptions.length === 0 ? (
                   // Terminal Level - No mapping needed
                   <Card className="border-amber-200 bg-amber-50">
                     <CardHeader>
@@ -1216,7 +1247,7 @@ export default function PromotionsPage() {
                       </div>
                     ) : students.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
-                        No students found - this class may be completed
+                        No pending students found for this class in this session
                       </div>
                     ) : (
                       <>

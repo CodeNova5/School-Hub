@@ -435,8 +435,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Apply client-side filters (search, status, class)
-    let filteredData = dataToProcess;
+    // Apply class scope first so stats represent the selected class (or all classes in legacy mode).
+    const filterByClassId = classId || (classFilter !== "all" ? classFilter : null);
+
+    let classScopedData = dataToProcess;
+    if (filterByClassId) {
+      classScopedData = classScopedData.filter((s: any) => {
+        // If classId is a UUID, filter by class_id; otherwise filter by class_name
+        if (classId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(classId)) {
+          return s.current_class_id === classId;
+        }
+        // Otherwise use class name filter (legacy behavior)
+        return s.current_class_name === filterByClassId;
+      });
+    }
+
+    // Apply client-side filters for the table (search and status).
+    let filteredData = classScopedData;
 
     // Search filter
     if (search) {
@@ -453,20 +468,6 @@ export async function GET(request: NextRequest) {
       filteredData = filteredData.filter((s: any) => s.is_eligible);
     } else if (statusFilter === "needs_review") {
       filteredData = filteredData.filter((s: any) => s.needs_manual_review);
-    }
-
-    // Class filter - NEW: prioritize classId if provided
-    const filterByClassId = classId || (classFilter !== "all" ? classFilter : null);
-    
-    if (filterByClassId) {
-      filteredData = filteredData.filter((s: any) => {
-        // If classId is a UUID, filter by class_id; otherwise filter by class_name
-        if (classId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(classId)) {
-          return s.current_class_id === classId;
-        }
-        // Otherwise use class name filter (legacy behavior)
-        return s.current_class_name === filterByClassId;
-      });
     }
 
     // Sort by student name for consistency
@@ -527,12 +528,12 @@ export async function GET(request: NextRequest) {
     const response: PromotionResponse = {
       settings: promotionSettings,
       students: paginatedData,
-      total_students: eligibilityData.length,
-      eligible_count: eligibilityData.filter((s: PromotionStudent) => s.is_eligible).length,
-      graduating_count: eligibilityData.filter(
+      total_students: classScopedData.length,
+      eligible_count: classScopedData.filter((s: PromotionStudent) => s.is_eligible).length,
+      graduating_count: classScopedData.filter(
         (s: PromotionStudent) => s.is_graduating && s.is_eligible
       ).length,
-      needs_review_count: eligibilityData.filter((s: PromotionStudent) => s.needs_manual_review)
+      needs_review_count: classScopedData.filter((s: PromotionStudent) => s.needs_manual_review)
         .length,
       pagination: {
         offset,

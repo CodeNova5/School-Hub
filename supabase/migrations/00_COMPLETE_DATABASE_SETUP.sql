@@ -570,17 +570,6 @@ CREATE TABLE IF NOT EXISTS testimonials (
 
 CREATE INDEX IF NOT EXISTS idx_testimonials_published ON testimonials(published);
 
--- SCHOOL_SETTINGS TABLE
-CREATE TABLE IF NOT EXISTS school_settings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  key text UNIQUE NOT NULL,
-  value jsonb NOT NULL,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_school_settings_key ON school_settings(key);
-
 
 -- Recreate period_slots with proper multitenancy
 CREATE TABLE period_slots (
@@ -926,7 +915,6 @@ ALTER TABLE admissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE news ENABLE ROW LEVEL SECURITY;
 ALTER TABLE testimonials ENABLE ROW LEVEL SECURITY;
-ALTER TABLE school_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE period_slots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE student_optional_subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE timetable_entries ENABLE ROW LEVEL SECURITY;

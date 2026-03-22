@@ -71,8 +71,6 @@ ALTER TABLE admissions   ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES scho
 ALTER TABLE events       ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
 -- News
 ALTER TABLE news         ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
--- School Settings (now properly per-school)
-ALTER TABLE school_settings ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
 -- Period Slots
 ALTER TABLE period_slots ADD COLUMN IF NOT EXISTS school_id uuid REFERENCES schools(id) ON DELETE CASCADE;
 -- Timetable Entries
@@ -159,8 +157,6 @@ BEGIN
   UPDATE events       SET school_id = default_school_id WHERE school_id IS NULL;
   -- News
   UPDATE news         SET school_id = default_school_id WHERE school_id IS NULL;
-  -- School Settings
-  UPDATE school_settings SET school_id = default_school_id WHERE school_id IS NULL;
   -- Period Slots
   UPDATE period_slots SET school_id = default_school_id WHERE school_id IS NULL;
   -- Timetable Entries
@@ -216,7 +212,6 @@ ALTER TABLE results      ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE admissions   ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE events       ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE news         ALTER COLUMN school_id SET NOT NULL;
-ALTER TABLE school_settings ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE period_slots ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE timetable_entries ALTER COLUMN school_id SET NOT NULL;
 ALTER TABLE subject_classes ALTER COLUMN school_id SET NOT NULL;
@@ -248,11 +243,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_teacher_staff_id_per_school
 ALTER TABLE students DROP CONSTRAINT IF EXISTS students_student_id_key;
 CREATE UNIQUE INDEX IF NOT EXISTS unique_student_id_per_school
   ON students (school_id, student_id);
-
--- School settings: key unique per school
-ALTER TABLE school_settings DROP CONSTRAINT IF EXISTS school_settings_key_key;
-CREATE UNIQUE INDEX IF NOT EXISTS unique_school_settings_key_per_school
-  ON school_settings (school_id, key);
 
 -- Period slots: day/period unique per school
 ALTER TABLE period_slots DROP CONSTRAINT IF EXISTS unique_day_period;
@@ -294,7 +284,6 @@ CREATE INDEX IF NOT EXISTS idx_results_school       ON results(school_id);
 CREATE INDEX IF NOT EXISTS idx_admissions_school    ON admissions(school_id);
 CREATE INDEX IF NOT EXISTS idx_events_school        ON events(school_id);
 CREATE INDEX IF NOT EXISTS idx_news_school          ON news(school_id);
-CREATE INDEX IF NOT EXISTS idx_school_settings_school ON school_settings(school_id);
 CREATE INDEX IF NOT EXISTS idx_period_slots_school  ON period_slots(school_id);
 CREATE INDEX IF NOT EXISTS idx_timetable_entries_school ON timetable_entries(school_id);
 CREATE INDEX IF NOT EXISTS idx_subject_classes_school ON subject_classes(school_id);
@@ -998,22 +987,6 @@ CREATE POLICY "Admins can manage testimonials"
   TO authenticated
   USING (is_super_admin() OR is_admin())
   WITH CHECK (is_super_admin() OR is_admin());
-
--- -------------------- SCHOOL_SETTINGS --------------------
-DROP POLICY IF EXISTS "Authenticated users can read school_settings" ON school_settings;
-DROP POLICY IF EXISTS "Admins can manage school_settings"            ON school_settings;
-DROP POLICY IF EXISTS "School users can read school_settings"        ON school_settings;
-
-CREATE POLICY "School users can read school_settings"
-  ON school_settings FOR SELECT
-  TO authenticated
-  USING (is_super_admin() OR school_id = get_my_school_id());
-
-CREATE POLICY "Admins can manage school_settings"
-  ON school_settings FOR ALL
-  TO authenticated
-  USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
-  WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
 -- -------------------- PERIOD_SLOTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read period_slots" ON period_slots;

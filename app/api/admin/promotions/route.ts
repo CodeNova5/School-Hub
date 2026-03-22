@@ -394,19 +394,45 @@ export async function GET(request: NextRequest) {
     let dataToProcess = eligibilityData;
     
     if (excludeProcessed) {
-      // Get all processed student IDs for this session
-      const { data: processedHistory } = await supabaseAdmin
-        .from("class_history")
-        .select("student_id")
-        .eq("session_id", sessionId);
-      
-      const processedStudentIds = new Set(
-        (processedHistory || []).map((h: any) => h.student_id)
-      );
-      
-      dataToProcess = eligibilityData.filter(
-        (s: any) => !processedStudentIds.has(s.student_id)
-      );
+      if (classId) {
+        // When processing a specific class, exclude students who:
+        // 1. Were promoted INTO this class from another class in this session
+        // 2. Were already processed OUT of this class in this session
+        const { data: classHistory } = await supabaseAdmin
+          .from("class_history")
+          .select("student_id, class_id, promoted_to_class_id")
+          .eq("session_id", sessionId);
+        
+        const excludedStudentIds = new Set();
+        (classHistory || []).forEach((h: any) => {
+          // Exclude if promoted INTO this class from a different class
+          if (h.promoted_to_class_id === classId && h.class_id !== classId) {
+            excludedStudentIds.add(h.student_id);
+          }
+          // Exclude if already processed FROM this class (promoted/graduated/repeated)
+          if (h.class_id === classId) {
+            excludedStudentIds.add(h.student_id);
+          }
+        });
+        
+        dataToProcess = eligibilityData.filter(
+          (s: any) => !excludedStudentIds.has(s.student_id)
+        );
+      } else {
+        // Generic case: exclude all processed students
+        const { data: processedHistory } = await supabaseAdmin
+          .from("class_history")
+          .select("student_id")
+          .eq("session_id", sessionId);
+        
+        const processedStudentIds = new Set(
+          (processedHistory || []).map((h: any) => h.student_id)
+        );
+        
+        dataToProcess = eligibilityData.filter(
+          (s: any) => !processedStudentIds.has(s.student_id)
+        );
+      }
     }
 
     // Apply client-side filters (search, status, class)

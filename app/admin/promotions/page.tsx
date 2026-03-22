@@ -123,6 +123,9 @@ interface ClassProgress {
   classId: string;
   className: string;
   classLevel: string;
+  classLevelOrder: number;
+  educationLevel: string;
+  educationLevelOrder: number;
   totalStudents: number;
   status: "pending" | "in_progress" | "completed";
   processedStudents: number;
@@ -848,7 +851,7 @@ export default function PromotionsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Classes Grid */}
+                {/* Classes Grid - Grouped by Education Level */}
                 {loadingProgress ? (
                   <div className="text-center py-12 text-muted-foreground">
                     Loading classes...
@@ -862,17 +865,68 @@ export default function PromotionsPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {classProgress.map((cp) => (
-                      <ClassProgressCard
-                        key={cp.classId}
-                        progress={cp}
-                        isSelected={selectedClass?.id === cp.classId}
-                        onselect={() => {
-                          setSelectedClass({ id: cp.classId, name: cp.className });
-                          setPhase("mapping");
-                        }}
-                      />
+                  <div className="space-y-8">
+                    {Array.from(
+                      classProgress
+                        .sort((a, b) => a.educationLevelOrder - b.educationLevelOrder)
+                        .reduce((groups, cp) => {
+                          const key = cp.educationLevel;
+                          const existing = groups.get(key) || [];
+                          groups.set(key, [...existing, cp]);
+                          return groups;
+                        }, new Map<string, ClassProgress[]>())
+                        .entries()
+                    ).map(([educationLevel, classes]) => (
+                      <div key={educationLevel} className="space-y-4">
+                        {/* Education Level Header */}
+                        <div className="flex items-center gap-3 px-2 py-3 border-b-2 border-blue-200">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {educationLevel}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {classes.length} class{classes.length !== 1 ? "es" : ""}
+                            </p>
+                          </div>
+                          <div className="flex gap-6 text-sm">
+                            <div className="text-center">
+                              <div className="font-semibold text-green-600">
+                                {classes.filter(c => c.status === "completed").length}
+                              </div>
+                              <div className="text-muted-foreground text-xs">Completed</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-semibold text-blue-600">
+                                {classes.filter(c => c.status === "in_progress").length}
+                              </div>
+                              <div className="text-muted-foreground text-xs">In Progress</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-semibold text-gray-600">
+                                {classes.filter(c => c.status === "pending").length}
+                              </div>
+                              <div className="text-muted-foreground text-xs">Pending</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Classes for this Education Level */}
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                          {classes
+                            .sort((a, b) => a.classLevelOrder - b.classLevelOrder)
+                            .map((cp) => (
+                              <ClassProgressCard
+                                key={cp.classId}
+                                progress={cp}
+                                isSelected={selectedClass?.id === cp.classId}
+                                onselect={() => {
+                                  setSelectedClass({ id: cp.classId, name: cp.className });
+                                  setPhase("mapping");
+                                }}
+                              />
+                            ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}

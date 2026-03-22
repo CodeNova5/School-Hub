@@ -70,14 +70,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get all classes for this school with student counts
+    // Get all classes for this school with student counts and education level
     const { data: classes, error: classesError } = await supabaseAdmin
       .from("classes")
       .select(
         `
         id,
         name,
-        school_class_levels(name),
+        class_level_id,
+        school_class_levels(
+          id,
+          name,
+          order_sequence,
+          education_level_id,
+          school_education_levels(
+            id,
+            name,
+            order_sequence
+          )
+        ),
         students(count)
       `
       )
@@ -125,6 +136,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Get class history to understand which students have been processed
+    const { data: classHistory, error: historyError } = await supabaseAdmin
+      .from("class_history")
+      .select("student_id, class_id, promoted_to_class_id")
+      .eq("session_id", sessionId);
+
+    if (historyError) {
+      console.error("Error fetching class history:", historyError);
+      return NextResponse.json(
+        { error: "Failed to fetch class history" },
+        { status: 500 }
+      );
+    }
+
     // Combine data
     const progressMap = new Map(progress?.map((p: any) => [p.class_id, p]) || []);
     const mappingMap = new Map(
@@ -137,11 +162,25 @@ export async function GET(request: NextRequest) {
       const destinationClass = Array.isArray(m?.classes)
         ? m.classes[0]
         : m?.classes;
+      
+      // Calculate eligible students for this class
+      // Exclude students who were promoted INTO this class from another class in this session
+      const allStudentCount = cls.students?.[0]?.count || 0;
+      const promotedIntoThisClass = new Set(
+        (classHistory || [])
+          .filter((h: any) => h.promoted_to_class_id === cls.id && h.class_id !== cls.id)
+          .map((h: any) => h.student_id)
+      );
+      const eligibleStudentCount = Math.max(0, allStudentCount - promotedIntoThisClass.size);
+      
       return {
         classId: cls.id,
         className: cls.name,
         classLevel: cls.school_class_levels?.name || "",
-        totalStudents: cls.students?.[0]?.count || 0,
+        classLevelOrder: cls.school_class_levels?.order_sequence || 999,
+        educationLevel: cls.school_class_levels?.school_education_levels?.name || "Other",
+        educationLevelOrder: cls.school_class_levels?.school_education_levels?.order_sequence || 999,
+        totalStudents: eligibleStudentCount,
         status: p?.status || "pending",
         processedStudents: p?.processed_students || 0,
         promotedStudents: p?.promoted_students || 0,

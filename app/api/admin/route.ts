@@ -185,10 +185,10 @@ export async function POST(req: NextRequest) {
 
         for (const studentId of studentIds) {
           try {
-            // 1. Fetch student details (department, religion)
+            // 1. Fetch student details (department_id, religion_id)
             const { data: student, error: studentError } = await supabaseAdmin
               .from("students")
-              .select("id, department, religion")
+              .select("id, department_id, religion_id")
               .eq("id", studentId)
               .single();
 
@@ -235,32 +235,30 @@ export async function POST(req: NextRequest) {
               .select(`
                 id,
                 subject_id,
-                subjects (
+                is_optional,
+                department_id,
+                religion_id,
+                subjects!subject_classes_subject_id_fkey (
                   id,
-                  name,
-                  is_optional,
-                  department,
-                  religion
+                  name
                 )
               `)
               .eq("class_id", targetClassId);
 
             if (scError) throw scError;
 
-            // 7. Filter subjects based on student's department and religion
+            // 7. Filter subjects based on student's department_id and religion_id
             const filteredSubjects = (subjectClasses || []).filter((sc: any) => {
-              const subject = sc.subjects;
-
-              // Filter by department if applicable
-              if (subject.department && student.department) {
-                if (subject.department !== student.department) {
+              // Filter by department_id if applicable
+              if (sc.department_id && student.department_id) {
+                if (sc.department_id !== student.department_id) {
                   return false;
                 }
               }
 
-              // Filter by religion if applicable
-              if (subject.religion && student.religion) {
-                if (subject.religion !== student.religion) {
+              // Filter by religion_id if applicable
+              if (sc.religion_id && student.religion_id) {
+                if (sc.religion_id !== student.religion_id) {
                   return false;
                 }
               }
@@ -270,7 +268,7 @@ export async function POST(req: NextRequest) {
 
             // 8. Auto-select all compulsory subjects
             const subjectsToAssign = filteredSubjects
-              .filter((sc: any) => !sc.subjects.is_optional)
+              .filter((sc: any) => !sc.is_optional)
               .map((sc: any) => ({
                 student_id: studentId,
                 subject_class_id: sc.id,

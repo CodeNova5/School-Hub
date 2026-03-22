@@ -581,7 +581,7 @@ export async function POST(request: NextRequest) {
     // Check if session is current
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("sessions")
-      .select("is_current")
+      .select("is_current, school_id")
       .eq("id", sessionId)
       .single();
 
@@ -741,17 +741,23 @@ export async function POST(request: NextRequest) {
     if (classId) {
       const { error: progressError } = await supabaseAdmin
         .from("promotion_class_progress")
-        .update({
-          processed_students: (results.promoted + results.graduated + results.repeated),
-          promoted_students: results.promoted,
-          graduated_students: results.graduated,
-          repeated_students: results.repeated,
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("session_id", sessionId)
-        .eq("class_id", classId);
+        .upsert(
+          {
+            session_id: sessionId,
+            class_id: classId,
+            school_id: session.school_id,
+            processed_students: (results.promoted + results.graduated + results.repeated),
+            promoted_students: results.promoted,
+            graduated_students: results.graduated,
+            repeated_students: results.repeated,
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "session_id,class_id",
+          }
+        );
 
       if (progressError) {
         console.error("Error updating class progress:", progressError);

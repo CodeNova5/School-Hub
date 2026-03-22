@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
     // Get class history to understand which students have been processed
     const { data: classHistory, error: historyError } = await supabaseAdmin
       .from("class_history")
-      .select("student_id, class_id, promoted_to_class_id")
+      .select("student_id, class_id, promoted_to_class_id, promotion_status")
       .eq("session_id", sessionId);
 
     if (historyError) {
@@ -172,6 +172,49 @@ export async function GET(request: NextRequest) {
           .map((h: any) => h.student_id)
       );
       const eligibleStudentCount = Math.max(0, allStudentCount - promotedIntoThisClass.size);
+
+      const classHistoryForClass = (classHistory || []).filter(
+        (h: any) => h.class_id === cls.id
+      );
+
+      const promotedFromHistory = classHistoryForClass.filter(
+        (h: any) => h.promotion_status === "promoted"
+      ).length;
+
+      const graduatedFromHistory = classHistoryForClass.filter(
+        (h: any) => h.promotion_status === "graduated"
+      ).length;
+
+      const repeatedFromHistory = classHistoryForClass.filter(
+        (h: any) => h.promotion_status === "repeated"
+      ).length;
+
+      // Build a stable denominator for progress cards. Current in-class count can drop
+      // after promotions, so add back students promoted/graduated out of this class.
+      const totalStudents =
+        eligibleStudentCount + promotedFromHistory + graduatedFromHistory;
+
+      // Derive processed count from history to avoid stale/missing progress rows.
+      const processedFromHistory = classHistoryForClass.length;
+
+      const processedStudents = Math.max(
+        p?.processed_students || 0,
+        processedFromHistory
+      );
+
+      const derivedStatus =
+        processedStudents <= 0
+          ? "pending"
+          : processedStudents >= totalStudents
+          ? "completed"
+          : "in_progress";
+
+      const status =
+        p?.status === "completed" || derivedStatus === "completed"
+          ? "completed"
+          : p?.status === "in_progress" || derivedStatus === "in_progress"
+          ? "in_progress"
+          : "pending";
       
       return {
         classId: cls.id,
@@ -180,12 +223,12 @@ export async function GET(request: NextRequest) {
         classLevelOrder: cls.school_class_levels?.order_sequence || 999,
         educationLevel: cls.school_class_levels?.school_education_levels?.name || "Other",
         educationLevelOrder: cls.school_class_levels?.school_education_levels?.order_sequence || 999,
-        totalStudents: eligibleStudentCount,
-        status: p?.status || "pending",
-        processedStudents: p?.processed_students || 0,
-        promotedStudents: p?.promoted_students || 0,
-        graduatedStudents: p?.graduated_students || 0,
-        repeatedStudents: p?.repeated_students || 0,
+        totalStudents,
+        status,
+        processedStudents,
+        promotedStudents: Math.max(p?.promoted_students || 0, promotedFromHistory),
+        graduatedStudents: Math.max(p?.graduated_students || 0, graduatedFromHistory),
+        repeatedStudents: Math.max(p?.repeated_students || 0, repeatedFromHistory),
         mapping: m
           ? {
               ...m,

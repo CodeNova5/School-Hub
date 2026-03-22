@@ -301,7 +301,7 @@ StudentPromotionRow.displayName = "StudentPromotionRow";
 const ClassProgressCard = memo(
   ({ progress, isSelected, onselect }: { progress: ClassProgress; isSelected: boolean; onselect: () => void }) => {
     const completionPercent = progress.totalStudents > 0
-      ? Math.round((progress.processedStudents / progress.totalStudents) * 100)
+      ? Math.min(100, Math.round((progress.processedStudents / progress.totalStudents) * 100))
       : 0;
 
     return (
@@ -492,7 +492,8 @@ export default function PromotionsPage() {
     setLoadingProgress(true);
     try {
       const response = await fetch(
-        `/api/admin/promotions/class-progress?sessionId=${selectedSessionId}`
+        `/api/admin/promotions/class-progress?sessionId=${selectedSessionId}`,
+        { cache: "no-store" }
       );
       if (!response.ok) throw new Error("Failed to fetch class progress");
 
@@ -552,17 +553,23 @@ export default function PromotionsPage() {
     if (!selectedClass?.id || !selectedSessionId) return;
     setLoading(true);
     try {
+      // Only exclude processed students if this class has already been partially processed
+      const selectedClassProgress = classProgress.find((cp) => cp.classId === selectedClass.id);
+      const hasProcessedStudents = selectedClassProgress && selectedClassProgress.processedStudents > 0;
+
       const params = new URLSearchParams({
         sessionId: selectedSessionId,
         classId: selectedClass.id,
-        excludeProcessed: "true", // Exclude already processed students
+        excludeProcessed: String(hasProcessedStudents), // Only exclude if partially processed
         limit: String(pagination.pageSize),
         offset: String(pagination.pageIndex * pagination.pageSize),
         search: filterState.search,
         statusFilter: filterState.statusFilter,
       });
 
-      const response = await fetch(`/api/admin/promotions?${params}`);
+      const response = await fetch(`/api/admin/promotions?${params}`, {
+        cache: "no-store",
+      });
 
       if (!response.ok) throw new Error("Failed to fetch promotion data");
 
@@ -584,7 +591,7 @@ export default function PromotionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSessionId, selectedClass, pagination, filterState]);
+  }, [selectedSessionId, selectedClass, pagination, filterState, classProgress]);
 
   const handleUpdateSettings = useCallback(async () => {
     try {
@@ -946,83 +953,130 @@ export default function PromotionsPage() {
                   </Button>
                 </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      Configure Class Mapping
-                    </CardTitle>
-                    <CardDescription>
-                      {selectedClass.name} → Select destination class
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Destination Class</Label>
-                      <Select
-                        value={selectedDestinationClass || ""}
-                        onValueChange={setSelectedDestinationClass}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder={
-                            destinationOptions.length === 0 
-                              ? "No destination classes available"
-                              : "Select destination class..."
-                          } />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {destinationOptions.length === 0 ? (
-                            <div className="p-2 text-sm text-muted-foreground text-center">
-                              No destination classes found
-                            </div>
-                          ) : (
-                            destinationOptions.map((option) => (
-                              <SelectItem 
-                                key={option.class_id} 
-                                value={option.class_id}
-                              >
-                                {option.class_name}
-                                {option.stream_name && ` (${option.stream_name})`}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {selectedDestinationClass && (
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <p className="text-sm">
-                          <strong>{selectedClass.name}</strong> will promote students to{" "}
-                          <strong>
-                            {destinationOptions.find(
-                              (o) => o.class_id === selectedDestinationClass
-                            )?.class_name}
-                          </strong>
+                {destinationOptions.length === 0 ? (
+                  // Terminal Level - No mapping needed
+                  <Card className="border-amber-200 bg-amber-50">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <GraduationCap className="h-5 w-5 text-amber-600" />
+                        Terminal Level Class
+                      </CardTitle>
+                      <CardDescription>
+                        {selectedClass.name} is the final class level
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="bg-white p-4 rounded-lg border border-amber-200">
+                        <p className="text-sm text-gray-700">
+                          Students in <strong>{selectedClass.name}</strong> will either:
+                        </p>
+                        <ul className="mt-3 space-y-2 text-sm ml-4">
+                          <li className="flex items-center gap-2">
+                            <span className="text-purple-600 font-bold">✓</span>
+                            <span><strong>Graduate</strong> if they meet minimum requirements</span>
+                          </li>
+                          <li className="flex items-center gap-2">
+                            <span className="text-orange-600 font-bold">↻</span>
+                            <span><strong>Repeat</strong> if they don't meet requirements</span>
+                          </li>
+                        </ul>
+                        <p className="mt-4 text-sm text-muted-foreground">
+                          No class mapping is required. You can proceed directly to process students.
                         </p>
                       </div>
-                    )}
 
-                    <div className="flex gap-2 pt-4">
                       <Button
-                        onClick={saveClassMapping}
-                        disabled={!selectedDestinationClass}
-                      >
-                        Save Mapping
-                      </Button>
-                      <Button
-                        variant="outline"
                         onClick={() => {
                           setPhase("processing");
                           setRowSelection({});
                         }}
-                        disabled={destinationOptions.length === 0 && !selectedDestinationClass}
+                        className="w-full"
                       >
-                        Continue to Processing
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Proceed to Processing
                       </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  // Non-Terminal Level - Mapping required
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5" />
+                        Configure Class Mapping
+                      </CardTitle>
+                      <CardDescription>
+                        {selectedClass.name} → Select destination class
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Destination Class</Label>
+                        <Select
+                          value={selectedDestinationClass || ""}
+                          onValueChange={setSelectedDestinationClass}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={
+                              destinationOptions.length === 0 
+                                ? "No destination classes available"
+                                : "Select destination class..."
+                            } />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {destinationOptions.length === 0 ? (
+                              <div className="p-2 text-sm text-muted-foreground text-center">
+                                No destination classes found
+                              </div>
+                            ) : (
+                              destinationOptions.map((option) => (
+                                <SelectItem 
+                                  key={option.class_id} 
+                                  value={option.class_id}
+                                >
+                                  {option.class_name}
+                                  {option.stream_name && ` (${option.stream_name})`}
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {selectedDestinationClass && (
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                          <p className="text-sm">
+                            <strong>{selectedClass.name}</strong> will promote students to{" "}
+                            <strong>
+                              {destinationOptions.find(
+                                (o) => o.class_id === selectedDestinationClass
+                              )?.class_name}
+                            </strong>
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          onClick={saveClassMapping}
+                          disabled={!selectedDestinationClass}
+                        >
+                          Save Mapping
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setPhase("processing");
+                            setRowSelection({});
+                          }}
+                          disabled={!selectedDestinationClass}
+                        >
+                          Continue to Processing
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
@@ -1032,10 +1086,13 @@ export default function PromotionsPage() {
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
-                    onClick={() => setPhase("mapping")}
+                    onClick={() => {
+                      // If terminal class, go back to overview; otherwise go to mapping
+                      setPhase(destinationOptions.length === 0 ? "overview" : "mapping");
+                    }}
                   >
                     <ChevronLeft className="h-4 w-4 mr-2" />
-                    Back to Mapping
+                    Back to {destinationOptions.length === 0 ? "Overview" : "Mapping"}
                   </Button>
                 </div>
 

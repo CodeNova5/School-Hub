@@ -6,6 +6,7 @@
 CREATE TABLE IF NOT EXISTS admins (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE NOT NULL,
+  school_id uuid REFERENCES schools(id) ON DELETE SET NULL,
   name text NOT NULL,
   email text UNIQUE NOT NULL,
   is_active boolean DEFAULT false,

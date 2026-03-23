@@ -23,13 +23,25 @@ interface SubjectClass {
   department: string | null;
 }
 
+interface ResultComponentTemplate {
+  component_key: string;
+  component_name: string;
+  max_score: number;
+  display_order: number;
+  is_active: boolean;
+}
+
+interface ResultGradeScale {
+  grade_label: string;
+  min_percentage: number;
+  remark: string;
+  display_order: number;
+}
+
 interface StudentScore {
   student_id: string;
   student_name: string;
-  welcome_test: number;
-  mid_term_test: number;
-  vetting: number;
-  exam: number;
+  component_scores: Record<string, number>;
   total: number;
   grade: string;
   remark: string;
@@ -44,11 +56,75 @@ export default function SubjectResultEntryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [teacherName, setTeacherName] = useState('');
+  const [resultComponents, setResultComponents] = useState<ResultComponentTemplate[]>([]);
+  const [gradeScale, setGradeScale] = useState<ResultGradeScale[]>([]);
+  const [configuredPassPercentage, setConfiguredPassPercentage] = useState<number>(40);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
+    loadResultSettings();
     loadTeacherSubjects();
   }, [schoolId]);
+
+  async function loadResultSettings() {
+    if (!schoolId) return;
+    try {
+      const [{ data: settingsData }, { data: componentRows }, { data: gradeRows }] = await Promise.all([
+        supabase
+          .from("result_school_settings")
+          .select("pass_percentage, is_configured")
+          .eq("school_id", schoolId)
+          .maybeSingle(),
+        supabase
+          .from("result_component_templates")
+          .select("component_key, component_name, max_score, display_order, is_active")
+          .eq("school_id", schoolId)
+          .eq("is_active", true)
+          .order("display_order", { ascending: true }),
+        supabase
+          .from("result_grade_scales")
+          .select("grade_label, min_percentage, remark, display_order")
+          .eq("school_id", schoolId)
+          .order("display_order", { ascending: true }),
+      ]);
+
+      if (settingsData?.is_configured && componentRows && componentRows.length > 0) {
+        setConfiguredPassPercentage(Number(settingsData.pass_percentage) || 40);
+        setResultComponents(componentRows as ResultComponentTemplate[]);
+        setGradeScale((gradeRows || []) as ResultGradeScale[]);
+      } else {
+        // Use defaults if not configured
+        setConfiguredPassPercentage(40);
+        setResultComponents([
+          { component_key: 'welcome_test', component_name: 'Welcome Test', max_score: 10, display_order: 1, is_active: true },
+          { component_key: 'mid_term_test', component_name: 'Mid Term Test', max_score: 20, display_order: 2, is_active: true },
+          { component_key: 'vetting', component_name: 'Vetting', max_score: 10, display_order: 3, is_active: true },
+          { component_key: 'exam', component_name: 'Exam', max_score: 60, display_order: 4, is_active: true },
+        ]);
+        setGradeScale([
+          { grade_label: 'A1', min_percentage: 75, remark: 'Excellent', display_order: 1 },
+          { grade_label: 'B2', min_percentage: 70, remark: 'Very Good', display_order: 2 },
+          { grade_label: 'B3', min_percentage: 65, remark: 'Good', display_order: 3 },
+          { grade_label: 'C4', min_percentage: 60, remark: 'Credit', display_order: 4 },
+          { grade_label: 'C5', min_percentage: 55, remark: 'Credit', display_order: 5 },
+          { grade_label: 'C6', min_percentage: 50, remark: 'Credit', display_order: 6 },
+          { grade_label: 'D7', min_percentage: 45, remark: 'Pass', display_order: 7 },
+          { grade_label: 'E8', min_percentage: 40, remark: 'Pass', display_order: 8 },
+          { grade_label: 'F9', min_percentage: 0, remark: 'Fail', display_order: 9 },
+        ]);
+      }
+    } catch (err: any) {
+      console.error('Failed to load result settings:', err);
+      // Use defaults on error
+      setConfiguredPassPercentage(40);
+      setResultComponents([
+        { component_key: 'welcome_test', component_name: 'Welcome Test', max_score: 10, display_order: 1, is_active: true },
+        { component_key: 'mid_term_test', component_name: 'Mid Term Test', max_score: 20, display_order: 2, is_active: true },
+        { component_key: 'vetting', component_name: 'Vetting', max_score: 10, display_order: 3, is_active: true },
+        { component_key: 'exam', component_name: 'Exam', max_score: 60, display_order: 4, is_active: true },
+      ]);
+    }
+  }
 
   useEffect(() => {
     if (selectedSubjectClassId) {
@@ -88,8 +164,10 @@ export default function SubjectResultEntryPage() {
           id, 
           subject_id, 
           class_id, 
-          subjects (name, is_optional, department), 
-          classes (name)
+          is_optional,
+          department_id,
+          subjects!subject_classes_subject_id_fkey(name), 
+          classes(name)
         `)
         .eq('teacher_id', teacher.id)
         .eq('school_id', schoolId);
@@ -104,8 +182,8 @@ export default function SubjectResultEntryPage() {
         subject_name: sc.subjects?.name || 'Unknown Subject',
         class_id: sc.class_id,
         class_name: sc.classes?.name || 'Unknown Class',
-        is_optional: sc.subjects?.is_optional || false,
-        department: sc.subjects?.department || null,
+        is_optional: sc.is_optional || false,
+        department: sc.department_id || null,
       })));
     } catch (err: any) {
       toast.error(err.message || 'Failed to load subjects');
@@ -180,22 +258,54 @@ export default function SubjectResultEntryPage() {
           .eq('school_id', schoolId);
         existingResults = resultsData || [];
       }
+
+      const existingResultIds = existingResults
+        .map((row: any) => row.id)
+        .filter((id: string | undefined) => Boolean(id));
+
+      let componentScoreRows: Array<{ result_id: string; component_key: string; score: number }> = [];
+      if (existingResultIds.length > 0) {
+        const { data: componentData } = await supabase
+          .from('result_component_scores')
+          .select('result_id, component_key, score')
+          .eq('school_id', schoolId)
+          .in('result_id', existingResultIds);
+
+        componentScoreRows = (componentData || []) as Array<{ result_id: string; component_key: string; score: number }>;
+      }
+
+      const componentScoresByResultId: Record<string, Record<string, number>> = {};
+      for (const row of componentScoreRows) {
+        if (!componentScoresByResultId[row.result_id]) {
+          componentScoresByResultId[row.result_id] = {};
+        }
+        componentScoresByResultId[row.result_id][row.component_key] = Number(row.score) || 0;
+      }
+
       // Build student scores
       const studentScores: StudentScore[] = filteredStudents.map((student: any) => {
         const result = existingResults.find(r => r.student_id === student.id);
-        const welcome_test = result?.welcome_test || 0;
-        const mid_term_test = result?.mid_term_test || 0;
-        const vetting = result?.vetting || 0;
-        const exam = result?.exam || 0;
-        const total = welcome_test + mid_term_test + vetting + exam;
+        const dynamicScores = result?.id ? (componentScoresByResultId[result.id] || {}) : {};
+        
+        // Read dynamic component rows first; fallback to legacy columns for compatibility.
+        const component_scores: Record<string, number> = {};
+        resultComponents.forEach(component => {
+          const dynamicValue = dynamicScores[component.component_key];
+          const legacyValue = result ? (result[component.component_key as keyof typeof result] || 0) : 0;
+          const value = typeof dynamicValue === 'number' ? dynamicValue : Number(legacyValue) || 0;
+          component_scores[component.component_key] = value;
+        });
+        
+        // Calculate total from configured components
+        const total = resultComponents
+          .filter(c => c.is_active)
+          .reduce((sum, c) => sum + (component_scores[c.component_key] || 0), 0);
+        
         const { grade, remark } = calculateGrade(total);
         return {
           student_id: student.id,
           student_name: `${student.first_name} ${student.last_name}`,
-          welcome_test,
-          mid_term_test,
-          vetting,
-          exam,
+          component_scores,
           total,
           grade,
           remark: result?.remark || remark,
@@ -224,35 +334,54 @@ export default function SubjectResultEntryPage() {
 
 
   function calculateGrade(total: number) {
-    if (total >= 75) return { grade: 'A1', remark: 'Excellent' };
-    if (total >= 70) return { grade: 'B2', remark: 'Very Good' };
-    if (total >= 65) return { grade: 'B3', remark: 'Good' };
-    if (total >= 60) return { grade: 'C4', remark: 'Credit' };
-    if (total >= 55) return { grade: 'C5', remark: 'Credit' };
-    if (total >= 50) return { grade: 'C6', remark: 'Credit' };
-    if (total >= 45) return { grade: 'D7', remark: 'Pass' };
-    if (total >= 40) return { grade: 'E8', remark: 'Pass' };
-    return { grade: 'F9', remark: 'Fail' };
+    const totalMaxScore = resultComponents
+      .filter(c => c.is_active)
+      .reduce((sum, c) => sum + c.max_score, 0);
+    
+    const percentage = totalMaxScore > 0 ? (total / totalMaxScore) * 100 : 0;
+    
+    const sortedScale = [...gradeScale].sort((a, b) => b.min_percentage - a.min_percentage);
+    const fallback = sortedScale[sortedScale.length - 1] || { 
+      grade_label: 'F9', 
+      remark: 'Fail', 
+      min_percentage: 0, 
+      display_order: 99 
+    };
+    
+    if (percentage < configuredPassPercentage) {
+      return { grade: fallback.grade_label, remark: fallback.remark || 'Fail' };
+    }
+    
+    const matched = sortedScale.find((item) => percentage >= item.min_percentage) || fallback;
+    return { grade: matched.grade_label, remark: matched.remark || '' };
   }
 
-  function updateScore(index: number, field: keyof StudentScore, value: string) {
+  function updateScore(index: number, componentKey: string, value: string) {
     const newScores = [...students];
     let num = Math.max(0, Number(value) || 0);
-    const limits: Record<string, number> = {
-      welcome_test: 10,
-      mid_term_test: 20,
-      vetting: 10,
-      exam: 60,
-    };
-    if (limits[field]) {
-      num = Math.min(num, limits[field]);
+    
+    // Find the component to validate max score
+    const component = resultComponents.find(c => c.component_key === componentKey);
+    if (component) {
+      num = Math.min(num, component.max_score);
     }
-    (newScores[index] as any)[field] = num;
-    const total = newScores[index].welcome_test + newScores[index].mid_term_test + newScores[index].vetting + newScores[index].exam;
+    
+    // Update component_scores
+    newScores[index].component_scores = {
+      ...newScores[index].component_scores,
+      [componentKey]: num
+    };
+    
+    // Recalculate total
+    const total = resultComponents
+      .filter(c => c.is_active)
+      .reduce((sum, c) => sum + (newScores[index].component_scores[c.component_key] || 0), 0);
+    
     const { grade, remark } = calculateGrade(total);
     newScores[index].total = total;
     newScores[index].grade = grade;
     newScores[index].remark = remark;
+    
     setStudents(newScores);
   }
 
@@ -279,26 +408,69 @@ export default function SubjectResultEntryPage() {
         setIsSaving(false);
         return;
       }
-      const records = students.map((s) => ({
-        student_id: s.student_id,
-        subject_class_id: selectedSubjectClassId,
-        session_id: sessionData.id,
-        term_id: termData.id,
-        welcome_test: s.welcome_test,
-        mid_term_test: s.mid_term_test,
-        vetting: s.vetting,
-        exam: s.exam,
-        total: s.total,
-        grade: s.grade,
-        remark: s.remark,
-        class_teacher_name: teacherName,
-        entered_by: teacher?.id,
-        school_id: schoolId,
-      }));
-      const { error } = await supabase.from('results').upsert(records, {
-        onConflict: 'student_id,subject_class_id,session_id,term_id',
+      const records = students.map((s) => {
+        const record: any = {
+          student_id: s.student_id,
+          subject_class_id: selectedSubjectClassId,
+          session_id: sessionData.id,
+          term_id: termData.id,
+          total: s.total,
+          grade: s.grade,
+          remark: s.remark,
+          class_teacher_name: teacherName,
+          entered_by: teacher?.id,
+          school_id: schoolId,
+          welcome_test: s.component_scores.welcome_test || 0,
+          mid_term_test: s.component_scores.mid_term_test || 0,
+          vetting: s.component_scores.vetting || 0,
+          exam: s.component_scores.exam || 0,
+        };
+
+        return record;
       });
+      const { data: savedRows, error } = await supabase.from('results').upsert(records, {
+        onConflict: 'student_id,subject_class_id,session_id,term_id',
+      }).select('id, student_id');
       if (error) throw error;
+
+      const rowMap: Record<string, string> = {};
+      for (const row of (savedRows || []) as Array<{ id: string; student_id: string }>) {
+        rowMap[row.student_id] = row.id;
+      }
+
+      const savedResultIds = Object.values(rowMap);
+      if (savedResultIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('result_component_scores')
+          .delete()
+          .eq('school_id', schoolId)
+          .in('result_id', savedResultIds);
+
+        if (deleteError) throw deleteError;
+
+        const componentRows = students.flatMap((student) => {
+          const resultId = rowMap[student.student_id];
+          if (!resultId) return [];
+
+          return resultComponents
+            .filter((component) => component.is_active)
+            .map((component) => ({
+              school_id: schoolId,
+              result_id: resultId,
+              component_key: component.component_key,
+              score: Number(student.component_scores[component.component_key] || 0),
+            }));
+        });
+
+        if (componentRows.length > 0) {
+          const { error: componentSaveError } = await supabase
+            .from('result_component_scores')
+            .upsert(componentRows, { onConflict: 'result_id,component_key' });
+
+          if (componentSaveError) throw componentSaveError;
+        }
+      }
+
       toast.success('Subject results saved successfully');
       // Optionally, redirect or refresh
     } catch (err: any) {
@@ -486,25 +658,15 @@ export default function SubjectResultEntryPage() {
                         <tr className="bg-gradient-to-r from-blue-50 to-indigo-50">
                           <th className="border border-gray-200 px-4 py-3 text-left font-semibold">#</th>
                           <th className="border border-gray-200 px-4 py-3 text-left font-semibold">Student Name</th>
-                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                            Welcome<br />
-                            <span className="text-xs font-normal text-gray-600">(10)</span>
-                          </th>
-                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                            Mid-Term<br />
-                            <span className="text-xs font-normal text-gray-600">(20)</span>
-                          </th>
-                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                            Vetting<br />
-                            <span className="text-xs font-normal text-gray-600">(10)</span>
-                          </th>
-                          <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
-                            Exam<br />
-                            <span className="text-xs font-normal text-gray-600">(60)</span>
-                          </th>
+                          {resultComponents.map((component) => (
+                            <th key={component.component_key} className="border border-gray-200 px-4 py-3 text-center font-semibold w-24">
+                              {component.component_name}<br />
+                              <span className="text-xs font-normal text-gray-600">({component.max_score})</span>
+                            </th>
+                          ))}
                           <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-20 bg-blue-50">
                             Total<br />
-                            <span className="text-xs font-normal text-gray-600">(100)</span>
+                            <span className="text-xs font-normal text-gray-600">({resultComponents.filter(c => c.is_active).reduce((s, c) => s + c.max_score, 0)})</span>
                           </th>
                           <th className="border border-gray-200 px-4 py-3 text-center font-semibold w-16 bg-blue-50">Grade</th>
                           <th className="border border-gray-200 px-4 py-3 text-center font-semibold min-w-[120px]">Remark</th>
@@ -519,56 +681,25 @@ export default function SubjectResultEntryPage() {
                             <td className="border border-gray-200 px-4 py-2 font-medium">
                               {student.student_name}
                             </td>
-                            <td className="border border-gray-200 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="10"
-                                value={student.welcome_test || ''}
-                                onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="border border-gray-200 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="20"
-                                value={student.mid_term_test || ''}
-                                onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="border border-gray-200 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="10"
-                                value={student.vetting || ''}
-                                onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="border border-gray-200 px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min="0"
-                                max="60"
-                                value={student.exam || ''}
-                                onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
-                                placeholder="0"
-                              />
-                            </td>
+                            {resultComponents.map((component) => (
+                              <td key={component.component_key} className="border border-gray-200 px-1 py-1 text-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max={component.max_score}
+                                  value={student.component_scores[component.component_key] || ''}
+                                  onChange={(e) => updateScore(index, component.component_key, e.target.value)}
+                                  className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-1"
+                                  placeholder="0"
+                                />
+                              </td>
+                            ))}
                             <td className="border border-gray-200 px-3 py-2 text-center font-bold text-lg bg-blue-50">
                               {student.total}
                             </td>
                             <td className="border border-gray-200 px-3 py-2 text-center font-bold bg-blue-50">
                               <Badge
-                                variant={student.total >= 50 ? "default" : "destructive"}
+                                variant={student.total >= (resultComponents.filter(c => c.is_active).reduce((s, c) => s + c.max_score, 0) * configuredPassPercentage / 100) ? "default" : "destructive"}
                                 className="font-mono"
                               >
                                 {student.grade}
@@ -577,7 +708,11 @@ export default function SubjectResultEntryPage() {
                             <td className="border border-gray-200 px-2 py-1 text-center">
                               <Textarea
                                 value={student.remark}
-                                onChange={(e) => updateScore(index, 'remark', e.target.value)}
+                                onChange={(e) => {
+                                  const newScores = [...students];
+                                  newScores[index].remark = e.target.value;
+                                  setStudents(newScores);
+                                }}
                                 rows={1}
                                 className="resize-none text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                 placeholder="Enter remark..."
@@ -599,7 +734,7 @@ export default function SubjectResultEntryPage() {
                             <p className="font-bold text-base text-gray-900">{student.student_name}</p>
                           </div>
                           <Badge
-                            variant={student.total >= 50 ? "default" : "destructive"}
+                            variant={student.total >= (resultComponents.filter(c => c.is_active).reduce((s, c) => s + c.max_score, 0) * configuredPassPercentage / 100) ? "default" : "destructive"}
                             className="font-mono text-sm"
                           >
                             {student.grade}
@@ -607,75 +742,32 @@ export default function SubjectResultEntryPage() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-white rounded border border-gray-200 p-3">
-                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
-                              Welcome<span className="text-gray-500">(10)</span>
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="10"
-                              value={student.welcome_test || ''}
-                              onChange={(e) => updateScore(index, 'welcome_test', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
-                              placeholder="0"
-                            />
-                          </div>
-
-                          <div className="bg-white rounded border border-gray-200 p-3">
-                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
-                              Mid-Term<span className="text-gray-500">(20)</span>
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="20"
-                              value={student.mid_term_test || ''}
-                              onChange={(e) => updateScore(index, 'mid_term_test', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
-                              placeholder="0"
-                            />
-                          </div>
-
-                          <div className="bg-white rounded border border-gray-200 p-3">
-                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
-                              Vetting<span className="text-gray-500">(10)</span>
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="10"
-                              value={student.vetting || ''}
-                              onChange={(e) => updateScore(index, 'vetting', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
-                              placeholder="0"
-                            />
-                          </div>
-
-                          <div className="bg-white rounded border border-gray-200 p-3">
-                            <label className="text-xs text-gray-600 font-semibold block mb-1.5">
-                              Exam<span className="text-gray-500">(60)</span>
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="60"
-                              value={student.exam || ''}
-                              onChange={(e) => updateScore(index, 'exam', e.target.value)}
-                              className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
-                              placeholder="0"
-                            />
-                          </div>
+                          {resultComponents.map((component) => (
+                            <div key={component.component_key} className="bg-white rounded border border-gray-200 p-3">
+                              <label className="text-xs text-gray-600 font-semibold block mb-1.5">
+                                {component.component_name}<span className="text-gray-500">({component.max_score})</span>
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={component.max_score}
+                                value={student.component_scores[component.component_key] || ''}
+                                onChange={(e) => updateScore(index, component.component_key, e.target.value)}
+                                className="w-full text-center border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 rounded px-2 py-2 font-semibold"
+                                placeholder="0"
+                              />
+                            </div>
+                          ))}
                         </div>
 
                         <div className="bg-blue-50 rounded border border-blue-200 p-3 flex items-center justify-between">
                           <div>
                             <p className="text-xs text-gray-600 font-semibold">Total Score</p>
-                            <p className="text-2xl font-bold text-blue-600">{student.total}/100</p>
+                            <p className="text-2xl font-bold text-blue-600">{student.total}/{resultComponents.filter(c => c.is_active).reduce((s, c) => s + c.max_score, 0)}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-gray-600 font-semibold">Remark</p>
-                            <p className="font-bold text-base text-gray-900">{student.remark}</p>
+                            <p className="text-xs text-gray-600 font-semibold">Grade</p>
+                            <p className="font-bold text-base text-gray-900">{student.grade}</p>
                           </div>
                         </div>
 
@@ -685,7 +777,11 @@ export default function SubjectResultEntryPage() {
                           </label>
                           <Textarea
                             value={student.remark}
-                            onChange={(e) => updateScore(index, 'remark', e.target.value)}
+                            onChange={(e) => {
+                              const newScores = [...students];
+                              newScores[index].remark = e.target.value;
+                              setStudents(newScores);
+                            }}
                             rows={2}
                             className="resize-none text-sm border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             placeholder="Enter any additional remarks..."

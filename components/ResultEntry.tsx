@@ -13,10 +13,6 @@ interface SubjectScore {
   subject_class_id: string;
   subject_name: string;
   component_scores: Record<string, number>;
-  welcome_test: number;
-  mid_term_test: number;
-  vetting: number;
-  exam: number;
   total: number;
   grade: string;
   remark: string;
@@ -91,29 +87,17 @@ export default function ResultEntry({
   function getComponentScore(score: SubjectScore, componentKey: string): number {
     const dynamicValue = score.component_scores?.[componentKey];
     if (typeof dynamicValue === 'number') return dynamicValue;
-
-    if (componentKey === 'welcome_test') return score.welcome_test || 0;
-    if (componentKey === 'mid_term_test') return score.mid_term_test || 0;
-    if (componentKey === 'vetting') return score.vetting || 0;
-    if (componentKey === 'exam') return score.exam || 0;
     return 0;
   }
 
   function setComponentScore(score: SubjectScore, componentKey: string, value: number): SubjectScore {
-    const next: SubjectScore = {
+    return {
       ...score,
       component_scores: {
         ...score.component_scores,
         [componentKey]: value,
       },
     };
-
-    if (componentKey === 'welcome_test') next.welcome_test = value;
-    if (componentKey === 'mid_term_test') next.mid_term_test = value;
-    if (componentKey === 'vetting') next.vetting = value;
-    if (componentKey === 'exam') next.exam = value;
-
-    return next;
   }
 
   function getVisibleComponentKeys(): string[] {
@@ -420,10 +404,6 @@ export default function ResultEntry({
         subject_class_id: sc.id,
         subject_name: sc.subjects?.name ?? "Unknown",
         component_scores: {},
-        welcome_test: 0,
-        mid_term_test: 0,
-        vetting: 0,
-        exam: 0,
         total: 0,
         grade: "",
         remark: "",
@@ -551,40 +531,31 @@ export default function ResultEntry({
             (s) => s.subject_class_id === res.subject_class_id
           );
           if (idx >= 0) {
-            let merged = {
+            const merged = {
               ...initialScores[idx],
-              welcome_test: res.welcome_test || 0,
-              mid_term_test: res.mid_term_test || 0,
-              vetting: res.vetting || 0,
-              exam: res.exam || 0,
               component_scores: {
                 ...initialScores[idx].component_scores,
               },
             };
 
-            // Legacy fallback mapping
-            merged.component_scores.welcome_test = res.welcome_test || 0;
-            merged.component_scores.mid_term_test = res.mid_term_test || 0;
-            merged.component_scores.vetting = res.vetting || 0;
-            merged.component_scores.exam = res.exam || 0;
-
             const resId = resultIdBySubjectClass[res.subject_class_id];
+            let hasDynamicRows = false;
             if (resId) {
               const rows = componentScoreRows.filter((row) => row.result_id === resId);
+              hasDynamicRows = rows.length > 0;
               for (const row of rows) {
                 merged.component_scores[row.component_key] = Number(row.score) || 0;
               }
             }
 
-            initialScores[idx] = merged;
+            if (!hasDynamicRows) {
+              merged.component_scores.welcome_test = Number(res.welcome_test) || 0;
+              merged.component_scores.mid_term_test = Number(res.mid_term_test) || 0;
+              merged.component_scores.vetting = Number(res.vetting) || 0;
+              merged.component_scores.exam = Number(res.exam) || 0;
+            }
 
-            initialScores[idx] = {
-              ...initialScores[idx],
-              welcome_test: res.welcome_test || 0,
-              mid_term_test: res.mid_term_test || 0,
-              vetting: res.vetting || 0,
-              exam: res.exam || 0,
-            };
+            initialScores[idx] = merged;
             const total = calculateTotalScore(initialScores[idx]);
             const { grade, remark } = calculateGrade(initialScores[idx], total);
             initialScores[idx].total = total;
@@ -872,10 +843,10 @@ export default function ResultEntry({
         session_id: session.id,
         term_id: term.id,
         subject_class_id: score.subject_class_id,
-        welcome_test: getComponentScore(score, "welcome_test"),
-        mid_term_test: getComponentScore(score, "mid_term_test"),
-        vetting: getComponentScore(score, "vetting"),
-        exam: getComponentScore(score, "exam"),
+        welcome_test: Number(score.component_scores.welcome_test) || 0,
+        mid_term_test: Number(score.component_scores.mid_term_test) || 0,
+        vetting: Number(score.component_scores.vetting) || 0,
+        exam: Number(score.component_scores.exam) || 0,
         total: score.total,
         grade: score.grade,
         remark: score.remark,

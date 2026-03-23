@@ -243,10 +243,6 @@ export function ResultsPublicationDialog({
         .select(`
           id,
           student_id,
-          welcome_test,
-          mid_term_test,
-          vetting,
-          exam,
           subject_class:subject_classes!inner(class_id)
         `)
         .eq("session_id", sessionId)
@@ -263,16 +259,15 @@ export function ResultsPublicationDialog({
       // Filter results for this class
       const classResults = results?.filter((r: any) => r.subject_class?.class_id === classId) || [];
 
-      const nonLegacyKeys = selectedKeys.filter((key) => !isLegacyComponentKey(key));
       const resultIds = classResults.map((row: any) => row.id).filter(Boolean);
-      const dynamicScoreMap = new Map<string, Map<string, number>>();
+      const scoreMapByResult = new Map<string, Map<string, number>>();
 
-      if (nonLegacyKeys.length > 0 && resultIds.length > 0) {
+      if (selectedKeys.length > 0 && resultIds.length > 0) {
         let componentScoreQuery = supabase
           .from("result_component_scores")
           .select("result_id, component_key, score")
           .in("result_id", resultIds)
-          .in("component_key", nonLegacyKeys);
+          .in("component_key", selectedKeys);
 
         if (schoolId) {
           componentScoreQuery = componentScoreQuery.eq("school_id", schoolId);
@@ -284,10 +279,10 @@ export function ResultsPublicationDialog({
 
         (dynamicRows || []).forEach((row: any) => {
           const key = String(row.result_id);
-          if (!dynamicScoreMap.has(key)) {
-            dynamicScoreMap.set(key, new Map<string, number>());
+          if (!scoreMapByResult.has(key)) {
+            scoreMapByResult.set(key, new Map<string, number>());
           }
-          dynamicScoreMap.get(key)!.set(String(row.component_key), Number(row.score) || 0);
+          scoreMapByResult.get(key)!.set(String(row.component_key), Number(row.score) || 0);
         });
       }
 
@@ -304,14 +299,8 @@ export function ResultsPublicationDialog({
         } else {
           selectedKeys.forEach((componentKey) => {
             const hasMissingInAnySubject = studentResults.some((result: any) => {
-              if (componentKey === "welcome_test") return result.welcome_test === null || result.welcome_test === undefined;
-              if (componentKey === "mid_term_test") return result.mid_term_test === null || result.mid_term_test === undefined;
-              if (componentKey === "vetting") return result.vetting === null || result.vetting === undefined;
-              if (componentKey === "exam") return result.exam === null || result.exam === undefined;
-
-              const resultMap = dynamicScoreMap.get(String(result.id));
-              const dynamicValue = resultMap?.get(componentKey);
-              return dynamicValue === null || dynamicValue === undefined;
+              const resultMap = scoreMapByResult.get(String(result.id));
+              return !resultMap || !resultMap.has(componentKey);
             });
 
             if (hasMissingInAnySubject) {
@@ -498,7 +487,7 @@ export function ResultsPublicationDialog({
     // Fetch actual results data to calculate scores based on mode
     let resultsQuery = supabase
       .from("results")
-      .select("id, student_id, welcome_test, mid_term_test, vetting, exam, subject_class:subject_classes!inner(class_id)")
+      .select("id, student_id, subject_class:subject_classes!inner(class_id)")
       .eq("term_id", termId)
       .eq("session_id", sessionId);
 
@@ -513,16 +502,15 @@ export function ResultsPublicationDialog({
     // Filter results for this class
     const classResults = resultsData?.filter((r: any) => r.subject_class?.class_id === classId) || [];
 
-    const nonLegacyKeys = selectedKeys.filter((key) => !isLegacyComponentKey(key));
     const classResultIds = classResults.map((row: any) => row.id).filter(Boolean);
-    const dynamicScoreMap = new Map<string, Map<string, number>>();
+    const scoreMapByResult = new Map<string, Map<string, number>>();
 
-    if (nonLegacyKeys.length > 0 && classResultIds.length > 0) {
+    if (selectedKeys.length > 0 && classResultIds.length > 0) {
       let componentScoreQuery = supabase
         .from("result_component_scores")
         .select("result_id, component_key, score")
         .in("result_id", classResultIds)
-        .in("component_key", nonLegacyKeys);
+        .in("component_key", selectedKeys);
 
       if (schoolId) {
         componentScoreQuery = componentScoreQuery.eq("school_id", schoolId);
@@ -533,10 +521,10 @@ export function ResultsPublicationDialog({
 
       (dynamicRows || []).forEach((row: any) => {
         const key = String(row.result_id);
-        if (!dynamicScoreMap.has(key)) {
-          dynamicScoreMap.set(key, new Map<string, number>());
+        if (!scoreMapByResult.has(key)) {
+          scoreMapByResult.set(key, new Map<string, number>());
         }
-        dynamicScoreMap.get(key)!.set(String(row.component_key), Number(row.score) || 0);
+        scoreMapByResult.get(key)!.set(String(row.component_key), Number(row.score) || 0);
       });
     }
 
@@ -555,13 +543,9 @@ export function ResultsPublicationDialog({
       let maxPossibleScore = 0;
 
       studentResults.forEach((result: any) => {
-        const rowDynamic = dynamicScoreMap.get(String(result.id));
+        const rowScores = scoreMapByResult.get(String(result.id));
         selectedKeys.forEach((key) => {
-          if (key === "welcome_test") totalScore += Number(result.welcome_test) || 0;
-          else if (key === "mid_term_test") totalScore += Number(result.mid_term_test) || 0;
-          else if (key === "vetting") totalScore += Number(result.vetting) || 0;
-          else if (key === "exam") totalScore += Number(result.exam) || 0;
-          else totalScore += Number(rowDynamic?.get(key) || 0);
+          totalScore += Number(rowScores?.get(key) || 0);
         });
 
         maxPossibleScore += selectedMaxPerSubject;

@@ -68,9 +68,7 @@ export default function StudentResultPage() {
           last_name,
           classes (
             id,
-            name,
-            level,
-            education_level
+            name
           )
         `)
         .eq("user_id", user.id)

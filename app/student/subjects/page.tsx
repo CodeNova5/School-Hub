@@ -12,6 +12,50 @@ import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
 
+interface Teacher {
+  id: string;
+  first_name: string;
+  last_name: string;
+  photo_url: string | null;
+}
+
+interface Subject {
+  id: string;
+  name: string;
+}
+
+interface Class {
+  id: string;
+  name: string;
+}
+
+interface SubjectClass {
+  id: string;
+  subject_code: string | null;
+  subjects: Subject | null;
+  classes: Class | null;
+  teachers: Teacher | null;
+}
+
+interface StudentSubject {
+  subject_class_id: string;
+}
+
+interface Results {
+  id: string;
+  student_id: string;
+  subject_class_id: string;
+  session_id: string;
+  term_id: string;
+  school_id: string;
+  welcome_test: number | null;
+  mid_term_test: number | null;
+  vetting: number | null;
+  exam: number | null;
+  total: number | null;
+  grade: string | null;
+}
+
 interface SubjectWithResults {
   id: string;
   subject_class_id: string;
@@ -20,10 +64,22 @@ interface SubjectWithResults {
   teacher_name: string;
   teacher_photo_url: string;
   class_name: string;
-  currentTermResult?: any;
-  currentGrade?: string;
+  currentTermResult?: Results;
+  currentGrade?: string | null;
   percentage: number;
   trend: "up" | "down" | "stable";
+}
+
+interface PublishSettings {
+  id: string;
+  class_id: string;
+  session_id: string;
+  term_id: string;
+  school_id: string;
+  welcome_test_published: boolean;
+  mid_term_test_published: boolean;
+  vetting_published: boolean;
+  exam_published: boolean;
 }
 
 export default function StudentSubjectsPage() {
@@ -31,7 +87,7 @@ export default function StudentSubjectsPage() {
   const [student, setStudent] = useState<any>(null);
   const [subjects, setSubjects] = useState<SubjectWithResults[]>([]);
   const [currentTerm, setCurrentTerm] = useState<string>("");
-  const [publishSettings, setPublishSettings] = useState<any>(null);
+  const [publishSettings, setPublishSettings] = useState<PublishSettings | null>(null);
   const [maxScore, setMaxScore] = useState(0);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
@@ -78,9 +134,7 @@ export default function StudentSubjectsPage() {
           class_id,
           classes (
             id,
-            name,
-            level,
-            education_level
+            name
           )
         `)
         .eq("user_id", user.id)
@@ -122,7 +176,7 @@ export default function StudentSubjectsPage() {
           .eq("session_id", sessionData.id)
           .eq("term_id", termData.id)
           .eq("school_id", schoolId)
-          .single();
+          .maybeSingle();
 
         setPublishSettings(pubSettings);
 
@@ -148,36 +202,15 @@ export default function StudentSubjectsPage() {
   async function loadSubjectsAndResults(studentData: any, sessionId: string, termId: string) {
     if (!schoolId) return;
     try {
-      // Get student's enrolled subjects
+      // Step 1: Get student's enrolled subject_class_ids
       const { data: studentSubjects, error: subjectsError } = await supabase
         .from("student_subjects")
-        .select(`
-          subject_class_id,
-          subject_classes (
-            id,
-            subject_code,
-            subjects (
-              id,
-              name
-            ),
-            classes (
-              id,
-              name,
-              level
-            ),
-            teachers (
-              id,
-              first_name,
-              last_name,
-              photo_url
-            )
-          )
-        `)
+        .select("subject_class_id")
         .eq("student_id", studentData.id)
         .eq("school_id", schoolId);
 
       if (subjectsError) {
-        console.error("Error fetching subjects:", subjectsError);
+        console.error("Error fetching student subjects:", subjectsError);
         return;
       }
 
@@ -187,11 +220,47 @@ export default function StudentSubjectsPage() {
         return;
       }
 
+      const subjectClassIds = studentSubjects.map((ss: { subject_class_id: any; }) => ss.subject_class_id);
+
+      // Step 2: Get subject_classes data with nested relationships
+      const { data: subjectClassesData, error: subjectClassesError } = await supabase
+        .from("subject_classes")
+        .select(`
+          id,
+          subject_code,
+          subjects!subject_classes_subject_id_fkey (
+            id,
+            name
+          ),
+          classes (
+            id,
+            name
+          ),
+          teachers (
+            id,
+            first_name,
+            last_name,
+            photo_url
+          )
+        `)
+        .in("id", subjectClassIds)
+        .eq("school_id", schoolId) as any;
+
+      if (subjectClassesError) {
+        console.error("Error fetching subject classes:", subjectClassesError);
+        return;
+      }
+
+      // Step 3: Build map of subject_class_id -> subject data
+      const subjectClassMap = new Map<string, SubjectClass>(
+        (subjectClassesData || []).map((sc: { id: any; }) => [sc.id, sc])
+      );
+
       // Get results for all subjects
       const subjectsWithResults: SubjectWithResults[] = [];
 
       for (const ss of studentSubjects) {
-        const subjectClass = ss.subject_classes as any;
+        const subjectClass = subjectClassMap.get(ss.subject_class_id);
         if (!subjectClass) continue;
 
         // Fetch results for this subject in current term and session
@@ -203,7 +272,7 @@ export default function StudentSubjectsPage() {
           .eq("session_id", sessionId)
           .eq("term_id", termId)
           .eq("school_id", schoolId)
-          .single();
+          .maybeSingle() as any;
 
         // Calculate percentage based on published components
         let calculatedPercentage = 0;
@@ -252,7 +321,7 @@ export default function StudentSubjectsPage() {
             .eq("school_id", schoolId)
             .order("term_id", { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
           if (previousResult) {
             const diff = (results.total || 0) - (previousResult.total || 0);
@@ -271,8 +340,8 @@ export default function StudentSubjectsPage() {
             : "No teacher assigned",
           teacher_photo_url: subjectClass.teachers?.photo_url || "",
           class_name: subjectClass.classes?.name || "",
-          currentTermResult: results,
-          currentGrade: results?.grade,
+          currentTermResult: results || undefined,
+          currentGrade: results?.grade || undefined,
           percentage: calculatedPercentage,
           trend,
         });
@@ -374,7 +443,7 @@ interface SubjectCardProps {
   subject: SubjectWithResults;
   gradeColors: Record<string, string>;
   maxScore: number;
-  publishSettings: any;
+  publishSettings: PublishSettings | null;
 }
 
 function SubjectCard({ subject, gradeColors, maxScore, publishSettings }: SubjectCardProps) {
@@ -383,17 +452,17 @@ function SubjectCard({ subject, gradeColors, maxScore, publishSettings }: Subjec
 
   // Calculate score based on published components
   let publishedScore = 0;
-  if (subject.currentTermResult) {
-    if (publishSettings?.welcome_test_published) {
+  if (subject.currentTermResult && publishSettings) {
+    if (publishSettings.welcome_test_published) {
       publishedScore += subject.currentTermResult.welcome_test || 0;
     }
-    if (publishSettings?.mid_term_test_published) {
+    if (publishSettings.mid_term_test_published) {
       publishedScore += subject.currentTermResult.mid_term_test || 0;
     }
-    if (publishSettings?.vetting_published) {
+    if (publishSettings.vetting_published) {
       publishedScore += subject.currentTermResult.vetting || 0;
     }
-    if (publishSettings?.exam_published) {
+    if (publishSettings.exam_published) {
       publishedScore += subject.currentTermResult.exam || 0;
     }
   }
@@ -431,8 +500,9 @@ function SubjectCard({ subject, gradeColors, maxScore, publishSettings }: Subjec
             <AvatarFallback className="bg-indigo-100 text-indigo-700 font-semibold">
               {subject.teacher_name
                 .split(" ")
-                .map((n) => n[0])
-                .join("")}
+                .map((n) => (n ? n[0] : ""))
+                .join("")
+                .substring(0, 2)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
@@ -470,13 +540,15 @@ function SubjectCard({ subject, gradeColors, maxScore, publishSettings }: Subjec
                 <p className="text-xs text-gray-600 mb-1">Grade</p>
                 <Badge
                   style={{
-                    backgroundColor: gradeColors[subject.currentGrade || ""] || "#gray",
+                    backgroundColor: subject.currentGrade && gradeColors[subject.currentGrade] 
+                      ? gradeColors[subject.currentGrade] 
+                      : "#ccc",
                     color: "white",
                     fontSize: "16px",
                     padding: "6px 12px",
                   }}
                 >
-                  {subject.currentGrade}
+                  {subject.currentGrade || "N/A"}
                 </Badge>
               </div>
             </div>

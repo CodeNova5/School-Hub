@@ -119,9 +119,7 @@ export default function StudentDashboardPage() {
           last_name,
           classes (
             id,
-            name,
-            level,
-            education_level
+            name
           )
         `)
         .eq("user_id", user.id)
@@ -185,7 +183,7 @@ export default function StudentDashboardPage() {
           .eq("class_id", classData.id)
           .eq("term_id", termData.id)
           .eq("school_id", schoolId)
-          .single();
+          .maybeSingle();
 
         const { data: resultsData, error: resultsError } = await supabase
           .from("results")

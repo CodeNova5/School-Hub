@@ -76,9 +76,7 @@ export default function StudentTimetablePage() {
           class_id,
           classes (
             id,
-            name,
-            level,
-            education_level
+            name
           )
         `)
         .eq("user_id", user.id)
@@ -125,7 +123,7 @@ export default function StudentTimetablePage() {
           subject_classes (
             id,
             subject_code,
-            subjects ( name ),
+            subjects!subject_classes_subject_id_fkey ( name ),
             teachers ( first_name, last_name )
           )
         `)

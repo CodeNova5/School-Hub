@@ -49,7 +49,7 @@ type Class = {
   class_teacher_id: any;
   id: string;
   name: string;
-  level: string;
+  class_level_id: string;
 };
 
 type Subject = {
@@ -114,7 +114,7 @@ export default function TeachersPage() {
       // Fetch all subject_classes with related data (for assignments)
       const { data: allSubjectClasses } = await supabase
         .from('subject_classes')
-        .select('id, subject_id, class_id, teacher_id, subjects(id, name), classes(id, name)')
+        .select('id, subject_id, class_id, teacher_id, subjects!subject_classes_subject_id_fkey(id, name), classes(id, name)')
         .eq('school_id', schoolId);
 
       // Build teacher details
@@ -162,7 +162,7 @@ export default function TeachersPage() {
     try {
       const { data, error } = await supabase
         .from('classes')
-        .select('id, name, level')
+        .select('id, name, class_level_id, class_teacher_id')
         .eq('school_id', schoolId)
         .order('name', { ascending: true });
       if (error) throw error;
@@ -190,10 +190,10 @@ export default function TeachersPage() {
   async function fetchSubjectClasses() {
     if (!schoolId) return;
     try {
-      // Join with subjects and classes for display
+      // Join with subjects and classes for display - use explicit FK reference
       const { data, error } = await supabase
         .from('subject_classes')
-        .select('id, subject_id, class_id, subjects(name), classes(name)')
+        .select('id, subject_id, class_id, teacher_id, subjects!subject_classes_subject_id_fkey(id, name), classes(id, name)')
         .eq('school_id', schoolId);
       if (error) throw error;
       setSubjectClasses(data || []);

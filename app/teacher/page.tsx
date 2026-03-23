@@ -1,7 +1,6 @@
 "use client";
 
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { StatCard } from '@/components/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -139,7 +138,7 @@ export default function TeacherDashboard() {
         const [{ data: subjectClasses, error: subjectError }, { data: currentSession }, { data: currentTerm }] = await Promise.all([
           supabase
             .from('subject_classes')
-            .select(`id, subject_id, class_id, subjects(name), classes(name)`)
+            .select(`id, subject_id, class_id, subjects!subject_classes_subject_id_fkey(name), classes(name)`)
             .eq('teacher_id', teacher.id)
             .eq('school_id', schoolId),
           supabase.from("sessions").select("id").eq("is_current", true).eq('school_id', schoolId).single(),
@@ -240,7 +239,7 @@ export default function TeacherDashboard() {
             *,
             classes(id, name),
             subject_classes(
-              subjects(name),
+              subjects!subject_classes_subject_id_fkey(name),
               teachers(id)
             ),
             period_slots(start_time, end_time)

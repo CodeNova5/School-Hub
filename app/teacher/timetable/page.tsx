@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser, getTeacherByUserId } from "@/lib/auth";
@@ -77,7 +76,7 @@ export default function TeacherTimetablePage() {
         .from("timetable_entries")
         .select(`
           *,
-          classes(id, name, level),
+          classes(id, name, class_level_id, school_class_levels(name)),
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
           religion,
           subject_classes (

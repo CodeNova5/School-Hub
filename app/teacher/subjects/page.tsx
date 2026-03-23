@@ -12,11 +12,16 @@ import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { useSchoolContext } from '@/hooks/use-school-context';
 
-interface SubjectWithClasses extends Subject {
+interface SubjectWithClasses extends Omit<Subject, 'education_level' | 'department' | 'religion'> {
   applicableClasses: Class[];
   classId?: string; // Add classId for grouping by class
   className?: string;
   subjectClassId?: string; // Add subject_classes.id for unique analytics link
+  teacher_id?: string; // Add teacher_id from subject_classes
+  // Override the Subject interface properties to allow strings
+  education_level?: string;
+  department?: string | null;
+  religion?: string | null;
 }
 
 export default function TeacherSubjectsPage() {
@@ -27,11 +32,32 @@ export default function TeacherSubjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filterDepartment, setFilterDepartment] = useState('');
   const [filterOptional, setFilterOptional] = useState('');
+  const [departments, setDepartments] = useState<string[]>([]);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
-    loadData();
+    if (schoolId) {
+      loadSchoolConfig();
+      loadData();
+    }
   }, [schoolId]);
+
+  async function loadSchoolConfig() {
+    if (!schoolId) return;
+    try {
+      const { data: deptResult } = await supabase
+        .from('school_departments')
+        .select('name')
+        .eq('school_id', schoolId)
+        .eq('is_active', true);
+
+      if (deptResult) {
+        setDepartments(deptResult.map((d: { name: string }) => d.name));
+      }
+    } catch (error) {
+      console.error('Error loading departments:', error);
+    }
+  }
 
   async function loadData() {
     if (!schoolId) return;
@@ -49,6 +75,26 @@ export default function TeacherSubjectsPage() {
         return;
       }
 
+      // Fetch departments and religions for mapping
+      const [deptResult, religionResult, levelResult] = await Promise.all([
+        supabase
+          .from('school_departments')
+          .select('id, name')
+          .eq('school_id', schoolId),
+        supabase
+          .from('school_religions')
+          .select('id, name')
+          .eq('school_id', schoolId),
+        supabase
+          .from('school_class_levels')
+          .select('id, name')
+          .eq('school_id', schoolId),
+      ]);
+
+      const deptMap = new Map((deptResult.data || []).map((d: any) => [d.id, d.name]));
+      const religionMap = new Map((religionResult.data || []).map((r: any) => [r.id, r.name]));
+      const levelMap = new Map((levelResult.data || []).map((l: any) => [l.id, l.name]));
+
       // Fetch all subject_classes for this teacher with subject and class details
       const { data: subjectClassesData } = await supabase
         .from('subject_classes')
@@ -57,8 +103,8 @@ export default function TeacherSubjectsPage() {
           subject_id,
           class_id,
           teacher_id,
-          subjects(id, name, education_level, department, religion, is_optional),
-          classes(id, name, level, education_level, department)
+          subjects!subject_classes_subject_id_fkey(id, name, education_level_id, department_id, religion_id, is_optional),
+          classes(id, name, class_level_id, department_id)
         `)
         .eq('teacher_id', teacher.id)
         .eq('school_id', schoolId);
@@ -73,7 +119,11 @@ export default function TeacherSubjectsPage() {
       const uniqueClasses = new Map();
       subjectClassesData.forEach((item: any) => {
         if (item.classes) {
-          uniqueClasses.set(item.classes.id, item.classes);
+          const classLevel = levelMap.get(item.classes.class_level_id);
+          uniqueClasses.set(item.classes.id, {
+            ...item.classes,
+            level: classLevel || 'Unknown'
+          });
         }
       });
 
@@ -85,12 +135,19 @@ export default function TeacherSubjectsPage() {
       
       subjectClassesData.forEach((item: any) => {
         if (item.subjects && item.classes) {
+          const classLevel = levelMap.get(item.classes.class_level_id);
+          const department = deptMap.get(item.subjects.department_id);
+          const religion = religionMap.get(item.subjects.religion_id);
+
           subjectsList.push({
             ...item.subjects,
             teacher_id: item.teacher_id,
             classId: item.classes.id,
             className: item.classes.name,
-            subjectClassId: item.id, // Store subject_classes.id for analytics
+            subjectClassId: item.id,
+            education_level: classLevel || 'Unknown',
+            department: department || null,
+            religion: religion || null,
             applicableClasses: [item.classes]
           });
         }
@@ -194,9 +251,11 @@ export default function TeacherSubjectsPage() {
                 className="px-3 py-2 border rounded-md"
               >
                 <option value="">All Departments</option>
-                <option value="Science">Science</option>
-                <option value="Commercial">Commercial</option>
-                <option value="Art">Art</option>
+                {departments.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
               </select>
 
               {/* Optional/Mandatory Filter */}
@@ -230,11 +289,11 @@ export default function TeacherSubjectsPage() {
             <Card key={className}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Badge className={getLevelColor(classSubjects[0].education_level)}>
+                  <Badge className={getLevelColor(classSubjects[0].education_level || '')}>
                     {className}
                   </Badge>
                   <span className="text-xs text-gray-500">
-                    {classSubjects[0].education_level}
+                    {classSubjects[0].education_level || 'Unknown'}
                   </span>
                   <span className="text-sm font-normal text-gray-600">
                     ({classSubjects.length} subject{classSubjects.length !== 1 ? 's' : ''})

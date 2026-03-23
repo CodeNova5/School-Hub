@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
-import { Save, Loader2, ArrowLeft, BookOpen, Users, GraduationCap } from 'lucide-react';
+import { Loader2, BookOpen, Users, GraduationCap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useSchoolContext } from '@/hooks/use-school-context';
 
@@ -93,14 +93,6 @@ export default function SubjectResultEntryPage() {
         setResultComponents(componentRows as ResultComponentTemplate[]);
         setGradeScale((gradeRows || []) as ResultGradeScale[]);
       } else {
-        // Use defaults if not configured
-        setConfiguredPassPercentage(40);
-        setResultComponents([
-          { component_key: 'welcome_test', component_name: 'Welcome Test', max_score: 10, display_order: 1, is_active: true },
-          { component_key: 'mid_term_test', component_name: 'Mid Term Test', max_score: 20, display_order: 2, is_active: true },
-          { component_key: 'vetting', component_name: 'Vetting', max_score: 10, display_order: 3, is_active: true },
-          { component_key: 'exam', component_name: 'Exam', max_score: 60, display_order: 4, is_active: true },
-        ]);
         setGradeScale([
           { grade_label: 'A1', min_percentage: 75, remark: 'Excellent', display_order: 1 },
           { grade_label: 'B2', min_percentage: 70, remark: 'Very Good', display_order: 2 },
@@ -115,14 +107,6 @@ export default function SubjectResultEntryPage() {
       }
     } catch (err: any) {
       console.error('Failed to load result settings:', err);
-      // Use defaults on error
-      setConfiguredPassPercentage(40);
-      setResultComponents([
-        { component_key: 'welcome_test', component_name: 'Welcome Test', max_score: 10, display_order: 1, is_active: true },
-        { component_key: 'mid_term_test', component_name: 'Mid Term Test', max_score: 20, display_order: 2, is_active: true },
-        { component_key: 'vetting', component_name: 'Vetting', max_score: 10, display_order: 3, is_active: true },
-        { component_key: 'exam', component_name: 'Exam', max_score: 60, display_order: 4, is_active: true },
-      ]);
     }
   }
 
@@ -414,16 +398,11 @@ export default function SubjectResultEntryPage() {
           subject_class_id: selectedSubjectClassId,
           session_id: sessionData.id,
           term_id: termData.id,
-          total: s.total,
           grade: s.grade,
           remark: s.remark,
           class_teacher_name: teacherName,
           entered_by: teacher?.id,
           school_id: schoolId,
-          welcome_test: s.component_scores.welcome_test || 0,
-          mid_term_test: s.component_scores.mid_term_test || 0,
-          vetting: s.component_scores.vetting || 0,
-          exam: s.component_scores.exam || 0,
         };
 
         return record;

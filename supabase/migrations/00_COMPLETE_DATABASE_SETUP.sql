@@ -456,14 +456,7 @@ CREATE TABLE IF NOT EXISTS results (
   session_id uuid REFERENCES sessions(id) ON DELETE CASCADE,
   term_id uuid REFERENCES terms(id) ON DELETE CASCADE,
   
-  -- Test scores
-  welcome_test numeric DEFAULT 0 CHECK (welcome_test >= 0 AND welcome_test <= 10),
-  mid_term_test numeric DEFAULT 0 CHECK (mid_term_test >= 0 AND mid_term_test <= 20),
-  vetting numeric DEFAULT 0 CHECK (vetting >= 0 AND vetting <= 10),
-  exam numeric DEFAULT 0 CHECK (exam >= 0 AND exam <= 60),
-  
   -- Calculated fields
-  total numeric DEFAULT 0,
   grade text DEFAULT '',
   remark text DEFAULT '',
   subject_name text,
@@ -696,63 +689,22 @@ CREATE INDEX IF NOT EXISTS idx_results_publication_class_session_term ON results
 -- PART 5: FUNCTIONS AND TRIGGERS
 -- ============================================================================
 
--- Calculate result totals and grades
-CREATE OR REPLACE FUNCTION calculate_result_totals()
+-- Keep results timestamps in sync on updates.
+CREATE OR REPLACE FUNCTION update_results_timestamp()
 RETURNS TRIGGER AS $$
-DECLARE
-  calculated_total numeric;
-  calculated_grade text;
-  calculated_remark text;
 BEGIN
-  calculated_total := COALESCE(NEW.welcome_test, 0) +
-                      COALESCE(NEW.mid_term_test, 0) +
-                      COALESCE(NEW.vetting, 0) +
-                      COALESCE(NEW.exam, 0);
-  
-  NEW.total := calculated_total;
-  
-  IF calculated_total >= 75 THEN
-    calculated_grade := 'A1';
-    calculated_remark := 'Excellent';
-  ELSIF calculated_total >= 70 THEN
-    calculated_grade := 'B2';
-    calculated_remark := 'Very Good';
-  ELSIF calculated_total >= 65 THEN
-    calculated_grade := 'B3';
-    calculated_remark := 'Good';
-  ELSIF calculated_total >= 60 THEN
-    calculated_grade := 'C4';
-    calculated_remark := 'Credit';
-  ELSIF calculated_total >= 55 THEN
-    calculated_grade := 'C5';
-    calculated_remark := 'Credit';
-  ELSIF calculated_total >= 50 THEN
-    calculated_grade := 'C6';
-    calculated_remark := 'Credit';
-  ELSIF calculated_total >= 45 THEN
-    calculated_grade := 'D7';
-    calculated_remark := 'Pass';
-  ELSIF calculated_total >= 40 THEN
-    calculated_grade := 'E8';
-    calculated_remark := 'Pass';
-  ELSE
-    calculated_grade := 'F9';
-    calculated_remark := 'Fail';
-  END IF;
-  
-  NEW.grade := calculated_grade;
-  NEW.remark := calculated_remark;
   NEW.updated_at := now();
-  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trigger_calculate_result_totals ON results;
-CREATE TRIGGER trigger_calculate_result_totals
-  BEFORE INSERT OR UPDATE OF welcome_test, mid_term_test, vetting, exam ON results
+DROP FUNCTION IF EXISTS calculate_result_totals();
+DROP TRIGGER IF EXISTS trigger_update_results_timestamp ON results;
+CREATE TRIGGER trigger_update_results_timestamp
+  BEFORE UPDATE ON results
   FOR EACH ROW
-  EXECUTE FUNCTION calculate_result_totals();
+  EXECUTE FUNCTION update_results_timestamp();
 
 -- Check submission on time
 CREATE OR REPLACE FUNCTION check_submission_on_time()
@@ -844,44 +796,74 @@ DECLARE
   student_count integer;
   student_position integer;
   student_avg numeric;
+  subject_count integer;
+  school_component_max numeric;
 BEGIN
-  SELECT SUM(r.total)
-  INTO student_total
-  FROM results r
-  WHERE r.student_id = p_student_id
-    AND r.term_id = p_term_id;
-  
-  WITH class_totals AS (
-    SELECT
-      r.student_id,
-      SUM(r.total) as total_score
+  student_total := 0;
+  student_count := 0;
+  student_position := 1;
+  student_avg := 0;
+
+  -- During fresh bootstrap, dynamic result tables may not yet exist.
+  IF to_regclass('public.result_component_scores') IS NULL THEN
+    RETURN QUERY SELECT student_position, student_total, student_count, student_avg;
+    RETURN;
+  END IF;
+
+  EXECUTE '
+    SELECT COALESCE(SUM(rcs.score), 0)
     FROM results r
-    JOIN subject_classes sc ON sc.id = r.subject_class_id
-    WHERE r.term_id = p_term_id
-      AND sc.class_id = (SELECT class_id FROM students WHERE id = p_student_id)
-    GROUP BY r.student_id
-  )
-  SELECT
-    COUNT(*) + 1,
-    COUNT(DISTINCT ct.student_id)
+    LEFT JOIN result_component_scores rcs ON rcs.result_id = r.id
+    WHERE r.student_id = $1
+      AND r.term_id = $2
+  '
+  INTO student_total
+  USING p_student_id, p_term_id;
+
+  EXECUTE '
+    WITH class_totals AS (
+      SELECT
+        r.student_id,
+        COALESCE(SUM(rcs.score), 0) AS total_score
+      FROM results r
+      JOIN subject_classes sc ON sc.id = r.subject_class_id
+      LEFT JOIN result_component_scores rcs ON rcs.result_id = r.id
+      WHERE r.term_id = $1
+        AND sc.class_id = (SELECT class_id FROM students WHERE id = $2)
+      GROUP BY r.student_id
+    )
+    SELECT
+      COUNT(*) FILTER (WHERE total_score > $3) + 1,
+      COUNT(*)
+    FROM class_totals
+  '
   INTO student_position, student_count
-  FROM class_totals ct
-  WHERE ct.total_score > student_total;
-  
-  WITH subject_count AS (
-    SELECT COUNT(*) as num_subjects
-    FROM results
-    WHERE student_id = p_student_id
-      AND term_id = p_term_id
-  )
-  SELECT
-    CASE
-      WHEN sc.num_subjects > 0
-      THEN (student_total / (sc.num_subjects * 100.0)) * 100
-      ELSE 0
-    END
-  INTO student_avg
-  FROM subject_count sc;
+  USING p_term_id, p_student_id, student_total;
+
+  SELECT COUNT(*)
+  INTO subject_count
+  FROM results
+  WHERE student_id = p_student_id
+    AND term_id = p_term_id;
+
+  EXECUTE '
+    SELECT COALESCE(SUM(max_score), 100)
+    FROM result_component_templates
+    WHERE school_id = (
+      SELECT school_id
+      FROM students
+      WHERE id = $1
+    )
+      AND is_active = true
+  '
+  INTO school_component_max
+  USING p_student_id;
+
+  IF subject_count > 0 AND school_component_max > 0 THEN
+    student_avg := (student_total / (subject_count * school_component_max)) * 100;
+  ELSE
+    student_avg := 0;
+  END IF;
   
   RETURN QUERY SELECT student_position, student_total, student_count, student_avg;
 END;

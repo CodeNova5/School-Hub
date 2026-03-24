@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, Zap, CheckCircle, Trash2, BookMarked, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Zap, CheckCircle, Trash2, BookMarked, ChevronRight, ChevronLeft, GraduationCap } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -365,6 +365,18 @@ export function BulkCreateSubjectsDialog({
               4. Confirm
             </span>
           </div>
+
+          {selectedEducationLevelId && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="text-xs text-amber-600 font-semibold">Working with</p>
+                <p className="text-sm font-bold text-amber-900">
+                  {educationLevels.find(l => l.id === selectedEducationLevelId)?.name}
+                </p>
+              </div>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-6">

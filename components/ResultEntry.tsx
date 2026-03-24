@@ -116,6 +116,10 @@ export default function ResultEntry({
     return resultComponents.filter((component) => component.is_active && visibleKeys.has(component.component_key));
   }
 
+  function getActiveComponentTemplates() {
+    return resultComponents.filter((component) => component.is_active);
+  }
+
   function resolveGradeFromPercentage(percentage: number, passPercentage: number) {
     const sortedScale = [...gradeScale].sort((a, b) => b.min_percentage - a.min_percentage);
     const fallback = sortedScale[sortedScale.length - 1] || { grade_label: "F9", remark: "Fail", min_percentage: 0, display_order: 99 };
@@ -236,47 +240,25 @@ export default function ResultEntry({
         classQuery = classQuery.eq("school_id", schoolId);
       }
 
-      const { data: classData } = await classQuery.single();
+      let sessionQuery = supabase
+        .from("sessions")
+        .select("*");
+      sessionQuery = sessionId ? sessionQuery.eq("id", sessionId) : sessionQuery.eq("is_current", true);
+      if (schoolId) sessionQuery = sessionQuery.eq("school_id", schoolId);
+
+      let termQuery = supabase
+        .from("terms")
+        .select("*");
+      termQuery = termId ? termQuery.eq("id", termId) : termQuery.eq("is_current", true);
+      if (schoolId) termQuery = termQuery.eq("school_id", schoolId);
+
+      const [{ data: classData }, { data: sessionData }, { data: termData }] = await Promise.all([
+        classQuery.single(),
+        sessionQuery.single(),
+        termQuery.single(),
+      ]);
 
       if (classData) setStudentClass(classData);
-
-      // 3. Session & Term (use props if provided)
-      let sessionData: Session | null = null;
-      let termData: Term | null = null;
-      if (sessionId) {
-        let sQuery = supabase
-          .from("sessions")
-          .select("*")
-          .eq("id", sessionId);
-        if (schoolId) sQuery = sQuery.eq("school_id", schoolId);
-        const { data } = await sQuery.single();
-        sessionData = data;
-      } else {
-        let sQuery = supabase
-          .from("sessions")
-          .select("*")
-          .eq("is_current", true);
-        if (schoolId) sQuery = sQuery.eq("school_id", schoolId);
-        const { data } = await sQuery.single();
-        sessionData = data;
-      }
-      if (termId) {
-        let tQuery = supabase
-          .from("terms")
-          .select("*")
-          .eq("id", termId);
-        if (schoolId) tQuery = tQuery.eq("school_id", schoolId);
-        const { data } = await tQuery.single();
-        termData = data;
-      } else {
-        let tQuery = supabase
-          .from("terms")
-          .select("*")
-          .eq("is_current", true);
-        if (schoolId) tQuery = tQuery.eq("school_id", schoolId);
-        const { data } = await tQuery.single();
-        termData = data;
-      }
 
       if (!sessionData || !termData) {
         toast.error("No active session or term");
@@ -340,9 +322,6 @@ export default function ResultEntry({
         scQuery = scQuery.eq("school_id", schoolId);
       }
 
-      const { data: subjectClasses, error: scError } = await scQuery;
-
-      // 4b. Get optional subjects for this student
       let optQuery = supabase
         .from("student_optional_subjects")
         .select("subject_id")
@@ -352,7 +331,11 @@ export default function ResultEntry({
         optQuery = optQuery.eq("school_id", schoolId);
       }
 
-      const { data: optionalSubjectRows, error: optError } = await optQuery;
+      const [{ data: subjectClasses, error: scError }, { data: optionalSubjectRows }] = await Promise.all([
+        scQuery,
+        optQuery,
+      ]);
+
       const optionalSubjectIds = (optionalSubjectRows || [])
         .map((row: { subject_id: string }) => row.subject_id)
         .filter((row: string) => row);
@@ -409,6 +392,8 @@ export default function ResultEntry({
         remark: "",
       }));
 
+      const enrolledSubjectClassIds = filteredSubjectClasses.map((sc: any) => sc.id);
+
       // 6. Determine next term logic
       let nextTermDateValue = "";
       try {
@@ -458,22 +443,6 @@ export default function ResultEntry({
 
       setNextTermDate(nextTermDateValue || "");
 
-      // 7. Load existing results - filtered by this student's enrolled class
-      // Get subject_class_ids for the student's enrolled class
-      let enrolledClassSubjectsQuery = supabase
-        .from("subject_classes")
-        .select("id")
-        .eq("class_id", studentData.class_id);
-
-      if (schoolId) {
-        enrolledClassSubjectsQuery = enrolledClassSubjectsQuery.eq("school_id", schoolId);
-      }
-
-      const { data: enrolledClassSubjects } = await enrolledClassSubjectsQuery;
-
-      const enrolledSubjectClassIds = enrolledClassSubjects?.map((sc: { id: string }) => sc.id) || [];
-      ;
-
       let existingResultsQuery = supabase
         .from("results")
         .select("*")
@@ -514,6 +483,17 @@ export default function ResultEntry({
         componentScoreRows = (data || []) as Array<{ result_id: string; component_key: string; score: number }>;
       }
 
+      const componentRowsByResultId: Record<string, Array<{ component_key: string; score: number }>> = {};
+      for (const row of componentScoreRows) {
+        if (!componentRowsByResultId[row.result_id]) {
+          componentRowsByResultId[row.result_id] = [];
+        }
+        componentRowsByResultId[row.result_id].push({
+          component_key: row.component_key,
+          score: Number(row.score) || 0,
+        });
+      }
+
       if (existingResults && existingResults.length > 0) {
         const first = existingResults[0];
         setClassTeacherRemark(first.class_teacher_remark || "");
@@ -541,7 +521,7 @@ export default function ResultEntry({
             const resId = resultIdBySubjectClass[res.subject_class_id];
             let hasDynamicRows = false;
             if (resId) {
-              const rows = componentScoreRows.filter((row) => row.result_id === resId);
+              const rows = componentRowsByResultId[resId] || [];
               hasDynamicRows = rows.length > 0;
               for (const row of rows) {
                 merged.component_scores[row.component_key] = Number(row.score) || 0;
@@ -837,8 +817,27 @@ export default function ResultEntry({
         }
       }
 
+      const activeComponents = getActiveComponentTemplates();
+      const activeMaxScore = activeComponents.reduce((sum, component) => sum + Number(component.max_score || 0), 0) || 100;
+      const normalizedScores = scores.map((score) => {
+        const total = activeComponents.reduce(
+          (sum, component) => sum + getComponentScore(score, component.component_key),
+          0
+        );
+        const percentage = (total / activeMaxScore) * 100;
+        const { grade, remark } = resolveGradeFromPercentage(percentage, configuredPassPercentage);
+
+        return {
+          ...score,
+          total,
+          grade,
+          remark: score.remark || remark,
+        };
+      });
+
       // Save each subject's result separately using Supabase upsert
-      const saveDataArray = scores.map(score => ({
+      const effectiveSchoolId = schoolId || student.school_id || null;
+      const saveDataArray = normalizedScores.map(score => ({
         student_id: student.id,
         session_id: session.id,
         term_id: term.id,
@@ -857,7 +856,7 @@ export default function ResultEntry({
         class_position: classPosition,
         total_students: totalStudents,
         class_average: classAverage,
-        school_id: schoolId,
+        school_id: effectiveSchoolId,
       }));
 
       // Upsert all results at once
@@ -875,31 +874,41 @@ export default function ResultEntry({
         const rows = (savedRows || []) as Array<{ id: string; subject_class_id: string }>;
         if (rows.length > 0) {
           const rowIds = rows.map((row) => row.id);
+          const activeComponentKeys = activeComponents.map((component) => component.component_key);
 
-          let deleteQuery = supabase
+          let staleRowsQuery = supabase
             .from("result_component_scores")
             .delete()
             .in("result_id", rowIds);
 
-          if (schoolId || student.school_id) {
-            deleteQuery = deleteQuery.eq("school_id", schoolId || student.school_id);
+          if (effectiveSchoolId) {
+            staleRowsQuery = staleRowsQuery.eq("school_id", effectiveSchoolId);
           }
 
-          await deleteQuery;
+          if (activeComponentKeys.length > 0) {
+            const activeKeysFilter = `(${activeComponentKeys.map((key) => `"${key}"`).join(",")})`;
+            staleRowsQuery = staleRowsQuery.not("component_key", "in", activeKeysFilter);
+          }
+
+          const { error: staleDeleteError } = await staleRowsQuery;
+          if (staleDeleteError) {
+            console.error("Error deleting stale component scores:", staleDeleteError);
+            toast.error(staleDeleteError.message || "Failed to clean up stale component scores");
+            return;
+          }
 
           const resultIdBySubjectClass: Record<string, string> = {};
           for (const row of rows) {
             resultIdBySubjectClass[row.subject_class_id] = row.id;
           }
 
-          const componentRows = scores.flatMap((score) => {
+          const componentRows = normalizedScores.flatMap((score) => {
             const resultId = resultIdBySubjectClass[score.subject_class_id];
             if (!resultId) return [];
 
-            return resultComponents
-              .filter((component) => component.is_active)
+            return activeComponents
               .map((component) => ({
-                school_id: schoolId || student.school_id,
+                school_id: effectiveSchoolId,
                 result_id: resultId,
                 component_key: component.component_key,
                 score: getComponentScore(score, component.component_key),
@@ -918,6 +927,8 @@ export default function ResultEntry({
             }
           }
         }
+
+        setScores(normalizedScores);
 
         toast.success("Results saved successfully");
       }

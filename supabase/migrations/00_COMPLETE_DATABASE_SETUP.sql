@@ -459,7 +459,6 @@ CREATE TABLE IF NOT EXISTS results (
   -- Calculated fields
   grade text DEFAULT '',
   remark text DEFAULT '',
-  subject_name text,
   
   -- Teacher and principal comments
   class_teacher_remark text DEFAULT '',
@@ -494,6 +493,7 @@ CREATE INDEX IF NOT EXISTS idx_results_session ON results(session_id);
 -- ADMISSIONS TABLE
 CREATE TABLE IF NOT EXISTS admissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   application_number text UNIQUE NOT NULL,
   first_name text NOT NULL,
   last_name text NOT NULL,
@@ -516,6 +516,7 @@ CREATE TABLE IF NOT EXISTS admissions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_admissions_status ON admissions(status);
+CREATE INDEX IF NOT EXISTS idx_admissions_school ON admissions(school_id);
 
 -- EVENTS TABLE
 CREATE TABLE IF NOT EXISTS events (

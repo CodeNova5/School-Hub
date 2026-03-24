@@ -16,6 +16,7 @@ import { StudentsTab } from "./components/StudentsTab";
 import { AttendanceTab } from "./components/AttendanceTab";
 import { TimetableTab } from "./components/TimetableTab";
 import { ResultsTab } from "./components/ResultsTab";
+import { generateUniqueSubjectCode } from "@/lib/subject-code-generator";
 
 
 type ClassData = {
@@ -308,13 +309,6 @@ export default function ClassPage() {
     }
   }
 
-  // Generate subject code
-  function generateSubjectCode(subjectName: string, className: string) {
-    const clean = subjectName.replace(/\s+/g, "");
-    const prefix = clean.slice(0, 3).toUpperCase();
-    return `${prefix}-${className}`;
-  }
-
   // Generate and assign subject codes for missing ones
   async function generateMissingSubjectCodes() {
     if (!classData) return;
@@ -326,8 +320,17 @@ export default function ClassPage() {
       return;
     }
 
+    // Get existing subject codes in this class
+    const existingCodes = subjects
+      .filter(sc => sc.subject_code)
+      .map(sc => sc.subject_code);
+
     const updates = subjectsWithoutCode.map(async sc => {
-      const newCode = generateSubjectCode(sc.subject.name, classData.name);
+      const newCode = generateUniqueSubjectCode(
+        sc.subject.name,
+        classData.name,
+        existingCodes
+      );
       await supabase
         .from("subject_classes")
         .update({ subject_code: newCode })

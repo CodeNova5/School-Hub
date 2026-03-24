@@ -22,11 +22,11 @@ type ClassData = {
   academic_year: string | null;
   created_at: string;
   updated_at: string;
-  school_class_levels?: {
+  school_class_levels: {
     id: string;
     name: string;
     code: string | null;
-  };
+  } | null;
 };
 
 interface StudentsTabProps {

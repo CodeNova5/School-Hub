@@ -66,6 +66,7 @@ import type {
   EducationLevelSubjectPreset,
 } from "@/lib/types";
 import { getSubjectsForLevel } from "@/lib/nigerian-subjects";
+import { generateUniqueSubjectCode } from "@/lib/subject-code-generator";
 
 /* ─────────────────────────────────────────────
    Form type helpers
@@ -703,11 +704,6 @@ export default function SchoolConfigPage() {
     }
   }, [schoolId]);
 
-  function getSubjectCodeForClass(subjectName: string, className: string) {
-    const prefix = subjectName.replace(/\s+/g, "").slice(0, 3).toUpperCase();
-    return `${prefix}-${className}`;
-  }
-
   async function saveOperationalSubject(e: React.FormEvent) {
     e.preventDefault();
     if (!schoolId) return;
@@ -817,12 +813,34 @@ export default function SchoolConfigPage() {
     setApplyingSubject(true);
     try {
       const selectedClasses = classes.filter((item) => selectedClassIds.includes(item.id));
+      
+      // Get existing subject codes for each class to avoid duplicates
+      const { data: existingSubjectClasses, error: fetchError } = await supabase
+        .from("subject_classes")
+        .select("class_id, subject_code")
+        .eq("school_id", schoolId)
+        .in("class_id", selectedClasses.map(c => c.id));
+
+      if (fetchError) throw fetchError;
+
+      // Create a map of existing codes per class
+      const codesByClass: Record<string, string[]> = {};
+      for (const classItem of selectedClasses) {
+        codesByClass[classItem.id] = (existingSubjectClasses || [])
+          .filter((sc: { class_id: string; }) => sc.class_id === classItem.id)
+          .map((sc:any) => sc.subject_code);
+      }
+
       const payload = selectedClasses.map((classItem) => ({
         school_id: schoolId,
         subject_id: applyTargetSubject.id,
         class_id: classItem.id,
         teacher_id: teacherByClassId[classItem.id] || null,
-        subject_code: getSubjectCodeForClass(applyTargetSubject.name, classItem.name),
+        subject_code: generateUniqueSubjectCode(
+          applyTargetSubject.name,
+          classItem.name,
+          codesByClass[classItem.id] || []
+        ),
         department_id: applyTargetSubject.department_id || null,
         religion_id: applyTargetSubject.religion_id || null,
         is_optional: applyTargetSubject.is_optional,

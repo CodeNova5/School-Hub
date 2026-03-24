@@ -16,6 +16,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Subject, EducationLevel, Department, Religion, Teacher, EducationLevelSubjectPreset } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
+import { generateUniqueSubjectCode } from "@/lib/subject-code-generator";
 
 interface BulkCreateSubjectsProps {
   schoolId: string;
@@ -215,13 +216,6 @@ export function BulkCreateSubjectsDialog({
         return;
       }
 
-      // Helper function to generate subject code
-      const generateSubjectCode = (subjectName: string, className: string) => {
-        const clean = subjectName.replace(/\s+/g, "");
-        const prefix = clean.slice(0, 3).toUpperCase();
-        return `${prefix}-${className}`;
-      };
-
       let createdCount = 0;
       let failedSubjects: string[] = [];
 
@@ -258,7 +252,7 @@ export function BulkCreateSubjectsDialog({
               school_id: schoolId,
               class_id: c.id,
               subject_id: newSubject.id,
-              subject_code: generateSubjectCode(newSubject.name, c.name),
+              subject_code: generateUniqueSubjectCode(newSubject.name, c.name),
             };
 
             // Only add teacher_id if one is assigned to this subject

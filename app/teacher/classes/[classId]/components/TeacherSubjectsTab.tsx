@@ -17,9 +17,6 @@ import { useRouter } from "next/navigation";
 type Subject = {
   id: string;
   name: string;
-  is_optional: boolean;
-  religion?: string | null;
-  department?: string | null;
 };
 
 type SubjectClass = {
@@ -31,6 +28,7 @@ type SubjectClass = {
     first_name: string;
     last_name: string;
   } | null;
+  is_optional: boolean;
 };
 
 interface TeacherSubjectsTabProps {
@@ -126,8 +124,8 @@ export default function TeacherSubjectsTab({
                       </td>
                       <td className="p-3 font-medium">{subject.subject.name}</td>
                       <td className="p-3">
-                        <Badge variant={subject.subject.is_optional ? "secondary" : "default"}>
-                          {subject.subject.is_optional ? "Optional" : "Compulsory"}
+                        <Badge variant={subject.is_optional ? "secondary" : "default"}>
+                          {subject.is_optional ? "Optional" : "Compulsory"}
                         </Badge>
                       </td>
                       <td className="p-3 text-sm">
@@ -187,8 +185,8 @@ export default function TeacherSubjectsTab({
                           <Badge variant="outline" className="text-xs font-mono shrink-0">
                             {subject.subject_code}
                           </Badge>
-                          <Badge variant={subject.subject.is_optional ? "secondary" : "default"} className="text-xs shrink-0">
-                            {subject.subject.is_optional ? "Optional" : "Compulsory"}
+                          <Badge variant={subject.is_optional ? "secondary" : "default"} className="text-xs shrink-0">
+                            {subject.is_optional ? "Optional" : "Compulsory"}
                           </Badge>
                         </div>
                         <p className="font-medium text-sm sm:text-base truncate">

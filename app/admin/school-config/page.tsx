@@ -1601,6 +1601,8 @@ export default function SchoolConfigPage() {
                     </Button>
                   </div>
 
+                  
+
                   {/* Filter Panel - Improved */}
                   <div className="rounded-lg border bg-card p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -1685,6 +1687,19 @@ export default function SchoolConfigPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Education Level Indicator */}
+                  {opEducationLevelFilter !== "all" && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 p-4 flex items-center gap-3">
+                      <GraduationCap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <div>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Filtered by Education Level</p>
+                        <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">
+                          {educationLevels.find((el) => el.id === opEducationLevelFilter)?.name}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Table - Desktop View */}
@@ -1701,115 +1716,132 @@ export default function SchoolConfigPage() {
                           <th className="px-4 py-3 text-right">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y">
-                        {opSubjectsLoading ? (
-                          <LoadingRow />
-                        ) : (() => {
-                          const filtered = operationalSubjects.filter((s) => {
-                            if (opSubjectsSearch && !s.name.toLowerCase().includes(opSubjectsSearch.toLowerCase())) return false;
-                            if (opEducationLevelFilter !== "all" && s.education_level_id !== opEducationLevelFilter) return false;
-                            if (opDepartmentFilter !== "all" && s.department_id !== opDepartmentFilter) return false;
-                            if (opStatusFilter === "active" && !s.is_active) return false;
-                            if (opStatusFilter === "inactive" && s.is_active) return false;
-                            return true;
-                          });
+                      {(() => {
+                        const filteredOpSubjects = operationalSubjects.filter((s) => {
+                          if (opSubjectsSearch && !s.name.toLowerCase().includes(opSubjectsSearch.toLowerCase())) return false;
+                          if (opEducationLevelFilter !== "all" && s.education_level_id !== opEducationLevelFilter) return false;
+                          if (opDepartmentFilter !== "all" && s.department_id !== opDepartmentFilter) return false;
+                          if (opStatusFilter === "active" && !s.is_active) return false;
+                          if (opStatusFilter === "inactive" && s.is_active) return false;
+                          return true;
+                        });
 
-                          return filtered.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="px-4 py-8">
-                                <div className="flex flex-col items-center justify-center">
-                                  <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-2" />
-                                  <p className="text-sm text-muted-foreground">No subjects match your filters</p>
-                                </div>
-                              </td>
-                            </tr>
-                          ) : (
-                            filtered.slice(0, 15).map((subject) => {
-                              const level = educationLevels.find((el) => el.id === subject.education_level_id);
-                              const department = departments.find((dp) => dp.id === subject.department_id);
+                        return (
+                          <>
+                            <tbody className="divide-y">
+                              {opSubjectsLoading ? (
+                                <LoadingRow />
+                              ) : (
+                                filteredOpSubjects.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={6} className="px-4 py-8">
+                                      <div className="flex flex-col items-center justify-center">
+                                        <BookOpen className="h-10 w-10 text-muted-foreground/30 mb-2" />
+                                        <p className="text-sm text-muted-foreground">No subjects match your filters</p>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  filteredOpSubjects.map((subject) => {
+                                    const level = educationLevels.find((el) => el.id === subject.education_level_id);
+                                    const department = departments.find((dp) => dp.id === subject.department_id);
 
-                              return (
-                                <tr key={subject.id} className="hover:bg-muted/50 transition-colors">
-                                  <td className="px-4 py-3">
-                                    <div>
-                                      <p className="font-semibold text-sm">{subject.name}</p>
-                                      {subject.religion_id && (
-                                        <p className="text-xs text-muted-foreground mt-0.5">Religious subject</p>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">{level?.name || "—"}</td>
-                                  <td className="px-4 py-3 hidden lg:table-cell">
-                                    {department?.name ? (
-                                      <Badge variant="secondary" className="text-xs bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200">
-                                        {department.name}
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-muted-foreground">—</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {subject.is_optional ? (
-                                      <Badge variant="secondary" className="text-xs bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200">Optional</Badge>
-                                    ) : (
-                                      <Badge className="text-xs bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200">Core</Badge>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <Badge 
-                                      variant={subject.is_active ? "default" : "outline"} 
-                                      className={`text-xs ${subject.is_active ? 'bg-green-100 dark:bg-green-950 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-950 text-red-900 dark:text-red-200'}`}
-                                    >
-                                      {subject.is_active ? "✓ Active" : "Inactive"}
-                                    </Badge>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7 text-xs"
-                                        onClick={() => {
-                                          void openApplyDialog(subject);
-                                        }}
-                                      >
-                                        Apply
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 text-xs"
-                                        onClick={() => {
-                                          setEditingOperationalSubject(subject);
-                                          setSubjectForm({
-                                            name: subject.name,
-                                            education_level_id: subject.education_level_id || "",
-                                            department_id: subject.department_id || "",
-                                            religion_id: subject.religion_id || "",
-                                            is_optional: subject.is_optional,
-                                            is_active: subject.is_active,
-                                          });
-                                          setSubjectDialogOpen(true);
-                                        }}
-                                      >
-                                        <Pencil className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          );
-                        })()}
-                      </tbody>
+                                    return (
+                                      <tr key={subject.id} className="hover:bg-muted/50 transition-colors">
+                                        <td className="px-4 py-3">
+                                          <div>
+                                            <p className="font-semibold text-sm">{subject.name}</p>
+                                            {subject.religion_id && (
+                                              <p className="text-xs text-muted-foreground mt-0.5">Religious subject</p>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">{level?.name || "—"}</td>
+                                        <td className="px-4 py-3 hidden lg:table-cell">
+                                          {department?.name ? (
+                                            <Badge variant="secondary" className="text-xs bg-purple-100 dark:bg-purple-950 text-purple-900 dark:text-purple-200">
+                                              {department.name}
+                                            </Badge>
+                                          ) : (
+                                            <span className="text-muted-foreground">—</span>
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                          {subject.is_optional ? (
+                                            <Badge variant="secondary" className="text-xs bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-200">Optional</Badge>
+                                          ) : (
+                                            <Badge className="text-xs bg-blue-100 dark:bg-blue-950 text-blue-900 dark:text-blue-200">Core</Badge>
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                          <Badge 
+                                            variant={subject.is_active ? "default" : "outline"} 
+                                            className={`text-xs ${subject.is_active ? 'bg-green-100 dark:bg-green-950 text-green-900 dark:text-green-200' : 'bg-red-100 dark:bg-red-950 text-red-900 dark:text-red-200'}`}
+                                          >
+                                            {subject.is_active ? "✓ Active" : "Inactive"}
+                                          </Badge>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                          <div className="flex items-center justify-end gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              className="h-7 text-xs"
+                                              onClick={() => {
+                                                void openApplyDialog(subject);
+                                              }}
+                                            >
+                                              Apply
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-7 text-xs"
+                                              onClick={() => {
+                                                setEditingOperationalSubject(subject);
+                                                setSubjectForm({
+                                                  name: subject.name,
+                                                  education_level_id: subject.education_level_id || "",
+                                                  department_id: subject.department_id || "",
+                                                  religion_id: subject.religion_id || "",
+                                                  is_optional: subject.is_optional,
+                                                  is_active: subject.is_active,
+                                                });
+                                                setSubjectDialogOpen(true);
+                                              }}
+                                            >
+                                              <Pencil className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })
+                                )
+                              )}
+                            </tbody>
+                          </>
+                        );
+                      })()}
                     </table>
                   </div>
 
-                  {operationalSubjects.length > 15 && (
-                    <div className="px-4 py-3 text-xs text-muted-foreground border-t bg-muted/30">
-                      Showing first 15 subjects. Use filters to narrow down the list.
-                    </div>
-                  )}
+                  {(() => {
+                    const filteredOpSubjects = operationalSubjects.filter((s) => {
+                      if (opSubjectsSearch && !s.name.toLowerCase().includes(opSubjectsSearch.toLowerCase())) return false;
+                      if (opEducationLevelFilter !== "all" && s.education_level_id !== opEducationLevelFilter) return false;
+                      if (opDepartmentFilter !== "all" && s.department_id !== opDepartmentFilter) return false;
+                      if (opStatusFilter === "active" && !s.is_active) return false;
+                      if (opStatusFilter === "inactive" && s.is_active) return false;
+                      return true;
+                    });
+                    
+                    return (filteredOpSubjects.length > 50) ? (
+                      <div className="px-4 py-3 text-xs text-muted-foreground border-t bg-muted/30">
+                        Showing {filteredOpSubjects.length} subjects. Use filters to narrow down the list.
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
                 {/* Card View - Mobile */}
@@ -1842,7 +1874,7 @@ export default function SchoolConfigPage() {
                         <p className="text-sm text-muted-foreground">No subjects match your filters</p>
                       </div>
                     ) : (
-                      filtered.slice(0, 15).map((subject) => {
+                      filtered.map((subject) => {
                         const level = educationLevels.find((el) => el.id === subject.education_level_id);
                         const department = departments.find((dp) => dp.id === subject.department_id);
 
@@ -1994,7 +2026,6 @@ export default function SchoolConfigPage() {
                         departments={departments}
                         religions={religions}
                         teachers={teachers}
-                        subjectPresets={subjectPresets}
                       />
                     )}
                     <Button

@@ -25,7 +25,6 @@ interface BulkCreateSubjectsProps {
   departments: Department[];
   religions: Religion[];
   teachers: Teacher[];
-  subjectPresets: EducationLevelSubjectPreset[];
 }
 
 interface SubjectToCreate {
@@ -46,7 +45,6 @@ export function BulkCreateSubjectsDialog({
   departments,
   religions,
   teachers,
-  subjectPresets,
 }: BulkCreateSubjectsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState<WizardStep>("level");
@@ -134,48 +132,62 @@ export function BulkCreateSubjectsDialog({
     );
   }
 
-  function loadPresetSubjects() {
+  async function loadPresetSubjects() {
     if (!selectedEducationLevelId) {
       toast.error("Please select an education level first");
       return;
     }
 
-    // Get presets for the selected education level
-    const presetsForLevel = subjectPresets.filter(
-      (preset) => preset.education_level_id === selectedEducationLevelId
-    );
+    try {
+      // Fetch presets for the selected education level directly from database
+      const { data: presetsForLevel, error } = await supabase
+        .from("school_level_subject_presets")
+        .select("*")
+        .eq("school_id", schoolId)
+        .eq("education_level_id", selectedEducationLevelId)
+        .eq("is_active", true)
+        .order("order_sequence", { ascending: true })
+        .order("name", { ascending: true });
 
-    if (presetsForLevel.length === 0) {
-      toast.error("No preset subjects configured for this education level. Configure them in the Subject Preset Templates section first.");
-      return;
+      if (error) {
+        toast.error("Failed to load presets: " + error.message);
+        return;
+      }
+
+      if (!presetsForLevel || presetsForLevel.length === 0) {
+        toast.error("No preset subjects configured for this education level. Configure them in the Subject Preset Templates section first.");
+        return;
+      }
+
+      // Map presets to our format, filtering out duplicates
+      const newSubjects: SubjectToCreate[] = (presetsForLevel as EducationLevelSubjectPreset[])
+        .filter((preset) => {
+          // Check if subject already exists in operational subjects or pending creation
+          const alreadyExists = existingSubjects.some(
+            (s) => s.name.toLowerCase() === preset.name.toLowerCase()
+          ) || subjectsToCreate.some(
+            (s) => s.name.toLowerCase() === preset.name.toLowerCase()
+          );
+          return !alreadyExists;
+        })
+        .map((preset) => ({
+          id: Math.random().toString(36).substr(2, 9),
+          name: preset.name,
+          department_id: preset.department_id || "",
+          religion_id: preset.religion_id || "",
+          is_optional: preset.is_optional,
+        }));
+
+      if (newSubjects.length === 0) {
+        toast.info("All preset subjects for this level already exist");
+        return;
+      }
+
+      setSubjectsToCreate([...subjectsToCreate, ...newSubjects]);
+      toast.success(`Loaded ${newSubjects.length} preset subjects`);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load presets");
     }
-
-    // Map presets to our format, filtering out duplicates
-    const newSubjects: SubjectToCreate[] = presetsForLevel
-      .filter((preset) => {
-        // Check if subject already exists in operational subjects or pending creation
-        const alreadyExists = existingSubjects.some(
-          (s) => s.name.toLowerCase() === preset.name.toLowerCase()
-        ) || subjectsToCreate.some(
-          (s) => s.name.toLowerCase() === preset.name.toLowerCase()
-        );
-        return !alreadyExists;
-      })
-      .map((preset) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        name: preset.name,
-        department_id: preset.department_id || "",
-        religion_id: preset.religion_id || "",
-        is_optional: preset.is_optional,
-      }));
-
-    if (newSubjects.length === 0) {
-      toast.info("All preset subjects for this level already exist");
-      return;
-    }
-
-    setSubjectsToCreate([...subjectsToCreate, ...newSubjects]);
-    toast.success(`Loaded ${newSubjects.length} preset subjects`);
   }
 
   async function handleBulkCreate() {
@@ -443,66 +455,14 @@ export function BulkCreateSubjectsDialog({
                 Load Preset Subjects from School Configuration
               </Button>
 
-              {/* Add custom subject form */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                <p className="text-sm font-semibold text-blue-900">Add Custom Subject</p>
-                <Input
-                  value={newSubjectName}
-                  onChange={(e) => setNewSubjectName(e.target.value)}
-                  placeholder="Subject name"
-                  onKeyPress={(e) => e.key === "Enter" && addSubjectToCreate()}
-                />
-                {departments.length > 0 && (
-                  <select
-                    value={newSubjectDeptId}
-                    onChange={(e) => setNewSubjectDeptId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value="">No Department</option>
-                    {departments.map((dept) => (
-                      <option key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {religions.length > 0 && (
-                  <select
-                    value={newSubjectReligionId}
-                    onChange={(e) => setNewSubjectReligionId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value="">Not Religion-Specific</option>
-                    {religions.map((rel) => (
-                      <option key={rel.id} value={rel.id}>
-                        {rel.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold">Optional</Label>
-                  <Switch
-                    checked={newSubjectIsOptional}
-                    onCheckedChange={setNewSubjectIsOptional}
-                  />
-                </div>
-                <Button
-                  onClick={addSubjectToCreate}
-                  className="w-full bg-purple-500 hover:bg-purple-600 text-white"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Subject
-                </Button>
-              </div>
-
+            
               {/* Subjects to create list */}
               {subjectsToCreate.length > 0 && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                   <p className="text-sm font-semibold text-amber-900 mb-3">
                     {subjectsToCreate.length} Subject{subjectsToCreate.length !== 1 ? "s" : ""} Ready
                   </p>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
                     {subjectsToCreate.map((subject) => {
                       const dept = departments.find(d => d.id === subject.department_id);
                       const rel = religions.find(r => r.id === subject.religion_id);

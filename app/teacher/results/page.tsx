@@ -392,12 +392,44 @@ export default function SubjectResultEntryPage() {
         setIsSaving(false);
         return;
       }
-      const records = students.map((s) => {
+
+      const activeComponents = resultComponents.filter((component) => component.is_active);
+      const activeMaxScore = activeComponents.reduce((sum, component) => sum + Number(component.max_score || 0), 0) || 100;
+
+      const normalizedStudents = students.map((student) => {
+        const total = activeComponents.reduce(
+          (sum, component) => sum + Number(student.component_scores[component.component_key] || 0),
+          0
+        );
+        const percentage = (total / activeMaxScore) * 100;
+        const sortedScale = [...gradeScale].sort((a, b) => b.min_percentage - a.min_percentage);
+        const fallback = sortedScale[sortedScale.length - 1] || {
+          grade_label: 'F9',
+          remark: 'Fail',
+          min_percentage: 0,
+          display_order: 99,
+        };
+        const matched = sortedScale.find((item) => percentage >= item.min_percentage) || fallback;
+        const computedGrade = percentage < configuredPassPercentage ? fallback.grade_label : matched.grade_label;
+        const computedRemark = percentage < configuredPassPercentage
+          ? (fallback.remark || 'Fail')
+          : (matched.remark || '');
+
+        return {
+          ...student,
+          total,
+          grade: computedGrade,
+          remark: student.remark?.trim() ? student.remark : computedRemark,
+        };
+      });
+
+      const records = normalizedStudents.map((s) => {
         const record: any = {
           student_id: s.student_id,
           subject_class_id: selectedSubjectClassId,
           session_id: sessionData.id,
           term_id: termData.id,
+          total: s.total,
           grade: s.grade,
           remark: s.remark,
           class_teacher_name: teacherName,
@@ -427,12 +459,11 @@ export default function SubjectResultEntryPage() {
 
         if (deleteError) throw deleteError;
 
-        const componentRows = students.flatMap((student) => {
+        const componentRows = normalizedStudents.flatMap((student) => {
           const resultId = rowMap[student.student_id];
           if (!resultId) return [];
 
-          return resultComponents
-            .filter((component) => component.is_active)
+          return activeComponents
             .map((component) => ({
               school_id: schoolId,
               result_id: resultId,
@@ -449,6 +480,8 @@ export default function SubjectResultEntryPage() {
           if (componentSaveError) throw componentSaveError;
         }
       }
+
+      setStudents(normalizedStudents);
 
       toast.success('Subject results saved successfully');
       // Optionally, redirect or refresh

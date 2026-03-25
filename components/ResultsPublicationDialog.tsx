@@ -12,13 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, AlertCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
@@ -39,13 +32,9 @@ interface ResultsPublicationDialogProps {
 interface PublicationSettings {
   id?: string;
   published_component_keys: string[];
-  welcome_test_published: boolean;
-  mid_term_test_published: boolean;
-  vetting_published: boolean;
-  exam_published: boolean;
   is_published: boolean;
   is_published_to_parents: boolean;
-  calculation_mode: 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all';
+  calculation_mode: 'all';
 }
 
 interface StudentCompletion {
@@ -63,12 +52,6 @@ interface ResultComponentTemplate {
   display_order: number;
 }
 
-const LEGACY_COMPONENT_ORDER = ["welcome_test", "mid_term_test", "vetting", "exam"];
-
-function isLegacyComponentKey(key: string): key is "welcome_test" | "mid_term_test" | "vetting" | "exam" {
-  return key === "welcome_test" || key === "mid_term_test" || key === "vetting" || key === "exam";
-}
-
 export function ResultsPublicationDialog({
   isOpen,
   onClose,
@@ -83,10 +66,6 @@ export function ResultsPublicationDialog({
   const [checking, setChecking] = useState(false);
   const [settings, setSettings] = useState<PublicationSettings>({
     published_component_keys: [],
-    welcome_test_published: false,
-    mid_term_test_published: false,
-    vetting_published: false,
-    exam_published: false,
     is_published: false,
     is_published_to_parents: false,
     calculation_mode: 'all',
@@ -101,68 +80,34 @@ export function ResultsPublicationDialog({
     }
   }, [isOpen, classId, sessionId, termId]);
 
-  function getPublishedKeys(currentSettings: PublicationSettings): string[] {
-    if (currentSettings.published_component_keys && currentSettings.published_component_keys.length > 0) {
-      return currentSettings.published_component_keys;
-    }
 
-    const legacy: string[] = [];
-    if (currentSettings.welcome_test_published) legacy.push("welcome_test");
-    if (currentSettings.mid_term_test_published) legacy.push("mid_term_test");
-    if (currentSettings.vetting_published) legacy.push("vetting");
-    if (currentSettings.exam_published) legacy.push("exam");
-    return legacy;
-  }
-
-  function syncLegacyFlags(keys: string[]) {
-    return {
-      welcome_test_published: keys.includes("welcome_test"),
-      mid_term_test_published: keys.includes("mid_term_test"),
-      vetting_published: keys.includes("vetting"),
-      exam_published: keys.includes("exam"),
-    };
-  }
-
-  function determineCalculationModeFromKeys(keys: string[]): PublicationSettings["calculation_mode"] {
-    const hasWelcome = keys.includes("welcome_test");
-    const hasMid = keys.includes("mid_term_test");
-    const hasVetting = keys.includes("vetting");
-    const hasExam = keys.includes("exam");
-
-    if (hasWelcome && hasMid && hasVetting && hasExam && keys.length === 4) return "all";
-    if (hasWelcome && hasMid && hasVetting && !hasExam && keys.length === 3) return "welcome_midterm_vetting";
-    if (hasWelcome && hasMid && !hasVetting && !hasExam && keys.length === 2) return "welcome_midterm";
-    if (hasWelcome && !hasMid && !hasVetting && !hasExam && keys.length === 1) return "welcome_only";
-    return "all";
-  }
 
   async function loadResultComponents() {
     if (!schoolId) {
-      setResultComponents([
-        { component_key: "welcome_test", component_name: "Welcome Test", max_score: 10, display_order: 1 },
-        { component_key: "mid_term_test", component_name: "Mid-Term Test", max_score: 20, display_order: 2 },
-        { component_key: "vetting", component_name: "Vetting", max_score: 10, display_order: 3 },
-        { component_key: "exam", component_name: "Exam", max_score: 60, display_order: 4 },
-      ]);
+      console.warn("No schoolId provided - cannot load result components from database");
+      setResultComponents([]);
       return;
     }
 
-    const { data } = await supabase
-      .from("result_component_templates")
-      .select("component_key, component_name, max_score, display_order")
-      .eq("school_id", schoolId)
-      .eq("is_active", true)
-      .order("display_order", { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from("result_component_templates")
+        .select("component_key, component_name, max_score, display_order")
+        .eq("school_id", schoolId)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
 
-    if (data && data.length > 0) {
-      setResultComponents(data as ResultComponentTemplate[]);
-    } else {
-      setResultComponents([
-        { component_key: "welcome_test", component_name: "Welcome Test", max_score: 10, display_order: 1 },
-        { component_key: "mid_term_test", component_name: "Mid-Term Test", max_score: 20, display_order: 2 },
-        { component_key: "vetting", component_name: "Vetting", max_score: 10, display_order: 3 },
-        { component_key: "exam", component_name: "Exam", max_score: 60, display_order: 4 },
-      ]);
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setResultComponents(data as ResultComponentTemplate[]);
+      } else {
+        console.warn("No active result components found for school");
+        setResultComponents([]);
+      }
+    } catch (error) {
+      console.error("Error loading result components:", error);
+      setResultComponents([]);
     }
   }
 
@@ -188,12 +133,9 @@ export function ResultsPublicationDialog({
 
       if (data && data.length > 0) {
         const row = data[0] as PublicationSettings;
-        const publishedKeys = getPublishedKeys(row);
         setSettings({
           ...row,
-          published_component_keys: publishedKeys,
-          ...syncLegacyFlags(publishedKeys),
-          calculation_mode: determineCalculationModeFromKeys(publishedKeys),
+          calculation_mode: 'all',
         });
       }
     } catch (error) {
@@ -206,7 +148,7 @@ export function ResultsPublicationDialog({
   async function checkStudentCompletions() {
     setChecking(true);
     try {
-      const selectedKeys = getPublishedKeys(settings);
+      const selectedKeys = settings.published_component_keys;
       if (selectedKeys.length === 0) {
         toast.error("Please select at least one component to check");
         setChecking(false);
@@ -339,63 +281,26 @@ export function ResultsPublicationDialog({
   }
 
   function handleComponentToggle(componentKey: string) {
-    const currentKeys = getPublishedKeys(settings);
+    const currentKeys = settings.published_component_keys;
     const currentlySelected = currentKeys.includes(componentKey);
-    let nextKeys = currentlySelected
+    const nextKeys = currentlySelected
       ? currentKeys.filter((key) => key !== componentKey)
       : [...currentKeys, componentKey];
 
-    // For legacy keys, enforce ordered cascade to preserve existing mode semantics
-    if (isLegacyComponentKey(componentKey)) {
-      const selectedLegacy = LEGACY_COMPONENT_ORDER.filter((key) => nextKeys.includes(key));
-      const maxIdx = selectedLegacy.reduce((max, key) => Math.max(max, LEGACY_COMPONENT_ORDER.indexOf(key)), -1);
-      if (maxIdx >= 0) {
-        const required = LEGACY_COMPONENT_ORDER.slice(0, maxIdx + 1);
-        nextKeys = Array.from(new Set([...nextKeys.filter((key) => !isLegacyComponentKey(key)), ...required]));
-      }
-    }
-
-    const legacyFlags = syncLegacyFlags(nextKeys);
     setSettings((prev) => ({
       ...prev,
       published_component_keys: nextKeys,
-      ...legacyFlags,
-      calculation_mode: determineCalculationModeFromKeys(nextKeys),
+      calculation_mode: 'all',
     }));
 
     setShowIncompleteWarning(false);
     setStudentCompletions([]);
   }
 
-  function handleCalculationModeChange(mode: string) {
-    const newMode = mode as 'welcome_only' | 'welcome_midterm' | 'welcome_midterm_vetting' | 'all';
-
-    const currentKeys = getPublishedKeys(settings).filter((key) => !isLegacyComponentKey(key));
-    const legacyKeys =
-      newMode === "welcome_only"
-        ? ["welcome_test"]
-        : newMode === "welcome_midterm"
-          ? ["welcome_test", "mid_term_test"]
-          : newMode === "welcome_midterm_vetting"
-            ? ["welcome_test", "mid_term_test", "vetting"]
-            : ["welcome_test", "mid_term_test", "vetting", "exam"];
-
-    const combined = [...legacyKeys, ...currentKeys];
-    setSettings((prev) => ({
-      ...prev,
-      published_component_keys: combined,
-      ...syncLegacyFlags(combined),
-      calculation_mode: newMode,
-    }));
-    // Reset incomplete warnings when changing mode
-    setShowIncompleteWarning(false);
-    setStudentCompletions([]);
-  }
-
-  async function handlePublish() {
+async function handlePublish() {
     setLoading(true);
     try {
-      const selectedKeys = getPublishedKeys(settings);
+      const selectedKeys = settings.published_component_keys;
       const hasSelectedComponent = selectedKeys.length > 0;
 
       if (!hasSelectedComponent && settings.is_published) {
@@ -404,7 +309,7 @@ export function ResultsPublicationDialog({
         return;
       }
 
-      // If publishing, recalculate positions based on the selected calculation mode
+      // If publishing, recalculate positions based on selected components
       if (settings.is_published && hasSelectedComponent) {
         try {
           await recalculatePositions();
@@ -421,10 +326,9 @@ export function ResultsPublicationDialog({
         session_id: sessionId,
         term_id: termId,
         published_component_keys: selectedKeys,
-        ...syncLegacyFlags(selectedKeys),
         is_published: settings.is_published,
         is_published_to_parents: settings.is_published_to_parents,
-        calculation_mode: determineCalculationModeFromKeys(selectedKeys),
+        calculation_mode: 'all',
         published_at: settings.is_published ? new Date().toISOString() : null,
         school_id: schoolId,
       };
@@ -454,7 +358,7 @@ export function ResultsPublicationDialog({
   }
 
   async function recalculatePositions() {
-    const selectedKeys = getPublishedKeys(settings);
+    const selectedKeys = settings.published_component_keys;
     if (selectedKeys.length === 0) return;
 
     const componentByKey = new Map<string, ResultComponentTemplate>();
@@ -528,7 +432,7 @@ export function ResultsPublicationDialog({
       });
     }
 
-    // Calculate scores per student based on calculation mode
+    // Calculate scores per student based on selected components
     const studentScoresMap = new Map<string, number>();
 
     students.forEach((student: any) => {
@@ -640,7 +544,7 @@ export function ResultsPublicationDialog({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 md:gap-4">
               {resultComponents.map((component) => {
-                const checked = getPublishedKeys(settings).includes(component.component_key);
+                const checked = settings.published_component_keys.includes(component.component_key);
                 return (
                   <div key={component.component_key} className="flex items-center space-x-2">
                     <Checkbox
@@ -657,31 +561,12 @@ export function ResultsPublicationDialog({
             </div>
           </div>
 
-          {/* Calculation Mode */}
-          <div className="space-y-1.5 sm:space-y-2">
-            <Label className="text-sm sm:text-base">Grade Calculation Mode</Label>
-            <Select value={settings.calculation_mode} onValueChange={handleCalculationModeChange}>
-              <SelectTrigger className="text-xs sm:text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="welcome_only">Welcome Test Only (10 marks)</SelectItem>
-                <SelectItem value="welcome_midterm">Welcome + Mid-Term (30 marks)</SelectItem>
-                <SelectItem value="welcome_midterm_vetting">Welcome + Mid-Term + Vetting (40 marks)</SelectItem>
-                <SelectItem value="all">All Components (100 marks)</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-gray-500">
-              This determines how grades and positions are calculated when students view their results
-            </p>
-          </div>
-
           {/* Check Completions Button */}
           <div>
             <Button
               variant="outline"
               onClick={checkStudentCompletions}
-              disabled={checking || getPublishedKeys(settings).length === 0}
+              disabled={checking || settings.published_component_keys.length === 0}
               className="w-full text-xs sm:text-sm"
             >
               {checking ? (

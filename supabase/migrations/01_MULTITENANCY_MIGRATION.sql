@@ -862,9 +862,6 @@ DROP POLICY IF EXISTS "Authenticated users can read results" ON results;
 DROP POLICY IF EXISTS "Admins can manage results"            ON results;
 DROP POLICY IF EXISTS "Parents can view children results"    ON results;
 DROP POLICY IF EXISTS "School users can read results"        ON results;
-DROP POLICY IF EXISTS "Students can view their results"     ON results;
-DROP POLICY IF EXISTS "Teachers can edit results for their subjects" ON results;
-DROP POLICY IF EXISTS "Teachers can edit results for their classes" ON results;
 
 CREATE POLICY "School users can read results"
   ON results FOR SELECT
@@ -885,67 +882,6 @@ CREATE POLICY "Admins can manage results"
   TO authenticated
   USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
   WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
-
-CREATE POLICY "Students can view their results"
-  ON results FOR SELECT
-  TO authenticated
-  USING (student_id IN (SELECT id FROM students WHERE user_id = auth.uid()));
-
-CREATE POLICY "Teachers can manage results for their subjects"
-  ON results FOR ALL
-  TO authenticated
-  USING (
-    subject_id IN (
-      SELECT id FROM subjects
-      WHERE class_id IN (
-        SELECT class_id FROM subject_classes
-        WHERE subject_id = results.subject_id
-          AND class_id IN (
-            SELECT id FROM classes
-            WHERE class_teacher_id = (SELECT id FROM teachers WHERE user_id = auth.uid())
-          )
-      )
-    )
-  )
-  WITH CHECK (
-    subject_id IN (
-      SELECT id FROM subjects
-      WHERE class_id IN (
-        SELECT class_id FROM subject_classes
-        WHERE subject_id = results.subject_id
-          AND class_id IN (
-            SELECT id FROM classes
-            WHERE class_teacher_id = (SELECT id FROM teachers WHERE user_id = auth.uid())
-          )
-      )
-    )
-  );
-
-CREATE POLICY "Teachers can manage results for their classes"
-  ON results FOR ALL
-  TO authenticated
-  USING (
-    class_id IN (
-      SELECT class_id FROM subject_classes
-      WHERE subject_id = results.subject_id
-        AND class_id IN (
-          SELECT id FROM classes
-          WHERE class_teacher_id = (SELECT id FROM teachers WHERE user_id = auth.uid())
-        )
-    )
-  )
-  WITH CHECK (
-    class_id IN (
-      SELECT class_id FROM subject_classes
-      WHERE subject_id = results.subject_id
-        AND class_id IN (
-          SELECT id FROM classes
-          WHERE class_teacher_id = (SELECT id FROM teachers WHERE user_id = auth.uid())
-        )
-    )
-  );
-
-  
 
 -- -------------------- STUDENT_SUBJECTS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read student_subjects" ON student_subjects;

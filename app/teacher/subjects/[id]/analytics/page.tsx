@@ -88,7 +88,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
         setSelectedTerm(currentTerm?.id || "");
 
         loadResults(subjectClassId, currentSession?.id, currentTerm?.id);
-        await loadGenderComparison(subjectClassId);
+        await loadGenderComparison(subjectClassId, currentSession?.id, currentTerm?.id);
 
 
     }
@@ -392,15 +392,20 @@ export default function SubjectAnalyticsPage({ params }: any) {
         }
     }
 
-    async function loadGenderComparison(subjectClassId: string) {
+    async function loadGenderComparison(subjectClassId: string, sessionId?: string, termId?: string) {
         if (!schoolId) return;
         
         try {
-            const { data: genderResults } = await supabase
+            let query: any = supabase
                 .from("results")
                 .select(`id, students(gender)`)
                 .eq("subject_class_id", subjectClassId)
                 .eq('school_id', schoolId);
+
+            if (sessionId) query = query.eq("session_id", sessionId);
+            if (termId) query = query.eq("term_id", termId);
+
+            const { data: genderResults } = await query;
 
             if (!genderResults || genderResults.length === 0) {
                 setGenderComparison([
@@ -516,6 +521,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             onValueChange={(val) => {
                                 setSelectedSession(val);
                                 loadResults(subjectClassId, val, selectedTerm);
+                                loadGenderComparison(subjectClassId, val, selectedTerm);
                             }}
                         >
                             <SelectTrigger className="text-sm h-9 sm:h-10">
@@ -535,6 +541,7 @@ export default function SubjectAnalyticsPage({ params }: any) {
                             onValueChange={(val) => {
                                 setSelectedTerm(val);
                                 loadResults(subjectClassId, selectedSession, val);
+                                loadGenderComparison(subjectClassId, selectedSession, val);
                             }}
                         >
                             <SelectTrigger className="text-sm h-9 sm:h-10">

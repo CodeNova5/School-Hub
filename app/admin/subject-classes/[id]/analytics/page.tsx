@@ -31,7 +31,8 @@ export default function SubjectAnalyticsPage({ params }: any) {
     const [searchQuery, setSearchQuery] = useState<string>("");
     const [highestPerTerm, setHighestPerTerm] = useState<any[]>([]);
 
-    // NEW STATES
+    // DB-DRIVEN STATES
+    const [resultComponents, setResultComponents] = useState<any[]>([]);
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [genderComparison, setGenderComparison] = useState<any[]>([]);
 
@@ -58,6 +59,16 @@ export default function SubjectAnalyticsPage({ params }: any) {
         if (!schoolId) return;
         setIsLoading(true);
 
+        // Load result components first
+        const { data: componentData } = await supabase
+            .from("result_component_templates")
+            .select("component_key, component_name, max_score, display_order")
+            .eq("school_id", schoolId)
+            .eq("is_active", true)
+            .order("display_order", { ascending: true });
+
+        setResultComponents(componentData || []);
+
         const { data: sessionData } = await supabase.from("sessions").select("*").eq("school_id", schoolId).order("name");
         const { data: termData } = await supabase.from("terms").select("*").eq("school_id", schoolId).order("name");
         const { data: subjectClass } = await supabase
@@ -81,172 +92,370 @@ export default function SubjectAnalyticsPage({ params }: any) {
 
         loadResults(subjectClassId, currentSession?.id, currentTerm?.id);
         await loadGenderComparison(subjectClassId);
-
-
     }
 
-    async function loadStudentBreakdown(subjectClassId: string, sessionId: string, termId: string) {
-        if (!schoolId) return;
-        const { data } = await supabase
-            .from("results")
-            .select(`
-            *,
-            students (first_name, last_name, student_id, gender, photo_url)
-        `)
-            .eq("school_id", schoolId)
-            .eq("subject_class_id", subjectClassId)
-            .eq("session_id", sessionId)
-            .eq("term_id", termId);
+    async function loadStudentBreakdown(subjectClassId: string, sessionId: string, termId: string, components: any[]) {
+        if (!schoolId || components.length === 0) {
+            setStudentBreakdown([]);
+            return;
+        }
 
-        if (!data) return;
+        try {
+            // First, fetch results with student details
+            const { data: results, error: resultsError } = await supabase
+                .from("results")
+                .select(`
+                    id,
+                    grade,
+                    student_id,
+                    students!inner (
+                        id,
+                        first_name,
+                        last_name,
+                        student_id,
+                        gender,
+                        photo_url
+                    )
+                `)
+                .eq("subject_class_id", subjectClassId)
+                .eq("session_id", sessionId)
+                .eq("term_id", termId)
+                .eq('school_id', schoolId);
 
-        // Sort highest → lowest
-        const sorted = data
-            .map((r: any) => ({
-                id: r.id,
-                name: `${r.students.first_name} ${r.students.last_name}`,
-                student_id: r.students.student_id,
-                photo_url: r.students.photo_url,
-                gender: r.students.gender,
-                welcome_test: r.welcome_test ?? 0,
-                mid_term: r.mid_term_test ?? 0,
-                vetting: r.vetting ?? 0,
-                exams: r.exam ?? 0,
-                total: r.total ?? 0,
-                grade: r.grade,
-            }))
-            .sort((a: any, b: any) => b.total - a.total);
+            if (resultsError) {
+                console.error("Error loading results:", resultsError);
+                setStudentBreakdown([]);
+                return;
+            }
 
-        setStudentBreakdown(sorted);
+            if (!results || results.length === 0) {
+                setStudentBreakdown([]);
+                return;
+            }
+
+            // Get all result IDs
+            const resultIds = results.map((r: any) => r.id);
+
+            // Load component scores for all results
+            const { data: componentScores, error: scoresError } = await supabase
+                .from("result_component_scores")
+                .select("result_id, component_key, score")
+                .in("result_id", resultIds)
+                .eq('school_id', schoolId);
+
+            if (scoresError) {
+                console.error("Error loading component scores:", scoresError);
+            }
+
+            // Map scores by result ID
+            const scoresMap = new Map<string, Map<string, number>>();
+            (componentScores || []).forEach((cs: any) => {
+                if (!scoresMap.has(cs.result_id)) {
+                    scoresMap.set(cs.result_id, new Map());
+                }
+                scoresMap.get(cs.result_id)!.set(cs.component_key, cs.score);
+            });
+
+            // Build student breakdown with dynamic components
+            const sorted = results
+                .map((r: any) => {
+                    const componentMap = scoresMap.get(r.id) || new Map();
+                    const componentScoresObj: any = {};
+                    let totalScore = 0;
+
+                    components.forEach(comp => {
+                        const score = componentMap.get(comp.component_key) || 0;
+                        componentScoresObj[comp.component_key] = score;
+                        totalScore += score;
+                    });
+
+                    const student = r.students;
+                    
+                    return {
+                        id: r.id,
+                        name: `${student.first_name} ${student.last_name}`,
+                        student_id: student.student_id,
+                        photo_url: student.photo_url,
+                        gender: student.gender,
+                        ...componentScoresObj,
+                        total: totalScore,
+                        grade: r.grade || 'N/A',
+                    };
+                })
+                .sort((a: any, b: any) => b.total - a.total);
+
+            setStudentBreakdown(sorted);
+        } catch (error) {
+            console.error("Error in loadStudentBreakdown:", error);
+            setStudentBreakdown([]);
+        }
     }
 
 
     async function loadResults(subjectClassId: string, sessionId?: string, termId?: string) {
         if (!schoolId) return;
-        let query: any = supabase
-            .from("results")
-            .select(`*, students(first_name, last_name, student_id, gender, photo_url)`)
-            .eq("school_id", schoolId)
-            .eq("subject_class_id", subjectClassId);
-
-        if (sessionId) query = query.eq("session_id", sessionId);
-        if (termId) query = query.eq("term_id", termId);
-
-        const { data } = await query;
-        setResults(data || []);
-
-        // ⭐ NEW: LOAD SESSION TREND (average score across sessions)
-        const { data: allSessions } = await supabase
-            .from("results")
-            .select(`session_id, total, sessions(name)`)
-            .eq("school_id", schoolId)
-            .eq("subject_class_id", subjectClassId);
-
-        const grouped = allSessions?.reduce((acc: any, r: any) => {
-            if (!acc[r.session_id]) acc[r.session_id] = { name: r.sessions.name, scores: [] };
-            acc[r.session_id].scores.push(r.total);
-            return acc;
-        }, {});
-
-        setSessionTrend(
-            Object.values(grouped || {}).map((g: any) => ({
-                session: g.name,
-                avg: (g.scores.reduce((a: number, b: number) => a + b, 0) / g.scores.length).toFixed(1),
-            }))
-        );
-
-        // ⭐ NEW: HIGHEST SCORING STUDENT IN EACH TERM
-        if (sessionId) {
-            const { data: termResults } = await supabase
-                .from("results")
-                .select(`*, terms(name), students(first_name, last_name, student_id)`)
+        setIsLoading(true);
+        
+        try {
+            // Fetch result components fresh (to avoid state timing issues)
+            const { data: componentData } = await supabase
+                .from("result_component_templates")
+                .select("component_key, component_name, max_score, display_order")
                 .eq("school_id", schoolId)
+                .eq("is_active", true)
+                .order("display_order", { ascending: true });
+            
+            const components = componentData || [];
+            setResultComponents(components);
+            
+            // Fetch results without total (it doesn't exist in table)
+            let query: any = supabase
+                .from("results")
+                .select(`id, grade, student_id, session_id, term_id, students(first_name, last_name, student_id, gender, photo_url)`)
                 .eq("subject_class_id", subjectClassId)
-                .eq("session_id", sessionId);
+                .eq('school_id', schoolId);
 
-            const byTerm: any = {};
-            termResults?.forEach((r: any) => {
-                if (!byTerm[r.term_id] || r.total > byTerm[r.term_id].total) {
-                    byTerm[r.term_id] = r;
-                }
+            if (sessionId) query = query.eq("session_id", sessionId);
+            if (termId) query = query.eq("term_id", termId);
+
+            const { data, error } = await query;
+            if (error) {
+                console.error("Error loading results:", error);
+                setResults([]);
+                setIsLoading(false);
+                return;
+            }
+
+            // If no results, clear everything
+            if (!data || data.length === 0) {
+                setResults([]);
+                setSessionTrend([]);
+                setTermTrend([]);
+                setGenderStats({ male: 0, female: 0 });
+                setStudentBreakdown([]);
+                setIsLoading(false);
+                return;
+            }
+
+            const resultIds = data.map((r: any) => r.id);
+
+            // Fetch all component scores for these results
+            const { data: componentScores } = await supabase
+                .from("result_component_scores")
+                .select("result_id, score")
+                .in("result_id", resultIds)
+                .eq('school_id', schoolId);
+
+            // Calculate totals from component scores
+            const totalsMap = new Map<string, number>();
+            (componentScores || []).forEach((cs: any) => {
+                const current = totalsMap.get(cs.result_id) || 0;
+                totalsMap.set(cs.result_id, current + cs.score);
             });
 
-            setHighestPerTerm(Object.values(byTerm));
-        }
+            // Enrich results with calculated totals
+            const enrichedResults = data.map((r: any) => ({
+                ...r,
+                total: totalsMap.get(r.id) || 0
+            }));
 
-        // ⭐ NEW: TERM TREND WITHIN SELECTED SESSION
-        if (sessionId) {
-            const { data: termData } = await supabase
+            setResults(enrichedResults);
+
+            // ⭐ LOAD SESSION TREND (average score across sessions)
+            const { data: allSessionResults } = await supabase
                 .from("results")
-                .select(`term_id, total, terms(name)`)
-                .eq("school_id", schoolId)
+                .select(`id, session_id, sessions(name)`)
                 .eq("subject_class_id", subjectClassId)
-                .eq("session_id", sessionId);
+                .eq('school_id', schoolId);
 
-            const groupedTerms = termData?.reduce((acc: any, r: any) => {
-                if (!acc[r.term_id]) acc[r.term_id] = { name: r.terms.name, scores: [] };
-                acc[r.term_id].scores.push(r.total);
-                return acc;
-            }, {});
+            if (allSessionResults && allSessionResults.length > 0) {
+                const allResultIds = allSessionResults.map((r: any) => r.id);
+                const { data: allScores } = await supabase
+                    .from("result_component_scores")
+                    .select("result_id, score")
+                    .in("result_id", allResultIds)
+                    .eq('school_id', schoolId);
 
-            setTermTrend(
-                Object.values(groupedTerms || {}).map((g: any) => ({
-                    term: g.name,
-                    avg: (g.scores.reduce((a: number, b: number) => a + b, 0) / g.scores.length).toFixed(1),
-                }))
-            );
+                const allTotalsMap = new Map<string, number>();
+                (allScores || []).forEach((cs: any) => {
+                    const current = allTotalsMap.get(cs.result_id) || 0;
+                    allTotalsMap.set(cs.result_id, current + cs.score);
+                });
+
+                const grouped = allSessionResults.reduce((acc: any, r: any) => {
+                    if (!acc[r.session_id]) acc[r.session_id] = { name: r.sessions.name, scores: [] };
+                    acc[r.session_id].scores.push(allTotalsMap.get(r.id) || 0);
+                    return acc;
+                }, {});
+
+                setSessionTrend(
+                    Object.values(grouped || {}).map((g: any) => ({
+                        session: g.name,
+                        avg: (g.scores.reduce((a: number, b: number) => a + b, 0) / g.scores.length).toFixed(1),
+                    }))
+                );
+            }
+
+            // ⭐ HIGHEST SCORING STUDENT IN EACH TERM
+            if (sessionId) {
+                const { data: termResults } = await supabase
+                    .from("results")
+                    .select(`id, term_id, students(first_name, last_name, student_id)`)
+                    .eq("subject_class_id", subjectClassId)
+                    .eq("session_id", sessionId)
+                    .eq('school_id', schoolId);
+
+                if (termResults && termResults.length > 0) {
+                    const termResultIds = termResults.map((r: any) => r.id);
+                    const { data: termScores } = await supabase
+                        .from("result_component_scores")
+                        .select("result_id, score")
+                        .in("result_id", termResultIds)
+                        .eq('school_id', schoolId);
+
+                    const termTotalsMap = new Map<string, number>();
+                    (termScores || []).forEach((cs: any) => {
+                        const current = termTotalsMap.get(cs.result_id) || 0;
+                        termTotalsMap.set(cs.result_id, current + cs.score);
+                    });
+
+                    const byTerm: any = {};
+                    termResults.forEach((r: any) => {
+                        const total = termTotalsMap.get(r.id) || 0;
+                        if (!byTerm[r.term_id] || total > (byTerm[r.term_id].total || 0)) {
+                            byTerm[r.term_id] = { ...r, total };
+                        }
+                    });
+
+                    setHighestPerTerm(Object.values(byTerm));
+                }
+            }
+
+            // ⭐ TERM TREND WITHIN SELECTED SESSION
+            if (sessionId) {
+                const { data: termDataResults } = await supabase
+                    .from("results")
+                    .select(`id, term_id, terms(name)`)
+                    .eq("subject_class_id", subjectClassId)
+                    .eq("session_id", sessionId)
+                    .eq('school_id', schoolId);
+
+                if (termDataResults && termDataResults.length > 0) {
+                    const termDataResultIds = termDataResults.map((r: any) => r.id);
+                    const { data: termDataScores } = await supabase
+                        .from("result_component_scores")
+                        .select("result_id, score")
+                        .in("result_id", termDataResultIds)
+                        .eq('school_id', schoolId);
+
+                    const termDataTotalsMap = new Map<string, number>();
+                    (termDataScores || []).forEach((cs: any) => {
+                        const current = termDataTotalsMap.get(cs.result_id) || 0;
+                        termDataTotalsMap.set(cs.result_id, current + cs.score);
+                    });
+
+                    const groupedTerms = termDataResults.reduce((acc: any, r: any) => {
+                        if (!acc[r.term_id]) acc[r.term_id] = { name: r.terms.name, scores: [] };
+                        acc[r.term_id].scores.push(termDataTotalsMap.get(r.id) || 0);
+                        return acc;
+                    }, {});
+
+                    setTermTrend(
+                        Object.values(groupedTerms || {}).map((g: any) => ({
+                            term: g.name,
+                            avg: (g.scores.reduce((a: number, b: number) => a + b, 0) / g.scores.length).toFixed(1),
+                        }))
+                    );
+                }
+            }
+
+            // ⭐ MALE vs FEMALE PERFORMANCE
+            const males = enrichedResults.filter((r: any) => r.students?.gender?.toLowerCase() === "male");
+            const females = enrichedResults.filter((r: any) => r.students?.gender?.toLowerCase() === "female");
+
+            setGenderStats({
+                male: males.length ? (males.reduce((a: any, b: any) => a + b.total, 0) / males.length).toFixed(1) : 0,
+                female: females.length ? (females.reduce((a: any, b: any) => a + b.total, 0) / females.length).toFixed(1) : 0,
+            });
+            
+            // Load student breakdown if session and term are selected
+            if (sessionId && termId && components.length > 0) {
+                await loadStudentBreakdown(subjectClassId, sessionId, termId, components);
+            } else {
+                setIsLoading(false);
+            }
+        } catch (error) {
+            console.error("Error in loadResults:", error);
+            setIsLoading(false);
         }
-
-        // ⭐ NEW: MALE vs FEMALE PERFORMANCE
-        const males = (data || []).filter((r: any) => r.students?.gender?.toLowerCase() === "male");
-        const females = (data || []).filter((r: any) => r.students?.gender?.toLowerCase() === "female");
-
-        setGenderStats({
-            male: males.length ? (males.reduce((a: any, b: any) => a + b.total, 0) / males.length).toFixed(1) : 0,
-            female: females.length ? (females.reduce((a: any, b: any) => a + b.total, 0) / females.length).toFixed(1) : 0,
-        });
-        if (sessionId && termId) {
-            await loadStudentBreakdown(subjectClassId, sessionId, termId);
-        }
-
-        setIsLoading(false);
     }
 
     async function loadGenderComparison(subjectClassId: string) {
         if (!schoolId) return;
-        const { data } = await supabase
-            .from("results")
-            .select(`
-            total,
-            students (gender)
-        `)
-            .eq("school_id", schoolId)
-            .eq("subject_class_id", subjectClassId);
+        
+        try {
+            let query: any = supabase
+                .from("results")
+                .select(`id, students(gender)`)
+                .eq("subject_class_id", subjectClassId)
+                .eq('school_id', schoolId);
 
-        if (!data) return;
+            const { data: genderResults } = await query;
 
-        const males: number[] = [];
-        const females: number[] = [];
+            if (!genderResults || genderResults.length === 0) {
+                setGenderComparison([
+                    { gender: "Male", avg: 0 },
+                    { gender: "Female", avg: 0 }
+                ]);
+                return;
+            }
 
-        data.forEach((r: any) => {
-            const gender = r.students?.gender?.toLowerCase();
+            const resultIds = genderResults.map((r: any) => r.id);
+            
+            // Get scores for all results
+            const { data: scores } = await supabase
+                .from("result_component_scores")
+                .select("result_id, score")
+                .in("result_id", resultIds)
+                .eq('school_id', schoolId);
 
-            if (gender === "male") males.push(r.total);
-            if (gender === "female") females.push(r.total);
-        });
+            // Calculate totals mapped by result ID
+            const totalsMap = new Map<string, number>();
+            (scores || []).forEach((cs: any) => {
+                const current = totalsMap.get(cs.result_id) || 0;
+                totalsMap.set(cs.result_id, current + cs.score);
+            });
 
-        const formatted = [
-            {
-                gender: "Male",
-                avg: males.length ? (males.reduce((a, b) => a + b, 0) / males.length).toFixed(1) : 0,
-            },
-            {
-                gender: "Female",
-                avg: females.length ? (females.reduce((a, b) => a + b, 0) / females.length).toFixed(1) : 0,
-            },
-        ];
+            const males: number[] = [];
+            const females: number[] = [];
 
-        setGenderComparison(formatted);
+            genderResults.forEach((r: any) => {
+                const gender = r.students?.gender?.toLowerCase();
+                const total = totalsMap.get(r.id) || 0;
+
+                if (gender === "male") males.push(total);
+                if (gender === "female") females.push(total);
+            });
+
+            const formatted = [
+                {
+                    gender: "Male",
+                    avg: males.length ? (males.reduce((a, b) => a + b, 0) / males.length).toFixed(1) : 0,
+                },
+                {
+                    gender: "Female",
+                    avg: females.length ? (females.reduce((a, b) => a + b, 0) / females.length).toFixed(1) : 0,
+                },
+            ];
+
+            setGenderComparison(formatted);
+        } catch (error) {
+            console.error("Error in loadGenderComparison:", error);
+            setGenderComparison([
+                { gender: "Male", avg: 0 },
+                { gender: "Female", avg: 0 }
+            ]);
+        }
     }
 
 
@@ -267,6 +476,16 @@ export default function SubjectAnalyticsPage({ params }: any) {
         grade: g,
         count: results.filter((r) => r.grade === g).length,
     }));
+
+    if (isLoading) {
+        return (
+            <DashboardLayout role="admin">
+                <div className="flex items-center justify-center min-h-[400px]">
+                    <p className="text-gray-500">Loading analytics...</p>
+                </div>
+            </DashboardLayout>
+        );
+    }
 
     return (
         <DashboardLayout role="admin">
@@ -421,10 +640,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                     <tr>
                                         <th className="p-2 text-left">#</th>
                                         <th className="p-2 text-left">Student</th>
-                                        <th className="p-2 text-left">Welcome</th>
-                                        <th className="p-2 text-left">Mid-Term</th>
-                                        <th className="p-2 text-left">Vetting</th>
-                                        <th className="p-2 text-left">Exams</th>
+                                        {resultComponents.map((comp) => (
+                                            <th key={comp.component_key} className="p-2 text-left">{comp.component_name}</th>
+                                        ))}
                                         <th className="p-2 text-left">Total</th>
                                         <th className="p-2 text-left">Grade</th>
                                     </tr>
@@ -466,10 +684,9 @@ export default function SubjectAnalyticsPage({ params }: any) {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-2">{s.welcome_test}</td>
-                                                <td className="p-2">{s.mid_term}</td>
-                                                <td className="p-2">{s.vetting}</td>
-                                                <td className="p-2">{s.exams}</td>
+                                                {resultComponents.map((comp) => (
+                                                    <td key={comp.component_key} className="p-2">{s[comp.component_key] || 0}</td>
+                                                ))}
                                                 <td className="p-2 font-semibold">{s.total}</td>
                                                 <td className="p-2 font-bold">{s.grade}</td>
                                             </tr>
@@ -488,12 +705,13 @@ export default function SubjectAnalyticsPage({ params }: any) {
                     <CardContent>
                         <ResponsiveContainer width="100%" height={300}>
                             <BarChart
-                                data={[
-                                    { name: "Welcome Test", avg: results.length ? (results.reduce((a, b) => a + b.welcome_test, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Mid Term", avg: results.length ? (results.reduce((a, b) => a + b.mid_term_test, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Vetting", avg: results.length ? (results.reduce((a, b) => a + b.vetting, 0) / results.length).toFixed(1) : 0 },
-                                    { name: "Exams", avg: results.length ? (results.reduce((a, b) => a + b.exam, 0) / results.length).toFixed(1) : 0 },
-                                ]}
+                                data={resultComponents.map((comp) => ({
+                                    name: comp.component_name,
+                                    avg: results.length ? (results.reduce((a: number, b: any) => {
+                                        const val = studentBreakdown.find(sb => sb.id === b.id)?.[comp.component_key] || 0;
+                                        return a + val;
+                                    }, 0) / results.length).toFixed(1) : 0
+                                }))}
                             >
                                 <XAxis dataKey="name" />
                                 <YAxis />

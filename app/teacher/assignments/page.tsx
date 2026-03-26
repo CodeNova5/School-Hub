@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -115,14 +115,16 @@ export default function AssignmentsPage() {
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   type CacheKey = string;
 
-  const assignmentsCache = new Map<
-    CacheKey,
-    {
-      data: Assignment[];
-      total: number;
-      timestamp: number;
-    }
-  >();
+  const assignmentsCacheRef = useRef<
+    Map<
+      CacheKey,
+      {
+        data: Assignment[];
+        total: number;
+        timestamp: number;
+      }
+    >
+  >(new Map());
 
   function getCacheKey(
     teacherId: string,
@@ -145,7 +147,7 @@ export default function AssignmentsPage() {
     if (!teacherId || !schoolId) return;
 
     const cacheKey = getCacheKey(teacherId, page, filters);
-    const cached = assignmentsCache.get(cacheKey);
+    const cached = assignmentsCacheRef.current.get(cacheKey);
 
     // 1️⃣ Serve cache instantly
     if (cached) {
@@ -225,7 +227,7 @@ export default function AssignmentsPage() {
       setAssignments(normalized);
       setTotal(count || 0);
 
-      assignmentsCache.set(cacheKey, {
+      assignmentsCacheRef.current.set(cacheKey, {
         data: normalized,
         total: count || 0,
         timestamp: Date.now(),
@@ -319,9 +321,9 @@ export default function AssignmentsPage() {
     setAssignments((prev) => prev.filter((a) => a.id !== id));
     setTotal((t) => t - 1);
 
-    if (assignmentsCache.has(cacheKey)) {
-      assignmentsCache.set(cacheKey, {
-        ...assignmentsCache.get(cacheKey)!,
+    if (assignmentsCacheRef.current.has(cacheKey)) {
+      assignmentsCacheRef.current.set(cacheKey, {
+        ...assignmentsCacheRef.current.get(cacheKey)!,
         data: previous.filter((a) => a.id !== id),
         total: previousTotal - 1,
         timestamp: Date.now(),
@@ -677,9 +679,9 @@ export default function AssignmentsPage() {
             );
 
             // 2️⃣ Update cache
-            if (assignmentsCache.has(cacheKey)) {
-              const cached = assignmentsCache.get(cacheKey)!;
-              assignmentsCache.set(cacheKey, {
+            if (assignmentsCacheRef.current.has(cacheKey)) {
+              const cached = assignmentsCacheRef.current.get(cacheKey)!;
+              assignmentsCacheRef.current.set(cacheKey, {
                 data: cached.data.map((a) =>
                   a.id === updatedAssignment.id ? updatedAssignment : a
                 ),
@@ -693,7 +695,7 @@ export default function AssignmentsPage() {
             setTotal((t) => t + 1);
 
             // 2️⃣ Update cache
-            assignmentsCache.set(cacheKey, {
+            assignmentsCacheRef.current.set(cacheKey, {
               data: [updatedAssignment, ...assignments],
               total: total + 1,
               timestamp: Date.now(),

@@ -86,7 +86,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
   async function loadClasses() {
     let query = supabase
       .from('subject_classes')
-      .select('class_id, classes(id, name, level, education_level)')
+      .select('class_id, classes(id, name)')
       .eq('teacher_id', teacherId);
 
     if (schoolId) {
@@ -117,7 +117,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
     // Load only subjects that this teacher teaches for the selected class
     let query = supabase
       .from('subject_classes')
-      .select('subject_id, subjects(id, name, education_level, department, religion)')
+      .select('subject_id, subjects(id, name)')
       .eq('teacher_id', teacherId)
       .eq('class_id', classId);
 

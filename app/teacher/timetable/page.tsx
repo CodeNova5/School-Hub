@@ -78,12 +78,14 @@ export default function TeacherTimetablePage() {
           *,
           classes(id, name, class_level_id, school_class_levels(name)),
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
-          religion,
           subject_classes (
             id,
             subject_code,
             teacher_id,
-            subjects!subject_classes_subject_id_fkey ( name, department, religion ),
+            is_optional,
+            department_id,
+            religion_id,
+            subjects!subject_classes_subject_id_fkey ( name ),
             teachers ( first_name, last_name )
           )
         `)

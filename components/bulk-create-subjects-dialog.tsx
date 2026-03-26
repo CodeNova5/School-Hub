@@ -265,6 +265,9 @@ export function BulkCreateSubjectsDialog({
               class_id: c.id,
               subject_id: newSubject.id,
               subject_code: generateUniqueSubjectCode(newSubject.name, c.name),
+              department_id: subject.department_id || null,
+              religion_id: subject.religion_id || null,
+              is_optional: subject.is_optional,
             };
 
             // Only add teacher_id if one is assigned to this subject

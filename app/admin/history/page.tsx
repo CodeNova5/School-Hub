@@ -239,7 +239,7 @@ export default function HistoryPage() {
 
   // Get unique education levels for filter
   const educationLevels = Array.from(
-    new Set(classes.map((c) => c.education_level))
+    new Set(history.map((h) => h.education_level))
   ).filter(Boolean);
 
   const currentMode = QUERY_MODES.find((m) => m.type === queryMode);

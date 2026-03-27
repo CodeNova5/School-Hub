@@ -40,6 +40,15 @@ interface StudentStats {
   averageScore: number;
 }
 
+interface TodaysClass {
+  id: string;
+  subjectName: string;
+  startTime: string;
+  endTime: string;
+  teacher: string;
+  isBreak: boolean;
+}
+
 interface RecentActivity {
   id: string;
   title: string;
@@ -55,6 +64,7 @@ export default function StudentDashboardPage() {
   const [studentClass, setStudentClass] = useState("");
   const [studentId, setStudentId] = useState("");
   const [termId, setTermId] = useState("");
+  const [todaysClasses, setTodaysClasses] = useState<TodaysClass[]>([]);
   const [stats, setStats] = useState<StudentStats>({
     totalAttendance: 0,
     presentPercentage: 0,
@@ -79,6 +89,12 @@ export default function StudentDashboardPage() {
     if (hour < 12) return "Good Morning";
     if (hour < 18) return "Good Afternoon";
     return "Good Evening";
+  }
+
+  function getTodaysDayName() {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const today = new Date().getDay();
+    return days[today];
   }
 
   async function loadDashboardData() {
@@ -172,6 +188,60 @@ export default function StudentDashboardPage() {
         .eq("class_id", classData?.id)
         .eq("school_id", schoolId)
         .gt("due_date", new Date().toISOString());
+
+      // Fetch today's classes
+      const todayName = getTodaysDayName();
+      const { data: timetableData } = await supabase
+        .from("timetable_entries")
+        .select(`
+          id,
+          period_slots(id, day_of_week, start_time, end_time, is_break),
+          subject_classes (
+            id,
+            subjects!subject_classes_subject_id_fkey ( name ),
+            teachers ( first_name, last_name )
+          )
+        `)
+        .eq("class_id", classData?.id)
+        .eq("school_id", schoolId);
+
+      let todaysClassesList: TodaysClass[] = [];
+      if (timetableData && timetableData.length > 0) {
+        // Get enrolled subject_class_ids
+        const { data: studentSubjects } = await supabase
+          .from("student_subjects")
+          .select("subject_class_id")
+          .eq("student_id", studentData.id);
+
+        const enrolledSubjectClassIds = studentSubjects?.map((ss: any) => ss.subject_class_id) || [];
+
+        // Filter for today and enrolled subjects
+        timetableData.forEach((entry: any) => {
+          const period = entry.period_slots;
+          const subjectClass = Array.isArray(entry.subject_classes) ? entry.subject_classes[0] : entry.subject_classes;
+          
+          if (period && period.day_of_week === todayName) {
+            // Show if enrolled, or if no enrolled subjects exist
+            if (enrolledSubjectClassIds.length === 0 || (subjectClass && enrolledSubjectClassIds.includes(subjectClass.id))) {
+              const subject = Array.isArray(subjectClass?.subjects) ? subjectClass.subjects[0] : subjectClass?.subjects;
+              const teacher = Array.isArray(subjectClass?.teachers) ? subjectClass.teachers[0] : subjectClass?.teachers;
+              
+              todaysClassesList.push({
+                id: entry.id,
+                subjectName: subject?.name || "Unknown Subject",
+                startTime: period.start_time,
+                endTime: period.end_time,
+                teacher: teacher ? `${teacher.first_name} ${teacher.last_name}` : "No teacher assigned",
+                isBreak: period.is_break,
+              });
+            }
+          }
+        });
+
+        // Sort by start time
+        todaysClassesList.sort((a, b) => a.startTime.localeCompare(b.startTime));
+      }
+      setTodaysClasses(todaysClassesList);
 
       // Fetch results for average score - use termData.id directly, not state
       let averageScore = 0;
@@ -487,8 +557,30 @@ export default function StudentDashboardPage() {
                   Today
                 </span>
               </div>
-              <p className="text-gray-600 font-medium mb-1">Today's Classes</p>
-              <p className="text-4xl font-bold text-gray-900 mb-4">-</p>
+              <p className="text-gray-600 font-medium mb-3">Today's Classes</p>
+              {todaysClasses.length > 0 ? (
+                <div className="space-y-2 mb-4">
+                  {todaysClasses.slice(0, 3).map((cls, index) => (
+                    <div key={cls.id} className="bg-indigo-50 rounded-lg p-2.5">
+                      <p className="text-sm font-semibold text-indigo-900">{cls.subjectName}</p>
+                      <p className="text-xs text-indigo-700 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {cls.startTime} - {cls.endTime}
+                      </p>
+                      {!cls.isBreak && (
+                        <p className="text-xs text-indigo-600 truncate">{cls.teacher}</p>
+                      )}
+                    </div>
+                  ))}
+                  {todaysClasses.length > 3 && (
+                    <p className="text-xs text-indigo-600 font-medium">
+                      +{todaysClasses.length - 3} more
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 mb-4">No classes scheduled for today</p>
+              )}
               <div className="flex gap-2">
                 <Link href="/student/timetable" className="flex-1">
                   <Button
@@ -496,7 +588,7 @@ export default function StudentDashboardPage() {
                     size="sm"
                     className="w-full bg-indigo-50 hover:bg-indigo-100 border-indigo-200"
                   >
-                    Timetable
+                    Full Schedule
                   </Button>
                 </Link>
               </div>

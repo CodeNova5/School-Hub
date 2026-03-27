@@ -1,565 +1,438 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { BookOpen, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
+import {
+	BookOpen,
+	GraduationCap,
+	Loader2,
+	Search,
+	User,
+	Filter,
+	Layers,
+} from "lucide-react";
 
-interface Teacher {
-  id: string;
-  first_name: string;
-  last_name: string;
-  photo_url: string | null;
-}
+type SubjectItem = {
+	subjectClassId: string;
+	subjectId: string;
+	subjectName: string;
+	subjectCode: string;
+	teacherName: string;
+	isOptional: boolean;
+	category: "Required" | "Optional";
+};
 
-interface Subject {
-  id: string;
-  name: string;
-}
-
-interface Class {
-  id: string;
-  name: string;
-}
-
-interface SubjectClass {
-  id: string;
-  subject_code: string | null;
-  subjects: Subject | null;
-  classes: Class | null;
-  teachers: Teacher | null;
-}
-
-interface StudentSubject {
-  subject_class_id: string;
-}
-
-interface Results {
-  id: string;
-  student_id: string;
-  subject_class_id: string;
-  session_id: string;
-  term_id: string;
-  school_id: string;
-  welcome_test: number | null;
-  mid_term_test: number | null;
-  vetting: number | null;
-  exam: number | null;
-  total: number | null;
-  grade: string | null;
-}
-
-interface SubjectWithResults {
-  id: string;
-  subject_class_id: string;
-  subject_name: string;
-  subject_code: string;
-  teacher_name: string;
-  teacher_photo_url: string;
-  class_name: string;
-  currentTermResult?: Results;
-  currentGrade?: string | null;
-  percentage: number;
-  trend: "up" | "down" | "stable";
-}
-
-interface PublishSettings {
-  id: string;
-  class_id: string;
-  session_id: string;
-  term_id: string;
-  school_id: string;
-  welcome_test_published: boolean;
-  mid_term_test_published: boolean;
-  vetting_published: boolean;
-  exam_published: boolean;
+function getTeacherName(teacher: any): string {
+	if (!teacher) return "Not assigned";
+	return [teacher.first_name, teacher.last_name].filter(Boolean).join(" ") || "Not assigned";
 }
 
 export default function StudentSubjectsPage() {
-  const [loading, setLoading] = useState(true);
-  const [student, setStudent] = useState<any>(null);
-  const [subjects, setSubjects] = useState<SubjectWithResults[]>([]);
-  const [currentTerm, setCurrentTerm] = useState<string>("");
-  const [publishSettings, setPublishSettings] = useState<PublishSettings | null>(null);
-  const [maxScore, setMaxScore] = useState(0);
-  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
+	const [loading, setLoading] = useState(true);
+	const [studentName, setStudentName] = useState("");
+	const [className, setClassName] = useState("");
+	const [subjects, setSubjects] = useState<SubjectItem[]>([]);
+	const [searchTerm, setSearchTerm] = useState("");
+	const [filter, setFilter] = useState<"all" | "required" | "optional">("all");
+	const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
-  const GRADE_COLORS: Record<string, string> = {
-    A1: "#16a34a",
-    B2: "#4ade80",
-    B3: "#86efac",
-    C4: "#fef08a",
-    C5: "#fde047",
-    C6: "#facc15",
-    D7: "#f97316",
-    E8: "#fb923c",
-    F9: "#ef4444",
-  };
+	useEffect(() => {
+		if (!schoolLoading && schoolId) {
+			loadSubjects();
+		}
+	}, [schoolId, schoolLoading]);
 
-  useEffect(() => {
-    if (!schoolLoading && schoolId) {
-      loadData();
-    }
-  }, [schoolId, schoolLoading]);
+	async function loadSubjects() {
+		if (!schoolId) return;
 
-  async function loadData() {
-    if (!schoolId) return;
-    try {
-      setLoading(true);
+		try {
+			setLoading(true);
 
-      // Get current user
-      const user = await getCurrentUser();
-      if (!user) {
-        toast.error("Please log in to continue");
-        return;
-      }
+			const user = await getCurrentUser();
+			if (!user) {
+				toast.error("Please log in to continue");
+				return;
+			}
 
-      // Get student info
-      const { data: studentData, error: studentError } = await supabase
-        .from("students")
-        .select(`
-          id,
-          student_id,
-          first_name,
-          last_name,
-          gender,
-          photo_url,
-          class_id,
-          classes (
-            id,
-            name
-          )
-        `)
-        .eq("user_id", user.id)
-        .eq("school_id", schoolId)
-        .single();
+			const { data: student, error: studentError } = await supabase
+				.from("students")
+				.select(
+					`
+						id,
+						first_name,
+						last_name,
+						class_id,
+						classes (
+							id,
+							name
+						)
+					`,
+				)
+				.eq("user_id", user.id)
+				.eq("school_id", schoolId)
+				.single();
 
-      if (studentError || !studentData) {
-        toast.error("Student profile not found");
-        return;
-      }
+			if (studentError || !student) {
+				toast.error("Student profile not found");
+				return;
+			}
 
-      setStudent(studentData);
+			setStudentName(`${student.first_name} ${student.last_name}`);
+			const classData = Array.isArray(student.classes) ? student.classes[0] : student.classes;
+			setClassName(classData?.name || "");
 
-      // Load current term
-      const { data: termData } = await supabase
-        .from("terms")
-        .select("*")
-        .eq("is_current", true)
-        .eq("school_id", schoolId)
-        .single();
+			const { data: studentSubjects, error: studentSubjectsError } = await supabase
+				.from("student_subjects")
+				.select("subject_class_id")
+				.eq("student_id", student.id)
+				.eq("school_id", schoolId);
 
-      if (termData) setCurrentTerm(termData.id);
+			if (studentSubjectsError) {
+				console.error("Error fetching student subjects:", studentSubjectsError);
+			}
 
-      // Load current session
-      const { data: sessionData } = await supabase
-        .from("sessions")
-        .select("id")
-        .eq("is_current", true)
-        .eq("school_id", schoolId)
-        .single();
+			let nextSubjects: SubjectItem[] = [];
+			const subjectClassIds = (studentSubjects || [])
+				.map((row: any) => row.subject_class_id)
+				.filter(Boolean);
 
-      if (sessionData && termData) {
-        // Load publication settings for this class
-        const classData = studentData.classes as any;
-        const { data: pubSettings } = await supabase
-          .from("results_publication")
-          .select("*")
-          .eq("class_id", classData.id)
-          .eq("session_id", sessionData.id)
-          .eq("term_id", termData.id)
-          .eq("school_id", schoolId)
-          .maybeSingle();
+			if (subjectClassIds.length > 0) {
+				const { data: enrolledSubjectClasses, error: enrolledSubjectClassesError } = await supabase
+					.from("subject_classes")
+					.select(
+						`
+							id,
+							subject_id,
+							subject_code,
+							subjects!subject_classes_subject_id_fkey (
+								id,
+								name,
+								subject_code,
+								is_optional
+							),
+							teachers (
+								first_name,
+								last_name
+							)
+						`,
+					)
+					.in("id", subjectClassIds)
+					.eq("school_id", schoolId);
 
-        setPublishSettings(pubSettings);
+				if (enrolledSubjectClassesError) {
+					console.error("Error fetching enrolled subject classes:", enrolledSubjectClassesError);
+				} else if (enrolledSubjectClasses) {
+					nextSubjects = enrolledSubjectClasses
+						.map((row: any) => {
+							const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
+							const teacher = Array.isArray(row.teachers) ? row.teachers[0] : row.teachers;
 
-        // Calculate max score based on published components
-        let max = 0;
-        if (pubSettings?.welcome_test_published) max += 10;
-        if (pubSettings?.mid_term_test_published) max += 20;
-        if (pubSettings?.vetting_published) max += 10;
-        if (pubSettings?.exam_published) max += 60;
-        setMaxScore(max || 100); // Default to 100 if no settings found
+							if (!subject) return null;
+							const isOptional = Boolean(subject.is_optional);
 
-        loadSubjectsAndResults(studentData, sessionData.id, termData.id);
-      }
+							return {
+								subjectClassId: row.id,
+								subjectId: subject.id,
+								subjectName: subject.name || "Unnamed subject",
+								subjectCode: row.subject_code || subject.subject_code || "N/A",
+								teacherName: getTeacherName(teacher),
+								isOptional,
+								category: isOptional ? "Optional" : "Required",
+							} as SubjectItem;
+						})
+						.filter(Boolean) as SubjectItem[];
+				}
+			}
 
-    } catch (error) {
-      console.error("Error loading data:", error);
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  }
+			// Fallback for data mismatch: show class subject classes if enrollment rows are missing.
+			if (nextSubjects.length === 0 && student.class_id) {
+				const { data: classSubjects, error: classSubjectsError } = await supabase
+					.from("subject_classes")
+					.select(
+						`
+							id,
+							subject_id,
+							subject_code,
+							subjects!subject_classes_subject_id_fkey (
+								id,
+								name,
+								subject_code,
+								is_optional
+							),
+							teachers (
+								first_name,
+								last_name
+							)
+						`,
+					)
+					.eq("class_id", student.class_id)
+					.eq("school_id", schoolId);
 
-  async function loadSubjectsAndResults(studentData: any, sessionId: string, termId: string) {
-    if (!schoolId) return;
-    try {
-      // Step 1: Get student's enrolled subject_class_ids
-      const { data: studentSubjects, error: subjectsError } = await supabase
-        .from("student_subjects")
-        .select("subject_class_id")
-        .eq("student_id", studentData.id)
-        .eq("school_id", schoolId);
+				if (classSubjectsError) {
+					console.error("Error fetching class subjects:", classSubjectsError);
+				} else if (classSubjects) {
+					nextSubjects = classSubjects
+						.map((row: any) => {
+							const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
+							const teacher = Array.isArray(row.teachers) ? row.teachers[0] : row.teachers;
 
-      if (subjectsError) {
-        console.error("Error fetching student subjects:", subjectsError);
-        return;
-      }
+							if (!subject) return null;
+							const isOptional = Boolean(subject.is_optional);
 
-      if (!studentSubjects || studentSubjects.length === 0) {
-        toast.info("You are not enrolled in any subjects yet");
-        setSubjects([]);
-        return;
-      }
+							return {
+								subjectClassId: row.id,
+								subjectId: subject.id,
+								subjectName: subject.name || "Unnamed subject",
+								subjectCode: row.subject_code || subject.subject_code || "N/A",
+								teacherName: getTeacherName(teacher),
+								isOptional,
+								category: isOptional ? "Optional" : "Required",
+							} as SubjectItem;
+						})
+						.filter(Boolean) as SubjectItem[];
+				}
+			}
 
-      const subjectClassIds = studentSubjects.map((ss: { subject_class_id: any; }) => ss.subject_class_id);
+			const deduped = Array.from(
+				new Map(nextSubjects.map((item) => [item.subjectClassId, item])).values(),
+			).sort((a, b) => a.subjectName.localeCompare(b.subjectName));
 
-      // Step 2: Get subject_classes data with nested relationships
-      const { data: subjectClassesData, error: subjectClassesError } = await supabase
-        .from("subject_classes")
-        .select(`
-          id,
-          subject_code,
-          subjects!subject_classes_subject_id_fkey (
-            id,
-            name
-          ),
-          classes (
-            id,
-            name
-          ),
-          teachers (
-            id,
-            first_name,
-            last_name,
-            photo_url
-          )
-        `)
-        .in("id", subjectClassIds)
-        .eq("school_id", schoolId) as any;
+			setSubjects(deduped);
 
-      if (subjectClassesError) {
-        console.error("Error fetching subject classes:", subjectClassesError);
-        return;
-      }
+			if (deduped.length === 0) {
+				toast.info("No subjects found for your profile");
+			}
+		} catch (error) {
+			console.error("Error loading subjects:", error);
+			toast.error("Failed to load subjects");
+		} finally {
+			setLoading(false);
+		}
+	}
 
-      // Step 3: Build map of subject_class_id -> subject data
-      const subjectClassMap = new Map<string, SubjectClass>(
-        (subjectClassesData || []).map((sc: { id: any; }) => [sc.id, sc])
-      );
+	const filteredSubjects = useMemo(() => {
+		return subjects.filter((subject) => {
+			const matchesSearch =
+				subject.subjectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+				subject.subjectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+				subject.teacherName.toLowerCase().includes(searchTerm.toLowerCase());
 
-      // Get results for all subjects
-      const subjectsWithResults: SubjectWithResults[] = [];
+			const matchesFilter =
+				filter === "all" ||
+				(filter === "required" && !subject.isOptional) ||
+				(filter === "optional" && subject.isOptional);
 
-      for (const ss of studentSubjects) {
-        const subjectClass = subjectClassMap.get(ss.subject_class_id);
-        if (!subjectClass) continue;
+			return matchesSearch && matchesFilter;
+		});
+	}, [subjects, searchTerm, filter]);
 
-        // Fetch results for this subject in current term and session
-        const { data: results } = await supabase
-          .from("results")
-          .select("*")
-          .eq("student_id", studentData.id)
-          .eq("subject_class_id", ss.subject_class_id)
-          .eq("session_id", sessionId)
-          .eq("term_id", termId)
-          .eq("school_id", schoolId)
-          .maybeSingle() as any;
+	const stats = useMemo(() => {
+		const required = subjects.filter((s) => !s.isOptional).length;
+		const optional = subjects.filter((s) => s.isOptional).length;
+		const teachers = new Set(subjects.map((s) => s.teacherName).filter((name) => name !== "Not assigned"));
 
-        // Calculate percentage based on published components
-        let calculatedPercentage = 0;
-        let calculatedMaxScore = 0;
+		return {
+			total: subjects.length,
+			required,
+			optional,
+			teachers: teachers.size,
+		};
+	}, [subjects]);
 
-        if (results) {
-          let score = 0;
-          if (publishSettings?.welcome_test_published) {
-            score += results.welcome_test || 0;
-            calculatedMaxScore += 10;
-          }
-          if (publishSettings?.mid_term_test_published) {
-            score += results.mid_term_test || 0;
-            calculatedMaxScore += 20;
-          }
-          if (publishSettings?.vetting_published) {
-            score += results.vetting || 0;
-            calculatedMaxScore += 10;
-          }
-          if (publishSettings?.exam_published) {
-            score += results.exam || 0;
-            calculatedMaxScore += 60;
-          }
+	if (loading || schoolLoading) {
+		return (
+			<DashboardLayout role="student">
+				<div className="flex items-center justify-center min-h-[60vh]">
+					<div className="text-center">
+						<Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+						<p className="text-gray-600">Loading your subjects...</p>
+					</div>
+				</div>
+			</DashboardLayout>
+		);
+	}
 
-          calculatedPercentage = calculatedMaxScore > 0
-            ? (score / calculatedMaxScore) * 100
-            : 0;
-        }
+	return (
+		<DashboardLayout role="student">
+			<div className="space-y-4 sm:space-y-6">
+				<div>
+					<h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Subjects</h1>
+					<p className="text-sm sm:text-base text-gray-600 mt-1">
+						Subjects assigned to {studentName || "you"} {className ? `in ${className}` : ""}
+					</p>
+				</div>
 
-        // Fallback to 100 if no published settings
-        if (calculatedMaxScore === 0) {
-          calculatedMaxScore = 100;
-          calculatedPercentage = results ? (results.total || 0) : 0;
-        }
+				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+					<Card className="border-l-4 border-l-blue-500">
+						<CardContent className="pt-4 sm:pt-6">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs sm:text-sm text-gray-600">Total Subjects</p>
+									<p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.total}</p>
+								</div>
+								<BookOpen className="h-8 w-8 text-blue-600" />
+							</div>
+						</CardContent>
+					</Card>
 
-        // Determine trend (compare with previous term)
-        let trend: "up" | "down" | "stable" = "stable";
-        if (results) {
-          const { data: previousResult } = await supabase
-            .from("results")
-            .select("id, total")
-            .eq("student_id", studentData.id)
-            .eq("subject_class_id", ss.subject_class_id)
-            .eq("session_id", sessionId)
-            .neq("term_id", termId)
-            .eq("school_id", schoolId)
-            .order("term_id", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+					<Card className="border-l-4 border-l-green-500">
+						<CardContent className="pt-4 sm:pt-6">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs sm:text-sm text-gray-600">Required</p>
+									<p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.required}</p>
+								</div>
+								<GraduationCap className="h-8 w-8 text-green-600" />
+							</div>
+						</CardContent>
+					</Card>
 
-          if (previousResult) {
-            const diff = (results.total || 0) - (previousResult.total || 0);
-            if (diff > 5) trend = "up";
-            else if (diff < -5) trend = "down";
-          }
-        }
+					<Card className="border-l-4 border-l-amber-500">
+						<CardContent className="pt-4 sm:pt-6">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs sm:text-sm text-gray-600">Optional</p>
+									<p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.optional}</p>
+								</div>
+								<Layers className="h-8 w-8 text-amber-600" />
+							</div>
+						</CardContent>
+					</Card>
 
-        subjectsWithResults.push({
-          id: subjectClass.id,
-          subject_class_id: ss.subject_class_id,
-          subject_name: subjectClass.subjects?.name || "Unknown",
-          subject_code: subjectClass.subject_code || "",
-          teacher_name: subjectClass.teachers
-            ? `${subjectClass.teachers.first_name} ${subjectClass.teachers.last_name}`
-            : "No teacher assigned",
-          teacher_photo_url: subjectClass.teachers?.photo_url || "",
-          class_name: subjectClass.classes?.name || "",
-          currentTermResult: results || undefined,
-          currentGrade: results?.grade || undefined,
-          percentage: calculatedPercentage,
-          trend,
-        });
-      }
+					<Card className="border-l-4 border-l-purple-500">
+						<CardContent className="pt-4 sm:pt-6">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="text-xs sm:text-sm text-gray-600">Teachers</p>
+									<p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.teachers}</p>
+								</div>
+								<User className="h-8 w-8 text-purple-600" />
+							</div>
+						</CardContent>
+					</Card>
+				</div>
 
-      setSubjects(subjectsWithResults);
+				<Card>
+					<CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+						<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<div className="relative md:col-span-2">
+								<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+								<Input
+									value={searchTerm}
+									onChange={(e) => setSearchTerm(e.target.value)}
+									placeholder="Search by subject, code or teacher"
+									className="pl-10"
+								/>
+							</div>
+							<div className="flex gap-2">
+								<Button
+									type="button"
+									size="sm"
+									variant={filter === "all" ? "default" : "outline"}
+									onClick={() => setFilter("all")}
+									className="flex-1"
+								>
+									<Filter className="h-4 w-4 mr-1" />
+									All
+								</Button>
+								<Button
+									type="button"
+									size="sm"
+									variant={filter === "required" ? "default" : "outline"}
+									onClick={() => setFilter("required")}
+									className="flex-1"
+								>
+									Required
+								</Button>
+								<Button
+									type="button"
+									size="sm"
+									variant={filter === "optional" ? "default" : "outline"}
+									onClick={() => setFilter("optional")}
+									className="flex-1"
+								>
+									Optional
+								</Button>
+							</div>
+						</div>
+					</CardHeader>
 
-    } catch (error) {
-      console.error("Error loading subjects and results:", error);
-      toast.error("Failed to load subjects");
-    }
-  }
+					<CardContent className="p-3 sm:p-6">
+						{filteredSubjects.length === 0 ? (
+							<div className="text-center py-10">
+								<BookOpen className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+								<p className="text-gray-600 font-medium">No subjects found</p>
+								<p className="text-gray-500 text-sm mt-1">
+									Try adjusting your search or filter options.
+								</p>
+							</div>
+						) : (
+							<>
+								<div className="space-y-3 md:hidden">
+									{filteredSubjects.map((subject) => (
+										<div key={subject.subjectClassId} className="border rounded-lg p-4 bg-white">
+											<div className="flex items-start justify-between gap-3">
+												<div>
+													<h3 className="font-semibold text-gray-900 text-base">{subject.subjectName}</h3>
+													<p className="text-sm text-gray-500 mt-0.5">{subject.subjectCode}</p>
+												</div>
+												<Badge
+													variant={subject.isOptional ? "secondary" : "default"}
+													className={subject.isOptional ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}
+												>
+													{subject.category}
+												</Badge>
+											</div>
+											<div className="mt-3 flex items-center gap-2 text-sm text-blue-700">
+												<User className="h-4 w-4" />
+												<span>{subject.teacherName}</span>
+											</div>
+										</div>
+									))}
+								</div>
 
-  if (loading || schoolLoading) {
-    return (
-      <DashboardLayout role="student">
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading your subjects...</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  // Categorize subjects
-  const wellPerformingSubjects = subjects.filter(s => s.percentage >= 70);
-  const needsImprovementSubjects = subjects.filter(s => s.percentage < 70);
-
-  return (
-    <DashboardLayout role="student">
-      <div className="space-y-8">
-        {/* Header */}
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-            My Subjects
-          </h1>
-          <p className="text-gray-600 mt-2 text-lg">
-            {subjects.length} subject{subjects.length !== 1 ? "s" : ""}
-          </p>
-        </div>
-
-        {subjects.length === 0 ? (
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              You are not enrolled in any subjects yet. Please contact your class teacher or administrator.
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <>
-            {/* Performing Well Section */}
-            {wellPerformingSubjects.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-6">
-                  <TrendingUp className="h-6 w-6 text-green-600" />
-                  <h2 className="text-2xl font-semibold text-gray-900">Performing Well</h2>
-                  <Badge className="bg-green-100 text-green-800 text-sm font-semibold">
-                    {wellPerformingSubjects.length}
-                  </Badge>
-                </div>
-
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {wellPerformingSubjects.map((subject) => (
-                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} publishSettings={publishSettings} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Needs Improvement Section */}
-            {needsImprovementSubjects.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-6">
-                  <TrendingDown className="h-6 w-6 text-orange-600" />
-                  <h2 className="text-2xl font-semibold text-gray-900">Needs Improvement</h2>
-                  <Badge className="bg-orange-100 text-orange-800 text-sm font-semibold">
-                    {needsImprovementSubjects.length}
-                  </Badge>
-                </div>
-
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {needsImprovementSubjects.map((subject) => (
-                    <SubjectCard key={subject.id} subject={subject} gradeColors={GRADE_COLORS} maxScore={maxScore} publishSettings={publishSettings} />
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </DashboardLayout>
-  );
-}
-
-// Subject Card Component
-interface SubjectCardProps {
-  subject: SubjectWithResults;
-  gradeColors: Record<string, string>;
-  maxScore: number;
-  publishSettings: PublishSettings | null;
-}
-
-function SubjectCard({ subject, gradeColors, maxScore, publishSettings }: SubjectCardProps) {
-  const performanceColor = subject.percentage >= 70 ? "text-green-600" : "text-orange-600";
-  const performanceBgColor = subject.percentage >= 70 ? "bg-green-50" : "bg-orange-50";
-
-  // Calculate score based on published components
-  let publishedScore = 0;
-  if (subject.currentTermResult && publishSettings) {
-    if (publishSettings.welcome_test_published) {
-      publishedScore += subject.currentTermResult.welcome_test || 0;
-    }
-    if (publishSettings.mid_term_test_published) {
-      publishedScore += subject.currentTermResult.mid_term_test || 0;
-    }
-    if (publishSettings.vetting_published) {
-      publishedScore += subject.currentTermResult.vetting || 0;
-    }
-    if (publishSettings.exam_published) {
-      publishedScore += subject.currentTermResult.exam || 0;
-    }
-  }
-
-  return (
-    <Card className="overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-100">
-      <CardContent className="p-6">
-        {/* Header with trend */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h3 className="font-bold text-xl text-gray-900 mb-1">
-              {subject.subject_name}
-            </h3>
-            <p className="text-sm text-gray-500">
-              {subject.subject_code}
-            </p>
-          </div>
-
-          {subject.trend === "up" && (
-            <div className="bg-green-50 p-2 rounded-lg">
-              <TrendingUp className="h-5 w-5 text-green-600" />
-            </div>
-          )}
-          {subject.trend === "down" && (
-            <div className="bg-red-50 p-2 rounded-lg">
-              <TrendingDown className="h-5 w-5 text-red-600" />
-            </div>
-          )}
-        </div>
-
-        {/* Teacher Info */}
-        <div className="flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={subject.teacher_photo_url} />
-            <AvatarFallback className="bg-indigo-100 text-indigo-700 font-semibold">
-              {subject.teacher_name
-                .split(" ")
-                .map((n) => (n ? n[0] : ""))
-                .join("")
-                .substring(0, 2)}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {subject.teacher_name}
-            </p>
-            <p className="text-xs text-gray-500">Teacher</p>
-          </div>
-        </div>
-
-        {/* Performance Section */}
-        {subject.currentTermResult ? (
-          <div className="space-y-4">
-            {/* Percentage Display */}
-            <div className={`${performanceBgColor} p-4 rounded-lg`}>
-              <p className="text-sm text-gray-600 mb-1">Current Performance</p>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-4xl font-bold ${performanceColor}`}>
-                  {subject.percentage.toFixed(0)}%
-                </span>
-                <span className="text-sm text-gray-500">out of {maxScore}</span>
-              </div>
-            </div>
-
-            {/* Score and Grade */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-blue-50 p-3 rounded-lg text-center">
-                <p className="text-xs text-gray-600 mb-1">Score</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {publishedScore}
-                </p>
-              </div>
-
-              <div className="p-3 rounded-lg text-center border-2" style={{ borderColor: gradeColors[subject.currentGrade || ""] || "#e5e7eb" }}>
-                <p className="text-xs text-gray-600 mb-1">Grade</p>
-                <Badge
-                  style={{
-                    backgroundColor: subject.currentGrade && gradeColors[subject.currentGrade] 
-                      ? gradeColors[subject.currentGrade] 
-                      : "#ccc",
-                    color: "white",
-                    fontSize: "16px",
-                    padding: "6px 12px",
-                  }}
-                >
-                  {subject.currentGrade || "N/A"}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="py-8 text-center">
-            <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">No results available yet</p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+								<div className="hidden md:block overflow-x-auto rounded-lg border">
+									<table className="w-full border-collapse bg-white">
+										<thead>
+											<tr className="bg-gray-100">
+												<th className="text-left border-b p-3 text-sm font-semibold text-gray-700">Subject</th>
+												<th className="text-left border-b p-3 text-sm font-semibold text-gray-700">Code</th>
+												<th className="text-left border-b p-3 text-sm font-semibold text-gray-700">Category</th>
+												<th className="text-left border-b p-3 text-sm font-semibold text-gray-700">Teacher</th>
+											</tr>
+										</thead>
+										<tbody>
+											{filteredSubjects.map((subject) => (
+												<tr key={subject.subjectClassId} className="hover:bg-gray-50">
+													<td className="border-b p-3 text-sm font-medium text-gray-900">{subject.subjectName}</td>
+													<td className="border-b p-3 text-sm text-gray-600">{subject.subjectCode}</td>
+													<td className="border-b p-3 text-sm">
+														<Badge
+															variant={subject.isOptional ? "secondary" : "default"}
+															className={subject.isOptional ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}
+														>
+															{subject.category}
+														</Badge>
+													</td>
+													<td className="border-b p-3 text-sm text-gray-700">{subject.teacherName}</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
+								</div>
+							</>
+						)}
+					</CardContent>
+				</Card>
+			</div>
+		</DashboardLayout>
+	);
 }

@@ -97,6 +97,33 @@ export default function StudentDashboardPage() {
     return days[today];
   }
 
+  function normalizeDayName(day: string | undefined | null) {
+    if (!day) return "";
+
+    const normalized = day.trim().toLowerCase();
+    const dayAliases: Record<string, string> = {
+      mon: "monday",
+      monday: "monday",
+      tue: "tuesday",
+      tues: "tuesday",
+      tuesday: "tuesday",
+      wed: "wednesday",
+      wednesday: "wednesday",
+      thu: "thursday",
+      thur: "thursday",
+      thurs: "thursday",
+      thursday: "thursday",
+      fri: "friday",
+      friday: "friday",
+      sat: "saturday",
+      saturday: "saturday",
+      sun: "sunday",
+      sunday: "sunday",
+    };
+
+    return dayAliases[normalized] || normalized;
+  }
+
   async function loadDashboardData() {
     if (!schoolId) return;
     try {
@@ -133,6 +160,7 @@ export default function StudentDashboardPage() {
           id,
           first_name,
           last_name,
+          class_id,
           classes (
             id,
             name
@@ -155,6 +183,14 @@ export default function StudentDashboardPage() {
       // Set termId for state
       if (termData && termData.id) {
         setTermId(termData.id);
+      }
+
+      // Use class_id directly from student record
+      const classId = studentData.class_id;
+      if (!classId) {
+        console.warn("Student has no class assigned");
+        setLoading(false);
+        return;
       }
 
       // Fetch attendance stats
@@ -185,7 +221,7 @@ export default function StudentDashboardPage() {
       const { data: assignmentsData } = await supabase
         .from("assignments")
         .select("*")
-        .eq("class_id", classData?.id)
+        .eq("class_id", classId)
         .eq("school_id", schoolId)
         .gt("due_date", new Date().toISOString());
 
@@ -202,25 +238,34 @@ export default function StudentDashboardPage() {
             teachers ( first_name, last_name )
           )
         `)
-        .eq("class_id", classData?.id)
+        .eq("class_id", classId)
         .eq("school_id", schoolId);
 
       let todaysClassesList: TodaysClass[] = [];
       if (timetableData && timetableData.length > 0) {
         // Get enrolled subject_class_ids
-        const { data: studentSubjects } = await supabase
+        const { data: studentSubjects, error: studentSubjectsError } = await supabase
           .from("student_subjects")
           .select("subject_class_id")
-          .eq("student_id", studentData.id);
+          .eq("student_id", studentData.id)
+          .eq("school_id", schoolId);
+
+        if (studentSubjectsError) {
+          console.error("Error fetching student subjects:", studentSubjectsError);
+        }
 
         const enrolledSubjectClassIds = studentSubjects?.map((ss: any) => ss.subject_class_id) || [];
+        const todayKey = normalizeDayName(todayName);
 
         // Filter for today and enrolled subjects
         timetableData.forEach((entry: any) => {
-          const period = entry.period_slots;
+          const period = Array.isArray(entry.period_slots)
+            ? entry.period_slots[0]
+            : entry.period_slots;
           const subjectClass = Array.isArray(entry.subject_classes) ? entry.subject_classes[0] : entry.subject_classes;
+          const periodDay = normalizeDayName(period?.day_of_week);
           
-          if (period && period.day_of_week === todayName) {
+          if (period && periodDay === todayKey) {
             // Show if enrolled, or if no enrolled subjects exist
             if (enrolledSubjectClassIds.length === 0 || (subjectClass && enrolledSubjectClassIds.includes(subjectClass.id))) {
               const subject = Array.isArray(subjectClass?.subjects) ? subjectClass.subjects[0] : subjectClass?.subjects;
@@ -238,6 +283,32 @@ export default function StudentDashboardPage() {
           }
         });
 
+        // Keep behavior aligned with timetable page:
+        // if enrolled-subject filtering removes everything, show available class entries for today.
+        if (todaysClassesList.length === 0 && enrolledSubjectClassIds.length > 0) {
+          timetableData.forEach((entry: any) => {
+            const period = Array.isArray(entry.period_slots)
+              ? entry.period_slots[0]
+              : entry.period_slots;
+            const subjectClass = Array.isArray(entry.subject_classes) ? entry.subject_classes[0] : entry.subject_classes;
+            const periodDay = normalizeDayName(period?.day_of_week);
+
+            if (period && periodDay === todayKey) {
+              const subject = Array.isArray(subjectClass?.subjects) ? subjectClass.subjects[0] : subjectClass?.subjects;
+              const teacher = Array.isArray(subjectClass?.teachers) ? subjectClass.teachers[0] : subjectClass?.teachers;
+
+              todaysClassesList.push({
+                id: entry.id,
+                subjectName: subject?.name || "Unknown Subject",
+                startTime: period.start_time,
+                endTime: period.end_time,
+                teacher: teacher ? `${teacher.first_name} ${teacher.last_name}` : "No teacher assigned",
+                isBreak: period.is_break,
+              });
+            }
+          });
+        }
+
         // Sort by start time
         todaysClassesList.sort((a, b) => a.startTime.localeCompare(b.startTime));
       }
@@ -245,12 +316,12 @@ export default function StudentDashboardPage() {
 
       // Fetch results for average score - use termData.id directly, not state
       let averageScore = 0;
-      if (termData && termData.id && classData && classData.id) {
+      if (termData && termData.id && classId) {
         // First, fetch publication settings to know which components are published
         const { data: pubSettings } = await supabase
           .from("results_publication")
           .select("*")
-          .eq("class_id", classData.id)
+          .eq("class_id", classId)
           .eq("term_id", termData.id)
           .eq("school_id", schoolId)
           .maybeSingle();

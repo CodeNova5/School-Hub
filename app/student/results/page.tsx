@@ -142,7 +142,7 @@ export default function StudentResultPage() {
           .eq("session_id", selectedSessionId)
           .eq("term_id", selectedTermId)
           .eq("school_id", schoolId)
-          .single();
+          .maybeSingle();
 
         setIsPublished(publication?.is_published || false);
       } else {

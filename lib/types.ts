@@ -409,3 +409,109 @@ export interface PromotionSettings {
   created_at: string;
   updated_at: string;
 }
+
+export type FinanceFeeCategory = 'tuition' | 'uniform' | 'exam' | 'bus' | 'custom';
+export type FinanceFeeFrequency = 'per_term' | 'per_session' | 'one_time';
+export type FinanceBillStatus = 'pending' | 'partial' | 'paid' | 'waived' | 'overdue' | 'cancelled';
+export type FinanceTransactionStatus = 'pending' | 'success' | 'failed' | 'abandoned' | 'reversed';
+export type FinancePaymentMethod = 'paystack' | 'bank_transfer' | 'cash' | 'card' | 'manual';
+
+export interface FinanceSettings {
+  id: string;
+  school_id: string;
+  paystack_subaccount_code?: string | null;
+  enable_paystack_checkout: boolean;
+  default_currency: string;
+  invoice_prefix: string;
+  receipt_prefix: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinanceFeeTemplate {
+  id: string;
+  school_id: string;
+  name: string;
+  category: FinanceFeeCategory;
+  frequency: FinanceFeeFrequency;
+  amount: number;
+  description: string;
+  is_active: boolean;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinanceFeeTemplateClassAmount {
+  id: string;
+  school_id: string;
+  fee_template_id: string;
+  class_id: string;
+  class_amount: number;
+  created_at: string;
+}
+
+export interface FinanceStudentBill {
+  id: string;
+  school_id: string;
+  student_id: string;
+  class_id?: string | null;
+  session_id?: string | null;
+  term_id?: string | null;
+  billing_cycle: FinanceFeeFrequency;
+  due_date?: string | null;
+  status: FinanceBillStatus;
+  total_amount: number;
+  amount_paid: number;
+  balance_amount: number;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinanceBillItem {
+  id: string;
+  school_id: string;
+  bill_id: string;
+  fee_template_id?: string | null;
+  title: string;
+  frequency: FinanceFeeFrequency;
+  original_amount: number;
+  amount: number;
+  override_type: 'none' | 'discount' | 'waiver' | 'custom';
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinanceTransaction {
+  id: string;
+  school_id: string;
+  bill_id: string;
+  student_id: string;
+  reference: string;
+  provider: 'paystack' | 'manual';
+  payment_method: FinancePaymentMethod;
+  status: FinanceTransactionStatus;
+  amount: number;
+  paid_at?: string | null;
+  provider_reference?: string | null;
+  idempotency_key?: string | null;
+  metadata: Record<string, unknown>;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FinanceReceipt {
+  id: string;
+  school_id: string;
+  bill_id: string;
+  transaction_id: string;
+  student_id: string;
+  receipt_number: string;
+  invoice_number?: string | null;
+  issued_at: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+}

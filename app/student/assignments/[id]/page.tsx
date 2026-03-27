@@ -46,7 +46,7 @@ export default function StudentAssignmentDetails() {
                     .eq("assignment_id", assignmentData.id)
                     .eq("student_id", student.id)
                     .eq("school_id", schoolId)
-                    .single();
+                    .maybeSingle();
                 setSubmission(submissionData);
             }
 

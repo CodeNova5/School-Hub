@@ -801,6 +801,7 @@ DROP POLICY IF EXISTS "Authenticated users can read assignments"  ON assignments
 DROP POLICY IF EXISTS "Admins can manage assignments"             ON assignments;
 DROP POLICY IF EXISTS "Parents can view children assignments"     ON assignments;
 DROP POLICY IF EXISTS "School users can read assignments"         ON assignments;
+DROP POLICY IF EXISTS "Teachers can manage own assignments"       ON assignments;
 
 CREATE POLICY "School users can read assignments"
   ON assignments FOR SELECT
@@ -808,6 +809,18 @@ CREATE POLICY "School users can read assignments"
   USING (
     is_super_admin()
     OR school_id = get_my_school_id()
+  );
+
+CREATE POLICY "Teachers can manage own assignments"
+  ON assignments FOR ALL
+  TO authenticated
+  USING (
+    teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+    AND school_id = get_my_school_id()
+  )
+  WITH CHECK (
+    teacher_id IN (SELECT id FROM teachers WHERE user_id = auth.uid() AND school_id = get_my_school_id())
+    AND school_id = get_my_school_id()
   );
 
 CREATE POLICY "Admins can manage assignments"

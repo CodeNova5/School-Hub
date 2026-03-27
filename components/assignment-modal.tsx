@@ -42,7 +42,7 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
   const isEditing = !!assignment;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !schoolId) return;
     loadClasses();
 
     // Pre-fill form if editing
@@ -84,16 +84,16 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
   }, [selectedClass]);
 
   async function loadClasses() {
-    let query = supabase
-      .from('subject_classes')
-      .select('class_id, classes(id, name)')
-      .eq('teacher_id', teacherId);
-
-    if (schoolId) {
-      query = query.eq('school_id', schoolId);
+    if (!schoolId || !teacherId) {
+      setClasses([]);
+      return;
     }
 
-    const { data } = await query;
+    const { data } = await supabase
+      .from('subject_classes')
+      .select('class_id, classes(id, name)')
+      .eq('teacher_id', teacherId)
+      .eq('school_id', schoolId);
 
     if (!data) return;
 
@@ -109,23 +109,18 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
   }
 
   async function loadSubjects(classId: string) {
-    if (!classId) {
+    if (!classId || !schoolId || !teacherId) {
       setSubjects([]);
       return;
     }
 
     // Load only subjects that this teacher teaches for the selected class
-    let query = supabase
+    const { data } = await supabase
       .from('subject_classes')
-      .select('subject_id, subjects(id, name)')
+      .select('subject_id, subjects!subject_classes_subject_id_fkey(id, name)')
       .eq('teacher_id', teacherId)
-      .eq('class_id', classId);
-
-    if (schoolId) {
-      query = query.eq('school_id', schoolId);
-    }
-
-    const { data } = await query;
+      .eq('class_id', classId)
+      .eq('school_id', schoolId);
 
     if (!data) return;
 
@@ -141,7 +136,8 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
       !selectedClass ||
       !selectedSubject ||
       !title ||
-      !dueDate
+      !dueDate ||
+      !schoolId
     ) {
       toast.error('Please fill all required fields');
       return;
@@ -151,23 +147,19 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
 
     try {
       // Get current session and term
-      let sessionQuery = supabase
+      const { data: currentSession } = await supabase
         .from('sessions')
         .select('id')
-        .eq('is_current', true);
+        .eq('is_current', true)
+        .eq('school_id', schoolId)
+        .single();
 
-      let termQuery = supabase
+      const { data: currentTerm } = await supabase
         .from('terms')
         .select('id')
-        .eq('is_current', true);
-
-      if (schoolId) {
-        sessionQuery = sessionQuery.eq('school_id', schoolId);
-        termQuery = termQuery.eq('school_id', schoolId);
-      }
-
-      const { data: currentSession } = await sessionQuery.single();
-      const { data: currentTerm } = await termQuery.single();
+        .eq('is_current', true)
+        .eq('school_id', schoolId)
+        .single();
 
       if (!currentSession || !currentTerm) {
         toast.error('No active session or term found');
@@ -188,27 +180,19 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
         total_marks: totalMarks,
         submission_type: submissionType,
         allow_late_submission: allowLate,
+        school_id: schoolId,
       };
-
-      if (schoolId) {
-        assignmentPayload.school_id = schoolId;
-      }
 
       let assignmentData;
       let assignmentId;
 
       if (isEditing) {
         // Update existing assignment
-        let updateQuery = supabase
+        const { data, error: updateError } = await supabase
           .from('assignments')
           .update(assignmentPayload)
-          .eq('id', assignment.id);
-
-        if (schoolId) {
-          updateQuery = updateQuery.eq('school_id', schoolId);
-        }
-
-        const { data, error: updateError } = await updateQuery
+          .eq('id', assignment.id)
+          .eq('school_id', schoolId)
           .select(`
             *,
             classes(name),
@@ -338,16 +322,11 @@ export function AssignmentModal({ open, onClose, onSave, teacherId, assignment, 
                   onClick={async () => {
                     if (isEditing && assignment?.id) {
                       try {
-                        let updateQuery = supabase
+                        const { error } = await supabase
                           .from('assignments')
                           .update({ file_url: null })
-                          .eq('id', assignment.id);
-
-                        if (schoolId) {
-                          updateQuery = updateQuery.eq('school_id', schoolId);
-                        }
-
-                        const { error } = await updateQuery;
+                          .eq('id', assignment.id)
+                          .eq('school_id', schoolId);
 
                         if (error) throw error;
                         toast.success('File removed');

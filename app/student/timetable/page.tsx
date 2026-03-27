@@ -4,11 +4,10 @@ import { useEffect, useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
-import { Calendar, Clock, BookOpen, GraduationCap, Download, Loader2, User } from "lucide-react";
+import { Calendar, Download, Loader2, User } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useSchoolContext } from "@/hooks/use-school-context";
@@ -24,28 +23,41 @@ type PeriodSlot = {
   is_break: boolean;
 };
 
+type TimetableEntry = {
+  id: string;
+  class_id: string;
+  period_slot_id: string;
+  day_of_week: string;
+  subject_classes?: {
+    id: string;
+    subject_code: string;
+    subjects?: { name: string };
+    teachers?: { first_name: string; last_name: string };
+  };
+  period_slots?: PeriodSlot;
+};
+
 function compareSlotTime(a: PeriodSlot, b: PeriodSlot) {
   const byTime = (a.start_time || "").localeCompare(b.start_time || "");
   if (byTime !== 0) return byTime;
   return (a.period_number ?? Number.MAX_SAFE_INTEGER) - (b.period_number ?? Number.MAX_SAFE_INTEGER);
 }
 
-type TimetableCell = {
-  subject: string;
-  fullSubject: string;
-  teacher: string;
-  period: PeriodSlot;
-  rows: any[];
-};
+function shortCode(name: string | undefined | null) {
+  if (!name) return "";
+  const cleaned = name.trim();
+  if (cleaned.length <= 3) return cleaned.toUpperCase();
+  return cleaned.slice(0, 3).toUpperCase();
+}
 
 export default function StudentTimetablePage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [studentName, setStudentName] = useState("");
   const [className, setClassName] = useState("");
-  const [timetable, setTimetable] = useState<Record<string, Record<string, TimetableCell>>>({});
+  const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
-  const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
+  const [selectedDay, setSelectedDay] = useState(DAYS[0]);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -92,33 +104,11 @@ export default function StudentTimetablePage() {
       const classData = Array.isArray(student.classes) ? student.classes[0] : student.classes;
       setClassName(classData?.name || "");
 
-      // Get student's enrolled subject_class_ids from student_subjects table
-      const { data: studentSubjects, error: studentSubjectsError } = await supabase
-        .from("student_subjects")
-        .select("subject_class_id")
-        .eq("student_id", student.id)
-        .eq("school_id", schoolId);
-
-      if (studentSubjectsError) {
-        console.error("Error fetching student subjects:", studentSubjectsError);
-        toast.error("Failed to load your subjects");
-        return;
-      }
-
-      const enrolledSubjectClassIds = studentSubjects?.map((ss: { subject_class_id: any; }) => ss.subject_class_id) || [];
-
-      if (enrolledSubjectClassIds.length === 0) {
-        toast.info("You are not enrolled in any subjects yet");
-        setLoading(false);
-        return;
-      }
-
       // Fetch all timetable entries for the student's class
-      const { data: timetableData, error: timetableError } = await supabase
+      const { data: entries, error: timetableError } = await supabase
         .from("timetable_entries")
         .select(`
           *,
-          classes(id, name),
           period_slots(id, day_of_week, period_number, start_time, end_time, is_break),
           subject_classes (
             id,
@@ -136,74 +126,66 @@ export default function StudentTimetablePage() {
         return;
       }
 
-      if (!timetableData) {
-        toast.info("No timetable entries found");
+      if (!entries || entries.length === 0) {
+        toast.info("No timetable entries found for your class");
+        setLoading(false);
         return;
       }
 
-      // Filter entries to only include subjects the student is enrolled in
-      const studentTimetableEntries = timetableData.filter((entry: { subject_classes: any[]; }) => {
-        const subjectClass = Array.isArray(entry.subject_classes)
-          ? entry.subject_classes[0]
-          : entry.subject_classes;
-        return subjectClass && enrolledSubjectClassIds.includes(subjectClass.id);
-      });
+      // Get student's enrolled subject_class_ids
+      const { data: studentSubjects, error: studentSubjectsError } = await supabase
+        .from("student_subjects")
+        .select("subject_class_id")
+        .eq("student_id", student.id)
+        .eq("school_id", schoolId);
 
-      // Fetch all period slots
-      const { data: slotsData } = await supabase
-        .from("period_slots")
-        .select("*")
-        .eq("school_id", schoolId)
-        .order("day_of_week", { ascending: true })
-        .order("start_time", { ascending: true });
-
-      if (slotsData) {
-        setPeriodSlots(slotsData);
+      if (studentSubjectsError) {
+        console.error("Error fetching student subjects:", studentSubjectsError);
       }
 
-      // Build timetable structure
-      const timetableMap: Record<string, Record<string, TimetableCell>> = {};
+      const enrolledSubjectClassIds = studentSubjects?.map((ss: { subject_class_id: any; }) => ss.subject_class_id) || [];
 
-      DAYS.forEach(day => {
-        timetableMap[day] = {};
-      });
+      // Debug: log enrolled vs available subjects
+      console.log("Enrolled subject IDs:", enrolledSubjectClassIds);
+      console.log("Available subject class IDs:", entries.map((e: any) => {
+        const sc = Array.isArray(e.subject_classes) ? e.subject_classes[0] : e.subject_classes;
+        return sc?.id;
+      }));
 
-      studentTimetableEntries.forEach((entry: any) => {
-        const periodSlot = Array.isArray(entry.period_slots)
-          ? entry.period_slots[0]
-          : entry.period_slots;
+      // Filter entries - if enrolled subjects exist, only show those; otherwise show all
+      let filteredEntries = entries;
+      if (enrolledSubjectClassIds.length > 0) {
+        filteredEntries = entries.filter((entry: any) => {
+          const subjectClass = Array.isArray(entry.subject_classes)
+            ? entry.subject_classes[0]
+            : entry.subject_classes;
+          return subjectClass && enrolledSubjectClassIds.includes(subjectClass.id);
+        });
 
-        if (!periodSlot) return;
+        // Fallback: if filtering results in empty array, show all entries
+        // This handles cases where enrolled subjects data might be inconsistent
+        if (filteredEntries.length === 0) {
+          console.warn("No matching enrolled subjects found. Showing all timetable entries.");
+          filteredEntries = entries;
+        }
+      }
 
-        const day = periodSlot.day_of_week;
-        const periodSlotId = entry.period_slot_id;
-
-        const subjectClass = Array.isArray(entry.subject_classes)
-          ? entry.subject_classes[0]
-          : entry.subject_classes;
-
-        const subjectName = subjectClass?.subjects?.name || "";
-        const subjectCode = shortCode(subjectName);
-
-        const teacher = subjectClass?.teachers;
-        const teacherName = teacher
-          ? `${teacher.first_name} ${teacher.last_name}`
-          : "TBA";
-
-        if (!timetableMap[day][periodSlotId]) {
-          timetableMap[day][periodSlotId] = {
-            subject: subjectCode || subjectName,
-            fullSubject: subjectName,
-            teacher: teacherName,
-            period: periodSlot,
-            rows: [entry],
-          };
-        } else {
-          timetableMap[day][periodSlotId].rows.push(entry);
+      // Extract unique period slots from entries (same as ClassTimetable)
+      const slots: PeriodSlot[] = [];
+      const slotMap = new Map();
+      filteredEntries.forEach((entry: any) => {
+        if (entry.period_slots && !slotMap.has(entry.period_slots.id)) {
+          slotMap.set(entry.period_slots.id, entry.period_slots);
         }
       });
+      slotMap.forEach((v) => slots.push(v));
+      slots.sort((a, b) => {
+        if (a.day_of_week === b.day_of_week) return compareSlotTime(a, b);
+        return DAYS.indexOf(a.day_of_week) - DAYS.indexOf(b.day_of_week);
+      });
 
-      setTimetable(timetableMap);
+      setTimetableEntries(filteredEntries);
+      setPeriodSlots(slots);
     } catch (error) {
       console.error("Error loading timetable:", error);
       toast.error("Failed to load timetable");
@@ -211,66 +193,6 @@ export default function StudentTimetablePage() {
       setLoading(false);
     }
   }
-
-  function shortCode(name: string | undefined | null) {
-    if (!name) return "";
-    const cleaned = name.trim();
-    if (cleaned.length <= 3) return cleaned.toUpperCase();
-    return cleaned.slice(0, 3).toUpperCase();
-  }
-
-  // Group period slots by day
-  const periodsByDay = useMemo(() => {
-    const dayMap: Record<string, PeriodSlot[]> = {};
-    DAYS.forEach(day => {
-      dayMap[day] = periodSlots
-        .filter(p => p.day_of_week === day)
-        .sort(compareSlotTime);
-    });
-    return dayMap;
-  }, [periodSlots]);
-
-  // Find maximum number of periods across all days
-  const maxPeriods = useMemo(() => {
-    return Math.max(
-      ...Object.values(periodsByDay).map((periods) => periods.length),
-      0
-    );
-  }, [periodsByDay]);
-
-  const displayPeriodRows = useMemo(() => {
-    const rows: {
-      index: number;
-      label: string;
-      isBreakRow: boolean;
-    }[] = [];
-
-    let periodCounter = 0;
-
-    for (let rowIndex = 0; rowIndex < maxPeriods; rowIndex++) {
-      const isBreakRow = DAYS.some((day) => {
-        const period = periodsByDay[day]?.[rowIndex];
-        return period?.is_break;
-      });
-
-      if (isBreakRow) {
-        rows.push({
-          index: rowIndex,
-          label: "BREAK",
-          isBreakRow: true,
-        });
-      } else {
-        periodCounter++;
-        rows.push({
-          index: rowIndex,
-          label: `${periodCounter}`,
-          isBreakRow: false,
-        });
-      }
-    }
-
-    return rows;
-  }, [maxPeriods, periodsByDay]);
 
   async function handleExportPDF() {
     const element = document.getElementById("student-timetable-area");
@@ -334,18 +256,57 @@ export default function StudentTimetablePage() {
     }
   }
 
+  // Group period slots by day
+  const periodsByDay = useMemo(() => {
+    const dayMap: Record<string, PeriodSlot[]> = {};
+    DAYS.forEach(day => {
+      dayMap[day] = periodSlots.filter(p => p.day_of_week === day);
+    });
+    return dayMap;
+  }, [periodSlots]);
+
+  // Group entries by period slot to handle multiple subjects
+  const groupedEntries = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    timetableEntries.forEach((entry) => {
+      const key = `${entry.period_slot_id}`;
+      if (!map[key]) {
+        map[key] = [];
+      }
+      map[key].push(entry);
+    });
+    return map;
+  }, [timetableEntries]);
+
+  const maxPeriods = useMemo(() => {
+    return Math.max(
+      ...Object.values(periodsByDay).map(periods => periods.length),
+      0
+    );
+  }, [periodsByDay]);
+
   // Calculate stats
   const stats = useMemo(() => {
     let totalPeriods = 0;
     let uniqueSubjects = new Set<string>();
     let uniqueTeachers = new Set<string>();
 
-    Object.values(timetable).forEach((daySchedule) => {
-      Object.values(daySchedule).forEach((cell) => {
+    Object.values(groupedEntries).forEach((entries) => {
+      if (entries.length > 0) {
         totalPeriods += 1;
-        if (cell.fullSubject) uniqueSubjects.add(cell.fullSubject);
-        if (cell.teacher) uniqueTeachers.add(cell.teacher);
-      });
+        entries.forEach((entry) => {
+          const subjectClass = Array.isArray(entry.subject_classes)
+            ? entry.subject_classes[0]
+            : entry.subject_classes;
+          const subject = subjectClass?.subjects?.name;
+          if (subject) uniqueSubjects.add(subject);
+          
+          const teacher = subjectClass?.teachers;
+          if (teacher) {
+            uniqueTeachers.add(`${teacher.first_name} ${teacher.last_name}`);
+          }
+        });
+      }
     });
 
     return {
@@ -353,7 +314,7 @@ export default function StudentTimetablePage() {
       subjectsCount: uniqueSubjects.size,
       teachersCount: uniqueTeachers.size,
     };
-  }, [timetable]);
+  }, [groupedEntries]);
 
   if (loading || schoolLoading) {
     return (
@@ -386,9 +347,6 @@ export default function StudentTimetablePage() {
                   <p className="text-xs sm:text-sm text-gray-600">Class Periods</p>
                   <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalPeriods}</p>
                 </div>
-                <div className="bg-blue-100 p-2 sm:p-3 rounded-full">
-                  <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -400,9 +358,6 @@ export default function StudentTimetablePage() {
                   <p className="text-xs sm:text-sm text-gray-600">My Subjects</p>
                   <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.subjectsCount}</p>
                 </div>
-                <div className="bg-green-100 p-2 sm:p-3 rounded-full">
-                  <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -413,9 +368,6 @@ export default function StudentTimetablePage() {
                 <div>
                   <p className="text-xs sm:text-sm text-gray-600">Teachers</p>
                   <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.teachersCount}</p>
-                </div>
-                <div className="bg-purple-100 p-2 sm:p-3 rounded-full">
-                  <User className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
                 </div>
               </div>
             </CardContent>
@@ -469,7 +421,24 @@ export default function StudentTimetablePage() {
                 {periodSlots
                   .filter((p) => p.day_of_week === selectedDay)
                   .map((period, idx) => {
-                    const cell = timetable[selectedDay]?.[period.id];
+                    const entries = groupedEntries[period.id] || [];
+
+                    // Only use abbreviated codes if multiple subjects, otherwise full name
+                    let subjectDisplay = "";
+                    if (entries.length > 1) {
+                      subjectDisplay = Array.from(new Set(
+                        entries
+                          .filter(e => e.subject_classes?.subjects?.name)
+                          .map(e => shortCode(e.subject_classes?.subjects?.name))
+                      )).join("/");
+                    } else if (entries.length === 1 && entries[0].subject_classes?.subjects?.name) {
+                      subjectDisplay = entries[0].subject_classes.subjects.name;
+                    }
+
+                    const teachers = entries
+                      .filter(e => e.subject_classes?.teachers)
+                      .map(e => `${e.subject_classes.teachers.first_name} ${e.subject_classes.teachers.last_name}`);
+                    const uniqueTeachers = Array.from(new Set(teachers)).join(", ");
 
                     if (period.is_break) {
                       return (
@@ -489,7 +458,7 @@ export default function StudentTimetablePage() {
                       <div
                         key={period.id}
                         className={`p-4 border rounded-lg transition-colors ${
-                          cell
+                          entries.length > 0
                             ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"
                             : "bg-gray-50 border-gray-200"
                         }`}
@@ -498,14 +467,14 @@ export default function StudentTimetablePage() {
                           <div className="text-sm font-semibold text-gray-600">
                             Period {idx + 1} • {period.start_time} - {period.end_time}
                           </div>
-                          {cell ? (
+                          {entries.length > 0 ? (
                             <div className="space-y-2">
                               <div className="text-lg font-bold text-gray-900">
-                                {cell.fullSubject}
+                                {subjectDisplay}
                               </div>
                               <div className="flex items-center gap-2 text-blue-700">
                                 <User className="h-4 w-4" />
-                                <span className="text-sm">{cell.teacher}</span>
+                                <span className="text-sm">{uniqueTeachers}</span>
                               </div>
                             </div>
                           ) : (
@@ -585,29 +554,24 @@ export default function StudentTimetablePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayPeriodRows.map((row) => (
-                    <tr key={row.index} className={row.isBreakRow ? "bg-yellow-50" : ""}>
+                  {Array.from({ length: maxPeriods }, (_, rowIndex) => (
+                    <tr key={rowIndex} className="border-b border-gray-300 hover:bg-gray-50">
                       <td className="border border-gray-300 p-1.5 sm:p-2 bg-gray-50 text-center font-medium sticky left-0 z-10">
                         <div>
                           <div className="text-xs sm:text-sm font-semibold text-gray-800">
-                            {row.isBreakRow ? "BREAK" : (
-                              <>
-                                <span className="hidden sm:inline">Period {row.label}</span>
-                                <span className="sm:hidden">P{row.label}</span>
-                              </>
-                            )}
+                            <span className="hidden sm:inline">Period {rowIndex + 1}</span>
+                            <span className="sm:hidden">P{rowIndex + 1}</span>
                           </div>
-                          {!row.isBreakRow && (
+                          {periodsByDay[DAYS[0]]?.[rowIndex] && (
                             <div className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
-                              {periodsByDay[DAYS[0]]?.[row.index]?.start_time || "—"} - 
-                              {periodsByDay[DAYS[0]]?.[row.index]?.end_time || "—"}
+                              {periodsByDay[DAYS[0]][rowIndex]?.start_time || "—"} - {periodsByDay[DAYS[0]][rowIndex]?.end_time || "—"}
                             </div>
                           )}
                         </div>
                       </td>
                       {DAYS.map((day) => {
-                        const period = periodsByDay[day]?.[row.index];
-                        
+                        const period = periodsByDay[day]?.[rowIndex];
+
                         if (!period) {
                           return (
                             <td
@@ -627,30 +591,50 @@ export default function StudentTimetablePage() {
                             >
                               <div className="text-center">
                                 <div className="font-semibold text-yellow-800 text-xs sm:text-sm">BREAK TIME</div>
+                                <div className="text-[10px] sm:text-xs text-yellow-700 mt-0.5">
+                                  {period.start_time} - {period.end_time}
+                                </div>
                               </div>
                             </td>
                           );
                         }
 
-                        const cell = timetable[day]?.[period.id];
+                        const entries = groupedEntries[period.id] || [];
+
+                        // Only use abbreviated codes if multiple subjects, otherwise full name
+                        let subjectDisplay = "";
+                        if (entries.length > 1) {
+                          subjectDisplay = Array.from(new Set(
+                            entries
+                              .filter(e => e.subject_classes?.subjects?.name)
+                              .map(e => shortCode(e.subject_classes?.subjects?.name))
+                          )).join("/");
+                        } else if (entries.length === 1 && entries[0].subject_classes?.subjects?.name) {
+                          subjectDisplay = entries[0].subject_classes.subjects.name;
+                        }
+
+                        const teachers = entries
+                          .filter(e => e.subject_classes?.teachers)
+                          .map(e => `${e.subject_classes.teachers.first_name} ${e.subject_classes.teachers.last_name}`);
+                        const uniqueTeachers = Array.from(new Set(teachers)).join(", ");
 
                         return (
                           <td
                             key={day}
                             className={`border border-gray-300 p-1.5 sm:p-2 ${
-                              cell 
-                                ? "bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors" 
+                              entries.length > 0
+                                ? "bg-gradient-to-br from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-colors"
                                 : "hover:bg-gray-50 transition-colors"
                             }`}
                           >
-                            {cell ? (
+                            {entries.length > 0 ? (
                               <div className="space-y-0.5 sm:space-y-1">
                                 <div className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight">
-                                  {cell.fullSubject}
+                                  {subjectDisplay}
                                 </div>
                                 <div className="flex items-center gap-1 text-[10px] sm:text-xs text-blue-700">
                                   <User className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate">{cell.teacher}</span>
+                                  <span className="truncate">{uniqueTeachers}</span>
                                 </div>
                               </div>
                             ) : (

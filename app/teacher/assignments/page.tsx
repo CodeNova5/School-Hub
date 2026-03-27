@@ -664,6 +664,7 @@ export default function AssignmentsPage() {
       <AssignmentModal
         open={openModal}
         teacherId={teacherId}
+        schoolId={schoolId}
         assignment={editingAssignment}
         onClose={() => {
           setOpenModal(false);

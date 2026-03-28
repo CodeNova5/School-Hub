@@ -130,6 +130,7 @@ export function Sidebar({
   const studentNav: NavItem[] = [
     { href: "/student", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/student/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
+    { href: "/student/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
     { href: "/student/timetable", label: "Timetable", icon: <Calendar className="h-5 w-5" /> },
     { href: "/student/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
     { href: "/student/results", label: "Results", icon: <GraduationCap className="h-5 w-5" /> },
@@ -143,6 +144,7 @@ export function Sidebar({
   const parentNav: NavItem[] = [
     { href: "/parent", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/parent/children", label: "My Children", icon: <Users className="h-5 w-5" /> },
+    { href: "/parent/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
     { href: "/parent/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/parent/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/parent/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },

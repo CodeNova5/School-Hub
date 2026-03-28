@@ -375,6 +375,23 @@ CREATE POLICY "Admins can manage finance transactions"
 	USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
 	WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
+DROP POLICY IF EXISTS "Students and parents can insert finance transactions" ON finance_transactions;
+
+CREATE POLICY "Students and parents can insert finance transactions"
+	ON finance_transactions FOR INSERT
+	TO authenticated
+	WITH CHECK (
+		(
+			student_id IN (SELECT id FROM students WHERE user_id = auth.uid())
+			OR student_id IN (
+				SELECT id
+				FROM students
+				WHERE parent_email IN (SELECT email FROM parents WHERE user_id = auth.uid())
+			)
+		)
+		AND created_by = auth.uid()
+	);
+
 DROP POLICY IF EXISTS "School users can read finance receipts" ON finance_receipts;
 DROP POLICY IF EXISTS "Admins can manage finance receipts" ON finance_receipts;
 

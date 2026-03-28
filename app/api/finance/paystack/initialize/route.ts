@@ -19,6 +19,30 @@ interface PaystackInitializeResponse {
   };
 }
 
+type StudentProfile = {
+  id: string;
+  user_id?: string | null;
+  parent_email?: string | null;
+  first_name?: string;
+  last_name?: string;
+};
+
+function getSingleStudentRelation(value: unknown): StudentProfile | null {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return (value[0] as StudentProfile | undefined) ?? null;
+  }
+
+  if (typeof value === "object") {
+    return value as StudentProfile;
+  }
+
+  return null;
+}
+
 function generateReference(prefix: string) {
   const timestamp = Date.now().toString();
   const random = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -62,12 +86,11 @@ export async function POST(req: NextRequest) {
     return errorResponse("Bill not found", 404);
   }
 
-    const studentRelation = bill.students as Array<{ id: string; user_id?: string | null; parent_email?: string | null; first_name?: string; last_name?: string }> | null;
-    const student = Array.isArray(studentRelation) ? studentRelation[0] : null;
+  const student = getSingleStudentRelation((bill as any).students);
 
-    if (!student) {
-      return errorResponse("Student profile not found for bill", 404);
-    }
+  if (!student) {
+    return errorResponse("Student profile not found for bill", 404);
+  }
 
   const { data: parent } = await supabase
     .from("parents")

@@ -14,6 +14,27 @@ interface PaystackVerifyResponse {
   };
 }
 
+type StudentRelation = {
+  user_id?: string | null;
+  parent_email?: string | null;
+};
+
+function getSingleStudentRelation(value: unknown): StudentRelation | null {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return (value[0] as StudentRelation | undefined) ?? null;
+  }
+
+  if (typeof value === "object") {
+    return value as StudentRelation;
+  }
+
+  return null;
+}
+
 function formatSequence(value: number) {
   return value.toString().padStart(6, "0");
 }
@@ -110,8 +131,7 @@ export async function GET(req: NextRequest) {
     return errorResponse("Transaction not found", 404);
   }
 
-  const txStudentRelation = transaction.students as Array<{ user_id?: string | null; parent_email?: string | null }> | null;
-  const txStudent = Array.isArray(txStudentRelation) ? txStudentRelation[0] : null;
+  const txStudent = getSingleStudentRelation((transaction as any).students);
   const { data: parent } = await supabase
     .from("parents")
     .select("email")

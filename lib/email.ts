@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
 export const PLATFORM_NAME = "School Deck";
-const DEFAULT_FROM_EMAIL = "onboarding@resend.dev";
+const DEFAULT_FROM_EMAIL = "noreply@mail.schooldeck.tech";
 
 export type EmailPayload = {
   to: string;

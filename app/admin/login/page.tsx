@@ -64,53 +64,6 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Get admin's assigned school
-    const { data: adminSchoolId, error: schoolError } = await supabase.rpc("get_my_school_id");
-    
-    console.log("get_my_school_id result:", { adminSchoolId, schoolError });
-    
-    if (!adminSchoolId) {
-      setErrorMsg("Your account is not assigned to any school.");
-      await supabase.auth.signOut();
-      setLoading(false);
-      return;
-    }
-
-    // Get current school from subdomain
-    const hostname = window.location.hostname;
-    const subdomain = hostname.split(".")[0];
-    
-    
-    // If not localhost, verify school matches current subdomain
-    if (hostname !== "localhost" && subdomain !== "localhost") {
-      try {
-        // Use Supabase RPC to get school by subdomain
-        const { data: schoolData, error: schoolQueryError } = await supabase.rpc(
-          "get_school_by_subdomain",
-          { p_subdomain: subdomain }
-        );
-
-        console.log("School data:", { schoolData, schoolQueryError, adminSchoolId });
-
-        // schoolData is an array (RPC returns TABLE), get first result
-        const school = Array.isArray(schoolData) ? schoolData[0] : schoolData;
-
-        if (schoolQueryError || !school || school.id !== adminSchoolId) {
-          setErrorMsg(
-            "You are not authorized to access this school portal. Please use your school's login URL."
-          );
-          await supabase.auth.signOut();
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.error("Error verifying school:", err);
-        setErrorMsg("Unable to verify school access. Please try again.");
-        setLoading(false);
-        return;
-      }
-    }
-
     // Force reload so middleware sees session cookie
     window.location.href = redirectedFrom;
   }

@@ -170,8 +170,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // For admin routes, verify school_id matches subdomain
-  if (config.prefix === "/admin" && !pathname.startsWith("/admin/activate") && !pathname.startsWith("/admin/reset-password")) {
+  // For admin routes, verify school_id matches subdomain (skip for login/activate/reset-password)
+  if (config.prefix === "/admin" && !pathname.startsWith("/admin/login") && !pathname.startsWith("/admin/activate") && !pathname.startsWith("/admin/reset-password")) {
     const currentSchoolId = req.headers.get("x-school-id");
     const { data: adminSchoolId } = await supabase.rpc("get_my_school_id");
 

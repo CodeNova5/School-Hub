@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
 
 // ---------------------------------------------------------------------------
 // Utility: extract subdomain from the incoming request host
@@ -51,8 +51,45 @@ const routeConfigs = [
 ];
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
+  let res = NextResponse.next();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Fail open if env vars are unavailable so public routes can still load.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return res;
+  }
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return req.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        const existingHeaders = new Headers(res.headers);
+        res = NextResponse.next();
+
+        existingHeaders.forEach((value, key) => {
+          res.headers.set(key, value);
+        });
+
+        for (const { name, value, options } of cookiesToSet) {
+          req.cookies.set(name, value);
+          res.cookies.set(name, value, options);
+        }
+      },
+    },
+  });
+
+  const redirectWithCookies = (url: URL) => {
+    const redirectResponse = NextResponse.redirect(url);
+
+    for (const cookie of res.cookies.getAll()) {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    }
+
+    return redirectResponse;
+  };
 
   const { pathname } = req.nextUrl;
 
@@ -66,12 +103,12 @@ export async function middleware(req: NextRequest) {
     });
     if (school && school.length > 0) {
       if (!school[0].is_active) {
-        return NextResponse.redirect(new URL("/school-suspended", req.url));
+        return redirectWithCookies(new URL("/school-suspended", req.url));
       }
       res.headers.set("x-school-id", school[0].id);
       res.headers.set("x-school-name", school[0].name);
     } else {
-      return NextResponse.redirect(new URL("/school-not-found", req.url));
+      return redirectWithCookies(new URL("/school-not-found", req.url));
     }
   }
 
@@ -85,16 +122,16 @@ export async function middleware(req: NextRequest) {
     if (isSuperAdminLogin) {
       if (session) {
         const { data: canAccess } = await supabase.rpc("can_access_super_admin");
-        if (canAccess) return NextResponse.redirect(new URL("/super-admin", req.url));
+        if (canAccess) return redirectWithCookies(new URL("/super-admin", req.url));
       }
       return res;
     }
 
-    if (!session) return NextResponse.redirect(new URL("/super-admin/login", req.url));
+    if (!session) return redirectWithCookies(new URL("/super-admin/login", req.url));
 
     const { data: canAccess } = await supabase.rpc("can_access_super_admin");
     if (!canAccess)
-      return NextResponse.redirect(new URL("/super-admin/login?error=unauthorized", req.url));
+      return redirectWithCookies(new URL("/super-admin/login?error=unauthorized", req.url));
 
     return res;
   }
@@ -111,7 +148,7 @@ export async function middleware(req: NextRequest) {
       const userRole = session.user?.user_metadata?.role as string | undefined;
 
       if (userRole === "super_admin") {
-        return NextResponse.redirect(new URL("/super-admin", req.url));
+        return redirectWithCookies(new URL("/super-admin", req.url));
       }
 
       const roleConfigMap: Record<string, (typeof routeConfigs)[0]> = {};
@@ -124,7 +161,7 @@ export async function middleware(req: NextRequest) {
       if (config) {
         const { data: canAccess } = await supabase.rpc(config.rpc);
         if (canAccess) {
-          return NextResponse.redirect(new URL(config.dashboard, req.url));
+          return redirectWithCookies(new URL(config.dashboard, req.url));
         }
       }
     }
@@ -158,7 +195,7 @@ export async function middleware(req: NextRequest) {
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = config.login;
     redirectUrl.searchParams.set("redirectedFrom", pathname);
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(redirectUrl);
   }
 
   const { data: canAccess, error } = await supabase.rpc(config.rpc);
@@ -167,7 +204,7 @@ export async function middleware(req: NextRequest) {
     redirectUrl.pathname = config.login;
     redirectUrl.searchParams.set("error", "unauthorized");
     redirectUrl.searchParams.set("redirectedFrom", pathname);
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(redirectUrl);
   }
 
   // For admin routes, verify school_id matches subdomain (skip for login/activate/reset-password)
@@ -179,7 +216,7 @@ export async function middleware(req: NextRequest) {
       const redirectUrl = req.nextUrl.clone();
       redirectUrl.pathname = "/admin/login";
       redirectUrl.searchParams.set("error", "school_mismatch");
-      return NextResponse.redirect(redirectUrl);
+      return redirectWithCookies(redirectUrl);
     }
   }
 
@@ -187,7 +224,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  runtime: "nodejs",
   matcher: [
     "/",
     "/admin/:path*",

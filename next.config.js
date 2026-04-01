@@ -7,7 +7,8 @@ const nextConfig = {
   images: { unoptimized: true },
 
   experimental: {
-    serverActions: true,
+    // Temporary compatibility toggle after Next 14 upgrade.
+    missingSuspenseWithCSRBailout: false,
   },
 
   async headers() {

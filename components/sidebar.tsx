@@ -31,7 +31,6 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/server-actions/auth";
 
 interface NavItem {
   href: string;
@@ -65,7 +64,7 @@ export function Sidebar({
 
   async function checkTeacherClasses() {
     try {
-      const user = await getCurrentUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: teacherData } = await supabase

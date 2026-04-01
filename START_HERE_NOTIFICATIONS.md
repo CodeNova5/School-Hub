@@ -2,7 +2,7 @@
 
 ## What's Been Created For You ✅
 
-I've created a **complete, production-ready Firebase Cloud Messaging (FCM) system** for your School Hub app. Here's what you get:
+I've created a **complete, production-ready Firebase Cloud Messaging (FCM) system** for your School Deck app. Here's what you get:
 
 ### ✨ Key Features
 
@@ -139,7 +139,7 @@ In Supabase dashboard → SQL Editor:
 
 ### Notification Received
 ```
-School Hub
+School Deck
 ══════════════════════════════════
 📝 New Assignment
 Math homework due tomorrow at 3 PM
@@ -381,7 +381,7 @@ Everything is set up in your project. You just need:
 ## 📊 File Structure After Setup
 
 ```
-School Hub/
+School Deck/
 ├── app/
 │   ├── layout.tsx ← UPDATE
 │   ├── student/page.tsx ← ADD COMPONENT

@@ -622,6 +622,7 @@ CREATE INDEX IF NOT EXISTS idx_timetable_entries_religion ON timetable_entries(r
 CREATE TABLE IF NOT EXISTS parents (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE NOT NULL,
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   email text UNIQUE NOT NULL,
   name text NOT NULL,
   phone text,

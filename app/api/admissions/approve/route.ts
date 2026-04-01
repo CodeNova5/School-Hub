@@ -2,7 +2,8 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -110,19 +111,15 @@ export async function POST(req: Request) {
       throw new Error(createStudentResult.error || "Failed to create student");
     }
 
-    // Send approval email
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const schoolName = await resolveSchoolName(
+      supabaseAdmin,
+      application.school_id || schoolId
+    );
 
-    await transporter.sendMail({
-      from: `"School Hub Admissions" <${process.env.EMAIL_USER}>`,
+    await sendEmailSafe({
       to: application.parent_email,
-      subject: "Application Approved - Welcome to School Hub!",
+      fromName: buildSchoolSenderName(schoolName, "Admissions"),
+      subject: `Application Approved - Welcome to ${schoolName}!`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #10b981;">🎉 Application Approved!</h2>
@@ -147,7 +144,8 @@ export async function POST(req: Request) {
           <p>Welcome to our school community! We look forward to partnering with you in your child's educational journey.</p>
           
           <p>Best regards,<br>
-          <strong>School Hub Admissions Team</strong></p>
+          <strong>${schoolName} Admissions Team</strong></p>
+          <p style="color: #666; font-size: 12px;">Powered by School Deck.</p>
         </div>
       `,
     });

@@ -84,7 +84,7 @@
 ┌─────────────────────────────────────────────────────────┐
 │  Browser Permission Dialog                              │
 │                                                         │
-│  "School Hub" would like to access your microphone     │
+│  "School Deck" would like to access your microphone     │
 │                                                         │
 │  [Allow]  [Block]                                      │
 │                                                         │

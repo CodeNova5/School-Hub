@@ -357,4 +357,4 @@ For issues or questions:
 
 ## License
 
-Part of School Hub system - All rights reserved.
+Part of School Deck system - All rights reserved.

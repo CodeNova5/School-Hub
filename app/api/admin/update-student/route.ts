@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -178,32 +179,29 @@ export async function POST(req: Request) {
         }
 
         // Send verification email
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        if (!process.env.RESEND_API_KEY) {
           console.warn("Email credentials not configured");
           return NextResponse.json({
             success: true,
-            message: "Student updated but email configuration is missing. Please configure EMAIL_USER and EMAIL_PASS environment variables.",
+            message: "Student updated but email configuration is missing. Please configure RESEND_API_KEY.",
             student: updatedStudent,
           });
         }
 
-        const transporter = nodemailer.createTransport({
-          service: "gmail",
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-          },
-        });
+        const schoolName = await resolveSchoolName(
+          supabase,
+          currentStudent.school_id || updatedStudent.school_id
+        );
 
         const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/student/activate?token=${rawToken}`;
 
-        await transporter.sendMail({
-          from: `"School Hub" <${process.env.EMAIL_USER}>`,
+        const mailError = await sendEmailSafe({
           to: updates.email,
-          subject: "Verify Your New Email Address",
+          fromName: buildSchoolSenderName(schoolName),
+          subject: `Verify Your New Email Address - ${schoolName}`,
           html: `
             <p>Hello ${currentStudent.first_name},</p>
-            <p>Your email address has been updated in the School Hub system.</p>
+            <p>Your email address has been updated for <strong>${schoolName}</strong> in School Deck.</p>
             <p>Click the link below to verify your new email address:</p>
             <p>
               <a href="${activationLink}" style="color:#2563eb; text-decoration:none;">
@@ -214,6 +212,10 @@ export async function POST(req: Request) {
             <p>If you did not request this change, please contact your administrator.</p>
           `,
         });
+
+        if (mailError) {
+          throw new Error(mailError);
+        }
       } catch (emailError: any) {
         console.error("Error sending verification email:", emailError);
         return NextResponse.json({

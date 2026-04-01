@@ -11,7 +11,7 @@ interface HeaderProps {
   schoolName?: string;
 }
 
-export function Header({ onMenuToggle, isMobileMenuOpen, schoolName = "School Hub" }: HeaderProps) {
+export function Header({ onMenuToggle, isMobileMenuOpen, schoolName = "School Deck" }: HeaderProps) {
   return (
     <div className="fixed top-0 left-0 right-0 z-35 bg-white border-b border-slate-200 shadow-sm md:hidden">
       <div className="flex items-center justify-between h-16 px-4">

@@ -17,7 +17,7 @@
 ### Phase 1: Get Firebase Service Account Key (5 min)
 
 - [ ] Open [Firebase Console](https://console.firebase.google.com/)
-- [ ] Select your **School Hub** project
+- [ ] Select your **School Deck** project
 - [ ] Click **⚙️ Settings** → **Project Settings**
 - [ ] Go to **Service Accounts** tab
 - [ ] Make sure **Node.js** is selected

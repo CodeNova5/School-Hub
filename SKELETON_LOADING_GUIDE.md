@@ -1,6 +1,6 @@
 # Skeleton Loading System Guide
 
-This guide explains how to implement skeleton preview with shimmer animation for pages during initial load in the School Hub application.
+This guide explains how to implement skeleton preview with shimmer animation for pages during initial load in the School Deck application.
 
 ## Overview
 

@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-});
 
 export async function POST(req: Request) {
     try {
@@ -30,7 +23,7 @@ export async function POST(req: Request) {
         // 1️⃣ Get student by email or user_id
         let query = supabase
             .from("students")
-            .select("id, email, first_name, last_name, user_id");
+            .select("id, email, first_name, last_name, user_id, school_id");
         
         let result;
         if (email) {
@@ -78,23 +71,25 @@ export async function POST(req: Request) {
 
         // 5️⃣ Send email with activation link
         const activationLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/student/reset-password?token=${activationToken}`;
+                const schoolName = await resolveSchoolName(supabase, student.school_id);
 
         try {
-            await transporter.sendMail({
-                from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+                        await sendEmailSafe({
                 to: student.email,
-                subject: "Reset Your Password - School Hub",
+                                fromName: buildSchoolSenderName(schoolName),
+                                subject: `Reset Your Password - ${schoolName}`,
                 html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #333;">Password Reset Request</h2>
             <p>Hello ${student.first_name} ${student.last_name},</p>
-            <p>We received a request to reset your password. Click the link below to set a new password:</p>
+                        <p>We received a request to reset your ${schoolName} account password. Click the link below to set a new password:</p>
             <div style="margin: 20px 0;">
               <a href="${activationLink}" style="background-color: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Reset Password</a>
             </div>
             <p>Or copy this link: <a href="${activationLink}">${activationLink}</a></p>
             <p style="color: #666; font-size: 14px;">This link will expire in 24 hours.</p>
             <p style="color: #666; font-size: 12px;">If you didn't request a password reset, please ignore this email.</p>
+                        <p style="color: #666; font-size: 12px;">Powered by School Deck.</p>
           </div>
         `,
             });

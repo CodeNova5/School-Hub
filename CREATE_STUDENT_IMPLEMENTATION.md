@@ -155,8 +155,9 @@ Uses existing shadcn/ui components:
 
 ### Environment Requirements
 The create-student endpoint requires:
-- `EMAIL_USER` - Gmail address for sending activation emails
-- `EMAIL_PASS` - Gmail app password
+- `RESEND_API_KEY` - Resend API key for sending activation emails
+- `RESEND_FROM_EMAIL` - Optional sender email (defaults to onboarding@resend.dev)
+- `RESEND_FROM_NAME` - Optional sender display name
 - `NEXT_PUBLIC_APP_URL` - Application URL for activation link generation
 
 ## Testing Checklist
@@ -209,8 +210,8 @@ The activation email includes:
 ## Troubleshooting
 
 ### Email Not Sending
-- Check EMAIL_USER and EMAIL_PASS in .env
-- Verify Gmail app password setup
+- Check RESEND_API_KEY in .env
+- Verify Resend sender configuration
 - Check NEXT_PUBLIC_APP_URL is correct
 
 ### Duplicate Student ID Error

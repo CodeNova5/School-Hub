@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -165,19 +166,12 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
 
-    // Send confirmation email to parent
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const schoolName = await resolveSchoolName(supabase, schoolId);
 
-    await transporter.sendMail({
-      from: `"School Hub Admissions" <${process.env.EMAIL_USER}>`,
+    await sendEmailSafe({
       to: applicationData.parent_email,
-      subject: "Application Received - School Hub",
+      fromName: buildSchoolSenderName(schoolName, "Admissions"),
+      subject: `Application Received - ${schoolName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #2563eb;">Application Received Successfully</h2>
@@ -203,7 +197,8 @@ export async function POST(req: NextRequest) {
           <p>If you have any questions, please feel free to contact us.</p>
           
           <p>Best regards,<br>
-          <strong>School Hub Admissions Team</strong></p>
+          <strong>${schoolName} Admissions Team</strong></p>
+          <p style="color: #666; font-size: 12px;">Powered by School Deck.</p>
         </div>
       `,
     });

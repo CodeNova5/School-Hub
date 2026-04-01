@@ -4,7 +4,7 @@
 
 ### Step 1: Go to Firebase Console
 1. Open [Firebase Console](https://console.firebase.google.com/)
-2. Select your **School Hub** project
+2. Select your **School Deck** project
 3. Click the **⚙️ Settings icon** (top left, next to project name)
 4. Select **Project Settings**
 

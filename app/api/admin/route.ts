@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -331,7 +332,7 @@ export async function POST(req: NextRequest) {
         // Get current teacher record
         const { data: currentTeacher } = await supabaseAdmin
           .from("teachers")
-          .select("user_id, email")
+          .select("user_id, email, school_id")
           .eq("id", teacherId)
           .single();
 
@@ -410,29 +411,29 @@ export async function POST(req: NextRequest) {
               })
               .eq("id", teacherId);
 
-            // Send activation email via nodemailer
-            const transporter = nodemailer.createTransport({
-              service: "gmail",
-              auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-              },
-            });
+            const schoolName = await resolveSchoolName(
+              supabaseAdmin,
+              currentTeacher?.school_id
+            );
 
             const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/teacher/activate?token=${rawToken}`;
 
-            await transporter.sendMail({
-              from: `"School Hub" <${process.env.EMAIL_USER}>`,
+            const mailError = await sendEmailSafe({
               to: email,
-              subject: "Activate Your Updated Teacher Account",
+              fromName: buildSchoolSenderName(schoolName),
+              subject: `Activate Your Updated Teacher Account - ${schoolName}`,
               html: `
                 <p>Hello ${first_name},</p>
-                <p>Your email address has been updated.</p>
+                <p>Your email address has been updated for <strong>${schoolName}</strong> in School Deck.</p>
                 <p>Click the link below to activate your account with the new email:</p>
                 <p><a href="${activationLink}">Activate Account</a></p>
                 <p>This link expires in 24 hours.</p>
               `,
             });
+
+            if (mailError) {
+              throw new Error(mailError);
+            }
           } catch (emailError: any) {
             console.error("Error handling email change:", emailError);
             // Continue anyway - teacher record was updated

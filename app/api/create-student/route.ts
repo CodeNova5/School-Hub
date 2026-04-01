@@ -1,60 +1,15 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
 import { createClient } from "@supabase/supabase-js";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import crypto from "crypto";
-
-type MailPayload = {
-  to: string;
-  subject: string;
-  html: string;
-};
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-function getMailTransporter() {
-  const host = process.env.EMAIL_HOST || "smtp.gmail.com";
-  const port = Number(process.env.EMAIL_PORT || "587");
-  const secure = process.env.EMAIL_SECURE === "true" || port === 465;
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    requireTLS: !secure, 
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-  });
-}
-
-async function sendEmailSafe(payload: MailPayload): Promise<string | null> {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    return "Email not configured (missing EMAIL_USER/EMAIL_PASS).";
-  }
-
-  try {
-    const transporter = getMailTransporter();
-    await transporter.sendMail({
-      from: `"School Hub" <${process.env.EMAIL_USER}>`,
-      to: payload.to,
-      subject: payload.subject,
-      html: payload.html,
-    });
-    return null;
-  } catch (error: any) {
-    console.error("Email delivery failed:", error);
-    return error?.message || "Unknown email delivery error";
-  }
-}
 
 /**
  * Resolve the school_id for the admin making the request.
@@ -115,6 +70,7 @@ export async function POST(req: Request) {
     if (!schoolId) {
       return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
     }
+    const schoolName = await resolveSchoolName(supabase, schoolId);
 
     // Generate unique student ID
     const generatedStudentId = await generateUniqueStudentId();
@@ -126,7 +82,7 @@ export async function POST(req: Request) {
 
     // 1️⃣ Create auth user for student ONLY if they have their own email
     let authUserId: string | null = null;
-    
+
     if (hasOwnEmail) {
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
         email: studentEmail,
@@ -258,10 +214,11 @@ export async function POST(req: Request) {
 
       const studentMailError = await sendEmailSafe({
         to: studentData.email,
-        subject: "Activate Your Student Account",
+        fromName: buildSchoolSenderName(schoolName),
+        subject: `Activate Your Student Account - ${schoolName}`,
         html: `
       <p>Hello ${studentData.first_name},</p>
-      <p>Your student account has been created.</p>
+      <p>Your student account has been created for <strong>${schoolName}</strong>.</p>
       <p>Click the link below to activate your account and set your password:</p>
       <p>
         <a href="${activationLink}" style="color:#2563eb;">
@@ -269,6 +226,7 @@ export async function POST(req: Request) {
         </a>
       </p>
       <p>This link expires in 24 hours.</p>
+      <p>Welcome to School Deck.</p>
     `,
       });
 
@@ -338,10 +296,11 @@ export async function POST(req: Request) {
 
         const parentMailError = await sendEmailSafe({
           to: studentData.parent_email,
-          subject: "Activate Your Parent Portal Account",
+          fromName: buildSchoolSenderName(schoolName),
+          subject: `Activate Your Parent Portal Account - ${schoolName}`,
           html: `
           <p>Hello ${studentData.parent_name},</p>
-          <p>A student account has been created for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
+          <p>A student account has been created at <strong>${schoolName}</strong> for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
           <p>Student ID: <strong>${generatedStudentId}</strong></p>
           <p>Click the link below to activate your parent portal account and set your password:</p>
           <p>
@@ -351,6 +310,7 @@ export async function POST(req: Request) {
           </p>
           <p>Once activated, you'll be able to view your child's academic progress, attendance, assignments, and more.</p>
           <p>This link expires in 24 hours.</p>
+          <p>Powered by School Deck.</p>
         `,
         });
 
@@ -363,12 +323,14 @@ export async function POST(req: Request) {
     if (!isNewParent && existingParent?.is_active) {
       const existingParentMailError = await sendEmailSafe({
         to: studentData.parent_email,
-        subject: "New Student Added to Your Account",
+        fromName: buildSchoolSenderName(schoolName),
+        subject: `New Student Added to Your Account - ${schoolName}`,
         html: `
           <p>Hello ${studentData.parent_name},</p>
-          <p>A new student has been added to your parent portal account:</p>
+          <p>A new student has been added to your ${schoolName} parent portal account:</p>
           <p><strong>${studentData.first_name} ${studentData.last_name}</strong> (ID: ${generatedStudentId})</p>
           <p>You can now view their information in your parent portal.</p>
+          <p>Powered by School Deck.</p>
         `,
       });
 

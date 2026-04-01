@@ -147,10 +147,11 @@ One parent → Many students (siblings)
 
 Before using parent portal:
 - ✅ Run migration: `20260203_parent_portal.sql`
-- ✅ Set up email service (nodemailer with Gmail)
+- ✅ Set up email service (Resend)
 - ✅ Configure environment variables:
-  - `EMAIL_USER`
-  - `EMAIL_PASS`
+  - `RESEND_API_KEY`
+  - `RESEND_FROM_EMAIL` (optional)
+  - `RESEND_FROM_NAME` (optional)
   - `NEXT_PUBLIC_APP_URL`
 - ✅ Test with dummy parent/student
 
@@ -193,4 +194,4 @@ Before using parent portal:
 
 **Version:** 1.0  
 **Last Updated:** February 3, 2026  
-**Author:** School Hub Development Team
+**Author:** School Deck Development Team

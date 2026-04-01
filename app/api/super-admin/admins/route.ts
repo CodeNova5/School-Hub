@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
-import nodemailer from "nodemailer";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -112,13 +113,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Send activation email
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    if (process.env.RESEND_API_KEY) {
       try {
         const rawToken = crypto.randomBytes(32).toString("hex");
         const tokenHash = crypto
           .createHash("sha256")
           .update(rawToken)
           .digest("hex");
+        const schoolName = await resolveSchoolName(supabaseAdmin, school_id);
 
         await supabaseAdmin
           .from("admins")
@@ -128,23 +130,15 @@ export async function POST(req: NextRequest) {
           })
           .eq("user_id", authData.user.id);
 
-        const transporter = nodemailer.createTransport({
-          service: "gmail",
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-          },
-        });
-
         const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/admin/activate?token=${rawToken}`;
 
-        await transporter.sendMail({
-          from: `"School Hub" <${process.env.EMAIL_USER}>`,
+        const mailError = await sendEmailSafe({
           to: email,
-          subject: "Activate Your School Admin Account",
+          fromName: buildSchoolSenderName(schoolName),
+          subject: `Activate Your School Admin Account - ${schoolName}`,
           html: `
             <p>Hello ${name},</p>
-            <p>You have been added as an administrator for your school on School Hub.</p>
+            <p>You have been added as an administrator for <strong>${schoolName}</strong> on School Deck.</p>
             <p>Click the link below to activate your account and set your password:</p>
             <p>
               <a href="${activationLink}" style="color:#2563eb; text-decoration:none;">
@@ -155,9 +149,13 @@ export async function POST(req: NextRequest) {
           `,
         });
 
+        if (mailError) {
+          throw new Error(mailError);
+        }
+
         return NextResponse.json({
           success: true,
-          message: "Admin created and email sent",
+          message: "Admin created and activation email sent",
         });
       } catch (err: any) {
         console.error("Email sending error:", err);

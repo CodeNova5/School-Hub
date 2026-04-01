@@ -2,7 +2,8 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -72,26 +73,19 @@ export async function POST(req: Request) {
 
     if (updateError) throw updateError;
 
-    // Send rejection email
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const schoolName = await resolveSchoolName(supabaseAdmin, application.school_id);
 
-    await transporter.sendMail({
-      from: `"School Hub Admissions" <${process.env.EMAIL_USER}>`,
+    await sendEmailSafe({
       to: application.parent_email,
-      subject: "Application Status Update - School Hub",
+      fromName: buildSchoolSenderName(schoolName, "Admissions"),
+      subject: `Application Status Update - ${schoolName}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #64748b;">Application Status Update</h2>
           
           <p>Dear ${application.parent_name},</p>
           
-          <p>Thank you for your interest in School Hub and for submitting an admission application for <strong>${application.first_name} ${application.last_name}</strong>.</p>
+          <p>Thank you for your interest in ${schoolName} and for submitting an admission application for <strong>${application.first_name} ${application.last_name}</strong>.</p>
           
           <p>After careful review, we regret to inform you that we are unable to offer admission at this time.</p>
           
@@ -107,7 +101,8 @@ export async function POST(req: Request) {
           <p>If you have any questions or would like to discuss this decision, please feel free to contact our admissions office.</p>
           
           <p>Best regards,<br>
-          <strong>School Hub Admissions Team</strong></p>
+          <strong>${schoolName} Admissions Team</strong></p>
+          <p style="color: #666; font-size: 12px;">Powered by School Deck.</p>
         </div>
       `,
     });

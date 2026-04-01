@@ -133,7 +133,7 @@ export default function HomePage() {
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
               <div className="flex flex-col">
-                <h1 className="text-xl font-bold text-white">School Hub</h1>
+                <h1 className="text-xl font-bold text-white">School Deck</h1>
                 <p className="text-xs text-slate-400">Education Management System</p>
               </div>
             </div>
@@ -154,7 +154,7 @@ export default function HomePage() {
           {/* Hero section */}
           <div className="text-center mb-16 space-y-4">
             <h2 className="text-4xl sm:text-5xl font-bold text-white">
-              Welcome to School Hub
+              Welcome to School Deck
             </h2>
             <p className="text-lg text-slate-300 max-w-2xl mx-auto">
               Choose your portal to access your personalized dashboard. We've tailored each experience for students, parents, teachers, and administrators.
@@ -253,7 +253,7 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
               <p className="text-sm text-slate-400">
-                © 2026 School Hub. All rights reserved.
+                © 2026 School Deck. All rights reserved.
               </p>
               <div className="flex items-center gap-6">
                 <Link href="#" className="text-sm text-slate-400 hover:text-white transition-colors">

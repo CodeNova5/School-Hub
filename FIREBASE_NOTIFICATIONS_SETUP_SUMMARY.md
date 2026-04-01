@@ -342,7 +342,7 @@ The component handles all cases:
 
 ### When They Get a Notification
 ```
-School Hub
+School Deck
 ────────────────────────────────────
 New Assignment 📝
 Math homework due tomorrow at 3 PM

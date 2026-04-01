@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies, headers } from "next/headers";
-import nodemailer from "nodemailer";
 import crypto from "crypto";
+import { buildSchoolSenderName, sendEmailSafe } from "@/lib/email";
+import { resolveSchoolName } from "@/lib/school-branding";
 
 // Generate unique staff ID
 async function generateUniqueStaffId(supabase: any) {
@@ -37,6 +38,7 @@ export async function POST(req: Request) {
     if (!schoolId) {
       return NextResponse.json({ error: "Unable to determine school context" }, { status: 400 });
     }
+    const schoolName = await resolveSchoolName(supabase, schoolId);
 
     // 1️⃣ Check if teacher already exists
     const { data: existingTeacher } = await supabase
@@ -142,31 +144,28 @@ export async function POST(req: Request) {
       .eq("id", teacher.id);
 
     // 8️⃣ Send email
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
     const headersList = headers();
     const host = headersList.get('host');
     const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
     const activationLink = `${protocol}://${host}/teacher/activate?token=${rawToken}`;
 
-    await transporter.sendMail({
-      from: `"School Hub" <${process.env.EMAIL_USER}>`,
+    const mailError = await sendEmailSafe({
       to: email,
-      subject: "Activate Your Teacher Account",
+      fromName: buildSchoolSenderName(schoolName),
+      subject: `Activate Your Teacher Account - ${schoolName}`,
       html: `
-        <p>Hello,</p>
-        <p>Your teacher account has been created.</p>
+        <p>Hello ${fullName},</p>
+        <p>Your teacher account has been created for <strong>${schoolName}</strong>.</p>
         <p>Click the link below to activate your account:</p>
         <p><a href="${activationLink}">Activate Account</a></p>
         <p>This link expires in 24 hours.</p>
+        <p>Powered by School Deck.</p>
       `,
     });
+
+    if (mailError) {
+      console.warn("Teacher activation email failed:", mailError);
+    }
 
     return NextResponse.json({ success: true, teacher });
 

@@ -407,7 +407,7 @@ Your AI Assistant now has:
 
 - Groq API: https://groq.com
 - Web Audio API: MDN/W3C standard
-- Implementation: Your School Hub project
+- Implementation: Your School Deck project
 
 ---
 

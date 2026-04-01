@@ -1,33 +1,36 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const GMAIL_USER = 'netdot1234@gmail.com';
-const GMAIL_APP_PASSWORD = 'ifbi ytvw wxcv wrsj';
-const EMAIL_TO = 'nonyeluekene09@gmail.com';
+const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_TO = process.env.EMAIL_TO;
 
 async function sendEmail() {
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: GMAIL_USER,
-      pass: GMAIL_APP_PASSWORD,
-    },
-  });
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('Missing RESEND_API_KEY in environment.');
+  }
 
-  // Verifies SMTP connection settings before sending.
-  await transporter.verify();
+  if (!EMAIL_TO) {
+    throw new Error('Missing EMAIL_TO in environment.');
+  }
 
-  const info = await transporter.sendMail({
-    from: `School Hub <${GMAIL_USER}>`,
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromName = process.env.RESEND_FROM_NAME || 'School Deck';
+
+  const { data, error } = await resend.emails.send({
+    from: `${fromName} <${fromEmail}>`,
     to: EMAIL_TO,
-    subject: 'Nodemailer Gmail Test',
-    text: 'Hello! This is a test email sent with Nodemailer using Gmail service.',
-    html: '<p>Hello! This is a <b>test email</b> sent with Nodemailer using Gmail service.</p>',
+    subject: 'School Deck Resend Test',
+    text: 'Hello! This is a test email sent with Resend.',
+    html: '<p>Hello! This is a <b>test email</b> sent with Resend for School Deck.</p>',
   });
+
+  if (error) {
+    throw new Error(error.message || 'Resend failed to send message.');
+  }
 
   console.log('Email sent successfully.');
-  console.log('Message ID:', info.messageId);
+  console.log('Message ID:', data?.id);
 }
 
 const isMainModule =

@@ -202,7 +202,7 @@ export function Sidebar({
               </div>
               {!collapsed && (
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-slate-900">School Hub</span>
+                  <span className="text-sm font-bold text-slate-900">School Deck</span>
                   <span className="text-xs text-slate-500">Management</span>
                 </div>
               )}
@@ -279,7 +279,7 @@ export function Sidebar({
           {/* Footer */}
           {!collapsed && (
             <div className="border-t border-slate-200 p-4 text-xs text-slate-500 text-center">
-              School Hub v1.0
+              School Deck v1.0
             </div>
           )}
         </div>

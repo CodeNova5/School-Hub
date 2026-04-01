@@ -286,8 +286,9 @@ export default function AIAssistantChat({
       };
 
       // Handle errors
-      mediaRecorder.onerror = (event) => {
-        console.error('Recording error:', event.error);
+      mediaRecorder.onerror = (event: ErrorEvent | Event) => {
+        const errorMessage = 'error' in event ? event.error : 'Unknown recording error';
+        console.error('Recording error:', errorMessage);
         setIsRecording(false);
       };
 

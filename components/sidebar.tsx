@@ -122,7 +122,7 @@ export function Sidebar({
     { href: "/teacher/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
     { href: "/teacher/results", label: "Results", icon: <GraduationCap className="h-5 w-5" /> },
     { href: "/teacher/assignments", label: "Assignments", icon: <FileText className="h-5 w-5" /> },
-    { href: "/teacher/timetable", label: "Timetable", icon: <CalendarDays className="h-5 w-5" /> },     { href: "/teacher/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
+    { href: "/teacher/timetable", label: "Timetable", icon: <CalendarDays className="h-5 w-5" /> }, { href: "/teacher/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
     { href: "/teacher/calendar", label: "Calendar", icon: <Calendar className="h-5 w-5" /> },
     { href: "/teacher/settings", label: "Settings", icon: <Settings className="h-5 w-5" /> },
   ];

@@ -62,8 +62,9 @@ export async function recordAudio(durationMs: number = 30000): Promise<string> {
         }
       };
 
-      recorder.onerror = (event) => {
-        reject(new Error(`Recording error: ${event.error}`));
+      recorder.onerror = (event: ErrorEvent | Event) => {
+        const errorMessage = 'error' in event ? event.error : 'Unknown recording error';
+        reject(new Error(`Recording error: ${errorMessage}`));
       };
 
       // Start recording

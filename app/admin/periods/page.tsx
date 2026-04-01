@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Edit, Trash2, AlertCircle, Clock, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useSchoolContext } from '@/hooks/use-school-context';import { PeriodsSkeleton } from "@/components/skeletons";import { PeriodsSetupWizard } from '@/components/periods-setup-wizard';
+import { useSchoolContext } from '@/hooks/use-school-context';
+import { PeriodsSkeleton } from "@/components/skeletons";
+import { PeriodsSetupWizard } from '@/components/periods-setup-wizard';
 import {
   Dialog,
   DialogContent,

@@ -27,10 +27,6 @@ export default function AdminLoginPage() {
   useEffect(() => {
     if (errorParam === "unauthorized") {
       setErrorMsg("Your account is not authorized for admin access.");
-    } else if (errorParam === "school_mismatch") {
-      setErrorMsg(
-        "You are not authorized to access this school portal. Please use your school's login URL."
-      );
     } else if (errorParam === "error") {
       setErrorMsg(searchParams.get("message") || "An error occurred. Please try again.");
     }

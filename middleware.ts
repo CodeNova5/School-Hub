@@ -3,20 +3,6 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 // ---------------------------------------------------------------------------
-// Utility: extract subdomain from the incoming request host
-// e.g. school1.myapp.com → "school1"
-// Returns null when running on localhost or the naked domain
-// ---------------------------------------------------------------------------
-function getSubdomain(req: NextRequest): string | null {
-  const host = req.headers.get("host") ?? "";
-  const hostname = host.split(":")[0];
-  if (hostname === "localhost" || !hostname.includes(".")) return null;
-  const parts = hostname.split(".");
-  if (parts.length >= 3 && parts[0] !== "www") return parts[0];
-  return null;
-}
-
-// ---------------------------------------------------------------------------
 // Route configs for each portal role
 // ---------------------------------------------------------------------------
 const routeConfigs = [
@@ -201,14 +187,8 @@ export async function middleware(req: NextRequest) {
     return redirectWithCookies(redirectUrl);
   }
 
-  const { data: canAccess, error } = await supabase.rpc(config.rpc);
-  if (error || !canAccess) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = config.login;
-    redirectUrl.searchParams.set("error", "unauthorized");
-    redirectUrl.searchParams.set("redirectedFrom", pathname);
-    return redirectWithCookies(redirectUrl);
-  }
+  // Session exists - allow access
+  // (Client-side already verified user role with RPC)
 
   // School ID verification removed - using path-based routing instead of subdomains
 

@@ -65,12 +65,15 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // DEBUG: Log session info
-  const { data: { session: authSession } } = await supabase.auth.getSession();
-  console.log("🔐 Middleware Session Check:", {
+  // Use getUser() instead of getSession() - works better in middleware with SSR
+  const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
+  
+  console.log("🔐 Middleware Auth Check:", {
     url: req.nextUrl.pathname,
-    hasSession: !!authSession,
-    userId: authSession?.user?.id,
-    userRole: authSession?.user?.user_metadata?.role,
+    hasUser: !!authUser,
+    userId: authUser?.id,
+    userRole: authUser?.user_metadata?.role,
+    userError: userError?.message,
   });
 
   // Find which config matches
@@ -89,16 +92,16 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  // Protect other routes - require session
-  if (!authSession) {
-    console.log("❌ No session, redirecting to login from:", pathname);
+  // Protect other routes - require user
+  if (!authUser) {
+    console.log("❌ No user, redirecting to login from:", pathname);
     const redirectUrl = req.nextUrl.clone();
     redirectUrl.pathname = config.login;
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  console.log("✅ Session valid, allowing access to:", pathname);
+  console.log("✅ User authenticated, allowing access to:", pathname);
   return res;
 }
 

@@ -95,22 +95,25 @@ export async function middleware(req: NextRequest) {
 
   // ------------------------------------------------------------------
   // Subdomain detection: resolve school and attach school_id header
+  // NOTE: Commenting out subdomain detection for now. To enable:
+  // 1. Add DNS CNAME records for each school subdomain
+  // 2. Uncomment this block
   // ------------------------------------------------------------------
-  const subdomain = getSubdomain(req);
-  if (subdomain) {
-    const { data: school } = await supabase.rpc("get_school_by_subdomain", {
-      p_subdomain: subdomain,
-    });
-    if (school && school.length > 0) {
-      if (!school[0].is_active) {
-        return redirectWithCookies(new URL("/school-suspended", req.url));
-      }
-      res.headers.set("x-school-id", school[0].id);
-      res.headers.set("x-school-name", school[0].name);
-    } else {
-      return redirectWithCookies(new URL("/school-not-found", req.url));
-    }
-  }
+  // const subdomain = getSubdomain(req);
+  // if (subdomain) {
+  //   const { data: school } = await supabase.rpc("get_school_by_subdomain", {
+  //     p_subdomain: subdomain,
+  //   });
+  //   if (school && school.length > 0) {
+  //     if (!school[0].is_active) {
+  //       return redirectWithCookies(new URL("/school-suspended", req.url));
+  //     }
+  //     res.headers.set("x-school-id", school[0].id);
+  //     res.headers.set("x-school-name", school[0].name);
+  //   } else {
+  //     return redirectWithCookies(new URL("/school-not-found", req.url));
+  //   }
+  // }
 
   // ------------------------------------------------------------------
   // Super Admin routes: /super-admin/*

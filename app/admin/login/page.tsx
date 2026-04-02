@@ -64,6 +64,10 @@ export default function AdminLoginPage() {
       return;
     }
 
+    // Wait for session to be properly stored before redirecting
+    // This ensures the middleware can read the session cookie
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     // Force reload so middleware sees session cookie
     window.location.href = redirectedFrom;
   }

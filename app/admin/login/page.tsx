@@ -27,6 +27,10 @@ export default function AdminLoginPage() {
   useEffect(() => {
     if (errorParam === "unauthorized") {
       setErrorMsg("Your account is not authorized for admin access.");
+    } else if (errorParam === "school_mismatch") {
+      setErrorMsg(
+        "You are not authorized to access this school portal. Please use your school's login URL."
+      );
     } else if (errorParam === "error") {
       setErrorMsg(searchParams.get("message") || "An error occurred. Please try again.");
     }
@@ -60,15 +64,7 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Refresh session to ensure cookies are set
-    await supabase.auth.refreshSession();
-    
-    // Wait a bit longer for cookies to persist properly on Vercel
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log("Redirecting to:", redirectedFrom);
-    
-    // Full page reload so middleware sees fresh session
+    // Force reload so middleware sees session cookie
     window.location.href = redirectedFrom;
   }
 

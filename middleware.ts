@@ -1,80 +1,77 @@
+
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
-// ---------------------------------------------------------------------------
-// Route configs for each portal role
-// ---------------------------------------------------------------------------
-const routeConfigs = [
-  {
-    prefix: "/admin",
-    login: "/admin/login",
-    activate: "/admin/activate",
-    rpc: "can_access_admin",
-    dashboard: "/admin",
-  },
-  {
-    prefix: "/teacher",
-    login: "/teacher/login",
-    activate: "/teacher/activate",
-    rpc: "can_access_teacher",
-    dashboard: "/teacher",
-  },
-  {
-    prefix: "/student",
-    login: "/student/login",
-    activate: "/student/activate",
-    rpc: "can_access_student",
-    dashboard: "/student",
-  },
-  {
-    prefix: "/parent",
-    login: "/parent/login",
-    activate: "/parent/activate",
-    rpc: "can_access_parent",
-    dashboard: "/parent",
-  },
-];
 
 export async function middleware(req: NextRequest) {
-  let res = NextResponse.next();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return res;
-  }
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        const cookies = req.cookies.getAll();
-        console.log("🍪 Cookies in request:", cookies.map(c => `${c.name}`));
-        return cookies;
-      },
-      setAll(cookiesToSet) {
-        if (cookiesToSet.length === 0) return;
-        res = NextResponse.next();
-        cookiesToSet.forEach(({ name, value, options }) => {
-          res.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
+  const res = NextResponse.next();
+  const supabase = createMiddlewareClient({ req, res });
 
   const { pathname } = req.nextUrl;
 
-  // DEBUG: Log session info
-  // Use getUser() instead of getSession() - works better in middleware with SSR
-  const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
-  
-  console.log("🔐 Middleware Auth Check:", {
-    url: req.nextUrl.pathname,
-    hasUser: !!authUser,
-    userId: authUser?.id,
-    userRole: authUser?.user_metadata?.role,
-    userError: userError?.message,
-  });
+  // Route configs
+  const routeConfigs = [
+    {
+      prefix: "/admin",
+      login: "/admin/login",
+      activate: "/admin/activate",
+      rpc: "can_access_admin",
+      dashboard: "/admin",
+    },
+    {
+      prefix: "/teacher",
+      login: "/teacher/login",
+      activate: "/teacher/activate",
+      rpc: "can_access_teacher",
+      dashboard: "/teacher",
+    },
+    {
+      prefix: "/student",
+      login: "/student/login",
+      activate: "/student/activate",
+      rpc: "can_access_student",
+      dashboard: "/student",
+    },
+    {
+      prefix: "/parent",
+      login: "/parent/login",
+      activate: "/parent/activate",
+      rpc: "can_access_parent",
+      dashboard: "/parent",
+    },
+  ];
+
+  // Handle root path - redirect authenticated users to their dashboard
+  if (pathname === "/") {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session) {
+      // Get user metadata to determine their role
+      const userRole = session.user?.user_metadata?.role;
+      
+      // Map role to config
+      const roleConfigMap: Record<string, (typeof routeConfigs)[0]> = {};
+      routeConfigs.forEach((cfg) => {
+        const role = cfg.prefix.slice(1); // Remove leading slash to get role name
+        roleConfigMap[role] = cfg;
+      });
+      
+      const config = roleConfigMap[userRole];
+      
+      if (config) {
+        // Verify they still have access
+        const { data: canAccess } = await supabase.rpc(config.rpc);
+        if (canAccess) {
+          return NextResponse.redirect(new URL(config.dashboard, req.url));
+        }
+      }
+    }
+    
+    return res;
+  }
 
   // Find which config matches
   const config = routeConfigs.find((cfg) => pathname.startsWith(cfg.prefix));
@@ -88,21 +85,71 @@ export async function middleware(req: NextRequest) {
 
   // Allow unauthenticated access to login, activate, and reset-password
   if (isLoginRoute || isActivateRoute || isResetPasswordRoute) {
-    console.log("✅ Public route, allowing access:", pathname);
+    const {
+      data: { session: loginSession },
+    } = await supabase.auth.getSession();
+
+    if (loginSession) {
+      const { data: canAccess } = await supabase.rpc(config.rpc);
+      if (canAccess) {
+        const redirectUrl = req.nextUrl.clone();
+        redirectUrl.pathname = config.dashboard;
+        redirectUrl.searchParams.delete("redirectedFrom");
+        return NextResponse.redirect(redirectUrl);
+      }
+    }
+    // Set lastPortal cookie if not already set
+    if (!req.cookies.get("lastPortal")?.value) {
+      const resWithCookie = NextResponse.next();
+      resWithCookie.cookies.set("lastPortal", config.prefix.slice(1), { path: "/", maxAge: 60 * 60 * 24 * 30 });
+      return resWithCookie;
+    }
     return res;
   }
 
-  // Protect other routes - require user
-  if (!authUser) {
-    console.log("❌ No user, redirecting to login from:", pathname);
+  // All other protected routes
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    // Try to get lastPortal from cookie
+    const lastPortal = req.cookies.get("lastPortal")?.value;
+    let loginPath = config.login;
+    if (lastPortal) {
+      const lastConfig = routeConfigs.find((cfg) => cfg.prefix.slice(1) === lastPortal);
+      if (lastConfig) {
+        loginPath = lastConfig.login;
+      }
+    }
     const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = config.login;
+    redirectUrl.pathname = loginPath;
     redirectUrl.searchParams.set("redirectedFrom", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  console.log("✅ User authenticated, allowing access to:", pathname);
-  return res;
+  const { data: canAccess, error } = await supabase.rpc(config.rpc);
+  if (error || !canAccess) {
+    // Try to get lastPortal from cookie
+    const lastPortal = req.cookies.get("lastPortal")?.value;
+    let loginPath = config.login;
+    if (lastPortal) {
+      const lastConfig = routeConfigs.find((cfg) => cfg.prefix.slice(1) === lastPortal);
+      if (lastConfig) {
+        loginPath = lastConfig.login;
+      }
+    }
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = loginPath;
+    redirectUrl.searchParams.set("error", "unauthorized");
+    redirectUrl.searchParams.set("redirectedFrom", pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // Set lastPortal cookie for successful access
+  const resWithCookie = NextResponse.next();
+  resWithCookie.cookies.set("lastPortal", config.prefix.slice(1), { path: "/", maxAge: 60 * 60 * 24 * 30 });
+  return resWithCookie;
 }
 
 export const config = {
@@ -112,6 +159,5 @@ export const config = {
     "/teacher/:path*",
     "/student/:path*",
     "/parent/:path*",
-    "/super-admin/:path*",
   ],
 };

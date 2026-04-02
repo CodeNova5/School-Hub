@@ -60,11 +60,16 @@ export default function AdminLoginPage() {
       return;
     }
 
-    // Wait for session to be properly stored before redirecting
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Refresh session to ensure cookies are set
+    await supabase.auth.refreshSession();
     
-    // Use router.push for client-side navigation that preserves session
-    router.push(redirectedFrom);
+    // Wait a bit longer for cookies to persist properly on Vercel
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    console.log("Redirecting to:", redirectedFrom);
+    
+    // Full page reload so middleware sees fresh session
+    window.location.href = redirectedFrom;
   }
 
   return (

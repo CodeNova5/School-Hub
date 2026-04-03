@@ -70,7 +70,7 @@ async function ensureReceipt(supabase: any, schoolId: string, transactionId: str
   const receiptPrefix = settings?.receipt_prefix || "RCP";
   const receiptNumber = `${receiptPrefix}-${formatSequence((count || 0) + 1)}`;
 
-  const { data, error } = await supabase
+  const { data: receiptArray, error } = await supabase
     .from("finance_receipts")
     .upsert(
       {
@@ -88,13 +88,13 @@ async function ensureReceipt(supabase: any, schoolId: string, transactionId: str
       { onConflict: "transaction_id" }
     )
     .select("id, receipt_number")
-    .single();
+    .limit(1);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data;
+  return Array.isArray(receiptArray) && receiptArray.length > 0 ? receiptArray[0] : null;
 }
 
 export async function GET(req: NextRequest) {
@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
 
   const mappedStatus = verifyData.data.status === "success" ? "success" : verifyData.data.status === "abandoned" ? "abandoned" : "failed";
 
-  const { data: updatedTx, error: updateError } = await supabase
+  const { data: updatedTxArray, error: updateError } = await supabase
     .from("finance_transactions")
     .update({
       status: mappedStatus,
@@ -178,7 +178,9 @@ export async function GET(req: NextRequest) {
     })
     .eq("id", transaction.id)
     .select("*")
-    .single();
+    .limit(1);
+
+  const updatedTx = Array.isArray(updatedTxArray) && updatedTxArray.length > 0 ? updatedTxArray[0] : null;
 
   if (updateError || !updatedTx) {
     return errorResponse(updateError?.message || "Failed to update transaction", 500);

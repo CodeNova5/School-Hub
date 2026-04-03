@@ -9,9 +9,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Lock, Mail, Eye, EyeOff, BookOpen, Loader2, X } from "lucide-react";
 import { PortalSwitcher } from "@/components/portal-switcher";
+import { useSearchParams } from "next/navigation";
 
 export default function StudentLoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectedFrom = searchParams.get("redirectedFrom") ?? "/student";
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -70,12 +73,12 @@ export default function StudentLoginPage() {
 
     // 4️⃣ Success
     toast.success("Login successful");
-    router.push("/student/");
+    router.push(redirectedFrom);
   }
 
   async function handleForgotPassword(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    
+
     if (!resetEmail) {
       toast.error("Please enter your email address");
       return;
@@ -83,11 +86,11 @@ export default function StudentLoginPage() {
 
     try {
       setResettingPassword(true);
-      
+
       // Call the API to send reset email
       const response = await fetch('/api/student/reset-password', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email: resetEmail }),
@@ -117,7 +120,7 @@ export default function StudentLoginPage() {
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 opacity-90" />
       <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
       <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
-      
+
       {/* Content */}
       <div className="relative flex items-center justify-center min-h-screen p-4">
         <Card className="w-full max-w-md shadow-2xl border-0 bg-white/95 backdrop-blur-sm">

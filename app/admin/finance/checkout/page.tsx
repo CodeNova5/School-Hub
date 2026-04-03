@@ -28,6 +28,80 @@ export default function CheckoutPage() {
     };
   }, []);
 
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      const amountInKobo = Math.round(parseFloat(amount) * 100);
+
+      if (!email.trim()) {
+        throw new Error('Email is required');
+      }
+
+      if (!amountInKobo || amountInKobo <= 0) {
+        throw new Error('Please enter a valid amount');
+      }
+
+      if (!window.PaystackPop) {
+        throw new Error('Paystack failed to load. Please refresh and try again.');
+      }
+
+      // Generate unique reference
+      const reference = 'ref_' + Math.floor(Math.random() * 1000000000);
+
+      const handler = new window.PaystackPop({
+        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
+        email: email.trim(),
+        amount: amountInKobo,
+        ref: reference,
+        split_code: '7874206',
+        onClose: () => {
+          setLoading(false);
+          setError('Payment window closed');
+        },
+        onSuccess: async (response: any) => {
+          try {
+            const verifyRes = await fetch('/api/admin/finance/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                reference: response.reference,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+
+            if (!verifyRes.ok) {
+              throw new Error(verifyData.message || 'Verification failed');
+            }
+
+            setSuccess({
+              reference: response.reference,
+              amount: amountInKobo / 100,
+              email: email,
+              status: verifyData.data?.status,
+            });
+
+            setEmail('');
+            setAmount('');
+          } catch (err: any) {
+            setError(err.message);
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+
+      handler.openIframe();
+    } catch (err: any) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
   const handlePaymentCallback = async (response: any) => {
     try {
       // Verify payment on backend
@@ -57,50 +131,6 @@ export default function CheckoutPage() {
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCheckout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess(null);
-    setLoading(true);
-
-    try {
-      const amountInKobo = Math.round(parseFloat(amount) * 100);
-
-      if (!email.trim()) {
-        throw new Error('Email is required');
-      }
-
-      if (!amountInKobo || amountInKobo <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-
-      if (!window.PaystackPop) {
-        throw new Error('Paystack failed to load. Please refresh and try again.');
-      }
-
-      // Generate unique reference
-      const reference = 'ref_' + Math.floor(Math.random() * 1000000000);
-
-      window.PaystackPop.setup({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-        email: email.trim(),
-        amount: amountInKobo,
-        ref: reference,
-        split_code: '7874206', // Your Split ID
-        onClose: () => {
-          setLoading(false);
-          setError('Payment window closed');
-        },
-        callback: handlePaymentCallback,
-      });
-
-      window.PaystackPop.openIframe();
-    } catch (err: any) {
-      setError(err.message);
       setLoading(false);
     }
   };

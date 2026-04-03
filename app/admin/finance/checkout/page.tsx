@@ -52,7 +52,39 @@ export default function CheckoutPage() {
       // Generate unique reference
       const reference = 'ref_' + Math.floor(Math.random() * 1000000000);
 
-      const handler = new window.PaystackPop({
+      const handleSuccess = async (response: any) => {
+        try {
+          const verifyRes = await fetch('/api/admin/finance/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reference: response.reference,
+            }),
+          });
+
+          const verifyData = await verifyRes.json();
+
+          if (!verifyRes.ok) {
+            throw new Error(verifyData.message || 'Verification failed');
+          }
+
+          setSuccess({
+            reference: response.reference,
+            amount: amountInKobo / 100,
+            email: email,
+            status: verifyData.data?.status,
+          });
+
+          setEmail('');
+          setAmount('');
+        } catch (err: any) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      window.PaystackPop.checkout({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
         email: email.trim(),
         amount: amountInKobo,
@@ -62,75 +94,10 @@ export default function CheckoutPage() {
           setLoading(false);
           setError('Payment window closed');
         },
-        onSuccess: async (response: any) => {
-          try {
-            const verifyRes = await fetch('/api/admin/finance/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                reference: response.reference,
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-
-            if (!verifyRes.ok) {
-              throw new Error(verifyData.message || 'Verification failed');
-            }
-
-            setSuccess({
-              reference: response.reference,
-              amount: amountInKobo / 100,
-              email: email,
-              status: verifyData.data?.status,
-            });
-
-            setEmail('');
-            setAmount('');
-          } catch (err: any) {
-            setError(err.message);
-          } finally {
-            setLoading(false);
-          }
-        },
+        onSuccess: handleSuccess,
       });
-
-      handler.openIframe();
     } catch (err: any) {
       setError(err.message);
-      setLoading(false);
-    }
-  };
-
-  const handlePaymentCallback = async (response: any) => {
-    try {
-      // Verify payment on backend
-      const verifyRes = await fetch('/api/admin/finance/verify-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reference: response.reference,
-        }),
-      });
-
-      const verifyData = await verifyRes.json();
-
-      if (!verifyRes.ok) {
-        throw new Error(verifyData.message || 'Verification failed');
-      }
-
-      setSuccess({
-        reference: response.reference,
-        amount: parseFloat(amount),
-        email: email,
-        status: verifyData.data?.status,
-      });
-
-      setEmail('');
-      setAmount('');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
       setLoading(false);
     }
   };

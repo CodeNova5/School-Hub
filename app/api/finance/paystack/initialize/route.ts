@@ -1,4 +1,5 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
@@ -117,8 +118,19 @@ export async function POST(req: NextRequest) {
 
   const paymentAmount = Math.min(requestedAmount, billBalance);
 
-  // Use order + limit instead of maybeSingle to avoid RLS coercion errors
-  const { data: settingsArray, error: settingsError } = await supabase
+  // Use service role to read finance_settings (bypass RLS for system config)
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    console.error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+    return errorResponse("Finance settings unavailable", 500);
+  }
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey
+  );
+
+  const { data: settingsArray, error: settingsError } = await supabaseAdmin
     .from("finance_settings")
     .select("paystack_subaccount_code")
     .eq("school_id", bill.school_id)

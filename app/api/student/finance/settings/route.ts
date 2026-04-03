@@ -1,4 +1,5 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
@@ -32,9 +33,19 @@ export async function GET(_req: NextRequest) {
     return errorResponse("Student profile not found", 404);
   }
 
-  // Fetch both finance settings and school name
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    return errorResponse("Finance settings unavailable", 500);
+  }
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey
+  );
+
+  // Fetch both finance settings and school name (use admin client for settings to bypass RLS)
   const [{ data: settings }, { data: school }] = await Promise.all([
-    supabase
+    supabaseAdmin
       .from("finance_settings")
       .select("paystack_subaccount_code, enable_paystack_checkout, default_currency")
       .eq("school_id", student.school_id)

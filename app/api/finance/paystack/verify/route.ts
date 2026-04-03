@@ -1,4 +1,5 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
@@ -39,7 +40,7 @@ function formatSequence(value: number) {
   return value.toString().padStart(6, "0");
 }
 
-async function ensureReceipt(supabase: any, schoolId: string, transactionId: string, billId: string, studentId: string, amount: number, paymentMethod: string, reference: string) {
+async function ensureReceipt(supabase: any, supabaseAdmin: any, schoolId: string, transactionId: string, billId: string, studentId: string, amount: number, paymentMethod: string, reference: string) {
   // Use limit(1) instead of maybeSingle to avoid RLS coercion errors
   const { data: existingArray } = await supabase
     .from("finance_receipts")
@@ -53,8 +54,8 @@ async function ensureReceipt(supabase: any, schoolId: string, transactionId: str
     return existing;
   }
 
-  // Use limit(1) instead of maybeSingle to avoid RLS coercion errors
-  const { data: settingsArray } = await supabase
+  // Use service role admin client to read finance_settings (bypass RLS for system config)
+  const { data: settingsArray } = await supabaseAdmin
     .from("finance_settings")
     .select("receipt_prefix")
     .eq("school_id", schoolId)
@@ -109,6 +110,16 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createRouteHandlerClient({ cookies });
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    return errorResponse("Finance settings unavailable", 500);
+  }
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey
+  );
+
   const {
     data: { user },
     error: authError,
@@ -195,6 +206,7 @@ export async function GET(req: NextRequest) {
   if (mappedStatus === "success") {
     receipt = await ensureReceipt(
       supabase,
+      supabaseAdmin,
       transaction.school_id,
       transaction.id,
       transaction.bill_id,

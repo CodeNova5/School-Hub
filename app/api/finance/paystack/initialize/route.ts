@@ -117,15 +117,25 @@ export async function POST(req: NextRequest) {
 
   const paymentAmount = Math.min(requestedAmount, billBalance);
 
-  const { data: settings } = await supabase
+  // Use order + limit instead of maybeSingle to avoid RLS coercion errors
+  const { data: settingsArray, error: settingsError } = await supabase
     .from("finance_settings")
     .select("paystack_subaccount_code")
     .eq("school_id", bill.school_id)
-    .maybeSingle();
+    .limit(1);
 
   // DEBUG LOGGING
   console.log("=== PAYSTACK PAYMENT INITIALIZATION ===");
   console.log("Bill School ID:", bill.school_id);
+  if (settingsError) {
+    console.error("Settings query error:", settingsError.message);
+    return errorResponse(`Settings fetch failed: ${settingsError.message}`, 500);
+  }
+  
+  const settings = Array.isArray(settingsArray) && settingsArray.length > 0 
+    ? settingsArray[0] 
+    : null;
+    
   console.log("Settings fetched:", JSON.stringify(settings, null, 2));
   console.log("Subaccount code:", settings?.paystack_subaccount_code || "NOT FOUND");
 
@@ -198,10 +208,13 @@ export async function POST(req: NextRequest) {
     authorizationUrl: paystackData.data.authorization_url,
     accessCode: paystackData.data.access_code,
     reference,
+    debug: {
+      subaccountSent: (paystackPayload.subaccount as string) || "NONE (using master account)",
+      schoolId: bill.school_id,
+    },
   });
 
-  // Add debug logging to response
-  console.log("Payment initialized successfully");
+  console.log("✓ Payment initialized successfully");
   console.log("Reference:", reference);
   console.log("Subaccount used:", paystackPayload.subaccount || "MASTER ACCOUNT");
 

@@ -116,6 +116,11 @@ export default function StudentFinancePage() {
         throw new Error(payload.error || "Failed to initialize payment");
       }
 
+      // Log debug info
+      if (payload.data?.debug) {
+        console.log("Payment Debug Info:", payload.data.debug);
+      }
+
       window.location.href = payload.data.authorizationUrl as string;
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Unable to start payment");

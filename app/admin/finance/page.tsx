@@ -704,42 +704,79 @@ export default function AdminFinancePage() {
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-4 mt-6">
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <CardTitle className="text-blue-900 text-sm font-semibold">💡 How Student Payments Work</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm text-blue-800 space-y-1">
+                  <p>✓ Students pay school fees through Paystack</p>
+                  <p>✓ <strong>100% of payments go directly to your school's bank account</strong></p>
+                  <p>✓ No funds stay in main account — automatic routing to school subaccount</p>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Settings className="h-5 w-5" /> Paystack and Finance Settings</CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2 border rounded-md p-4 space-y-3">
-                    <p className="text-sm font-medium">Create Paystack Subaccount</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <Input
-                        placeholder="Business name"
-                        value={subaccountForm.businessName}
-                        onChange={(e) => setSubaccountForm((prev) => ({ ...prev, businessName: e.target.value }))}
-                      />
-                      <Input
-                        placeholder="Settlement bank code"
-                        value={subaccountForm.settlementBank}
-                        onChange={(e) => setSubaccountForm((prev) => ({ ...prev, settlementBank: e.target.value }))}
-                      />
-                      <Input
-                        placeholder="Account number"
-                        value={subaccountForm.accountNumber}
-                        onChange={(e) => setSubaccountForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
-                      />
+                  <div className="md:col-span-2 border rounded-md p-4 space-y-3 bg-amber-50 border-amber-200">
+                    <div>
+                      <p className="text-sm font-medium text-amber-900">Step 1: Register School Bank Account</p>
+                      <p className="text-xs text-amber-700 mt-1">Enter your school's bank details to create a Paystack subaccount. We'll handle API registration automatically.</p>
                     </div>
-                    <Button variant="outline" onClick={() => handleAction(submitSubaccountCreation)}>
-                      Create Subaccount via Paystack API
-                    </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 mb-1 block">School/Business Name</label>
+                        <Input
+                          placeholder="e.g., ABC School"
+                          value={subaccountForm.businessName}
+                          onChange={(e) => setSubaccountForm((prev) => ({ ...prev, businessName: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 mb-1 block">Settlement Bank Code</label>
+                        <Input
+                          placeholder="e.g., 001 (GTB)"
+                          value={subaccountForm.settlementBank}
+                          onChange={(e) => setSubaccountForm((prev) => ({ ...prev, settlementBank: e.target.value }))}
+                        />
+                        <p className="text-xs text-gray-500 mt-0.5">Get codes from Paystack bank list or your bank</p>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-700 mb-1 block">Account Number</label>
+                        <Input
+                          placeholder="e.g., 0123456789"
+                          value={subaccountForm.accountNumber}
+                          onChange={(e) => setSubaccountForm((prev) => ({ ...prev, accountNumber: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => handleAction(submitSubaccountCreation)}>
+                        Create Subaccount via Paystack API
+                      </Button>
+                      <p className="text-xs text-gray-600 flex items-center">ℹ️ We'll automatically save the subaccount code after creation</p>
+                    </div>
                   </div>
 
                   <div>
-                    <Label>Paystack Subaccount Code</Label>
+                    <div className="flex items-center justify-between mb-2">
+                      <Label>Paystack Subaccount Code</Label>
+                      {settings.paystack_subaccount_code && (
+                        <Badge className="bg-green-100 text-green-800 text-xs">✓ Configured</Badge>
+                      )}
+                    </div>
                     <Input
                       placeholder="ACCT_xxxxx"
                       value={settings.paystack_subaccount_code || ""}
                       onChange={(e) => setSettings((prev) => ({ ...prev, paystack_subaccount_code: e.target.value }))}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {settings.paystack_subaccount_code 
+                        ? '✓ Student payments will route to this subaccount'
+                        : 'Auto-populated after subaccount creation, or paste existing code'}
+                    </p>
                   </div>
                   <div>
                     <Label>Default Currency</Label>

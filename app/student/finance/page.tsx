@@ -28,20 +28,40 @@ interface StatementResponse {
   }>;
 }
 
+interface SchoolFinanceSettings {
+  paystack_subaccount_code?: string | null;
+  enable_paystack_checkout: boolean;
+  default_currency: string;
+  school_name?: string;
+}
+
 export default function StudentFinancePage() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [statement, setStatement] = useState<StatementResponse | null>(null);
+  const [settings, setSettings] = useState<SchoolFinanceSettings | null>(null);
 
   const fetchStatement = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/student/finance/statement");
-      const payload = await res.json();
-      if (!res.ok || !payload.success) {
-        throw new Error(payload.error || "Failed to fetch statement");
+      const [statementRes, settingsRes] = await Promise.all([
+        fetch("/api/student/finance/statement"),
+        fetch("/api/student/finance/settings"),
+      ]);
+
+      const statementPayload = await statementRes.json();
+      const settingsPayload = await settingsRes.json();
+
+      if (!statementRes.ok || !statementPayload.success) {
+        throw new Error(statementPayload.error || "Failed to fetch statement");
       }
-      setStatement(payload.data as StatementResponse);
+
+      if (!settingsRes.ok || !settingsPayload.success) {
+        console.warn("Could not fetch finance settings:", settingsPayload.error);
+      }
+
+      setStatement(statementPayload.data as StatementResponse);
+      setSettings(settingsPayload.data as SchoolFinanceSettings);
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : "Failed to load finance statement");
     } finally {
@@ -116,6 +136,41 @@ export default function StudentFinancePage() {
           </Card>
         ) : (
           <>
+            {/* School Account Details Debug Section */}
+            {settings && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm text-blue-900">School Account Details (RLS Test)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-600">School:</span>
+                    <span className="ml-2 font-medium">{settings.school_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Paystack Subaccount Code:</span>
+                    <span className="ml-2 font-medium font-mono text-blue-700">
+                      {settings.paystack_subaccount_code ? (
+                        <>
+                          {settings.paystack_subaccount_code}
+                          <Badge className="ml-2 bg-green-100 text-green-800">✓ Configured</Badge>
+                        </>
+                      ) : (
+                        <Badge className="ml-2 bg-red-100 text-red-800">✗ Not Set</Badge>
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Checkout Enabled:</span>
+                    <span className="ml-2 font-medium">{settings.enable_paystack_checkout ? "Yes" : "No"}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Currency:</span>
+                    <span className="ml-2 font-medium">{settings.default_currency}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Total Due</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{formatMoney(statement?.summary.totalDue || 0)}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-sm">Total Paid</CardTitle></CardHeader><CardContent className="text-2xl font-bold text-green-600">{formatMoney(statement?.summary.totalPaid || 0)}</CardContent></Card>

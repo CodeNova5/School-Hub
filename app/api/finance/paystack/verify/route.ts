@@ -169,22 +169,27 @@ export async function GET(req: NextRequest) {
 
   const mappedStatus = verifyData.data.status === "success" ? "success" : verifyData.data.status === "abandoned" ? "abandoned" : "failed";
 
-  const { data: updatedTxArray, error: updateError } = await supabase
+  const { error: updateError } = await supabase
     .from("finance_transactions")
     .update({
       status: mappedStatus,
       paid_at: mappedStatus === "success" ? verifyData.data.paid_at || new Date().toISOString() : null,
       provider_reference: verifyData.data.reference,
     })
-    .eq("id", transaction.id)
+    .eq("id", transaction.id);
+
+  if (updateError) {
+    return errorResponse(updateError.message || "Failed to update transaction", 500);
+  }
+
+  // Re-fetch the updated transaction to include in response
+  const { data: updatedTxArray } = await supabase
+    .from("finance_transactions")
     .select("*")
+    .eq("id", transaction.id)
     .limit(1);
 
-  const updatedTx = Array.isArray(updatedTxArray) && updatedTxArray.length > 0 ? updatedTxArray[0] : null;
-
-  if (updateError || !updatedTx) {
-    return errorResponse(updateError?.message || "Failed to update transaction", 500);
-  }
+  const updatedTx = Array.isArray(updatedTxArray) && updatedTxArray.length > 0 ? updatedTxArray[0] : transaction;
 
   let receipt: { id: string; receipt_number: string } | null = null;
   if (mappedStatus === "success") {

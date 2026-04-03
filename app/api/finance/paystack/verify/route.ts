@@ -40,29 +40,34 @@ function formatSequence(value: number) {
 }
 
 async function ensureReceipt(supabase: any, schoolId: string, transactionId: string, billId: string, studentId: string, amount: number, paymentMethod: string, reference: string) {
-  const { data: existing } = await supabase
+  // Use limit(1) instead of maybeSingle to avoid RLS coercion errors
+  const { data: existingArray } = await supabase
     .from("finance_receipts")
     .select("id, receipt_number")
     .eq("transaction_id", transactionId)
-    .maybeSingle();
+    .limit(1);
+
+  const existing = Array.isArray(existingArray) && existingArray.length > 0 ? existingArray[0] : null;
 
   if (existing) {
     return existing;
   }
 
-  const { data: settings } = await supabase
+  // Use limit(1) instead of maybeSingle to avoid RLS coercion errors
+  const { data: settingsArray } = await supabase
     .from("finance_settings")
     .select("receipt_prefix")
     .eq("school_id", schoolId)
-    .maybeSingle();
+    .limit(1);
+
+  const settings = Array.isArray(settingsArray) && settingsArray.length > 0 ? settingsArray[0] : null;
 
   const { count } = await supabase
     .from("finance_receipts")
     .select("id", { count: "exact", head: true })
     .eq("school_id", schoolId);
 
-  const settingsRow = settings as { receipt_prefix?: string } | null;
-  const receiptPrefix = settingsRow?.receipt_prefix || "RCP";
+  const receiptPrefix = settings?.receipt_prefix || "RCP";
   const receiptNumber = `${receiptPrefix}-${formatSequence((count || 0) + 1)}`;
 
   const { data, error } = await supabase
@@ -113,7 +118,8 @@ export async function GET(req: NextRequest) {
     return errorResponse("Unauthorized", 401);
   }
 
-  const { data: transaction, error: txLookupError } = await supabase
+  // Use order + limit instead of single to avoid RLS coercion errors
+  const { data: transactionArray, error: txLookupError } = await supabase
     .from("finance_transactions")
     .select(`
       id,
@@ -125,18 +131,23 @@ export async function GET(req: NextRequest) {
       students(user_id, parent_email)
     `)
     .eq("reference", reference)
-    .single();
+    .limit(1);
 
-  if (txLookupError || !transaction) {
+  if (txLookupError || !transactionArray || transactionArray.length === 0) {
     return errorResponse("Transaction not found", 404);
   }
 
+  const transaction = transactionArray[0];
+
   const txStudent = getSingleStudentRelation((transaction as any).students);
-  const { data: parent } = await supabase
+  // Use limit(1) instead of maybeSingle to avoid RLS coercion errors
+  const { data: parentArray } = await supabase
     .from("parents")
     .select("email")
     .eq("user_id", user.id)
-    .maybeSingle();
+    .limit(1);
+
+  const parent = Array.isArray(parentArray) && parentArray.length > 0 ? parentArray[0] : null;
 
   const isStudentOwner = txStudent?.user_id === user.id;
   const isParentOwner = !!parent?.email && !!txStudent?.parent_email && parent.email === txStudent.parent_email;

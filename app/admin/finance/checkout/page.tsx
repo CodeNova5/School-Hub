@@ -28,6 +28,39 @@ export default function CheckoutPage() {
     };
   }, []);
 
+  const handlePaymentCallback = async (response: any) => {
+    try {
+      // Verify payment on backend
+      const verifyRes = await fetch('/api/admin/finance/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: response.reference,
+        }),
+      });
+
+      const verifyData = await verifyRes.json();
+
+      if (!verifyRes.ok) {
+        throw new Error(verifyData.message || 'Verification failed');
+      }
+
+      setSuccess({
+        reference: response.reference,
+        amount: parseFloat(amount),
+        email: email,
+        status: verifyData.data?.status,
+      });
+
+      setEmail('');
+      setAmount('');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -62,38 +95,7 @@ export default function CheckoutPage() {
           setLoading(false);
           setError('Payment window closed');
         },
-        callback: async (response: any) => {
-          try {
-            // Verify payment on backend
-            const verifyRes = await fetch('/api/admin/finance/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                reference: response.reference,
-              }),
-            });
-
-            const verifyData = await verifyRes.json();
-
-            if (!verifyRes.ok) {
-              throw new Error(verifyData.message || 'Verification failed');
-            }
-
-            setSuccess({
-              reference: response.reference,
-              amount: amountInKobo / 100,
-              email: email,
-              status: verifyData.data?.status,
-            });
-
-            setEmail('');
-            setAmount('');
-          } catch (err: any) {
-            setError(err.message);
-          } finally {
-            setLoading(false);
-          }
-        },
+        callback: handlePaymentCallback,
       });
 
       window.PaystackPop.openIframe();

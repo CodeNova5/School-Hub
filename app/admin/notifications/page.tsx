@@ -7,7 +7,6 @@ import { AdminSendEmailComponent } from '@/components/admin-send-email';
 import { EmailHistoryTab } from '@/components/email-history-tab';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Bell,
@@ -18,14 +17,13 @@ import {
   TrendingUp,
   RefreshCw,
   Mail,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NotificationsSkeleton } from '@/components/skeletons';
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -91,6 +89,7 @@ interface TokenDiagnostics {
 
 export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
+  const [activeModule, setActiveModule] = useState<'notifications' | 'emails'>('notifications');
   const [stats, setStats] = useState<NotificationStats | null>(null);
   const [emailStats, setEmailStats] = useState<EmailStats | null>(null);
   const [diagnostics, setDiagnostics] = useState<TokenDiagnostics | null>(null);
@@ -197,11 +196,11 @@ export default function NotificationsPage() {
     <DashboardLayout role="admin">
       <div className="space-y-8">
         {/* Header Section */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Communications</h1>
-            <p className="text-gray-600 mt-1">
-              Send push notifications and emails to users and view delivery history
+            <h1 className="text-4xl font-bold text-gray-900">Communications Hub</h1>
+            <p className="text-gray-600 mt-2 text-lg">
+              Manage notifications and emails for your institution
             </p>
           </div>
           <Button
@@ -209,165 +208,40 @@ export default function NotificationsPage() {
             size="lg"
             onClick={handleRefresh}
             disabled={refreshing}
+            className="self-start md:self-auto"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            Refresh Data
           </Button>
         </div>
 
-        {/* Quick Stats */}
-        {!loading && (stats || emailStats) && (
-          <div className="space-y-6">
-            {/* Notification Stats */}
-            {stats && (
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                  <Bell className="h-4 w-4" />
-                  Push Notifications
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  {/* Total Sent */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <Bell className="h-8 w-8 text-blue-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Total Sent</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {stats.totalSent.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">All time</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+        {/* Module Navigation */}
+        <div className="flex gap-3 border-b border-gray-200 sticky top-0 bg-white z-10 -mx-6 px-6 py-4">
+          <button
+            onClick={() => setActiveModule('notifications')}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg font-semibold transition-all ${
+              activeModule === 'notifications'
+                ? 'bg-blue-100 text-blue-700 border-b-2 border-blue-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Bell className="h-5 w-5" />
+            Push Notifications
+          </button>
+          <button
+            onClick={() => setActiveModule('emails')}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg font-semibold transition-all ${
+              activeModule === 'emails'
+                ? 'bg-purple-100 text-purple-700 border-b-2 border-purple-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Mail className="h-5 w-5" />
+            Emails
+          </button>
+        </div>
 
-                  {/* Today Count */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Sent Today</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {stats.todayCount}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">notifications</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Success Rate */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Success Rate</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {stats.successRate.toFixed(1)}%
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">delivery rate</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Avg Recipients */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <Users className="h-8 w-8 text-purple-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Avg Recipients</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {stats.averageRecipientsPerNotification.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">per notification</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
-
-            {/* Email Stats */}
-            {emailStats && (
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Emails
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  {/* Total Sent */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <Mail className="h-8 w-8 text-blue-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Total Sent</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {emailStats.totalSent.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">All time</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Today Count */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <TrendingUp className="h-8 w-8 text-green-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Sent Today</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {emailStats.todayCount}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">emails</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Success Rate */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <CheckCircle2 className="h-8 w-8 text-emerald-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Success Rate</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {emailStats.successRate.toFixed(1)}%
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">delivery rate</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Avg Recipients */}
-                  <Card className="hover:shadow-lg transition-shadow">
-                    <CardContent className="pt-6">
-                      <div className="text-center">
-                        <Users className="h-8 w-8 text-purple-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-600">Avg Recipients</p>
-                        <p className="text-2xl font-bold text-gray-900 mt-2">
-                          {emailStats.averageRecipientsPerEmail.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-2">per email</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Loading State for Stats */}
-        {loading && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardContent className="pt-6">
-                  <Skeleton className="h-24" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {/* Token Health Check */}
+        {/* Token Health Check - Global */}
         {diagnostics && (
           <Card className={`border-l-4 ${
             diagnostics.healthScore >= 80 
@@ -386,7 +260,7 @@ export default function NotificationsPage() {
                       ? 'text-yellow-600' 
                       : 'text-red-600'
                   }`} />
-                  Token Health Status
+                  System Token Health
                 </CardTitle>
                 <Badge variant={
                   diagnostics.healthScore >= 80 
@@ -400,31 +274,37 @@ export default function NotificationsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
                 <div>
-                  <p className="text-xs text-gray-600">Total Tokens</p>
-                  <p className="text-lg font-semibold">{diagnostics.totalTokens}</p>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Total Tokens</p>
+                  <p className="text-2xl font-bold mt-1">{diagnostics.totalTokens}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600">Active Tokens</p>
-                  <p className="text-lg font-semibold text-green-600">{diagnostics.activeTokens}</p>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Active</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">{diagnostics.activeTokens}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600">Inactive Tokens</p>
-                  <p className="text-lg font-semibold text-red-600">{diagnostics.inactiveTokens}</p>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Inactive</p>
+                  <p className="text-2xl font-bold text-red-600 mt-1">{diagnostics.inactiveTokens}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-600">Stale Tokens</p>
-                  <p className="text-lg font-semibold text-orange-600">{diagnostics.staleTokensCount}</p>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Stale</p>
+                  <p className="text-2xl font-bold text-orange-600 mt-1">{diagnostics.staleTokensCount}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 uppercase tracking-wide">Recently Inactive</p>
+                  <p className="text-2xl font-bold text-yellow-600 mt-1">{diagnostics.recentlyInactiveTokensCount}</p>
                 </div>
               </div>
               
               {diagnostics.recommendations.length > 0 && (
-                <div className="mt-3 pt-3 border-t space-y-2">
+                <div className="mt-4 pt-4 border-t space-y-2">
+                  <p className="text-sm font-semibold text-gray-700">Recommendations:</p>
                   {diagnostics.recommendations.map((rec, idx) => (
-                    <p key={idx} className="text-sm text-gray-700">
-                      {rec}
-                    </p>
+                    <div key={idx} className="flex items-start gap-2 text-sm text-gray-700">
+                      <ArrowRight className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <span>{rec}</span>
+                    </div>
                   ))}
                 </div>
               )}
@@ -432,88 +312,89 @@ export default function NotificationsPage() {
           </Card>
         )}
 
-        {/* Main Tabs */}
-        <Tabs defaultValue="send-notification" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="send-notification" className="gap-2">
-              <Bell className="h-4 w-4" />
-              <span className="hidden sm:inline">Send Notification</span>
-              <span className="sm:hidden">Notify</span>
-            </TabsTrigger>
-            <TabsTrigger value="notification-history" className="gap-2">
-              <Clock className="h-4 w-4" />
-              <span className="hidden sm:inline">Notification History</span>
-              <span className="sm:hidden">History</span>
-            </TabsTrigger>
-            <TabsTrigger value="send-email" className="gap-2">
-              <Mail className="h-4 w-4" />
-              <span className="hidden sm:inline">Send Email</span>
-              <span className="sm:hidden">Email</span>
-            </TabsTrigger>
-            <TabsTrigger value="email-history" className="gap-2">
-              <Clock className="h-4 w-4" />
-              <span className="hidden sm:inline">Email History</span>
-              <span className="sm:hidden">History</span>
-            </TabsTrigger>
-          </TabsList>
+        {/* NOTIFICATIONS MODULE */}
+        {activeModule === 'notifications' && (
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* Notifications Stats */}
+            {stats && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-1 w-1 bg-blue-600 rounded-full"></div>
+                  <h2 className="text-2xl font-bold text-gray-900">Performance Overview</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {/* Total Sent */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-blue-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-blue-100 rounded-lg mb-3">
+                          <Bell className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Total Sent</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {stats.totalSent.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">All time</p>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-          {/* Send Notification Tab */}
-          <TabsContent value="send-notification" className="mt-6 space-y-6">
-            <AdminSendNotificationComponent />
+                  {/* Today Count */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-green-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-green-100 rounded-lg mb-3">
+                          <TrendingUp className="h-6 w-6 text-green-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Sent Today</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {stats.todayCount}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">notifications</p>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-            {/* Info Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border-l-4 border-l-blue-600">
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-3">
-                    <Bell className="h-5 w-5 text-blue-600 mt-1 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Real-time Delivery</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Notifications are delivered instantly via Firebase Cloud Messaging
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  {/* Success Rate */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-emerald-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-emerald-100 rounded-lg mb-3">
+                          <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Success Rate</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {stats.successRate.toFixed(1)}%
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">delivery rate</p>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              <Card className="border-l-4 border-l-green-600">
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-3">
-                    <Users className="h-5 w-5 text-green-600 mt-1 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Targeted Sending</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Send to specific roles, classes, or individual users
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  {/* Avg Recipients */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-purple-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-purple-100 rounded-lg mb-3">
+                          <Users className="h-6 w-6 text-purple-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Avg Recipients</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {stats.averageRecipientsPerNotification.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">per notification</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
 
-              <Card className="border-l-4 border-l-purple-600">
-                <CardContent className="pt-6">
-                  <div className="flex items-start gap-3">
-                    <Clock className="h-5 w-5 text-purple-600 mt-1 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-gray-900">Instant Access</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Users see notifications instantly on their devices
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Notification History Tab */}
-          <TabsContent value="notification-history" className="mt-6 space-y-6">
             {/* Notification Trend Chart */}
-            {!loading && stats && stats.notificationTrend.length > 0 && (
-              <Card className="shadow-lg">
-                <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50 pb-6">
-                  <CardTitle className="flex items-center gap-2">
+            {stats && stats.notificationTrend.length > 0 && (
+              <Card className="shadow-lg border-0">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 pb-6 border-b">
+                  <CardTitle className="flex items-center gap-2 text-xl">
                     <TrendingUp className="h-5 w-5 text-blue-600" />
                     Notification Trend (Last 7 Days)
                   </CardTitle>
@@ -536,7 +417,7 @@ export default function NotificationsPage() {
                         type="monotone"
                         dataKey="sent"
                         stroke="#3B82F6"
-                        strokeWidth={2}
+                        strokeWidth={3}
                         dot={{ fill: '#3B82F6', r: 5 }}
                         activeDot={{ r: 7 }}
                         name="Notifications Sent"
@@ -547,34 +428,43 @@ export default function NotificationsPage() {
               </Card>
             )}
 
+            {/* Send Notification Section */}
+            <Card className="shadow-lg border-0 bg-gradient-to-br from-blue-50 to-indigo-50">
+              <CardHeader className="border-b pb-6">
+                <CardTitle className="text-xl">Send New Notification</CardTitle>
+                <p className="text-sm text-gray-600 mt-1">
+                  Reach your users instantly with push notifications
+                </p>
+              </CardHeader>
+              <CardContent className="pt-8">
+                <AdminSendNotificationComponent />
+              </CardContent>
+            </Card>
+
             {/* Recent Notifications List */}
-            <Card className="shadow-lg">
-              <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-purple-50 pb-6">
+            <Card className="shadow-lg border-0">
+              <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 pb-6 border-b">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 text-xl">
                     <Clock className="h-5 w-5 text-indigo-600" />
                     Recent Notifications
                   </CardTitle>
-                  {!loading && stats && (
-                    <Badge variant="secondary">{stats.recentNotifications.length} recent</Badge>
+                  {stats && (
+                    <Badge variant="secondary" className="text-sm">
+                      {stats.recentNotifications.length} recent
+                    </Badge>
                   )}
                 </div>
               </CardHeader>
               <CardContent className="p-6">
-                {loading ? (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map((i) => (
-                      <Skeleton key={i} className="h-20" />
-                    ))}
-                  </div>
-                ) : stats && stats.recentNotifications.length > 0 ? (
-                  <div className="space-y-4">
+                {stats && stats.recentNotifications.length > 0 ? (
+                  <div className="space-y-3">
                     {stats.recentNotifications.map((notification) => (
                       <div
                         key={notification.id}
-                        className="p-4 border rounded-lg hover:shadow-md transition-shadow"
+                        className="p-4 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-200 transition-all"
                       >
-                        <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
                             <h3 className="font-semibold text-gray-900">
                               {notification.title}
@@ -583,19 +473,19 @@ export default function NotificationsPage() {
                               {notification.body}
                             </p>
                           </div>
-                          <Badge variant="outline" className="ml-2 flex-shrink-0">
+                          <Badge variant="outline" className="ml-2 flex-shrink-0 bg-blue-50">
                             {getTargetLabel(notification.target, notification.targetValue, notification.targetName)}
                           </Badge>
                         </div>
 
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                        <div className="flex items-center justify-between pt-3 border-t">
                           <div className="flex gap-4 text-sm">
-                            <div className="flex items-center gap-1 text-green-600">
+                            <div className="flex items-center gap-1 text-green-600 font-medium">
                               <CheckCircle2 className="h-4 w-4" />
-                              {notification.successCount} sent
+                              {notification.successCount} delivered
                             </div>
                             {notification.failureCount > 0 && (
-                              <div className="flex items-center gap-1 text-red-600">
+                              <div className="flex items-center gap-1 text-red-600 font-medium">
                                 <AlertCircle className="h-4 w-4" />
                                 {notification.failureCount} failed
                               </div>
@@ -609,22 +499,161 @@ export default function NotificationsPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <Bell className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>No notifications sent yet</p>
+                  <div className="text-center py-16 text-gray-500">
+                    <Bell className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium">No notifications sent yet</p>
+                    <p className="text-sm mt-1">Start by sending your first notification above</p>
                   </div>
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Send Email Tab */}
-          <TabsContent value="send-email" className="mt-6 space-y-6">
-            <AdminSendEmailComponent />
 
             {/* Info Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border-l-4 border-l-blue-600">
+              <Card className="border-l-4 border-l-blue-600 bg-blue-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-3">
+                    <Bell className="h-5 w-5 text-blue-600 mt-1 flex-shrink-0" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Real-time Delivery</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Notifications are delivered instantly via Firebase Cloud Messaging
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-l-4 border-l-green-600 bg-green-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-3">
+                    <Users className="h-5 w-5 text-green-600 mt-1 flex-shrink-0" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Targeted Sending</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Send to specific roles, classes, or individual users
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-l-4 border-l-purple-600 bg-purple-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-3">
+                    <Clock className="h-5 w-5 text-purple-600 mt-1 flex-shrink-0" />
+                    <div>
+                      <h3 className="font-semibold text-gray-900">Instant Access</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Users see notifications instantly on their devices
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* EMAILS MODULE */}
+        {activeModule === 'emails' && (
+          <div className="space-y-8 animate-in fade-in duration-200">
+            {/* Email Stats */}
+            {emailStats && (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-1 w-1 bg-purple-600 rounded-full"></div>
+                  <h2 className="text-2xl font-bold text-gray-900">Performance Overview</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {/* Total Sent */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-blue-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-blue-100 rounded-lg mb-3">
+                          <Mail className="h-6 w-6 text-blue-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Total Sent</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {emailStats.totalSent.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">All time</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Today Count */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-green-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-green-100 rounded-lg mb-3">
+                          <TrendingUp className="h-6 w-6 text-green-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Sent Today</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {emailStats.todayCount}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">emails</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Success Rate */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-emerald-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-emerald-100 rounded-lg mb-3">
+                          <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Success Rate</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {emailStats.successRate.toFixed(1)}%
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">delivery rate</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Avg Recipients */}
+                  <Card className="hover:shadow-lg transition-all hover:scale-105 cursor-pointer border-purple-200">
+                    <CardContent className="pt-6">
+                      <div className="text-center">
+                        <div className="inline-flex p-3 bg-purple-100 rounded-lg mb-3">
+                          <Users className="h-6 w-6 text-purple-600" />
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Avg Recipients</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                          {emailStats.averageRecipientsPerEmail.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">per email</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            )}
+
+            {/* Send Email Section */}
+            <Card className="shadow-lg border-0 bg-gradient-to-br from-purple-50 to-pink-50">
+              <CardHeader className="border-b pb-6">
+                <CardTitle className="text-xl">Send New Email</CardTitle>
+                <p className="text-sm text-gray-600 mt-1">
+                  Send professional emails to your recipients
+                </p>
+              </CardHeader>
+              <CardContent className="pt-8">
+                <AdminSendEmailComponent />
+              </CardContent>
+            </Card>
+
+            {/* Email History */}
+            <div className="space-y-4">
+              <EmailHistoryTab loading={loading} stats={emailStats} />
+            </div>
+
+            {/* Info Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="border-l-4 border-l-blue-600 bg-blue-50">
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-3">
                     <Mail className="h-5 w-5 text-blue-600 mt-1 flex-shrink-0" />
@@ -638,7 +667,7 @@ export default function NotificationsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-l-4 border-l-green-600">
+              <Card className="border-l-4 border-l-green-600 bg-green-50">
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-3">
                     <Users className="h-5 w-5 text-green-600 mt-1 flex-shrink-0" />
@@ -652,7 +681,7 @@ export default function NotificationsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-l-4 border-l-purple-600">
+              <Card className="border-l-4 border-l-purple-600 bg-purple-50">
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-3">
                     <Mail className="h-5 w-5 text-purple-600 mt-1 flex-shrink-0" />
@@ -666,13 +695,8 @@ export default function NotificationsPage() {
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-
-          {/* Email History Tab */}
-          <TabsContent value="email-history" className="mt-6">
-            <EmailHistoryTab loading={loading} stats={emailStats} />
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -45,8 +45,14 @@ interface EmailHistoryTabProps {
 
 export function EmailHistoryTab({ loading, stats }: EmailHistoryTabProps) {
   const formatTimeAgo = (date: string) => {
-    const now = new Date();
+    if (!date) return "Unknown";
+    
     const then = new Date(date);
+    if (isNaN(then.getTime())) {
+      return "Invalid Date";
+    }
+    
+    const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - then.getTime()) / 1000);
 
     if (diffInSeconds < 60) return "Just now";

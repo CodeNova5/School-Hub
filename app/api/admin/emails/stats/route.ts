@@ -119,8 +119,19 @@ export async function GET(request: NextRequest) {
             emailTrend.push({ date: dateStr, sent: count });
         }
 
-        // Get recent emails (limit to 10)
-        const recentEmailsList = emailLogs?.slice(0, 10) || [];
+        // Get recent emails (limit to 10) with camelCase field mapping
+        const recentEmailsList = (emailLogs?.slice(0, 10) || []).map((email: any) => ({
+            id: email.id,
+            title: email.title,
+            body: email.body,
+            target: email.target,
+            targetValue: email.target_value,
+            targetName: email.target_name,
+            successCount: email.success_count || 0,
+            failureCount: email.failure_count || 0,
+            createdAt: email.created_at,
+            sentBy: email.sent_by,
+        }));
 
         return NextResponse.json(
             {

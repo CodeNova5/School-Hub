@@ -49,7 +49,7 @@ async function logEmail(
 ) {
     try {
         const { data, error } = await supabaseAdmin
-            .from("notification_logs")
+            .from("email_logs")
             .insert({
                 title,
                 body,
@@ -60,8 +60,7 @@ async function logEmail(
                 failure_count: failureCount,
                 total_recipients: totalRecipients,
                 sent_by: sentBy,
-                school_id: schoolId,
-                delivery_method: "email"
+                school_id: schoolId
             });
 
         if (error) {

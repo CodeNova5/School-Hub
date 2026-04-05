@@ -56,10 +56,9 @@ export async function GET(request: NextRequest) {
 
         // Fetch all emails for this school
         const { data: emailLogs, error: logsError } = await supabaseAdmin
-            .from("notification_logs")
+            .from("email_logs")
             .select("*")
             .eq("school_id", schoolId)
-            .eq("delivery_method", "email")
             .order("created_at", { ascending: false });
 
         if (logsError) {

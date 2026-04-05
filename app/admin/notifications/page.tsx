@@ -216,33 +216,61 @@ export default function NotificationsPage() {
         </div>
 
         {/* Module Navigation */}
-        <div className="flex gap-3 border-b border-gray-200 sticky top-0 bg-white z-10 -mx-6 px-6 py-4">
-          <button
-            onClick={() => setActiveModule('notifications')}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg font-semibold transition-all ${
-              activeModule === 'notifications'
-                ? 'bg-blue-100 text-blue-700 border-b-2 border-blue-700'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Bell className="h-5 w-5" />
-            Push Notifications
-          </button>
-          <button
-            onClick={() => setActiveModule('emails')}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg font-semibold transition-all ${
-              activeModule === 'emails'
-                ? 'bg-purple-100 text-purple-700 border-b-2 border-purple-700'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Mail className="h-5 w-5" />
-            Emails
-          </button>
+        <div className="sticky top-0 bg-white z-10 -mx-6 px-6 pt-6 pb-0">
+          <div className="flex gap-2 border-b border-gray-200">
+            <button
+              onClick={() => setActiveModule('notifications')}
+              className={`flex items-center gap-2.5 px-5 py-3.5 font-semibold text-sm transition-all duration-300 relative group ${
+                activeModule === 'notifications'
+                  ? 'text-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className={`p-2 rounded-lg transition-all ${
+                activeModule === 'notifications'
+                  ? 'bg-blue-100'
+                  : 'bg-gray-100 group-hover:bg-gray-200'
+              }`}>
+                <Bell className={`h-5 w-5 ${
+                  activeModule === 'notifications'
+                    ? 'text-blue-600'
+                    : 'text-gray-600 group-hover:text-gray-800'
+                }`} />
+              </div>
+              Push Notifications
+              {activeModule === 'notifications' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-full"></div>
+              )}
+            </button>
+            <button
+              onClick={() => setActiveModule('emails')}
+              className={`flex items-center gap-2.5 px-5 py-3.5 font-semibold text-sm transition-all duration-300 relative group ${
+                activeModule === 'emails'
+                  ? 'text-purple-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className={`p-2 rounded-lg transition-all ${
+                activeModule === 'emails'
+                  ? 'bg-purple-100'
+                  : 'bg-gray-100 group-hover:bg-gray-200'
+              }`}>
+                <Mail className={`h-5 w-5 ${
+                  activeModule === 'emails'
+                    ? 'text-purple-600'
+                    : 'text-gray-600 group-hover:text-gray-800'
+                }`} />
+              </div>
+              Emails
+              {activeModule === 'emails' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-purple-600 rounded-t-full"></div>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Token Health Check - Global */}
-        {diagnostics && (
+        {diagnostics && activeModule === 'notifications' && (
           <Card className={`border-l-4 ${
             diagnostics.healthScore >= 80 
               ? 'border-l-green-600 bg-green-50' 

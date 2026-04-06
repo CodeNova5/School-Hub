@@ -8,12 +8,13 @@ const octokit = new Octokit({
 });
 
 const GITHUB_OWNER = "CodeNova5";
-const GITHUB_REPO = "School-Deck-Assets";
+const GITHUB_REPO = "School-Assets";
 
 interface UploadRequest {
   base64Content: string;
   fileName: string;
   commitMessage: string;
+  fileType: 'logo' | 'signature'; // 'logo' for school logos, 'signature' for admin signatures
 }
 
 export async function POST(req: Request) {
@@ -26,11 +27,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { base64Content, fileName, commitMessage } = await req.json() as UploadRequest;
+    const { base64Content, fileName, commitMessage, fileType } = await req.json() as UploadRequest;
 
-    if (!base64Content || !fileName) {
+    if (!base64Content || !fileName || !fileType) {
       return NextResponse.json(
-        { error: "Missing base64Content or fileName" },
+        { error: "Missing base64Content, fileName, or fileType" },
+        { status: 400 }
+      );
+    }
+
+    // Validate fileType
+    if (fileType !== 'logo' && fileType !== 'signature') {
+      return NextResponse.json(
+        { error: "Invalid fileType. Must be 'logo' or 'signature'" },
         { status: 400 }
       );
     }
@@ -44,13 +53,16 @@ export async function POST(req: Request) {
       );
     }
 
+    // Determine folder based on fileType
+    const folder = fileType === 'logo' ? 'logos' : 'signatures';
+
     // Check if file already exists
     let sha: string | undefined;
     try {
       const { data } = await octokit.repos.getContent({
         owner: GITHUB_OWNER,
         repo: GITHUB_REPO,
-        path: `students/${fileName}`,
+        path: `${folder}/${fileName}`,
       });
       // @ts-ignore
       sha = data.sha;
@@ -67,7 +79,7 @@ export async function POST(req: Request) {
       const response = await octokit.repos.createOrUpdateFileContents({
         owner: GITHUB_OWNER,
         repo: GITHUB_REPO,
-        path: `students/${fileName}`,
+        path: `${folder}/${fileName}`,
         message: commitMessage,
         content: base64Content,
         sha,
@@ -75,17 +87,17 @@ export async function POST(req: Request) {
       });
 
       // Return the raw content URL
-      const imageUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/students/${fileName}`;
+      const fileUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${folder}/${fileName}`;
 
       return NextResponse.json({ 
         success: true, 
-        imageUrl,
-        message: "Image uploaded successfully"
+        fileUrl,
+        message: `${fileType === 'logo' ? 'Logo' : 'Signature'} uploaded successfully`
       });
     } catch (uploadError: any) {
       console.error("GitHub upload error:", uploadError);
       return NextResponse.json(
-        { error: "Failed to upload image to GitHub: " + uploadError.message },
+        { error: `Failed to upload ${fileType} to GitHub: ` + uploadError.message },
         { status: 500 }
       );
     }

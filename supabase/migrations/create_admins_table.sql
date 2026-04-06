@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS admins (
   school_id uuid REFERENCES schools(id) ON DELETE SET NULL,
   name text NOT NULL,
   email text UNIQUE NOT NULL,
+  signature_url text DEFAULT NULL,
   is_active boolean DEFAULT false,
   status text DEFAULT 'inactive',
   activation_token_hash text,

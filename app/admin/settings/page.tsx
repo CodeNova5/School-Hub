@@ -20,6 +20,7 @@ interface AdminProfile {
   school_id: string;
   is_active: boolean;
   status: string;
+  signature_url?: string;
 }
 
 interface SchoolDetails {
@@ -47,11 +48,111 @@ export default function AdminSettingsPage() {
   const [adminFormData, setAdminFormData] = useState<AdminProfile | null>(null);
   const [schoolFormData, setSchoolFormData] = useState<SchoolDetails | null>(null);
 
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+
   useEffect(() => {
     if (!schoolLoading && schoolId) {
       fetchAdminAndSchoolData();
     }
   }, [schoolId, schoolLoading]);
+
+  async function uploadFileToGitHub(
+    file: File,
+    fileType: 'logo' | 'signature',
+    identifier: string
+  ): Promise<string | null> {
+    try {
+      // Convert file to base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64Content = result.split(',')[1];
+          resolve(base64Content);
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+      const timestamp = new Date().getTime();
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${fileType}_${identifier}_${timestamp}.${fileExt}`;
+
+      // Call server-side upload API
+      const response = await fetch('/api/upload-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Content: base64,
+          fileName: fileName,
+          fileType: fileType,
+          commitMessage: `Add ${fileType} for ${identifier}`,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Unknown error');
+      }
+
+      toast.success(result.message);
+      return result.fileUrl;
+    } catch (error) {
+      console.error(`Failed to upload ${fileType}:`, error);
+      toast.error(`Failed to upload ${fileType}`);
+      return null;
+    }
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !schoolFormData) return;
+
+    setUploadingLogo(true);
+    try {
+      // Preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload
+      const logoUrl = await uploadFileToGitHub(file, 'logo', school?.id || 'school');
+      if (logoUrl) {
+        setSchoolFormData(prev => prev ? { ...prev, logo_url: logoUrl } : null);
+      }
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function handleSignatureUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !adminFormData) return;
+
+    setUploadingSignature(true);
+    try {
+      // Preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSignaturePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload
+      const signatureUrl = await uploadFileToGitHub(file, 'signature', admin?.id || 'admin');
+      if (signatureUrl) {
+        setAdminFormData(prev => prev ? { ...prev, signature_url: signatureUrl } : null);
+      }
+    } finally {
+      setUploadingSignature(false);
+    }
+  }
 
   async function fetchAdminAndSchoolData() {
     if (!schoolId) return;
@@ -67,7 +168,7 @@ export default function AdminSettingsPage() {
       // Fetch admin profile
       const { data: adminData, error: adminError } = await supabase
         .from('admins')
-        .select('id, name, email, school_id, is_active, status')
+        .select('id, name, email, school_id, is_active, status, signature_url')
         .eq('user_id', session.user.id)
         .single();
 
@@ -110,6 +211,7 @@ export default function AdminSettingsPage() {
         .from('admins')
         .update({
           name: adminFormData.name,
+          signature_url: adminFormData.signature_url || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', admin.id);
@@ -121,6 +223,7 @@ export default function AdminSettingsPage() {
 
       setAdmin(adminFormData);
       setEditingAdmin(false);
+      setSignaturePreview(null);
       toast.success('Admin profile updated successfully');
     } catch (error: any) {
       console.error('Error saving admin:', error);
@@ -142,7 +245,7 @@ export default function AdminSettingsPage() {
           address: schoolFormData.address,
           phone: schoolFormData.phone,
           email: schoolFormData.email,
-          logo_url: schoolFormData.logo_url,
+          logo_url: schoolFormData.logo_url || '',
           updated_at: new Date().toISOString(),
         })
         .eq('id', school.id);
@@ -154,6 +257,7 @@ export default function AdminSettingsPage() {
 
       setSchool(schoolFormData);
       setEditingSchool(false);
+      setLogoPreview(null);
       toast.success('School details updated successfully');
     } catch (error: any) {
       console.error('Error saving school:', error);
@@ -293,6 +397,43 @@ export default function AdminSettingsPage() {
                   </div>
                 </div>
 
+                {/* Signature Upload */}
+                <div className="border-t pt-4">
+                  <Label className="text-gray-700 text-sm font-semibold">Admin Signature</Label>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">Upload a signature file (PNG, JPG, or PDF)</p>
+                  
+                  {signaturePreview && (
+                    <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
+                      <img
+                        src={signaturePreview}
+                        alt="Signature Preview"
+                        className="h-20 object-cover rounded"
+                      />
+                      <p className="text-xs text-green-600 mt-2">✓ Ready to upload</p>
+                    </div>
+                  )}
+
+                  {adminFormData?.signature_url && !signaturePreview && (
+                    <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
+                      <p className="text-xs text-gray-600 truncate">
+                        Current: <a href={adminFormData.signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View</a>
+                      </p>
+                    </div>
+                  )}
+
+                  <Input
+                    id="admin_signature"
+                    type="file"
+                    accept="image/png,image/jpeg,application/pdf"
+                    onChange={handleSignatureUpload}
+                    disabled={uploadingSignature}
+                    className="text-sm"
+                  />
+                  {uploadingSignature && (
+                    <p className="text-xs text-blue-600 mt-2">Uploading signature...</p>
+                  )}
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-3 pt-4">
                   <Button
                     onClick={handleSaveAdmin}
@@ -340,6 +481,20 @@ export default function AdminSettingsPage() {
                         </span>
                       </p>
                     </div>
+                  </div>
+                </div>
+
+                {/* Signature Display */}
+                <div className="border-t pt-4">
+                  <Label className="text-gray-700 text-sm font-semibold">Admin Signature</Label>
+                  <div className="mt-2 p-3 bg-gray-50 rounded-md border border-gray-200">
+                    {admin?.signature_url ? (
+                      <a href={admin.signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                        View Signature
+                      </a>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No signature uploaded</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -415,14 +570,42 @@ export default function AdminSettingsPage() {
                 </div>
 
                 <div>
-                  <Label className="text-gray-700 text-sm">Logo URL</Label>
+                  <Label className="text-gray-700 text-sm font-semibold">School Logo</Label>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">Upload a logo image (PNG, JPG)</p>
+                  
+                  {logoPreview && (
+                    <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
+                      <img
+                        src={logoPreview}
+                        alt="Logo Preview"
+                        className="h-16 object-contain"
+                      />
+                      <p className="text-xs text-green-600 mt-2">✓ Ready to upload</p>
+                    </div>
+                  )}
+
+                  {schoolFormData?.logo_url && !logoPreview && (
+                    <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
+                      <img
+                        src={schoolFormData.logo_url}
+                        alt="Current Logo"
+                        className="h-16 object-contain"
+                      />
+                      <p className="text-xs text-gray-600 mt-2">Current logo</p>
+                    </div>
+                  )}
+
                   <Input
-                    type="text"
-                    value={schoolFormData?.logo_url || ''}
-                    onChange={(e) => setSchoolFormData(prev => prev ? { ...prev, logo_url: e.target.value } : null)}
-                    placeholder="https://example.com/logo.png"
-                    className="mt-1 text-sm"
+                    id="school_logo"
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    onChange={handleLogoUpload}
+                    disabled={uploadingLogo}
+                    className="text-sm"
                   />
+                  {uploadingLogo && (
+                    <p className="text-xs text-blue-600 mt-2">Uploading logo...</p>
+                  )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 pt-4">
@@ -474,17 +657,22 @@ export default function AdminSettingsPage() {
                 </div>
 
                 <div>
-                  <Label className="text-gray-700 text-sm">Logo URL</Label>
+                  <Label className="text-gray-700 text-sm">School Logo</Label>
                   <div className="mt-1 p-3 bg-gray-50 rounded-md border border-gray-200">
-                    <p className="text-gray-900 font-medium break-words text-sm">
-                      {school?.logo_url ? (
-                        <a href={school.logo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-words">
-                          {school.logo_url}
+                    {school?.logo_url ? (
+                      <div className="flex flex-col gap-2">
+                        <img
+                          src={school.logo_url}
+                          alt="School Logo"
+                          className="h-20 object-contain"
+                        />
+                        <a href={school.logo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                          View Logo
                         </a>
-                      ) : (
-                        '-'
-                      )}
-                    </p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">No logo uploaded</p>
+                    )}
                   </div>
                 </div>
               </div>

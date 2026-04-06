@@ -5,7 +5,7 @@ const octokit = new Octokit({
 });
 
 const GITHUB_OWNER = "CodeNova5";
-const GITHUB_REPO = "School-Deck-Assets";
+const GITHUB_REPO = "Student-Photos";
 
 interface UploadFileOptions {
   path: string;

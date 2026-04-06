@@ -306,21 +306,42 @@ export default function AdminStudentsPage() {
   async function uploadImageToGitHub(file: File) {
     setUploadingImage(true);
     try {
-      const { uploadFile, fileToBase64 } = await import('@/lib/github');
+      // Convert file to base64 using FileReader (browser API)
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Extract base64 content (remove data:image/...;base64, prefix)
+          const base64Content = result.split(',')[1];
+          resolve(base64Content);
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
       
-      const base64Content = await fileToBase64(file);
       const timestamp = new Date().getTime();
       const fileName = `student_${formData.first_name}_${formData.last_name}_${timestamp}.${file.name.split('.').pop()}`;
 
-      const imageUrl = await uploadFile({
-        path: `students/${fileName}`,
-        content: base64Content,
-        commitMessage: `Add student image for ${formData.first_name} ${formData.last_name}`,
+      // Call server-side upload API
+      const response = await fetch('/api/upload-student-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Content: base64,
+          fileName: fileName,
+          commitMessage: `Add student image for ${formData.first_name} ${formData.last_name}`,
+        }),
       });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Unknown error');
+      }
 
       setFormData(prev => ({
         ...prev,
-        image_url: imageUrl,
+        image_url: result.imageUrl,
       }));
 
       toast.success('Image uploaded successfully');

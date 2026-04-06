@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { Student, Session, Term, Class, Department } from '@/lib/types';
@@ -68,7 +68,17 @@ export default function AdminStudentsPage() {
     parent_email: '',
     parent_phone: '',
     admission_date: new Date().toISOString().split('T')[0],
+    image_url: '',
   });
+
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+
+  const router = useRouter();
 
   const handleNextStudent = useCallback(() => {
     if (!selectedStudent) return;
@@ -84,7 +94,14 @@ export default function AdminStudentsPage() {
     setSelectedStudent(filteredStudents[previousIndex]);
   }, [filteredStudents, selectedStudent]);
 
-  const router = useRouter();
+  useEffect(() => {
+    if (!isCreateDialogOpen && cameraStream) {
+      // Clean up camera when dialog closes
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+      setIsCameraOpen(false);
+    }
+  }, [isCreateDialogOpen, cameraStream]);
 
   useEffect(() => {
     if (schoolId) {
@@ -268,6 +285,106 @@ export default function AdminStudentsPage() {
   function handleManageSubjects(student: Student) {
     // This would navigate to a page to manage subjects
     router.push(`/admin/students/${student.id}/subjects`);
+  }
+
+  // Image handling functions
+  async function handleImageFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload to GitHub
+    await uploadImageToGitHub(file);
+  }
+
+  async function uploadImageToGitHub(file: File) {
+    setUploadingImage(true);
+    try {
+      const { uploadFile, fileToBase64 } = await import('@/lib/github');
+      
+      const base64Content = await fileToBase64(file);
+      const timestamp = new Date().getTime();
+      const fileName = `student_${formData.first_name}_${formData.last_name}_${timestamp}.${file.name.split('.').pop()}`;
+
+      const imageUrl = await uploadFile({
+        path: `students/${fileName}`,
+        content: base64Content,
+        commitMessage: `Add student image for ${formData.first_name} ${formData.last_name}`,
+      });
+
+      setFormData(prev => ({
+        ...prev,
+        image_url: imageUrl,
+      }));
+
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Failed to upload image to GitHub');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  async function handleCameraCapture() {
+    try {
+      if (!cameraStream) {
+        // Open camera
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+        });
+        setCameraStream(stream);
+        setIsCameraOpen(true);
+
+        // Add stream to video element
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } else {
+        // Capture photo
+        if (canvasRef.current && videoRef.current) {
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          const context = canvas.getContext('2d');
+
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          context?.drawImage(video, 0, 0);
+
+          // Convert canvas to blob and upload
+          canvas.toBlob(async (blob: Blob | null) => {
+            if (!blob) return;
+            const file = new File([blob], `student_camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setImagePreview(canvas.toDataURL());
+            await uploadImageToGitHub(file);
+            
+            // Close camera
+            cameraStream.getTracks().forEach(track => track.stop());
+            setCameraStream(null);
+            setIsCameraOpen(false);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      toast.error('Failed to access camera');
+    }
+  }
+
+  function closeCameraAndClear() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    setCameraStream(null);
+    setIsCameraOpen(false);
+    setImagePreview(null);
+    setFormData(prev => ({ ...prev, image_url: '' }));
   }
 
   function handleEditStudent(student: Student) {
@@ -455,7 +572,11 @@ export default function AdminStudentsPage() {
         parent_email: '',
         parent_phone: '',
         admission_date: new Date().toISOString().split('T')[0],
+        image_url: '',
       });
+
+      setImagePreview(null);
+      closeCameraAndClear();
 
       setIsCreateDialogOpen(false);
     } catch (error: any) {
@@ -722,6 +843,87 @@ export default function AdminStudentsPage() {
                           placeholder="+234..."
                         />
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Student Photo */}
+                  <div className="border-b pb-4">
+                    <h3 className="font-semibold mb-3">Student Photo</h3>
+                    <div className="flex flex-col gap-4">
+                      {/* Image Preview */}
+                      {imagePreview && (
+                        <div className="flex flex-col items-center gap-2">
+                          <img
+                            src={imagePreview}
+                            alt="Preview"
+                            className="w-32 h-32 rounded-lg object-cover border-2 border-gray-300"
+                          />
+                          <p className="text-sm text-green-600 font-medium">Image ready to upload</p>
+                        </div>
+                      )}
+
+                      {/* Camera View */}
+                      {isCameraOpen ? (
+                        <div className="flex flex-col gap-3 items-center">
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            className="w-full rounded-lg bg-black max-w-sm"
+                            style={{ height: '300px' }}
+                          />
+                          <canvas ref={canvasRef} style={{ display: 'none' }} />
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              onClick={handleCameraCapture}
+                              disabled={uploadingImage}
+                            >
+                              {uploadingImage ? 'Uploading...' : 'Capture Photo'}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={closeCameraAndClear}
+                              disabled={uploadingImage}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <Input
+                              id="student_image"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageFileSelect}
+                              disabled={uploadingImage}
+                              className="cursor-pointer"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">JPG, PNG, WebP (Max 5MB)</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleCameraCapture}
+                            disabled={uploadingImage}
+                          >
+                            📷 Camera
+                          </Button>
+                        </div>
+                      )}
+
+                      {uploadingImage && (
+                        <p className="text-sm text-blue-600">Uploading image to GitHub...</p>
+                      )}
+
+                      {formData.image_url && (
+                        <div className="text-sm text-green-600 flex items-center gap-2">
+                          ✓ Image uploaded successfully
+                        </div>
+                      )}
                     </div>
                   </div>
 

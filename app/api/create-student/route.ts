@@ -177,6 +177,7 @@ export async function POST(req: Request) {
       is_active: studentIsActive,
       status: "active",
       school_id: schoolId,
+      image_url: studentData.image_url || null,
     };
 
     const { data: createdStudent, error: studentError } = await supabase

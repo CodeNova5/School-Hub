@@ -265,6 +265,7 @@ export interface Student {
   parent_phone: string;
   admission_date: string;
   photo_url?: string;
+  image_url?: string;
   status: 'active' | 'graduated' | 'withdrawn' | 'suspended';
   attendance: AttendanceEntry[];
   average_attendance: number;

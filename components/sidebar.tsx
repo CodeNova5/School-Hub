@@ -98,6 +98,7 @@ export function Sidebar({
     { href: "/admin/sessions", label: "Sessions & Terms", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" /> },
     { href: "/admin/attendance", label: "Attendance", icon: <UserCheck className="h-5 w-5" /> },
+    { href: "/admin/attendance/qr-scanner", label: "QR Attendance Scanner", icon: <QrCode className="h-5 w-5" /> },
     { href: "/admin/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
     { href: "/admin/periods", label: "Periods", icon: <Clock className="h-5 w-5" /> },
     { href: "/admin/timetable", label: "Timetable", icon: <FileText className="h-5 w-5" /> },

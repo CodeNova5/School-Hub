@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import jsQR from "jsqr";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { supabase } from "@/lib/supabase";
@@ -45,7 +45,13 @@ export default function QRScannerPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const scanningIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const streamRef = useRef<MediaStream | null>(null);
+  const presentStudentIdsRef = useRef<Set<string>>(new Set());
+  const lastScanAtRef = useRef<Map<string, number>>(new Map());
+  const scanCooldownMs = 1200;
+  const scanThrottleMs = 80;
+  const lastFrameScanRef = useRef(0);
+  const scanningIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // State management
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -53,10 +59,11 @@ export default function QRScannerPage() {
   );
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([]);
-  const [students, setStudents] = useState<Map<string, Student>>(new Map());
+  const [studentsByUuid, setStudentsByUuid] = useState<Map<string, Student>>(new Map());
+  const [studentsByStudentCode, setStudentsByStudentCode] = useState<Map<string, Student>>(new Map());
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [scanned, setScanned] = useState<Set<string>>(new Set());
+  const [presentStudentIds, setPresentStudentIds] = useState<Set<string>>(new Set());
   const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
   const [attendanceBatch, setAttendanceBatch] = useState<AttendanceRecord[]>([]);
 
@@ -90,7 +97,7 @@ export default function QRScannerPage() {
     if (isCameraActive && videoRef.current) {
       scanningIntervalRef.current = setInterval(() => {
         scanQRCode();
-      }, 100); // Scan every 100ms for speed
+      }, scanThrottleMs);
     }
 
     return () => {
@@ -98,7 +105,7 @@ export default function QRScannerPage() {
         clearInterval(scanningIntervalRef.current);
       }
     };
-  }, [isCameraActive, students, scanned]);
+  }, [isCameraActive, studentsByUuid, studentsByStudentCode]);
 
   async function fetchClasses() {
     if (!schoolId) return;
@@ -133,7 +140,8 @@ export default function QRScannerPage() {
 
       if (error) throw error;
 
-      const studentMap = new Map<string, Student>();
+      const byUuid = new Map<string, Student>();
+      const byStudentCode = new Map<string, Student>();
       (data || []).forEach((student: any) => {
         const studentRecord: Student = {
           id: student.id,
@@ -143,12 +151,17 @@ export default function QRScannerPage() {
           class_id: student.class_id,
           class_name: student.classes?.name || "N/A",
         };
-        studentMap.set(student.student_id.toUpperCase(), studentRecord);
+        byUuid.set(student.id, studentRecord);
+        byStudentCode.set(student.student_id.toUpperCase(), studentRecord);
       });
 
-      setStudents(studentMap);
-      setScanned(new Set());
+      setStudentsByUuid(byUuid);
+      setStudentsByStudentCode(byStudentCode);
+      setPresentStudentIds(new Set());
+      presentStudentIdsRef.current = new Set();
+      lastScanAtRef.current.clear();
       setAttendanceBatch([]);
+      setRecentScans([]);
     } catch (error) {
       toast.error("Failed to load students");
     }
@@ -165,8 +178,9 @@ export default function QRScannerPage() {
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        videoRef.current.srcObject = streamRef.current;
         videoRef.current.play().catch((error) => {
           console.error("Error playing video:", error);
         });
@@ -178,21 +192,39 @@ export default function QRScannerPage() {
   }
 
   function stopCamera() {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+    if (streamRef.current) {
+      const tracks = streamRef.current.getTracks();
       tracks.forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   }
 
   function scanQRCode() {
     if (!videoRef.current || !canvasRef.current) return;
+    if (videoRef.current.readyState < 2) return;
+
+    const now = Date.now();
+    if (now - lastFrameScanRef.current < scanThrottleMs) {
+      return;
+    }
+    lastFrameScanRef.current = now;
 
     const context = canvasRef.current.getContext("2d");
     if (!context) return;
 
     try {
-      canvasRef.current.width = videoRef.current.videoWidth;
-      canvasRef.current.height = videoRef.current.videoHeight;
+      const targetWidth = 640;
+      const ratio = videoRef.current.videoWidth / Math.max(videoRef.current.videoHeight, 1);
+      const targetHeight = Math.max(360, Math.floor(targetWidth / Math.max(ratio, 1)));
+
+      if (canvasRef.current.width !== targetWidth || canvasRef.current.height !== targetHeight) {
+        canvasRef.current.width = targetWidth;
+        canvasRef.current.height = targetHeight;
+      }
 
       context.drawImage(videoRef.current, 0, 0);
       const imageData = context.getImageData(
@@ -212,65 +244,90 @@ export default function QRScannerPage() {
     }
   }
 
-  function decodeQRCode(imageData: ImageData): string | null {
-    // Simplified fallback - jsQR is used in scanQRCode
-    return null;
+  function parseIdCardPayload(raw: string): { sid?: string; scid?: string } | null {
+    try {
+      // Normalized base64url -> base64
+      const normalized = raw.replace(/-/g, "+").replace(/_/g, "/");
+      const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+      const decoded = atob(padded);
+      const parsed = JSON.parse(decoded);
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   function handleScannedCode(code: string) {
-    const studentId = code.trim().toUpperCase();
+    const raw = code.trim();
+    const decoded = parseIdCardPayload(raw);
+    const extractedStudentUuid = decoded?.sid;
+    const extractedSchoolId = decoded?.scid;
+    const fallbackStudentCode = raw.toUpperCase();
 
-    // Prevent duplicate scans within 2 seconds
-    if (scanned.has(studentId)) {
+    if (decoded && extractedSchoolId && schoolId && extractedSchoolId !== schoolId) {
+      const wrongSchoolScan: ScanResult = {
+        student_id: fallbackStudentCode,
+        timestamp: Date.now(),
+        status: "error",
+        message: "QR is from a different school",
+      };
+      setRecentScans((prev) => [wrongSchoolScan, ...prev].slice(0, 10));
+      toast.error("This ID card belongs to a different school");
       return;
     }
 
-    const student = students.get(studentId);
+    const student = extractedStudentUuid
+      ? studentsByUuid.get(extractedStudentUuid)
+      : studentsByStudentCode.get(fallbackStudentCode);
+
+    const dedupeKey = student?.id || fallbackStudentCode;
+    const lastAt = lastScanAtRef.current.get(dedupeKey) || 0;
+    const now = Date.now();
+
+    if (now - lastAt < scanCooldownMs) {
+      return;
+    }
+
+    lastScanAtRef.current.set(dedupeKey, now);
 
     if (!student) {
       const scanResult: ScanResult = {
-        student_id: studentId,
-        timestamp: Date.now(),
+        student_id: fallbackStudentCode,
+        timestamp: now,
         status: "not_found",
-        message: `Student ${studentId} not found`,
+        message: "Student not found for this QR",
       };
       setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
-      toast.error(`Student ${studentId} not found`);
+      toast.error("Student not found in selected class");
       return;
     }
 
-    // Add to scanned set
-    setScanned((prev) => new Set(prev).add(studentId));
+    // Avoid duplicate attendance records for same student in current batch
+    if (presentStudentIdsRef.current.has(student.id)) {
+      return;
+    }
 
-    // Add to attendance batch
+    presentStudentIdsRef.current.add(student.id);
+    setPresentStudentIds((prev) => new Set(prev).add(student.id));
+
     const record: AttendanceRecord = {
       student_id: student.id,
       status: "present",
-      timestamp: Date.now(),
+      timestamp: now,
     };
     setAttendanceBatch((prev) => [...prev, record]);
 
-    // Show success scan
     const scanResult: ScanResult = {
-      student_id: studentId,
-      timestamp: Date.now(),
+      student_id: student.student_id,
+      timestamp: now,
       status: "success",
       message: `${student.first_name} ${student.last_name} marked present`,
     };
     setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
-    toast.success(`✓ ${student.first_name} ${student.last_name}`);
-
-    // Remove from scanned set after 3 seconds to allow re-scan
-    setTimeout(
-      () => {
-        setScanned((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(studentId);
-          return newSet;
-        });
-      },
-      3000
-    );
+    toast.success(`Marked: ${student.first_name} ${student.last_name}`);
   }
 
   async function submitAttendance() {
@@ -313,8 +370,10 @@ export default function QRScannerPage() {
 
       // Reset state
       setAttendanceBatch([]);
-      setScanned(new Set());
+      setPresentStudentIds(new Set());
+      presentStudentIdsRef.current = new Set();
       setRecentScans([]);
+      lastScanAtRef.current.clear();
     } catch (error) {
       console.error("Error submitting attendance:", error);
       toast.error("Failed to save attendance", { id: submitToast });
@@ -325,24 +384,21 @@ export default function QRScannerPage() {
     if (attendanceBatch.length === 0) return;
 
     const lastRecord = attendanceBatch[attendanceBatch.length - 1];
-    const studentId = (
-      students.get(lastRecord.student_id) || {
-        student_id: lastRecord.student_id,
-      }
-    ).student_id;
+    const lastStudentUuid = lastRecord.student_id;
 
     setAttendanceBatch((prev) => prev.slice(0, -1));
-    setScanned((prev) => {
+    setPresentStudentIds((prev) => {
       const newSet = new Set(prev);
-      newSet.delete(studentId);
+      newSet.delete(lastStudentUuid);
+      presentStudentIdsRef.current = newSet;
       return newSet;
     });
 
     toast.info("Last scan removed");
   }
 
-  const totalStudents = students.size;
-  const presentCount = scanned.size;
+  const totalStudents = studentsByUuid.size;
+  const presentCount = presentStudentIds.size;
 
   if (loading || schoolLoading) {
     return (

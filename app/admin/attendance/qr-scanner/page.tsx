@@ -245,9 +245,22 @@ export default function QRScannerPage() {
   }
 
   function parseIdCardPayload(raw: string): { sid?: string; scid?: string } | null {
+    const trimmed = raw.trim();
+
+    // New compact format: SH1|<studentId>|<schoolId>
+    if (trimmed.startsWith("SH1|")) {
+      const parts = trimmed.split("|");
+      if (parts.length >= 3) {
+        return {
+          sid: parts[1],
+          scid: parts[2],
+        };
+      }
+    }
+
     try {
       // Normalized base64url -> base64
-      const normalized = raw.replace(/-/g, "+").replace(/_/g, "/");
+      const normalized = trimmed.replace(/-/g, "+").replace(/_/g, "/");
       const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
       const decoded = atob(padded);
       const parsed = JSON.parse(decoded);

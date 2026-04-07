@@ -267,11 +267,11 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
               {/* QR Code */}
               <div
                 style={{
-                  width: '52px',
-                  height: '52px',
+                  width: '72px',
+                  height: '72px',
                   backgroundColor: '#ffffff',
-                  borderRadius: '2px',
-                  border: `1px solid ${colors.accent}`,
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -281,9 +281,11 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
               >
                 <QRCodeCanvas
                   value={qrData}
-                  size={48}
-                  level="L"
-                  includeMargin={false}
+                  size={64}
+                  level="M"
+                  includeMargin={true}
+                  fgColor="#000000"
+                  bgColor="#ffffff"
                   className="qr-code"
                 />
               </div>

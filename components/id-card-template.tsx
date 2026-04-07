@@ -53,6 +53,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
           overflow: 'hidden',
           fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
           boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+          position: 'relative',
         }}
       >
         {/* Card Container */}
@@ -64,15 +65,15 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
             position: 'relative',
           }}
         >
-          {/* Top Banner with School Info */}
+          {/* Top Banner with School Info and Logo */}
           <div
             style={{
               backgroundColor: colors.primary,
               color: '#ffffff',
-              padding: '12px 16px',
+              padding: '8px 12px',
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              justifyContent: 'space-between',
               borderBottom: `3px solid ${colors.secondary}`,
             }}
           >
@@ -82,195 +83,282 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                 src={school.logo_url}
                 alt="School Logo"
                 style={{
-                  width: '28px',
-                  height: '28px',
+                  width: '24px',
+                  height: '24px',
                   objectFit: 'contain',
                   flexShrink: 0,
                 }}
               />
             )}
 
-            {/* School Name & Address */}
-            <div style={{ flex: 1, minWidth: 0 }}>
+            {/* School Name Centered */}
+            <div
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                margin: '0 8px',
+              }}
+            >
               <div
                 style={{
-                  fontSize: '11px',
+                  fontSize: '10px',
                   fontWeight: '700',
                   letterSpacing: '0.5px',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
+                  lineHeight: '1.1',
                 }}
               >
                 {school.name}
               </div>
-              <div
-                style={{
-                  fontSize: '8px',
-                  opacity: '0.9',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {school.address}
-              </div>
             </div>
+
+            {/* Empty space for balance */}
+            <div style={{ width: '24px', flexShrink: 0 }} />
           </div>
 
-          {/* Middle Section - Student Info */}
+          {/* Main Content Area */}
           <div
             style={{
               display: 'flex',
               flex: 1,
-              gap: '12px',
-              padding: '12px 16px',
-              alignItems: 'center',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            {/* Student Photo */}
+            {/* Left Section - Student Photo */}
             <div
               style={{
-                width: '60px',
-                height: '80px',
-                backgroundColor: '#f3f4f6',
-                borderRadius: '4px',
-                border: `2px solid ${colors.accent}`,
-                overflow: 'hidden',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {student.image_url ? (
-                <img
-                  src={student.image_url}
-                  alt="Student"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    fontSize: '24px',
-                    color: colors.secondary,
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {`${student.first_name.charAt(0)}${student.last_name.charAt(0)}`}
-                </div>
-              )}
-            </div>
-
-            {/* Student Details Stack */}
-            <div
-              style={{
-                flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'space-between',
-                minHeight: '80px',
+                alignItems: 'center',
+                padding: '10px 12px',
+                backgroundColor: '#f9fafb',
+                borderRight: `1px solid ${colors.accent}`,
+                width: '120px',
+                flexShrink: 0,
               }}
             >
-              {/* Full Name */}
+              {/* Student Photo */}
               <div
                 style={{
-                  fontSize: '12px',
+                  width: '70px',
+                  height: '85px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: '3px',
+                  border: `2px solid ${colors.secondary}`,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginBottom: '6px',
+                }}
+              >
+                {student.image_url ? (
+                  <img
+                    src={student.image_url}
+                    alt="Student"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      fontSize: '28px',
+                      color: colors.secondary,
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {`${student.first_name.charAt(0)}${student.last_name.charAt(0)}`}
+                  </div>
+                )}
+              </div>
+
+              {/* Student Name */}
+              <div
+                style={{
+                  fontSize: '10px',
                   fontWeight: '700',
-                  color: colors.primary,
+                  color: '#000000',
+                  textAlign: 'center',
                   lineHeight: '1.2',
+                  maxWidth: '100%',
                 }}
               >
                 {student.first_name} {student.last_name}
               </div>
 
-              {/* Student ID */}
+              {/* Student Label */}
               <div
                 style={{
-                  fontSize: '9px',
+                  fontSize: '7px',
+                  fontWeight: '600',
                   color: '#6b7280',
-                  fontWeight: '500',
                   letterSpacing: '0.5px',
+                  marginTop: '2px',
                 }}
               >
-                ID: <span style={{ fontWeight: '700', color: colors.secondary }}>{student.student_id}</span>
+                STUDENT
               </div>
+            </div>
 
-              {/* Class & Year Row */}
+            {/* Right Section - Card Details */}
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '8px 12px',
+                position: 'relative',
+                justifyContent: 'space-between',
+              }}
+            >
+              {/* Top Right - Header with School Badge */}
               <div
                 style={{
                   display: 'flex',
-                  gap: '8px',
-                  fontSize: '9px',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  marginBottom: '4px',
+                  position: 'relative',
+                  zIndex: 2,
                 }}
               >
-                <div style={{ color: '#6b7280' }}>
-                  Class: <span style={{ fontWeight: '600', color: colors.secondary }}>{student.class_name || 'N/A'}</span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '7px',
+                      fontWeight: '600',
+                      color: colors.secondary,
+                      letterSpacing: '0.3px',
+                    }}
+                  >
+                    SCAN ME FOR INFO
+                  </div>
                 </div>
-                <div style={{ color: '#6b7280' }}>
-                  Year: <span style={{ fontWeight: '600', color: colors.secondary }}>{academicYear}</span>
+                {/* ID Number Badge */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '7px',
+                      fontWeight: '600',
+                      color: '#6b7280',
+                    }}
+                  >
+                    ID Number:
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '8px',
+                      fontWeight: '700',
+                      color: '#000000',
+                    }}
+                  >
+                    {student.student_id}
+                  </span>
+                </div>
+              </div>
+
+              {/* QR Code in Top Left */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '24px',
+                  width: '48px',
+                  height: '48px',
+                  backgroundColor: '#ffffff',
+                  borderRadius: '2px',
+                  border: `1px solid ${colors.accent}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 2,
+                }}
+              >
+                <QRCodeCanvas
+                  value={qrData}
+                  size={44}
+                  level="L"
+                  includeMargin={false}
+                  className="qr-code"
+                />
+              </div>
+
+              {/* Info Stack (Shifted right from QR Code) */}
+              <div
+                style={{
+                  marginLeft: '54px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                  fontSize: '8px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ color: '#6b7280', fontWeight: '500' }}>Academic Year:</span>
+                  <span style={{ fontWeight: '700', color: '#000000' }}>{academicYear}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                  <span style={{ color: '#6b7280', fontWeight: '500' }}>Grade:</span>
+                  <span style={{ fontWeight: '700', color: '#000000' }}>{student.class_name || 'N/A'}</span>
+                </div>
+              </div>
+
+              {/* VOID Watermarks */}
+              <div
+                style={{
+                  position: 'absolute',
+                  right: '8px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  zIndex: 0,
+                  opacity: 0.15,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    color: '#d1d5db',
+                    letterSpacing: '1px',
+                    transform: 'rotate(-15deg)',
+                  }}
+                >
+                  VOID
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Bottom Section - QR Code & Validity Badge */}
+          {/* Bottom Section - School Address */}
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '8px 16px',
+              backgroundColor: '#f3f4f6',
               borderTop: `1px solid ${colors.accent}`,
-              backgroundColor: '#f9fafb',
-              gap: '12px',
+              padding: '4px 12px',
+              textAlign: 'center',
+              fontSize: '7px',
+              color: '#4b5563',
+              fontWeight: '500',
+              letterSpacing: '0.3px',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            {/* QR Code */}
-            <div
-              style={{
-                width: '56px',
-                height: '56px',
-                backgroundColor: '#ffffff',
-                borderRadius: '4px',
-                border: `1px solid ${colors.accent}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <QRCodeCanvas
-                value={qrData}
-                size={52}
-                level="L"
-                includeMargin={false}
-                className="qr-code"
-              />
-            </div>
-
-            {/* Validity Badge */}
-            <div
-              style={{
-                padding: '4px 8px',
-                backgroundColor: colors.primary,
-                color: '#ffffff',
-                borderRadius: '4px',
-                textAlign: 'center',
-                fontSize: '8px',
-                fontWeight: '600',
-                letterSpacing: '0.5px',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              VALID
-              <br />
-              {currentYear}
-            </div>
+            {school.address}
           </div>
         </div>
       </div>

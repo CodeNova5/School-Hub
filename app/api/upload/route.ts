@@ -36,7 +36,6 @@ export async function POST(req: Request) {
 
     let path = "";
     let commitMessage = "";
-    let repository: "student-assets" | "school-assets" = "student-assets";
 
     /**
      * Decide how to handle upload based on type
@@ -48,7 +47,6 @@ export async function POST(req: Request) {
 
         path = `students/${studentId}.jpg`;
         commitMessage = `Upload student photo for ${studentId}`;
-        repository = "student-assets";
         break;
       }
 
@@ -62,7 +60,6 @@ export async function POST(req: Request) {
 
         path = `assignments/${assignmentId}/${studentId}-${file.name}`;
         commitMessage = `Upload assignment ${assignmentId} by ${studentId}`;
-        repository = "student-assets";
         break;
       }
 
@@ -75,7 +72,6 @@ export async function POST(req: Request) {
 
         path = `assignments/${assignmentId}/${file.name}`;
         commitMessage = `Upload teacher assignment ${assignmentId}`;
-        repository = "student-assets";
         break;
       }
 
@@ -85,7 +81,6 @@ export async function POST(req: Request) {
 
         path = `logos/${schoolId}.png`;
         commitMessage = `Upload school logo for ${schoolId}`;
-        repository = "school-assets";
         break;
       }
 
@@ -95,7 +90,6 @@ export async function POST(req: Request) {
 
         path = `signatures/${adminId}.png`;
         commitMessage = `Upload admin signature for ${adminId}`;
-        repository = "school-assets";
         break;
       }
 
@@ -110,7 +104,6 @@ export async function POST(req: Request) {
       path,
       content: base64,
       commitMessage,
-      repository,
     });
 
     return NextResponse.json({ 

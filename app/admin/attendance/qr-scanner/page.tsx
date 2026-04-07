@@ -45,13 +45,14 @@ export default function QRScannerPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const scanRafRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const presentStudentIdsRef = useRef<Set<string>>(new Set());
   const lastScanAtRef = useRef<Map<string, number>>(new Map());
   const scanCooldownMs = 1200;
   const scanThrottleMs = 80;
   const lastFrameScanRef = useRef(0);
-  const scanningIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // State management
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -92,17 +93,21 @@ export default function QRScannerPage() {
     return () => stopCamera();
   }, [isCameraActive]);
 
-  // Start scanning when camera is active
+  // Start scanning loop when camera is active
   useEffect(() => {
-    if (isCameraActive && videoRef.current) {
-      scanningIntervalRef.current = setInterval(() => {
+    if (isCameraActive) {
+      const tick = () => {
         scanQRCode();
-      }, scanThrottleMs);
+        scanRafRef.current = requestAnimationFrame(tick);
+      };
+
+      scanRafRef.current = requestAnimationFrame(tick);
     }
 
     return () => {
-      if (scanningIntervalRef.current) {
-        clearInterval(scanningIntervalRef.current);
+      if (scanRafRef.current !== null) {
+        cancelAnimationFrame(scanRafRef.current);
+        scanRafRef.current = null;
       }
     };
   }, [isCameraActive, studentsByUuid, studentsByStudentCode]);
@@ -201,6 +206,8 @@ export default function QRScannerPage() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+
+    canvasCtxRef.current = null;
   }
 
   function scanQRCode() {
@@ -213,12 +220,20 @@ export default function QRScannerPage() {
     }
     lastFrameScanRef.current = now;
 
-    const context = canvasRef.current.getContext("2d");
+    if (!canvasCtxRef.current) {
+      canvasCtxRef.current = canvasRef.current.getContext("2d", {
+        willReadFrequently: true,
+      });
+    }
+
+    const context = canvasCtxRef.current;
     if (!context) return;
 
     try {
-      const targetWidth = 640;
-      const ratio = videoRef.current.videoWidth / Math.max(videoRef.current.videoHeight, 1);
+      const sourceWidth = Math.max(videoRef.current.videoWidth, 1);
+      const sourceHeight = Math.max(videoRef.current.videoHeight, 1);
+      const ratio = sourceWidth / sourceHeight;
+      const targetWidth = Math.min(960, sourceWidth);
       const targetHeight = Math.max(360, Math.floor(targetWidth / Math.max(ratio, 1)));
 
       if (canvasRef.current.width !== targetWidth || canvasRef.current.height !== targetHeight) {
@@ -226,7 +241,7 @@ export default function QRScannerPage() {
         canvasRef.current.height = targetHeight;
       }
 
-      context.drawImage(videoRef.current, 0, 0);
+      context.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight);
       const imageData = context.getImageData(
         0,
         0,
@@ -235,7 +250,9 @@ export default function QRScannerPage() {
       );
 
       // Use jsQR for fast QR code detection
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "attemptBoth",
+      });
       if (code) {
         handleScannedCode(code.data);
       }

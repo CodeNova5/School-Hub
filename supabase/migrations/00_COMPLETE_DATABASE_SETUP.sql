@@ -293,7 +293,7 @@ CREATE TABLE IF NOT EXISTS students (
   parent_email text DEFAULT '',
   parent_phone text DEFAULT '',
   admission_date date DEFAULT CURRENT_DATE,
-  photo_url text DEFAULT '',
+  image_url text DEFAULT '',
   status text DEFAULT 'active',
   attendance jsonb DEFAULT '[]',
   average_attendance numeric DEFAULT 0,

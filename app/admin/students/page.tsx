@@ -306,31 +306,15 @@ export default function AdminStudentsPage() {
   async function uploadImageToGitHub(file: File) {
     setUploadingImage(true);
     try {
-      // Convert file to base64 using FileReader (browser API)
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Extract base64 content (remove data:image/...;base64, prefix)
-          const base64Content = result.split(',')[1];
-          resolve(base64Content);
-        };
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsDataURL(file);
-      });
-      
-      const timestamp = new Date().getTime();
-      const fileName = `student_${formData.first_name}_${formData.last_name}_${timestamp}.${file.name.split('.').pop()}`;
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+      uploadFormData.append("type", "student_photo");
+      uploadFormData.append("student_id", `student_${formData.first_name}_${formData.last_name}_${new Date().getTime()}`);
 
       // Call server-side upload API
-      const response = await fetch('/api/upload-student-image', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          base64Content: base64,
-          fileName: fileName,
-          commitMessage: `Add student image for ${formData.first_name} ${formData.last_name}`,
-        }),
+        body: uploadFormData,
       });
 
       const result = await response.json();
@@ -341,7 +325,7 @@ export default function AdminStudentsPage() {
 
       setFormData(prev => ({
         ...prev,
-        image_url: result.imageUrl,
+        image_url: result.fileUrl,
       }));
 
       toast.success('Image uploaded successfully');

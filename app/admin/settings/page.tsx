@@ -65,32 +65,21 @@ export default function AdminSettingsPage() {
     identifier: string
   ): Promise<string | null> {
     try {
-      // Convert file to base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64Content = result.split(',')[1];
-          resolve(base64Content);
-        };
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsDataURL(file);
-      });
-
-      const timestamp = new Date().getTime();
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${fileType}_${identifier}_${timestamp}.${fileExt}`;
+      const formData = new FormData();
+      formData.append("file", file);
+      
+      if (fileType === 'logo') {
+        formData.append("type", "school_logo");
+        formData.append("school_id", identifier);
+      } else {
+        formData.append("type", "admin_signature");
+        formData.append("admin_id", identifier);
+      }
 
       // Call server-side upload API
-      const response = await fetch('/api/upload-file', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          base64Content: base64,
-          fileName: fileName,
-          fileType: fileType,
-          commitMessage: `Add ${fileType} for ${identifier}`,
-        }),
+        body: formData,
       });
 
       const result = await response.json();

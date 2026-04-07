@@ -1,10 +1,25 @@
 import { NextResponse } from "next/server";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import { uploadFile, fileToBase64 } from "@/lib/github";
 
-type UploadType = "student_photo" | "assignment_file" | "teacher_assignment_file";
+type UploadType = 
+  | "student_photo" 
+  | "assignment_file" 
+  | "teacher_assignment_file"
+  | "school_logo"
+  | "admin_signature";
 
 export async function POST(req: Request) {
   try {
+    // Verify user is authenticated
+    const routeClient = createRouteHandlerClient({ cookies });
+    const { data: { user } } = await routeClient.auth.getUser();
+    
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const form = await req.formData();
 
     const file = form.get("file") as File;
@@ -21,6 +36,7 @@ export async function POST(req: Request) {
 
     let path = "";
     let commitMessage = "";
+    let repository: "student-assets" | "school-assets" = "student-assets";
 
     /**
      * Decide how to handle upload based on type
@@ -32,6 +48,7 @@ export async function POST(req: Request) {
 
         path = `students/${studentId}.jpg`;
         commitMessage = `Upload student photo for ${studentId}`;
+        repository = "student-assets";
         break;
       }
 
@@ -45,6 +62,7 @@ export async function POST(req: Request) {
 
         path = `assignments/${assignmentId}/${studentId}-${file.name}`;
         commitMessage = `Upload assignment ${assignmentId} by ${studentId}`;
+        repository = "student-assets";
         break;
       }
 
@@ -57,6 +75,27 @@ export async function POST(req: Request) {
 
         path = `assignments/${assignmentId}/${file.name}`;
         commitMessage = `Upload teacher assignment ${assignmentId}`;
+        repository = "student-assets";
+        break;
+      }
+
+      case "school_logo": {
+        const schoolId = form.get("school_id") as string;
+        if (!schoolId) throw new Error("school_id is required");
+
+        path = `logos/${schoolId}.png`;
+        commitMessage = `Upload school logo for ${schoolId}`;
+        repository = "school-assets";
+        break;
+      }
+
+      case "admin_signature": {
+        const adminId = form.get("admin_id") as string;
+        if (!adminId) throw new Error("admin_id is required");
+
+        path = `signatures/${adminId}.png`;
+        commitMessage = `Upload admin signature for ${adminId}`;
+        repository = "school-assets";
         break;
       }
 
@@ -67,13 +106,18 @@ export async function POST(req: Request) {
         );
     }
 
-    const url = await uploadFile({
+    const fileUrl = await uploadFile({
       path,
       content: base64,
       commitMessage,
+      repository,
     });
 
-    return NextResponse.json({ fileUrl: url });
+    return NextResponse.json({ 
+      success: true,
+      fileUrl,
+      message: `${type.replace('_', ' ')} uploaded successfully`
+    });
   } catch (err: any) {
     console.error("Upload error:", err);
     return NextResponse.json(

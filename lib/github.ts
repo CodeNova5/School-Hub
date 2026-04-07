@@ -5,12 +5,18 @@ const octokit = new Octokit({
 });
 
 const GITHUB_OWNER = "CodeNova5";
-const GITHUB_REPO = "School-Deck-Assets";
+
+// Repository mapping for different upload types
+const REPOSITORY_MAP: Record<string, string> = {
+  "student-assets": "School-Deck-Assets",
+  "school-assets": "School-Assets",
+};
 
 interface UploadFileOptions {
   path: string;
   content: string; // base64 encoded content
   commitMessage: string;
+  repository?: keyof typeof REPOSITORY_MAP; // defaults to "student-assets"
 }
 
 /**
@@ -19,14 +25,19 @@ interface UploadFileOptions {
  * @returns The public URL of the uploaded file
  */
 export async function uploadFile(options: UploadFileOptions): Promise<string> {
-  const { path, content, commitMessage } = options;
+  const { path, content, commitMessage, repository = "student-assets" } = options;
+  
+  const repo = REPOSITORY_MAP[repository];
+  if (!repo) {
+    throw new Error(`Unknown repository: ${repository}`);
+  }
 
   // Check if file already exists (for updates)
   let sha: string | undefined;
   try {
     const { data } = await octokit.repos.getContent({
       owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      repo,
       path,
     });
     // @ts-ignore
@@ -38,17 +49,16 @@ export async function uploadFile(options: UploadFileOptions): Promise<string> {
   // Create or update the file
   await octokit.repos.createOrUpdateFileContents({
     owner: GITHUB_OWNER,
-    repo: GITHUB_REPO,
+    repo,
     path,
     message: commitMessage,
     content,
     sha,
-    branch: "main", // 👈 ADD THIS
+    branch: "main",
   });
 
-
   // Return the raw content URL
-  const url = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/${path}`;
+  const url = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${repo}/main/${path}`;
   return url;
 }
 

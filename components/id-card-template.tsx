@@ -111,18 +111,16 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
             {/* Left: School Logo */}
             <div
               style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                backgroundColor: '#ffffff',
-                border: '1px solid rgba(255, 255, 255, 0.45)',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.14)',
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(255, 255, 255, 0.14)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
                 overflow: 'hidden',
-                padding: '2px',
               }}
             >
               {school.logo_url ? (
@@ -140,10 +138,9 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
               ) : (
                 <span
                   style={{
-                    fontSize: '12px',
+                    fontSize: '11px',
                     fontWeight: '900',
                     letterSpacing: '0.5px',
-                    color: colors.primary,
                   }}
                 >
                   {schoolInitials}

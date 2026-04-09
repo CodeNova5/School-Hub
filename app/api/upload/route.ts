@@ -37,6 +37,9 @@ export async function POST(req: Request) {
     let path = "";
     let commitMessage = "";
 
+    // Updated the file extension logic to dynamically use the uploaded file's extension
+    const fileExtension = file.name.split('.').pop();
+
     /**
      * Decide how to handle upload based on type
      */
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
         const studentId = form.get("student_id") as string;
         if (!studentId) throw new Error("student_id is required");
 
-        path = `students/${studentId}.jpg`;
+        path = `students/${studentId}.${fileExtension}`;
         commitMessage = `Upload student photo for ${studentId}`;
         break;
       }
@@ -79,7 +82,7 @@ export async function POST(req: Request) {
         const schoolId = form.get("school_id") as string;
         if (!schoolId) throw new Error("school_id is required");
 
-        path = `logos/${schoolId}.png`;
+        path = `logos/${schoolId}.${fileExtension}`;
         commitMessage = `Upload school logo for ${schoolId}`;
         break;
       }
@@ -88,7 +91,7 @@ export async function POST(req: Request) {
         const adminId = form.get("admin_id") as string;
         if (!adminId) throw new Error("admin_id is required");
 
-        path = `signatures/${adminId}.png`;
+        path = `signatures/${adminId}.${fileExtension}`;
         commitMessage = `Upload admin signature for ${adminId}`;
         break;
       }

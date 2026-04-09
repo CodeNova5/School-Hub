@@ -114,7 +114,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                 width: '34px',
                 height: '34px',
                 borderRadius: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.14)',
+                backgroundColor: 'rgba(255, 255, 255, 0.5)', // Adjusted background color for better visibility
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 display: 'flex',
                 alignItems: 'center',

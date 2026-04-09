@@ -36,6 +36,14 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
   ({ student, school, colors }, ref) => {
     // Generate QR code data
     const qrData = encodeStudentQRData(student.id, school.id);
+
+    const schoolInitials = school.name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word.charAt(0))
+      .join('')
+      .toUpperCase();
     
     // Get current academic year
     const currentYear = new Date().getFullYear();
@@ -92,33 +100,61 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
             style={{
               backgroundColor: colors.primary,
               color: '#ffffff',
-              padding: '10px 16px',
+              padding: '8px 12px 7px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              gap: '10px',
               position: 'relative',
+              minHeight: '48px',
             }}
           >
             {/* Left: School Logo */}
-            {school.logo_url && (
-              <img
-                src={school.logo_url}
-                alt="School Logo"
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  objectFit: 'contain',
-                  flexShrink: 0,
-                }}
-              />
-            )}
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(255, 255, 255, 0.14)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                overflow: 'hidden',
+              }}
+            >
+              {school.logo_url ? (
+                <img
+                  src={school.logo_url}
+                  alt="School Logo"
+                  crossOrigin="anonymous"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    display: 'block',
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '900',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  {schoolInitials}
+                </span>
+              )}
+            </div>
 
-            {/* Center: School Name */}
+            {/* Center: School Name and Address */}
             <div
               style={{
                 flex: 1,
+                minWidth: 0,
                 textAlign: 'center',
-                padding: '12px',
+                lineHeight: '1.15',
               }}
             >
               <div
@@ -127,14 +163,31 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                   fontWeight: '800',
                   letterSpacing: '0.8px',
                   lineHeight: '1.1',
+                  textTransform: 'uppercase',
                 }}
               >
-                {school.name.toUpperCase()}
+                {school.name}
+              </div>
+              <div
+                style={{
+                  marginTop: '2px',
+                  fontSize: '7px',
+                  fontWeight: '500',
+                  letterSpacing: '0.2px',
+                  opacity: 0.92,
+                  lineHeight: '1.2',
+                  whiteSpace: 'normal',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxHeight: '17px',
+                }}
+              >
+                {school.address}
               </div>
             </div>
 
             {/* Right: Empty for balance */}
-            <div style={{ width: '28px' }} />
+            <div style={{ width: '34px', flexShrink: 0 }} />
           </div>
 
           {/* Colored Accent Bar */}
@@ -161,7 +214,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: '12px 10px',
+                padding: '10px 10px',
                 backgroundColor: '#fafbfc',
                 borderRight: `1px solid #e5e7eb`,
                 flexShrink: 0,
@@ -245,7 +298,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                padding: '10px 12px',
+                padding: '9px 12px',
                 position: 'relative',
                 justifyContent: 'space-between',
               }}
@@ -361,7 +414,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
             style={{
               backgroundColor: '#f0f1f3',
               borderTop: `1px solid #e5e7eb`,
-              padding: '5px 12px',
+              padding: '4px 12px',
               textAlign: 'center',
               fontSize: '7px',
               color: '#5a5f6b',
@@ -372,7 +425,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
               whiteSpace: 'nowrap',
             }}
           >
-            {school.address}
+            Official Student ID Card
           </div>
         </div>
       </div>

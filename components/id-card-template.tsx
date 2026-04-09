@@ -131,7 +131,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                   style={{
                     width: '100%',
                     height: '100%',
-                    objectFit: 'contain',
+                    objectFit: 'cover', // Ensures the logo fills the area
                     display: 'block',
                   }}
                 />

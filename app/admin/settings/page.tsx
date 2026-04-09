@@ -560,7 +560,7 @@ export default function AdminSettingsPage() {
 
                 <div>
                   <Label className="text-gray-700 text-sm font-semibold">School Logo</Label>
-                  <p className="text-xs text-gray-500 mt-1 mb-3">Upload a logo image (PNG, JPG)</p>
+                  <p className="text-xs text-gray-500 mt-1 mb-3">Upload a logo image (PNG, JPG, or SVG)</p>
                   
                   {logoPreview && (
                     <div className="mb-3 p-3 bg-gray-50 rounded-md border border-gray-200">
@@ -587,7 +587,7 @@ export default function AdminSettingsPage() {
                   <Input
                     id="school_logo"
                     type="file"
-                    accept="image/png,image/jpeg"
+                    accept="image/png,image/jpeg,image/svg+xml"
                     onChange={handleLogoUpload}
                     disabled={uploadingLogo}
                     className="text-sm"

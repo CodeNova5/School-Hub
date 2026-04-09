@@ -614,6 +614,8 @@ CREATE POLICY "Admins can manage religions"
 DROP POLICY IF EXISTS "super admin reads schools"     ON schools;
 DROP POLICY IF EXISTS "super admin manages schools"   ON schools;
 DROP POLICY IF EXISTS "authenticated reads own school" ON schools;
+DROP POLICY IF EXISTS "Admins can manage schools"     ON schools;
+
 
 CREATE POLICY "authenticated reads own school"
   ON schools FOR SELECT
@@ -625,6 +627,12 @@ CREATE POLICY "super admin manages schools"
   TO authenticated
   USING (is_super_admin())
   WITH CHECK (is_super_admin());
+
+CREATE POLICY "Admins can manage schools"
+  ON schools FOR ALL
+  TO authenticated
+  USING (is_super_admin() OR (is_admin() AND id = get_my_school_id()))
+  WITH CHECK (is_super_admin() OR (is_admin() AND id = get_my_school_id()));
 
 -- -------------------- SESSIONS --------------------
 DROP POLICY IF EXISTS "Authenticated users can read sessions" ON sessions;

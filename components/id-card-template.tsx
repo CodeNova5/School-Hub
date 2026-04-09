@@ -111,11 +111,12 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
             {/* Left: School Logo */}
             <div
               style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.14)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: '#ffffff',
+                border: '1px solid rgba(255, 255, 255, 0.45)',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.14)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -129,8 +130,8 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                   alt="School Logo"
                   crossOrigin="anonymous"
                   style={{
-                    width: '100%',
-                    height: '100%',
+                    width: '86%',
+                    height: '86%',
                     objectFit: 'contain',
                     display: 'block',
                   }}
@@ -138,9 +139,10 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
               ) : (
                 <span
                   style={{
-                    fontSize: '11px',
+                    fontSize: '12px',
                     fontWeight: '900',
                     letterSpacing: '0.5px',
+                    color: colors.primary,
                   }}
                 >
                   {schoolInitials}

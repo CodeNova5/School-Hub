@@ -122,6 +122,7 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                 justifyContent: 'center',
                 flexShrink: 0,
                 overflow: 'hidden',
+                padding: '2px',
               }}
             >
               {school.logo_url ? (
@@ -130,8 +131,8 @@ const IDCardTemplate = React.forwardRef<HTMLDivElement, IDCardTemplateProps>(
                   alt="School Logo"
                   crossOrigin="anonymous"
                   style={{
-                    width: '86%',
-                    height: '86%',
+                    width: '100%',
+                    height: '100%',
                     objectFit: 'contain',
                     display: 'block',
                   }}

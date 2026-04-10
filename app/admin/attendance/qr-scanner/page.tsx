@@ -57,7 +57,6 @@ export default function QRScannerPage() {
   const [loading, setLoading] = useState(true);
   const [presentStudentIds, setPresentStudentIds] = useState<Set<string>>(new Set());
   const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
-  const [attendanceBatch, setAttendanceBatch] = useState<AttendanceRecord[]>([]);
 
   // Fetch students for the whole school on mount
   useEffect(() => {
@@ -127,7 +126,6 @@ export default function QRScannerPage() {
       setPresentStudentIds(new Set());
       presentStudentIdsRef.current = new Set();
       lastScanAtRef.current.clear();
-      setAttendanceBatch([]);
       setRecentScans([]);
     } catch (error) {
       toast.error("Failed to load students");
@@ -300,20 +298,14 @@ export default function QRScannerPage() {
       return;
     }
 
-    // Avoid duplicate attendance records for same student in current batch
+    // Avoid duplicate attendance records for same student
     if (presentStudentIdsRef.current.has(student.id)) {
       return;
     }
 
+    // Mark as present in UI immediately
     presentStudentIdsRef.current.add(student.id);
     setPresentStudentIds((prev) => new Set(prev).add(student.id));
-
-    const record: AttendanceRecord = {
-      student_id: student.id,
-      status: "present",
-      timestamp: now,
-    };
-    setAttendanceBatch((prev) => [...prev, record]);
 
     const scanResult: ScanResult = {
       student_id: student.student_id,
@@ -324,6 +316,54 @@ export default function QRScannerPage() {
     setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
     toast.success(`Marked: ${student.first_name} ${student.last_name}`);
     playWelcome();
+
+    // Save attendance to database immediately
+    (async () => {
+      try {
+        const attendanceRecord = {
+          school_id: schoolId,
+          student_id: student.id,
+          class_id: student.class_id,
+          date: selectedDate,
+          status: "present",
+          marked_by: null,
+        };
+
+        // Check if record already exists for this student on this date
+        const { data: existingRecord } = await supabase
+          .from("attendance")
+          .select("id")
+          .eq("school_id", schoolId)
+          .eq("student_id", student.id)
+          .eq("date", selectedDate)
+          .single();
+
+        // If exists, skip insertion (already marked)
+        if (!existingRecord) {
+          const { error } = await supabase
+            .from("attendance")
+            .insert([attendanceRecord]);
+
+          if (error) {
+            console.error("Failed to save attendance to DB:", error);
+            toast.error(`Could not save attendance for ${student.first_name}. Check connection.`);
+            return;
+          }
+        }
+
+        console.log(`✅ Attendance saved for ${student.first_name} ${student.last_name}`);
+
+        // Send notification in background (no await)
+        notifyParentAsync({
+          student_id: student.id,
+          status: "present",
+          studentName: `${student.first_name} ${student.last_name}`,
+        });
+      } catch (error) {
+        console.error("Unexpected error in attendance save:", error);
+        toast.error("Unexpected error. Check console.");
+      }
+    })();
   }
 
   // Play a short high-pitched "Welcome" (speech if available, fallback to beep)
@@ -363,76 +403,225 @@ export default function QRScannerPage() {
     }
   }
 
-  async function submitAttendance() {
-    if (attendanceBatch.length === 0) {
-      toast.error("No attendance records to save");
-      return;
-    }
-
-    const submitToast = toast.loading(
-      `Saving ${attendanceBatch.length} attendance records...`
+  // Get notification message based on attendance status
+  function getNotificationMessage(
+    status: string,
+    studentName: string
+  ): { title: string; body: string } {
+    const statusMessages: Record<string, { title: string; body: string }> = {
+      present: {
+        title: "✅ Student Present",
+        body: `${studentName} was marked present on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}.`,
+      },
+      absent: {
+        title: "❌ Student Absent",
+        body: `${studentName} was marked absent on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}. Please contact the school if this is an error.`,
+      },
+      late: {
+        title: "⏰ Student Late",
+        body: `${studentName} was marked late on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}.`,
+      },
+      excused: {
+        title: "📋 Absence Excused",
+        body: `${studentName}'s absence on ${new Date(selectedDate).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })} has been marked as excused.`,
+      },
+    };
+    return (
+      statusMessages[status] || {
+        title: "Attendance Updated",
+        body: `${studentName}'s attendance has been updated.`,
+      }
     );
+  }
 
+  // Send notification to parent for single student
+  async function sendNotificationToParent(record: {
+    student_id: string;
+    status: string;
+    studentName: string;
+  }) {
     try {
-      const studentIds = attendanceBatch.map((r) => r.student_id);
+      // Get student's parent email
+      const { data: student, error: studentError } = await supabase
+        .from("students")
+        .select("parent_email, parent_name")
+        .eq("id", record.student_id)
+        .single();
 
-      // Delete existing records for these students for the date
-      await supabase
-        .from("attendance")
-        .delete()
-        .eq("school_id", schoolId)
-        .eq("date", selectedDate)
-        .in("student_id", studentIds);
+      if (studentError) {
+        console.error(`❌ Error fetching student ${record.student_id}:`, studentError);
+        return;
+      }
 
-      const records = attendanceBatch.map((record) => {
-        const student = studentsByUuid.get(record.student_id);
-        return {
-          school_id: schoolId,
-          student_id: record.student_id,
-          class_id: student?.class_id ?? null,
-          date: selectedDate,
-          status: record.status,
-          marked_by: null,
-        };
-      });
+      if (!student?.parent_email) {
+        console.warn(
+          `⚠️ No parent email found for student ${record.student_id} (${record.studentName})`
+        );
+        return;
+      }
 
-      // Insert all records
-      const { error } = await supabase.from("attendance").insert(records);
+      console.log(`🔍 Looking up parent account for email: ${student.parent_email}`);
 
-      if (error) throw error;
+      // Find parent user by email
+      const { data: parentArray, error: parentError } = await supabase
+        .from("parents")
+        .select("user_id, id, is_active")
+        .eq("email", student.parent_email);
 
-      toast.success(
-        `✓ ${attendanceBatch.length} students marked as present`,
-        { id: submitToast }
+      if (parentError) {
+        console.error(
+          `❌ Error finding parent account for ${student.parent_email}:`,
+          parentError.message
+        );
+        return;
+      }
+
+      if (!parentArray || parentArray.length === 0) {
+        console.warn(
+          `⚠️ No parent account found for email ${student.parent_email}. Parent may not be registered.`
+        );
+        return;
+      }
+
+      const parent = parentArray[0];
+
+      if (!parent?.user_id) {
+        console.warn(
+          `⚠️ Parent account exists but has no user_id for ${student.parent_email}`
+        );
+        return;
+      }
+
+      if (!parent.is_active) {
+        console.warn(
+          `⚠️ Parent account is inactive for ${student.parent_email}. They need to activate their account.`
+        );
+        return;
+      }
+
+      console.log(`👤 Found parent: ${parent.user_id}`);
+
+      // Get parent's notification tokens
+      const { data: tokens, error: tokensError } = await supabase
+        .from("notification_tokens")
+        .select("token, user_id, device_type, is_active")
+        .eq("user_id", parent.user_id)
+        .eq("is_active", true);
+
+      if (tokensError) {
+        console.error(
+          `❌ Error fetching tokens for parent ${student.parent_email}:`,
+          tokensError
+        );
+        return;
+      }
+
+      if (!tokens || tokens.length === 0) {
+        console.warn(
+          `⚠️ No active notification tokens found for parent ${student.parent_email}. Parent may not have enabled notifications.`
+        );
+        return;
+      }
+
+      console.log(
+        `📲 Found ${tokens.length} active notification token(s) for parent ${student.parent_email}`
       );
 
-      // Reset state
-      setAttendanceBatch([]);
-      setPresentStudentIds(new Set());
-      presentStudentIdsRef.current = new Set();
-      setRecentScans([]);
-      lastScanAtRef.current.clear();
+      // Get notification message
+      const { title, body } = getNotificationMessage(record.status, record.studentName);
+
+      console.log(`📤 Sending notification to parent ${student.parent_email}...`);
+
+      // Send notification via API
+      const response = await fetch("/api/admin/send-notification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          body,
+          target: "user",
+          targetValue: parent.user_id,
+          data: {
+            type: "attendance",
+            studentId: record.student_id,
+            status: record.status,
+            date: selectedDate,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          `❌ API Error (${response.status}) for parent ${student.parent_email}:`,
+          errorText
+        );
+        return;
+      }
+
+      const result = await response.json();
+      if (result.success || result.successCount > 0) {
+        console.log(
+          `✅ Notification sent to parent ${student.parent_email}: ${result.successCount || 1} delivered`
+        );
+      } else {
+        console.error(
+          `❌ API returned error for parent ${student.parent_email}:`,
+          result
+        );
+      }
     } catch (error) {
-      console.error("Error submitting attendance:", error);
-      toast.error("Failed to save attendance", { id: submitToast });
+      console.error(`❌ Unexpected error sending notification:`, error);
     }
   }
 
-  function clearLastScan() {
-    if (attendanceBatch.length === 0) return;
+  // Fire and forget: send notification in background with error handling
+  function notifyParentAsync(record: {
+    student_id: string;
+    status: string;
+    studentName: string;
+  }) {
+    sendNotificationToParent(record)
+      .catch((error) => {
+        console.error("Uncaught error in notification background task:", error);
+        toast.error(`Notification failed for ${record.studentName}. Check console.`);
+      });
+  }
 
-    const lastRecord = attendanceBatch[attendanceBatch.length - 1];
-    const lastStudentUuid = lastRecord.student_id;
+  // Refresh present students from database
+  async function refreshPresentStudents() {
+    if (!schoolId) return;
+    try {
+      const { data, error } = await supabase
+        .from("attendance")
+        .select("student_id")
+        .eq("school_id", schoolId)
+        .eq("date", selectedDate);
 
-    setAttendanceBatch((prev) => prev.slice(0, -1));
-    setPresentStudentIds((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(lastStudentUuid);
-      presentStudentIdsRef.current = newSet;
-      return newSet;
-    });
+      if (error) throw error;
 
-    toast.info("Last scan removed");
+      const presentIds = new Set(
+        ((data as Array<{ student_id: string }>) || []).map((r) => r.student_id)
+      );
+      setPresentStudentIds(presentIds);
+      presentStudentIdsRef.current = presentIds;
+    } catch (error) {
+      console.error("Error refreshing present students:", error);
+    }
   }
 
   const totalStudents = studentsByUuid.size;
@@ -518,26 +707,14 @@ export default function QRScannerPage() {
               {isCameraActive ? "Stop Camera" : "Start Scanner"}
             </Button>
 
-            {/* Save Button */}
+            {/* Refresh Button */}
             <Button
-              onClick={submitAttendance}
-              disabled={attendanceBatch.length === 0}
-              variant="default"
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700"
-            >
-              <Check className="w-5 h-5 mr-2" />
-              Save {attendanceBatch.length} Records
-            </Button>
-
-            {/* Undo Last */}
-            <Button
-              onClick={clearLastScan}
-              disabled={attendanceBatch.length === 0}
+              onClick={refreshPresentStudents}
               variant="outline"
               className="w-full"
             >
-              <X className="w-5 h-5 mr-2" />
-              Undo Last
+              <Check className="w-5 h-5 mr-2" />
+              Refresh Count
             </Button>
           </div>
 

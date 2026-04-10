@@ -31,6 +31,11 @@ interface SchoolData {
   logo_url: string;
 }
 
+interface ClassData {
+  id: string;
+  name: string;
+}
+
 interface CardColors {
   primary: string;
   secondary: string;
@@ -50,6 +55,8 @@ export default function IDCardGeneratorPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   
   const [school, setSchool] = useState<SchoolData | null>(null);
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
   const [students, setStudents] = useState<StudentData[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<StudentData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,9 +75,15 @@ export default function IDCardGeneratorPage() {
   useEffect(() => {
     if (!schoolLoading && schoolId) {
       fetchSchoolData();
-      fetchStudents();
+      fetchClasses();
     }
   }, [schoolId, schoolLoading]);
+
+  useEffect(() => {
+    if (selectedClass) {
+      fetchStudents();
+    }
+  }, [selectedClass]);
 
   async function fetchSchoolData() {
     if (!schoolId) return;
@@ -93,8 +106,31 @@ export default function IDCardGeneratorPage() {
     }
   }
 
-  async function fetchStudents() {
+  async function fetchClasses() {
     if (!schoolId) return;
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select('id, name')
+        .eq('school_id', schoolId)
+        .order('name', { ascending: true });
+
+      if (error) {
+        toast.error('Failed to load classes');
+        return;
+      }
+
+      setClasses(data || []);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      toast.error('Failed to load classes');
+      setLoading(false);
+    }
+  }
+
+  async function fetchStudents() {
+    if (!schoolId || !selectedClass) return;
     try {
       setSearching(true);
       const { data, error } = await supabase
@@ -109,6 +145,7 @@ export default function IDCardGeneratorPage() {
           classes:class_id (name)
         `)
         .eq('school_id', schoolId)
+        .eq('class_id', selectedClass)
         .eq('status', 'active')
         .order('first_name', { ascending: true });
 
@@ -133,7 +170,6 @@ export default function IDCardGeneratorPage() {
       toast.error('Failed to load students');
     } finally {
       setSearching(false);
-      setLoading(false);
     }
   }
 
@@ -199,6 +235,24 @@ export default function IDCardGeneratorPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-gray-700 text-sm">Select Class</Label>
+                  <select
+                    value={selectedClass || ''}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                    className="mt-2 text-sm border rounded-md p-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="" disabled>
+                      Choose a class
+                    </option>
+                    {classes.map((cls) => (
+                      <option key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <Label className="text-gray-700 text-sm">Search by Name or ID</Label>
                   <Input

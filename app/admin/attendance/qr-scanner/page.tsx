@@ -9,13 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Camera, X, Check, AlertCircle, Clock } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 
@@ -58,8 +51,6 @@ export default function QRScannerPage() {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
-  const [selectedClass, setSelectedClass] = useState<string>("");
-  const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([]);
   const [studentsByUuid, setStudentsByUuid] = useState<Map<string, Student>>(new Map());
   const [studentsByStudentCode, setStudentsByStudentCode] = useState<Map<string, Student>>(new Map());
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -68,19 +59,12 @@ export default function QRScannerPage() {
   const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
   const [attendanceBatch, setAttendanceBatch] = useState<AttendanceRecord[]>([]);
 
-  // Fetch classes on mount
+  // Fetch students for the whole school on mount
   useEffect(() => {
-    if (!schoolLoading && schoolId) {
-      fetchClasses();
+    if (schoolId && !schoolLoading) {
+      fetchStudents();
     }
   }, [schoolId, schoolLoading]);
-
-  // Fetch students when class changes
-  useEffect(() => {
-    if (selectedClass && schoolId) {
-      fetchStudents(selectedClass);
-    }
-  }, [selectedClass, schoolId]);
 
   // Start/stop camera
   useEffect(() => {
@@ -112,35 +96,13 @@ export default function QRScannerPage() {
     };
   }, [isCameraActive, studentsByUuid, studentsByStudentCode]);
 
-  async function fetchClasses() {
-    if (!schoolId) return;
-    try {
-      const { data, error } = await supabase
-        .from("classes")
-        .select("id, name")
-        .eq("school_id", schoolId)
-        .order("name", { ascending: true });
-
-      if (error) throw error;
-      setClasses(data || []);
-      if (data && data.length > 0) {
-        setSelectedClass(data[0].id);
-      }
-    } catch (error) {
-      toast.error("Failed to load classes");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchStudents(classId: string) {
+  async function fetchStudents() {
     if (!schoolId) return;
     try {
       const { data, error } = await supabase
         .from("students")
         .select("id, student_id, first_name, last_name, class_id, classes:class_id (name)")
         .eq("school_id", schoolId)
-        .eq("class_id", classId)
         .eq("status", "active");
 
       if (error) throw error;
@@ -169,6 +131,9 @@ export default function QRScannerPage() {
       setRecentScans([]);
     } catch (error) {
       toast.error("Failed to load students");
+    }
+    finally {
+      setLoading(false);
     }
   }
 
@@ -331,7 +296,7 @@ export default function QRScannerPage() {
         message: "Student not found for this QR",
       };
       setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
-      toast.error("Student not found in selected class");
+      toast.error("Student not found");
       return;
     }
 
@@ -358,6 +323,44 @@ export default function QRScannerPage() {
     };
     setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
     toast.success(`Marked: ${student.first_name} ${student.last_name}`);
+    playWelcome();
+  }
+
+  // Play a short high-pitched "Welcome" (speech if available, fallback to beep)
+  function playWelcome() {
+    try {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const utter = new SpeechSynthesisUtterance("Welcome");
+        utter.pitch = 2.0;
+        utter.rate = 1.05;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utter);
+        return;
+      }
+    } catch (e) {
+      console.error("SpeechSynthesis error", e);
+    }
+
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = 1500;
+      g.gain.value = 0.04;
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.25);
+      setTimeout(() => {
+        o.stop();
+        ctx.close();
+      }, 300);
+    } catch (e) {
+      console.error("AudioContext error", e);
+    }
   }
 
   async function submitAttendance() {
@@ -371,22 +374,27 @@ export default function QRScannerPage() {
     );
 
     try {
-      const records = attendanceBatch.map((record) => ({
-        school_id: schoolId,
-        student_id: record.student_id,
-        class_id: selectedClass,
-        date: selectedDate,
-        status: record.status,
-        marked_by: null,
-      }));
+      const studentIds = attendanceBatch.map((r) => r.student_id);
 
-      // Delete existing records for the date
+      // Delete existing records for these students for the date
       await supabase
         .from("attendance")
         .delete()
         .eq("school_id", schoolId)
-        .eq("class_id", selectedClass)
-        .eq("date", selectedDate);
+        .eq("date", selectedDate)
+        .in("student_id", studentIds);
+
+      const records = attendanceBatch.map((record) => {
+        const student = studentsByUuid.get(record.student_id);
+        return {
+          school_id: schoolId,
+          student_id: record.student_id,
+          class_id: student?.class_id ?? null,
+          date: selectedDate,
+          status: record.status,
+          marked_by: null,
+        };
+      });
 
       // Insert all records
       const { error } = await supabase.from("attendance").insert(records);
@@ -470,21 +478,7 @@ export default function QRScannerPage() {
                   />
                 </div>
 
-                <div>
-                  <Label className="text-sm font-medium">Class</Label>
-                  <Select value={selectedClass} onValueChange={setSelectedClass}>
-                    <SelectTrigger className="mt-2">
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls.id} value={cls.id}>
-                          {cls.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* No class filter: any student can be scanned */}
               </CardContent>
             </Card>
 
@@ -506,7 +500,7 @@ export default function QRScannerPage() {
                 <p className="text-sm text-gray-600">
                   {totalStudents > 0
                     ? `${totalStudents - presentCount} of ${totalStudents} students remaining`
-                    : "No students in class"}
+                    : "No students found"}
                 </p>
               </CardContent>
             </Card>

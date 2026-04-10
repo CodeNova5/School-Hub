@@ -69,6 +69,8 @@ export default function IDCardGeneratorPage() {
     secondary: '#3b82f6',
     accent: '#93c5fd',
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const STUDENTS_PER_PAGE = 10;
 
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -81,9 +83,14 @@ export default function IDCardGeneratorPage() {
 
   useEffect(() => {
     if (selectedClass) {
+      setCurrentPage(1);
       fetchStudents();
     }
   }, [selectedClass]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   async function fetchSchoolData() {
     if (!schoolId) return;
@@ -179,6 +186,12 @@ export default function IDCardGeneratorPage() {
     student.student_id.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE);
+  const paginatedStudents = filteredStudents.slice(
+    (currentPage - 1) * STUDENTS_PER_PAGE,
+    currentPage * STUDENTS_PER_PAGE
+  );
+
   async function handleExportPDF() {
     if (!selectedStudent || !cardRef.current || !school) {
       toast.error('Please select a student first');
@@ -272,7 +285,7 @@ export default function IDCardGeneratorPage() {
                         {searching ? 'Loading...' : 'No students found'}
                       </div>
                     ) : (
-                      filteredStudents.map((student) => (
+                      paginatedStudents.map((student) => (
                         <button
                           key={student.id}
                           onClick={() => setSelectedStudent(student)}
@@ -292,6 +305,33 @@ export default function IDCardGeneratorPage() {
                       ))
                     )}
                   </div>
+                  
+                  {/* Pagination Controls */}
+                  {filteredStudents.length > 0 && (
+                    <div className="flex items-center justify-between pt-3 border-t">
+                      <Button
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs text-gray-600">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <Button
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        variant="outline"
+                        size="sm"
+                        className="text-xs"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -32,6 +32,16 @@ export async function POST(req: Request) {
     }
 
     const { fcmToken, userId, role, deviceType, schoolId } = await req.json();
+    
+    // DEBUG: Log incoming data
+    console.log("📨 register-token API received:", {
+      fcmToken: fcmToken ? `${fcmToken.substring(0, 20)}...` : null,
+      userId,
+      role,
+      deviceType,
+      schoolId,
+      authUserId: user.id,
+    });
 
     if (!fcmToken || !userId) {
       return NextResponse.json(
@@ -49,6 +59,7 @@ export async function POST(req: Request) {
     }
 
     // 1️⃣ Delete all existing tokens for this user
+    console.log("🗑️  Deleting old tokens for user:", userId);
     const { error: deleteError } = await supabase
       .from("notification_tokens")
       .delete()
@@ -61,19 +72,28 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+    console.log("✅ Old tokens deleted successfully");
 
     // 2️⃣ Insert new token
-    const { error: insertError } = await supabase
+    const tokenData = {
+      token: fcmToken,
+      user_id: userId,
+      role: role || "user",
+      device_type: deviceType || "unknown",
+      is_active: true,
+      last_registered_at: new Date().toISOString(),
+      school_id: schoolId || null,
+    };
+    
+    console.log("📝 Inserting token data:", {
+      ...tokenData,
+      token: tokenData.token ? `${tokenData.token.substring(0, 20)}...` : null,
+    });
+    
+    const { data: insertedData, error: insertError } = await supabase
       .from("notification_tokens")
-      .insert({
-        token: fcmToken,
-        user_id: userId,
-        role: role || "user",
-        device_type: deviceType || "unknown",
-        is_active: true,
-        last_registered_at: new Date().toISOString(),
-        school_id: schoolId || null,
-      });
+      .insert(tokenData)
+      .select();
 
     if (insertError) {
       console.error("Error inserting token:", insertError);
@@ -82,8 +102,15 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+    
+    console.log("✅ Token inserted successfully:", {
+      id: insertedData?.[0]?.id,
+      school_id: insertedData?.[0]?.school_id,
+      user_id: insertedData?.[0]?.user_id,
+    });
+    
     return NextResponse.json(
-      { success: true, message: "Notification token registered successfully" },
+      { success: true, message: "Notification token registered successfully", data: insertedData?.[0] },
       { status: 200 }
     );
   } catch (err) {

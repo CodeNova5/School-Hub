@@ -29,6 +29,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log("🔔 requestNotificationPermission called with options:", options);
 
       // Check browser support
       if (!("Notification" in window)) {
@@ -71,6 +73,7 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       // Save token to Supabase
       const user = await getCurrentUser();
       if (user) {
+        console.log("📱 Saving token for user:", user.id, "with role:", options?.role, "and schoolId:", options?.schoolId);
         await saveTokenToSupabase(fcmToken, user.id, options?.role, options?.schoolId);
       }
 
@@ -152,6 +155,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   // Sync notification token on app load (auto-sync if permission already granted)
   const syncNotificationToken = async (userId: string, role?: string) => {
     try {
+      console.log("🔄 syncNotificationToken called for:", { userId, role, schoolId: options?.schoolId });
+      
       // Only sync if permission is already granted
       if (Notification.permission !== "granted") {
         console.log("Notification permission not granted, skipping token sync");
@@ -177,7 +182,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
 
       setToken(fcmToken);
 
-      // Save/update token in Supabase
+      // Save/update token in Supabase WITH schoolId
+      console.log("💾 Syncing token with schoolId:", options?.schoolId);
       await saveTokenToSupabase(fcmToken, userId, role, options?.schoolId);
 
       console.log("✓ Notification token synced successfully");
@@ -197,6 +203,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   schoolId?: string | null
 ) => {
   try {
+    console.log("💾 saveTokenToSupabase called with:", { userId, role, schoolId });
+    
     // Get the authentication token from Supabase session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -205,6 +213,16 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       return;
     }
 
+    const payload = {
+      fcmToken,
+      userId,
+      role: role || "user",
+      deviceType: getDeviceType(),
+      schoolId: schoolId || null, // Explicitly include schoolId
+    };
+    
+    console.log("📤 Sending to API:", { ...payload, fcmToken: `${fcmToken.substring(0, 20)}...` });
+
     // Call the backend API to register the token with authentication
     const response = await fetch("/api/notifications/register-token", {
       method: "POST",
@@ -212,13 +230,7 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({
-        fcmToken,
-        userId,
-        role: role || "user",
-        deviceType: getDeviceType(),
-        schoolId,
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -227,7 +239,11 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       return;
     }
 
-    console.log("✓ Notification token registered successfully");
+    const result = await response.json();
+    console.log("✅ Notification token registered successfully:", {
+      school_id: result.data?.school_id,
+      user_id: result.data?.user_id,
+    });
   } catch (err) {
     console.error("Error saving token:", err);
   }

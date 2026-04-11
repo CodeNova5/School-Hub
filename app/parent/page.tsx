@@ -82,7 +82,9 @@ export default function ParentDashboardPage() {
         return;
       }
 
-      // Sync notification token
+      console.log("🚀 Parent dashboard loaded, schoolId:", schoolId);
+
+      // Sync notification token with schoolId
       await syncNotificationToken(user.id, "parent");
 
       // Get parent info

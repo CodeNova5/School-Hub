@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { useNotificationSetup } from "@/hooks/use-notification-setup";
 import { NotificationPermissionComponent } from "@/components/notification-permission";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 interface Student {
   id: string;
@@ -62,7 +63,8 @@ export default function ParentDashboardPage() {
   const [parentName, setParentName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
-  const { syncNotificationToken } = useNotificationSetup({ role: "parent" });
+  const { schoolId } = useSchoolContext();
+  const { syncNotificationToken } = useNotificationSetup({ role: "parent", schoolId: schoolId });
 
   useEffect(() => {
     loadData();

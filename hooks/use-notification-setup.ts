@@ -3,15 +3,14 @@ import { getToken, onMessage } from "firebase/messaging";
 import { getFirebaseMessaging } from "@/lib/firebase";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
-import { useSchoolContext } from "./use-school-context";
 
 interface UseNotificationOptions {
   role?: "student" | "teacher" | "parent" | "admin";
+  schoolId?: string | null;
 }
 
 export const useNotificationSetup = (options?: UseNotificationOptions) => {
-  const { schoolId } = useSchoolContext();
-  const [permission, setPermission] = useState<NotificationPermission | null>(
+    const [permission, setPermission] = useState<NotificationPermission | null>(
     null
   );
   const [token, setToken] = useState<string | null>(null);
@@ -72,7 +71,7 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       // Save token to Supabase
       const user = await getCurrentUser();
       if (user) {
-        await saveTokenToSupabase(fcmToken, user.id, options?.role, schoolId);
+        await saveTokenToSupabase(fcmToken, user.id, options?.role, options?.schoolId);
       }
 
       return fcmToken;
@@ -179,7 +178,7 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       setToken(fcmToken);
 
       // Save/update token in Supabase
-      await saveTokenToSupabase(fcmToken, userId, role, schoolId);
+      await saveTokenToSupabase(fcmToken, userId, role, options?.schoolId);
 
       console.log("✓ Notification token synced successfully");
       return fcmToken;

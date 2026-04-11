@@ -61,10 +61,11 @@ export default function ParentDashboardPage() {
   const router = useRouter();
   const [children, setChildren] = useState<Student[]>([]);
   const [parentName, setParentName] = useState("");
+  const [parentSchoolId, setParentSchoolId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [upcomingEvents, setUpcomingEvents] = useState<Event[]>([]);
-  const { schoolId } = useSchoolContext();
-  const { syncNotificationToken } = useNotificationSetup({ role: "parent", schoolId: schoolId });
+  const { schoolId: contextSchoolId } = useSchoolContext();
+  const { syncNotificationToken } = useNotificationSetup({ role: "parent", schoolId: parentSchoolId });
 
   useEffect(() => {
     loadData();
@@ -82,12 +83,7 @@ export default function ParentDashboardPage() {
         return;
       }
 
-      console.log("🚀 Parent dashboard loaded, schoolId:", schoolId);
-
-      // Sync notification token with schoolId
-      await syncNotificationToken(user.id, "parent");
-
-      // Get parent info
+      // Get parent info FIRST to get the school_id
       const { data: parent, error: parentError } = await supabase
         .from("parents")
         .select("*")
@@ -100,7 +96,17 @@ export default function ParentDashboardPage() {
         return;
       }
 
+      // Extract school_id from parent record
+      const parentSchoolId = parent.school_id || contextSchoolId || null;
+      console.log("📋 Full parent record:", parent);
+      console.log("🏫 Parent school_id:", parentSchoolId, "from parent.school_id:", parent.school_id, "contextSchoolId:", contextSchoolId);
+      setParentSchoolId(parentSchoolId);
+
       setParentName(parent.name);
+
+      // Now sync notification token with the correct school_id
+      console.log("🚀 Syncing notification token with schoolId:", parentSchoolId);
+      await syncNotificationToken(user.id, "parent", parentSchoolId);
 
       // Get all children
       const { data: students, error: studentsError } = await supabase

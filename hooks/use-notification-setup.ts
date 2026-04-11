@@ -153,9 +153,10 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   };
 
   // Sync notification token on app load (auto-sync if permission already granted)
-  const syncNotificationToken = async (userId: string, role?: string) => {
+  const syncNotificationToken = async (userId: string, role?: string, schoolIdOverride?: string | null) => {
     try {
-      console.log("🔄 syncNotificationToken called for:", { userId, role, schoolId: options?.schoolId });
+      const schoolIdToUse = schoolIdOverride ?? options?.schoolId;
+      console.log("🔄 syncNotificationToken called for:", { userId, role, schoolId: schoolIdToUse });
       
       // Only sync if permission is already granted
       if (Notification.permission !== "granted") {
@@ -183,8 +184,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
       setToken(fcmToken);
 
       // Save/update token in Supabase WITH schoolId
-      console.log("💾 Syncing token with schoolId:", options?.schoolId);
-      await saveTokenToSupabase(fcmToken, userId, role, options?.schoolId);
+      console.log("💾 Syncing token with schoolId:", schoolIdToUse);
+      await saveTokenToSupabase(fcmToken, userId, role, schoolIdToUse);
 
       console.log("✓ Notification token synced successfully");
       return fcmToken;

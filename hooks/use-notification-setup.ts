@@ -1,8 +1,11 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { getToken, onMessage } from "firebase/messaging";
 import { getFirebaseMessaging } from "@/lib/firebase";
 import { getCurrentUser } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useSchoolContext } from "@/hooks/use-school-context";
 
 interface UseNotificationOptions {
   role?: "student" | "teacher" | "parent" | "admin";
@@ -15,6 +18,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { schoolId } = useSchoolContext();
 
   // Check current permission status
   useEffect(() => {
@@ -67,10 +72,10 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
 
       setToken(fcmToken);
 
-      // Save token to Supabase
+      // Save token to Supabase (include schoolId from context)
       const user = await getCurrentUser();
       if (user) {
-        await saveTokenToSupabase(fcmToken, user.id, options?.role);
+        await saveTokenToSupabase(fcmToken, user.id, options?.role, schoolId ?? null);
       }
 
       return fcmToken;
@@ -176,8 +181,8 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
 
       setToken(fcmToken);
 
-      // Save/update token in Supabase
-      await saveTokenToSupabase(fcmToken, userId, role);
+      // Save/update token in Supabase (include schoolId from context)
+      await saveTokenToSupabase(fcmToken, userId, role, schoolId ?? null);
 
       console.log("✓ Notification token synced successfully");
       return fcmToken;
@@ -190,10 +195,11 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
 
   // Save token to backend API
   const saveTokenToSupabase = async (
-  fcmToken: string,
-  userId: string,
-  role?: string
-) => {
+    fcmToken: string,
+    userId: string,
+    role?: string,
+    schoolIdParam?: string | null
+  ) => {
   try {
     // Get the authentication token from Supabase session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -215,6 +221,7 @@ export const useNotificationSetup = (options?: UseNotificationOptions) => {
         userId,
         role: role || "user",
         deviceType: getDeviceType(),
+        schoolId: schoolIdParam ?? null,
       }),
     });
 

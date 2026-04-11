@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { fcmToken, userId, role, deviceType } = await req.json();
+    const { fcmToken, userId, role, deviceType, schoolId } = await req.json();
 
     if (!fcmToken || !userId) {
       return NextResponse.json(
@@ -72,7 +72,7 @@ export async function POST(req: Request) {
         device_type: deviceType || "unknown",
         is_active: true,
         last_registered_at: new Date().toISOString(),
-        school_id: user.app_metadata?.school_id ?? null,
+        school_id: schoolId || null,
       });
 
     if (insertError) {

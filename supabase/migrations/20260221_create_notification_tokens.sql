@@ -50,11 +50,3 @@ create policy "Users can delete their own notification tokens"
   on public.notification_tokens for delete
   using (auth.uid() = user_id);
 
--- Create policy: Admins can view all tokens
-create policy "Admins can view all notification tokens"
-  on public.notification_tokens for select
-  using (
-    exists (
-      select 1 from admins where admins.user_id = auth.uid()
-    )
-  );

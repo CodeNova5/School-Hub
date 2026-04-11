@@ -1102,9 +1102,6 @@ CREATE POLICY "Admins can manage notification tokens"
   USING (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()))
   WITH CHECK (is_super_admin() OR (is_admin() AND school_id = get_my_school_id()));
 
-CREATE POLICY "Service role can insert notification tokens"
-  ON notification_tokens FOR INSERT
-  WITH CHECK (true);
 
 -- -------------------- RESULTS_PUBLICATION --------------------
 DROP POLICY IF EXISTS "Admins can manage results publication"          ON results_publication;

@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Camera, X, Check, AlertCircle, Clock } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 
@@ -51,6 +58,7 @@ export default function QRScannerPage() {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
+  const [selectedStatus, setSelectedStatus] = useState<"present" | "absent" | "late" | "excused">("present");
   const [studentsByUuid, setStudentsByUuid] = useState<Map<string, Student>>(new Map());
   const [studentsByStudentCode, setStudentsByStudentCode] = useState<Map<string, Student>>(new Map());
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -325,7 +333,7 @@ export default function QRScannerPage() {
           student_id: student.id,
           class_id: student.class_id,
           date: selectedDate,
-          status: "present",
+          status: selectedStatus,
           marked_by: null,
         };
 
@@ -356,7 +364,7 @@ export default function QRScannerPage() {
         // Send notification in background (no await)
         notifyParentAsync({
           student_id: student.id,
-          status: "present",
+          status: selectedStatus,
           studentName: `${student.first_name} ${student.last_name}`,
         });
       } catch (error) {
@@ -665,6 +673,21 @@ export default function QRScannerPage() {
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="mt-2"
                   />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Mark As</Label>
+                  <Select value={selectedStatus} onValueChange={(value: any) => setSelectedStatus(value)}>
+                    <SelectTrigger className="mt-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="present">✅ Present</SelectItem>
+                      <SelectItem value="absent">❌ Absent</SelectItem>
+                      <SelectItem value="late">⏰ Late</SelectItem>
+                      <SelectItem value="excused">📋 Excused</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* No class filter: any student can be scanned */}

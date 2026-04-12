@@ -5,6 +5,12 @@ import jsQR from "jsqr";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import {
+  enhanceBrightness,
+  enhanceContrast,
+  calculateImageQuality,
+  SCAN_RESOLUTIONS,
+} from "@/lib/qr-processing";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,6 +52,7 @@ export default function QRScannerPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const multiCanvasRefsRef = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const scanRafRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const presentStudentIdsRef = useRef<Set<string>>(new Set());
@@ -53,6 +60,7 @@ export default function QRScannerPage() {
   const scanCooldownMs = 1200;
   const scanThrottleMs = 80;
   const lastFrameScanRef = useRef(0);
+  const failedDecodeAttemptsRef = useRef<Map<string, number>>(new Map()); // Track failures per frame
 
   // State management
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -65,6 +73,7 @@ export default function QRScannerPage() {
   const [loading, setLoading] = useState(true);
   const [presentStudentIds, setPresentStudentIds] = useState<Set<string>>(new Set());
   const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
+  const [scanQuality, setScanQuality] = useState(0); // Visual feedback: image quality 0-100
 
   // Fetch students for the whole school on mount
   useEffect(() => {
@@ -213,20 +222,88 @@ export default function QRScannerPage() {
       }
 
       context.drawImage(videoRef.current, 0, 0, targetWidth, targetHeight);
-      const imageData = context.getImageData(
-        0,
-        0,
-        canvasRef.current.width,
-        canvasRef.current.height
-      );
-
-      // Use jsQR for fast QR code detection
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      
+      // Try multi-resolution scanning in priority order
+      const primaryImageData = context.getImageData(0, 0, targetWidth, targetHeight);
+      const imageQuality = calculateImageQuality(primaryImageData);
+      setScanQuality(imageQuality);
+      
+      // Attempt 1: Primary resolution (960x720) - fast path
+      let code = jsQR(primaryImageData.data, primaryImageData.width, primaryImageData.height, {
         inversionAttempts: "attemptBoth",
       });
+
       if (code) {
         handleScannedCode(code.data);
+        failedDecodeAttemptsRef.current.clear();
+        return;
       }
+
+      // Attempt 2: Try alternative resolutions if primary fails
+      
+      // Only retry with enhancement if quality is borderline (not completely dark/bright)
+      if (imageQuality > 15 && imageQuality < 85) {
+        // Try enhanced brightness version
+        const brightenedData = enhanceBrightness(primaryImageData, 1.4);
+        code = jsQR(brightenedData.data, brightenedData.width, brightenedData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+
+        if (code) {
+          handleScannedCode(code.data);
+          failedDecodeAttemptsRef.current.clear();
+          return;
+        }
+
+        // Try enhanced contrast version
+        const contrastedData = enhanceContrast(primaryImageData, 1.3);
+        code = jsQR(contrastedData.data, contrastedData.width, contrastedData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+
+        if (code) {
+          handleScannedCode(code.data);
+          failedDecodeAttemptsRef.current.clear();
+          return;
+        }
+
+        // Try combined enhancement
+        const combinedData = enhanceContrast(enhanceBrightness(primaryImageData, 1.3), 1.2);
+        code = jsQR(combinedData.data, combinedData.width, combinedData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+
+        if (code) {
+          handleScannedCode(code.data);
+          failedDecodeAttemptsRef.current.clear();
+          return;
+        }
+      }
+
+      // Attempt 3: Try alternative resolutions (secondary and fallback)
+      for (const resolution of SCAN_RESOLUTIONS.slice(1)) {
+        const altCanvas = document.createElement("canvas");
+        altCanvas.width = resolution.width;
+        altCanvas.height = resolution.height;
+        const altCtx = altCanvas.getContext("2d", { willReadFrequently: true });
+        if (!altCtx) continue;
+
+        altCtx.drawImage(videoRef.current, 0, 0, resolution.width, resolution.height);
+        const altImageData = altCtx.getImageData(0, 0, resolution.width, resolution.height);
+
+        code = jsQR(altImageData.data, altImageData.width, altImageData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+
+        if (code) {
+          handleScannedCode(code.data);
+          failedDecodeAttemptsRef.current.clear();
+          return;
+        }
+      }
+
+      // If all attempts fail, track it but don't show error (user repositions naturally)
+      failedDecodeAttemptsRef.current.set(`frame-${now}`, (failedDecodeAttemptsRef.current.get(`frame-${now}`) || 0) + 1);
     } catch (error) {
       console.error("Scanning error:", error);
     }
@@ -295,14 +372,16 @@ export default function QRScannerPage() {
     lastScanAtRef.current.set(dedupeKey, now);
 
     if (!student) {
+      // Only show error if QR was successfully decoded but student doesn't exist
+      // This is a real error (invalid QR or student removed from system)
       const scanResult: ScanResult = {
         student_id: fallbackStudentCode,
         timestamp: now,
         status: "not_found",
-        message: "Student not found for this QR",
+        message: "QR decoded but student not found in system",
       };
       setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
-      toast.error("Student not found");
+      toast.error("Student not found in system");
       return;
     }
 

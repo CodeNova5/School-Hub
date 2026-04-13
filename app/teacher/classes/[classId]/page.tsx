@@ -6,10 +6,20 @@ import { supabase } from "@/lib/supabase";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ArrowLeft, Users, BookOpen, UserCheck, BarChart3, Loader2, CalendarDays } from "lucide-react";
+import { ArrowLeft, Users, BookOpen, UserCheck, BarChart3, Loader2, CalendarDays, Video, Radio } from "lucide-react";
 import { Student as StudentType, Session, Term } from "@/lib/types";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import TeacherSubjectsTab from "./components/TeacherSubjectsTab";
@@ -53,6 +63,17 @@ type SubjectClass = {
   is_optional: boolean;
 };
 
+type LiveSession = {
+  id: string;
+  title: string;
+  class_id: string;
+  status: "scheduled" | "live" | "ended" | "cancelled";
+  scheduled_for: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+};
+
 // Skeleton loader component
 function SkeletonLoader() {
   return (
@@ -83,6 +104,13 @@ export default function TeacherClassManagement({ params }: PageProps) {
   const [students, setStudents] = useState<StudentType[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
+  const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
+  const [liveSessionsLoading, setLiveSessionsLoading] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [creatingLiveSession, setCreatingLiveSession] = useState(false);
+  const [liveClassTitle, setLiveClassTitle] = useState("Live Class");
+  const [zoomUrl, setZoomUrl] = useState("");
+  const [scheduledFor, setScheduledFor] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
@@ -152,6 +180,8 @@ export default function TeacherClassManagement({ params }: PageProps) {
 
         setSubjectsLoading(false);
         setStudentsLoading(false);
+
+        await fetchLiveSessions();
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -159,6 +189,98 @@ export default function TeacherClassManagement({ params }: PageProps) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchLiveSessions() {
+    try {
+      setLiveSessionsLoading(true);
+      const response = await fetch(`/api/teacher/live-sessions?classId=${classId}`);
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to load live sessions");
+      }
+
+      setLiveSessions(payload.data || []);
+    } catch (error: any) {
+      toast.error(error.message || "Failed to load live sessions");
+    } finally {
+      setLiveSessionsLoading(false);
+    }
+  }
+
+  async function createLiveSession() {
+    if (!zoomUrl.trim()) {
+      toast.error("Please paste a Zoom link");
+      return;
+    }
+
+    try {
+      setCreatingLiveSession(true);
+
+      const response = await fetch("/api/teacher/live-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId,
+          title: liveClassTitle,
+          zoomUrl,
+          scheduledFor: scheduledFor || null,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to create live class");
+      }
+
+      toast.success("Live class created");
+      setCreateDialogOpen(false);
+      setZoomUrl("");
+      setScheduledFor("");
+      setLiveClassTitle("Live Class");
+      await fetchLiveSessions();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create live class");
+    } finally {
+      setCreatingLiveSession(false);
+    }
+  }
+
+  async function updateLiveSession(sessionId: string, action: "start" | "end" | "cancel") {
+    try {
+      const response = await fetch(`/api/teacher/live-sessions/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to update live session");
+      }
+
+      toast.success("Live class updated");
+      await fetchLiveSessions();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update live class");
+    }
+  }
+
+  function getStatusBadge(status: LiveSession["status"]) {
+    if (status === "live") {
+      return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Live</Badge>;
+    }
+
+    if (status === "scheduled") {
+      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Scheduled</Badge>;
+    }
+
+    if (status === "ended") {
+      return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">Ended</Badge>;
+    }
+
+    return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Cancelled</Badge>;
   }
 
   async function fetchClassSubjects() {
@@ -248,6 +370,10 @@ export default function TeacherClassManagement({ params }: PageProps) {
               <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 truncate">{classData.name}</h1>
               <p className="text-sm text-gray-500 mt-1">Class Management Dashboard</p>
             </div>
+            <Button onClick={() => setCreateDialogOpen(true)} className="gap-2">
+              <Video className="h-4 w-4" />
+              Create Live Class
+            </Button>
           </div>
 
           {/* Class Info */}
@@ -267,7 +393,104 @@ export default function TeacherClassManagement({ params }: PageProps) {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-red-100 bg-red-50/40 mt-4">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Radio className="h-5 w-5 text-red-600" />
+                Live Sessions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {liveSessionsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading live sessions...
+                </div>
+              ) : liveSessions.length === 0 ? (
+                <p className="text-sm text-gray-600">No live classes yet. Create one using the button above.</p>
+              ) : (
+                <div className="space-y-3">
+                  {liveSessions.slice(0, 4).map((session) => (
+                    <div key={session.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border bg-white p-3">
+                      <div>
+                        <p className="font-semibold text-gray-900">{session.title}</p>
+                        <p className="text-xs text-gray-600">
+                          {session.scheduled_for
+                            ? `Scheduled: ${new Date(session.scheduled_for).toLocaleString()}`
+                            : `Created: ${new Date(session.created_at).toLocaleString()}`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {getStatusBadge(session.status)}
+                        {session.status === "scheduled" && (
+                          <Button size="sm" variant="outline" onClick={() => updateLiveSession(session.id, "start")}>Start</Button>
+                        )}
+                        {session.status === "live" && (
+                          <Button size="sm" variant="outline" onClick={() => updateLiveSession(session.id, "end")}>End</Button>
+                        )}
+                        {(session.status === "scheduled" || session.status === "live") && (
+                          <Button size="sm" variant="ghost" onClick={() => updateLiveSession(session.id, "cancel")}>Cancel</Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
+
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Live Class</DialogTitle>
+              <DialogDescription>
+                Paste a Zoom join link. Students in this class will get a secure Join button.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="live-class-title">Title</Label>
+                <Input
+                  id="live-class-title"
+                  value={liveClassTitle}
+                  onChange={(event) => setLiveClassTitle(event.target.value)}
+                  placeholder="Live Class"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="zoom-url">Zoom Link</Label>
+                <Input
+                  id="zoom-url"
+                  value={zoomUrl}
+                  onChange={(event) => setZoomUrl(event.target.value)}
+                  placeholder="https://zoom.us/j/1234567890?pwd=..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="scheduled-for">Schedule (optional)</Label>
+                <Input
+                  id="scheduled-for"
+                  type="datetime-local"
+                  value={scheduledFor}
+                  onChange={(event) => setScheduledFor(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateDialogOpen(false)} disabled={creatingLiveSession}>Cancel</Button>
+              <Button onClick={createLiveSession} disabled={creatingLiveSession}>
+                {creatingLiveSession ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Create
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

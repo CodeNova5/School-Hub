@@ -58,6 +58,13 @@ interface RecentActivity {
   color: string;
 }
 
+interface LiveSessionSummary {
+  id: string;
+  title: string;
+  status: "scheduled" | "live" | "ended" | "cancelled";
+  scheduled_for: string | null;
+}
+
 export default function StudentDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [studentName, setStudentName] = useState("");
@@ -74,6 +81,8 @@ export default function StudentDashboardPage() {
   });
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [greeting, setGreeting] = useState("");
+  const [activeLiveSession, setActiveLiveSession] = useState<LiveSessionSummary | null>(null);
+  const [joiningLiveSession, setJoiningLiveSession] = useState(false);
   const { syncNotificationToken } = useNotificationSetup({ role: "student" });
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
@@ -314,6 +323,16 @@ export default function StudentDashboardPage() {
       }
       setTodaysClasses(todaysClassesList);
 
+      // Fetch active/scheduled live sessions for this student's class.
+      const liveSessionsResponse = await fetch("/api/student/live-sessions");
+      const liveSessionsPayload = await liveSessionsResponse.json();
+
+      if (liveSessionsResponse.ok && Array.isArray(liveSessionsPayload.data) && liveSessionsPayload.data.length > 0) {
+        setActiveLiveSession(liveSessionsPayload.data[0]);
+      } else {
+        setActiveLiveSession(null);
+      }
+
       // Fetch results for average score - use termData.id directly, not state
       let averageScore = 0;
       if (termData && termData.id && classId) {
@@ -416,6 +435,39 @@ export default function StudentDashboardPage() {
       toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleJoinLiveClass() {
+    if (!activeLiveSession?.id) return;
+
+    try {
+      setJoiningLiveSession(true);
+      const response = await fetch(`/api/student/live-sessions/${activeLiveSession.id}/join`);
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Unable to generate join link");
+      }
+
+      const links = payload?.data?.links;
+      if (!links?.desktopDeepLink || !links?.mobileDeepLink || !links?.webUrl) {
+        throw new Error("Join links were not returned");
+      }
+
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const isMobile = /android|iphone|ipad|ipod/.test(userAgent);
+      const deepLink = isMobile ? links.mobileDeepLink : links.desktopDeepLink;
+
+      // Attempt deep-link first, then fall back to web join page.
+      window.location.href = deepLink;
+      window.setTimeout(() => {
+        window.open(links.webUrl, "_blank", "noopener,noreferrer");
+      }, 1200);
+    } catch (error: any) {
+      toast.error(error.message || "Unable to join live class");
+    } finally {
+      setJoiningLiveSession(false);
     }
   }
 
@@ -653,6 +705,17 @@ export default function StudentDashboardPage() {
                 <p className="text-sm text-gray-500 mb-4">No classes scheduled for today</p>
               )}
               <div className="flex gap-2">
+                {activeLiveSession && (activeLiveSession.status === "live" || activeLiveSession.status === "scheduled") && (
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    onClick={handleJoinLiveClass}
+                    disabled={joiningLiveSession}
+                  >
+                    {joiningLiveSession ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                    Join
+                  </Button>
+                )}
                 <Link href="/student/timetable" className="flex-1">
                   <Button
                     variant="outline"

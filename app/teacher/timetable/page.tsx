@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,17 @@ function compareSlotTime(a: PeriodSlot, b: PeriodSlot) {
 type TimetableCell = {
   class: string;
   classId: string;
+  subjectClassId: string | null;
   subject: string;
   fullSubject: string;
   period: PeriodSlot;
   rows: any[];
+};
+
+type LiveSessionRow = {
+  id: string;
+  subject_class_id: string | null;
+  status: "scheduled" | "live" | "ended" | "cancelled";
 };
 
 export default function TeacherTimetablePage() {
@@ -45,6 +53,7 @@ export default function TeacherTimetablePage() {
   const [timetable, setTimetable] = useState<Record<string, Record<string, TimetableCell>>>({});
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
   const [selectedDay, setSelectedDay] = useState(DAYS[0]); // For mobile view
+  const [liveSessionsBySubject, setLiveSessionsBySubject] = useState<Record<string, LiveSessionRow>>({});
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -122,6 +131,20 @@ export default function TeacherTimetablePage() {
         setPeriodSlots(slotsData);
       }
 
+      const liveResponse = await fetch("/api/teacher/live-sessions");
+      if (liveResponse.ok) {
+        const livePayload = await liveResponse.json();
+        const map: Record<string, LiveSessionRow> = {};
+        (livePayload.data || []).forEach((session: LiveSessionRow) => {
+          if (!session.subject_class_id) return;
+          const previous = map[session.subject_class_id];
+          if (!previous || (previous.status !== "live" && session.status === "live")) {
+            map[session.subject_class_id] = session;
+          }
+        });
+        setLiveSessionsBySubject(map);
+      }
+
       // Build timetable structure
       const timetableData: Record<string, Record<string, TimetableCell>> = {};
 
@@ -157,6 +180,7 @@ export default function TeacherTimetablePage() {
           timetableData[day][periodSlotId] = {
             class: className,
             classId: classId,
+            subjectClassId: subjectClass?.id || null,
             subject: subjectCode || subjectName,
             fullSubject: subjectName,
             period: periodSlot,
@@ -425,23 +449,28 @@ export default function TeacherTimetablePage() {
                 </div>
               </div>
 
-              <Button
-                onClick={handleExportPDF}
-                disabled={exporting}
-                className="hidden lg:inline-flex bg-blue-600 hover:bg-blue-700"
-              >
-                {exporting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4 mr-2" />
-                    Export PDF
-                  </>
-                )}
-              </Button>
+              <div className="hidden lg:flex items-center gap-2">
+                <Link href="/teacher/live-classes">
+                  <Button variant="outline">Live Classes</Button>
+                </Link>
+                <Button
+                  onClick={handleExportPDF}
+                  disabled={exporting}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {exporting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </>
+                  )}
+                </Button>
+              </div>
 
             </div>
           </CardHeader>
@@ -511,6 +540,19 @@ export default function TeacherTimetablePage() {
                             <div className="text-lg font-bold text-gray-900">
                               {cell.fullSubject}
                             </div>
+                            {cell.subjectClassId && liveSessionsBySubject[cell.subjectClassId] ? (
+                              <Link href={`/teacher/live-classes?subjectClassId=${cell.subjectClassId}`}>
+                                <Button size="sm" variant="outline" className="w-fit text-xs h-7 mt-1">
+                                  {liveSessionsBySubject[cell.subjectClassId].status === "live" ? "Live Now" : "Manage Live"}
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Link href={`/teacher/live-classes?subjectClassId=${cell.subjectClassId || ""}`}>
+                                <Button size="sm" variant="ghost" className="w-fit text-xs h-7 mt-1">
+                                  Go Live
+                                </Button>
+                              </Link>
+                            )}
                           </div>
                         ) : (
                           <div className="text-gray-500 italic">Free Period</div>
@@ -640,6 +682,11 @@ export default function TeacherTimetablePage() {
                                   <div className="text-[11px] text-gray-500">
                                     {period.start_time} - {period.end_time}
                                   </div>
+                                  <Link href={`/teacher/live-classes?subjectClassId=${cell.subjectClassId || ""}`}>
+                                    <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]">
+                                      {cell.subjectClassId && liveSessionsBySubject[cell.subjectClassId]?.status === "live" ? "Live" : "Go Live"}
+                                    </Button>
+                                  </Link>
                                 </div>
                               ) : (
                                 <div className="text-center py-2">

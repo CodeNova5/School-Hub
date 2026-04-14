@@ -15,15 +15,21 @@ async function getStudentContext() {
 
   const { data: student } = await supabase
     .from("students")
-    .select("school_id, class_id")
+    .select("id, school_id, class_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!student?.school_id || !student.class_id) return null;
 
+  const { data: studentSubjects } = await supabase
+    .from("student_subjects")
+    .select("subject_class_id")
+    .eq("student_id", student.id);
+
   return {
     schoolId: student.school_id,
     classId: student.class_id,
+    subjectClassIds: (studentSubjects ?? []).map((item: any) => item.subject_class_id),
   };
 }
 
@@ -41,7 +47,7 @@ export async function GET(
 
     const { data: sessionData, error } = await supabase
       .from("live_sessions")
-      .select("id, class_id, school_id, status, meeting_id, meeting_password_encrypted")
+      .select("id, class_id, school_id, subject_class_id, status, meeting_id, meeting_password_encrypted")
       .eq("id", params.sessionId)
       .eq("school_id", context.schoolId)
       .eq("class_id", context.classId)
@@ -50,6 +56,13 @@ export async function GET(
 
     if (error || !sessionData) {
       return NextResponse.json({ error: "Live session not found" }, { status: 404 });
+    }
+
+    if (
+      sessionData.subject_class_id &&
+      !context.subjectClassIds.includes(sessionData.subject_class_id)
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const decryptedPassword = decryptLiveSessionSecret(sessionData.meeting_password_encrypted);

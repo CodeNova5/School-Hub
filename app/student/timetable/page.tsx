@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,12 @@ type TimetableEntry = {
   period_slots?: PeriodSlot;
 };
 
+type LiveSessionSummary = {
+  id: string;
+  subject_class_id: string | null;
+  status: "scheduled" | "live" | "ended" | "cancelled";
+};
+
 function compareSlotTime(a: PeriodSlot, b: PeriodSlot) {
   const byTime = (a.start_time || "").localeCompare(b.start_time || "");
   if (byTime !== 0) return byTime;
@@ -58,6 +65,8 @@ export default function StudentTimetablePage() {
   const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([]);
   const [periodSlots, setPeriodSlots] = useState<PeriodSlot[]>([]);
   const [selectedDay, setSelectedDay] = useState(DAYS[0]);
+  const [liveSessionsBySubject, setLiveSessionsBySubject] = useState<Record<string, LiveSessionSummary>>({});
+  const [joiningSessionId, setJoiningSessionId] = useState<string | null>(null);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -186,12 +195,62 @@ export default function StudentTimetablePage() {
 
       setTimetableEntries(filteredEntries);
       setPeriodSlots(slots);
+
+      const liveResponse = await fetch("/api/student/live-sessions");
+      if (liveResponse.ok) {
+        const payload = await liveResponse.json();
+        const map: Record<string, LiveSessionSummary> = {};
+        (payload.data || []).forEach((session: LiveSessionSummary) => {
+          if (!session.subject_class_id) return;
+          const previous = map[session.subject_class_id];
+          if (!previous || (previous.status !== "live" && session.status === "live")) {
+            map[session.subject_class_id] = session;
+          }
+        });
+        setLiveSessionsBySubject(map);
+      }
     } catch (error) {
       console.error("Error loading timetable:", error);
       toast.error("Failed to load timetable");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function joinSession(sessionId: string) {
+    try {
+      setJoiningSessionId(sessionId);
+      const response = await fetch(`/api/student/live-sessions/${sessionId}/join`);
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Failed to create join links");
+      }
+
+      const links = payload?.data?.links;
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const isMobile = /android|iphone|ipad|ipod/.test(userAgent);
+      const deepLink = isMobile ? links.mobileDeepLink : links.desktopDeepLink;
+
+      window.location.href = deepLink;
+      window.setTimeout(() => {
+        window.open(links.webUrl, "_blank", "noopener,noreferrer");
+      }, 1200);
+    } catch (error: any) {
+      toast.error(error.message || "Unable to join class");
+    } finally {
+      setJoiningSessionId(null);
+    }
+  }
+
+  function getJoinableSession(entries: TimetableEntry[]) {
+    for (const entry of entries) {
+      const subjectClassId = entry.subject_classes?.id;
+      if (subjectClassId && liveSessionsBySubject[subjectClassId]) {
+        return liveSessionsBySubject[subjectClassId];
+      }
+    }
+    return null;
   }
 
   async function handleExportPDF() {
@@ -439,6 +498,7 @@ export default function StudentTimetablePage() {
                       .filter(e => e.subject_classes?.teachers)
                       .map(e => `${e.subject_classes.teachers.first_name} ${e.subject_classes.teachers.last_name}`);
                     const uniqueTeachers = Array.from(new Set(teachers)).join(", ");
+                    const liveSession = getJoinableSession(entries);
 
                     if (period.is_break) {
                       return (
@@ -476,6 +536,17 @@ export default function StudentTimetablePage() {
                                 <User className="h-4 w-4" />
                                 <span className="text-sm">{uniqueTeachers}</span>
                               </div>
+                              {liveSession && (
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 h-7 text-xs w-fit"
+                                  onClick={() => joinSession(liveSession.id)}
+                                  disabled={joiningSessionId === liveSession.id}
+                                >
+                                  {joiningSessionId === liveSession.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                                  Join
+                                </Button>
+                              )}
                             </div>
                           ) : (
                             <div className="text-gray-500 italic">Free Period</div>
@@ -529,6 +600,9 @@ export default function StudentTimetablePage() {
                   </>
                 )}
               </Button>
+              <Link href="/student/live-classes" className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto">Live Classes</Button>
+              </Link>
             </div>
           </CardHeader>
           <CardContent className="p-3 sm:p-6">
@@ -617,6 +691,7 @@ export default function StudentTimetablePage() {
                           .filter(e => e.subject_classes?.teachers)
                           .map(e => `${e.subject_classes.teachers.first_name} ${e.subject_classes.teachers.last_name}`);
                         const uniqueTeachers = Array.from(new Set(teachers)).join(", ");
+                        const liveSession = getJoinableSession(entries);
 
                         return (
                           <td
@@ -636,6 +711,17 @@ export default function StudentTimetablePage() {
                                   <User className="h-3 w-3 flex-shrink-0" />
                                   <span className="truncate">{uniqueTeachers}</span>
                                 </div>
+                                {liveSession && (
+                                  <Button
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 h-6 px-2 text-[10px]"
+                                    onClick={() => joinSession(liveSession.id)}
+                                    disabled={joiningSessionId === liveSession.id}
+                                  >
+                                    {joiningSessionId === liveSession.id ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                                    Join
+                                  </Button>
+                                )}
                               </div>
                             ) : (
                               <div className="text-center py-1 sm:py-2">

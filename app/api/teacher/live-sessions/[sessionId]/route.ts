@@ -51,7 +51,7 @@ export async function PATCH(
 
     const { data: sessionRow, error: sessionError } = await supabase
       .from("live_sessions")
-      .select("id, teacher_id, school_id")
+      .select("id, teacher_id, school_id, class_id, subject_class_id")
       .eq("id", sessionId)
       .eq("school_id", context.schoolId)
       .single();
@@ -60,7 +60,28 @@ export async function PATCH(
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
     }
 
-    if (sessionRow.teacher_id !== context.teacherId) {
+    const { data: classRow } = await supabase
+      .from("classes")
+      .select("id, class_teacher_id")
+      .eq("id", sessionRow.class_id)
+      .eq("school_id", context.schoolId)
+      .maybeSingle();
+
+    let isSubjectTeacher = false;
+    if (sessionRow.subject_class_id) {
+      const { data: subjectClassRow } = await supabase
+        .from("subject_classes")
+        .select("id, teacher_id")
+        .eq("id", sessionRow.subject_class_id)
+        .eq("school_id", context.schoolId)
+        .maybeSingle();
+      isSubjectTeacher = subjectClassRow?.teacher_id === context.teacherId;
+    }
+
+    const isClassTeacher = classRow?.class_teacher_id === context.teacherId;
+    const isSessionOwner = sessionRow.teacher_id === context.teacherId;
+
+    if (!isSessionOwner && !isSubjectTeacher && !isClassTeacher) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -88,7 +109,7 @@ export async function PATCH(
       .update(updates)
       .eq("id", sessionId)
       .eq("school_id", context.schoolId)
-      .select("id, title, class_id, status, scheduled_for, started_at, ended_at, created_at")
+      .select("id, title, class_id, subject_class_id, status, scheduled_for, started_at, ended_at, created_at")
       .single();
 
     if (error) {

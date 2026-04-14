@@ -18,11 +18,11 @@ export function encryptLiveSessionSecret(plainText: string): string {
 
   const key = getEncryptionKey();
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, key as any, iv as any);
 
   const encrypted = Buffer.concat([
-    cipher.update(plainText, "utf8"),
-    cipher.final(),
+    cipher.update(plainText, "utf8") as any,
+    cipher.final() as any,
   ]);
   const tag = cipher.getAuthTag();
 
@@ -43,12 +43,12 @@ export function decryptLiveSessionSecret(payload: string | null | undefined): st
   const encryptedData = Buffer.from(dataPart, "base64url");
   const authTag = Buffer.from(tagPart, "base64url");
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
+  const decipher = crypto.createDecipheriv(ALGORITHM, key as any, iv as any);
+  decipher.setAuthTag(authTag as any);
 
   const decrypted = Buffer.concat([
-    decipher.update(encryptedData),
-    decipher.final(),
+    decipher.update(encryptedData as any) as any,
+    decipher.final() as any,
   ]);
 
   return decrypted.toString("utf8");

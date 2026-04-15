@@ -210,8 +210,6 @@ export default function TeacherLiveClassesPage() {
 
       const options: SubjectOption[] = [];
       uniqueBySubjectClass.forEach((item: any) => {
-        if (!timetableSubjectIds.has(item.id)) return;
-
         const classObj = Array.isArray(item.classes) ? item.classes[0] : item.classes;
         const subjectObj = Array.isArray(item.subjects) ? item.subjects[0] : item.subjects;
         const teacherObj = Array.isArray(item.teachers) ? item.teachers[0] : item.teachers;

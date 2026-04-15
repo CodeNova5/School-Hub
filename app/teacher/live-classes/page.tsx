@@ -117,6 +117,8 @@ export default function TeacherLiveClassesPage() {
   const [scheduledEnd, setScheduledEnd] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [selectedSlot, setSelectedSlot] = useState<TimetableSlot | null>(null);
 
   const timetableSubjectOptions = useMemo(
     () => subjectOptions.filter((item) => item.inTimetable),
@@ -141,6 +143,13 @@ export default function TeacherLiveClassesPage() {
       loadData();
     }
   }, [schoolId, schoolLoading]);
+
+  useEffect(() => {
+    if (isCreateOpen) {
+      setWizardStep(1);
+      setSelectedSlot(null);
+    }
+  }, [isCreateOpen]);
 
   async function loadData() {
     if (!schoolId) return;
@@ -259,63 +268,9 @@ export default function TeacherLiveClassesPage() {
     setLiveSessions(payload.data ?? []);
   }
 
-  useEffect(() => {
-    if (!isCreateOpen) {
-      return;
-    }
-
-    if (useTimetableSubject && selectedSubjectClassId) {
-      const slots = subjectTimetableSlots[selectedSubjectClassId] || [];
-      let bestWindowStart: Date | null = null;
-      let bestWindowEnd: Date | null = null;
-
-      for (const slot of slots) {
-        const start = nextDateForWeekday(slot.day_of_week, slot.start_time);
-        const end = nextDateForWeekday(slot.day_of_week, slot.end_time);
-        if (!start || !end) continue;
-
-        if (!bestWindowStart || start.getTime() < bestWindowStart.getTime()) {
-          bestWindowStart = start;
-          bestWindowEnd = end;
-        }
-      }
-
-      if (bestWindowStart && bestWindowEnd) {
-        setScheduledStart(toDateInputValue(bestWindowStart));
-        setScheduledEnd(toDateInputValue(bestWindowEnd));
-      } else {
-        const now = new Date();
-        const end = new Date(now.getTime() + 40 * 60 * 1000);
-        setScheduledStart(toDateInputValue(now));
-        setScheduledEnd(toDateInputValue(end));
-      }
-
-      const selectedSubject = subjectOptions.find((item) => item.subjectClassId === selectedSubjectClassId);
-      if (selectedSubject?.classId) {
-        setSelectedClassId(selectedSubject.classId);
-      }
-      return;
-    }
-
-    const now = new Date();
-    const end = new Date(now.getTime() + 40 * 60 * 1000);
-    setScheduledStart(toDateInputValue(now));
-    setScheduledEnd(toDateInputValue(end));
-  }, [isCreateOpen, useTimetableSubject, selectedSubjectClassId, subjectTimetableSlots, subjectOptions]);
-
   async function createLiveSession() {
     if (!zoomUrl.trim()) {
       toast.error("Provide a Zoom link");
-      return;
-    }
-
-    if (useTimetableSubject && !selectedSubjectClassId) {
-      toast.error("Select a timetable subject");
-      return;
-    }
-
-    if (!useTimetableSubject && !selectedClassId) {
-      toast.error("Select a class");
       return;
     }
 
@@ -324,16 +279,35 @@ export default function TeacherLiveClassesPage() {
       return;
     }
 
-    if (!scheduledStart || !scheduledEnd) {
-      toast.error("Set both start and end time");
-      return;
-    }
+    let startDate: Date;
+    let endDate: Date;
 
-    const startDate = new Date(scheduledStart);
-    const endDate = new Date(scheduledEnd);
-    if (endDate.getTime() <= startDate.getTime()) {
-      toast.error("End time must be after start time");
-      return;
+    if (useTimetableSubject && selectedSlot) {
+      // Calculate dates from timetable slot
+      const startWindow = nextDateForWeekday(selectedSlot.day_of_week, selectedSlot.start_time);
+      const endWindow = nextDateForWeekday(selectedSlot.day_of_week, selectedSlot.end_time);
+      
+      if (!startWindow || !endWindow) {
+        toast.error("Failed to calculate session time from timetable");
+        return;
+      }
+
+      startDate = startWindow;
+      endDate = endWindow;
+    } else {
+      // Use manually entered times
+      if (!scheduledStart || !scheduledEnd) {
+        toast.error("Set both start and end time");
+        return;
+      }
+
+      startDate = new Date(scheduledStart);
+      endDate = new Date(scheduledEnd);
+
+      if (endDate.getTime() <= startDate.getTime()) {
+        toast.error("End time must be after start time");
+        return;
+      }
     }
 
     try {
@@ -363,6 +337,7 @@ export default function TeacherLiveClassesPage() {
       setScheduledStart("");
       setScheduledEnd("");
       setTitle("Live Class");
+      setSelectedSlot(null);
       await loadLiveSessions();
     } catch (error: any) {
       toast.error(error.message || "Failed to create live class");
@@ -480,134 +455,270 @@ export default function TeacherLiveClassesPage() {
         </Card>
 
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Create Live Class</DialogTitle>
               <DialogDescription>
-                Follow timetable windows when available, or create an unexpected custom class when needed.
+                {wizardStep === 1 && "Step 1 of 3: Select subject"}
+                {wizardStep === 2 && (useTimetableSubject ? "Step 2 of 3: Choose a time slot" : "Step 2 of 3: Set class and time")}
+                {wizardStep === 3 && "Step 3 of 3: Add session details"}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-md border p-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Use timetable subject</p>
-                  <p className="text-xs text-gray-600">Turn off for weekend/holiday/free-period custom classes.</p>
-                </div>
-                <Switch
-                  checked={useTimetableSubject}
-                  onCheckedChange={setUseTimetableSubject}
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="subjectClass">{useTimetableSubject ? "Timetable Subject" : "Class"}</Label>
-                {useTimetableSubject ? (
-                  <select
-                    id="subjectClass"
-                    className="w-full rounded-md border px-3 py-2 text-sm"
-                    value={selectedSubjectClassId}
-                    onChange={(event) => setSubjectAndDefaultTitle(event.target.value)}
-                  >
-                    {timetableSubjectOptions.length === 0 && <option value="">No timetable subjects available</option>}
-                    {timetableSubjectOptions.map((option) => (
-                      <option key={option.subjectClassId} value={option.subjectClassId}>
-                        {option.className} - {option.subjectName}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    id="classId"
-                    className="w-full rounded-md border px-3 py-2 text-sm"
-                    value={selectedClassId}
-                    onChange={(event) => {
-                      const nextClassId = event.target.value;
-                      setSelectedClassId(nextClassId);
-                      const firstSubject = subjectOptions.find((item) => item.classId === nextClassId);
-                      if (firstSubject) {
-                        setSubjectAndDefaultTitle(firstSubject.subjectClassId);
-                      } else {
-                        setSelectedSubjectClassId("");
+            {/* STEP 1: Subject Selection */}
+            {wizardStep === 1 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Use timetable subject</p>
+                    <p className="text-xs text-gray-600">Turn off for custom classes (weekends, holidays, free periods).</p>
+                  </div>
+                  <Switch
+                    checked={useTimetableSubject}
+                    onCheckedChange={setUseTimetableSubject}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="step1-subject">
+                    {useTimetableSubject ? "Timetable Subject" : "Class"}
+                  </Label>
+                  {useTimetableSubject ? (
+                    <select
+                      id="step1-subject"
+                      className="w-full rounded-md border px-3 py-2 text-sm"
+                      value={selectedSubjectClassId}
+                      onChange={(event) => setSubjectAndDefaultTitle(event.target.value)}
+                    >
+                      {timetableSubjectOptions.length === 0 && (
+                        <option value="">No timetable subjects available</option>
+                      )}
+                      {timetableSubjectOptions.map((option) => (
+                        <option key={option.subjectClassId} value={option.subjectClassId}>
+                          {option.className} - {option.subjectName}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      id="step1-subject"
+                      className="w-full rounded-md border px-3 py-2 text-sm"
+                      value={selectedClassId}
+                      onChange={(event) => {
+                        const nextClassId = event.target.value;
+                        setSelectedClassId(nextClassId);
+                        const firstSubject = subjectOptions.find((item) => item.classId === nextClassId);
+                        if (firstSubject) {
+                          setSubjectAndDefaultTitle(firstSubject.subjectClassId);
+                        } else {
+                          setSelectedSubjectClassId("");
+                        }
+                      }}
+                    >
+                      {classOptions.length === 0 && <option value="">No classes available</option>}
+                      {classOptions.map((option) => (
+                        <option key={option.classId} value={option.classId}>
+                          {option.className}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {!useTimetableSubject && (
+                  <div className="space-y-2">
+                    <Label htmlFor="step1-customSubject">Subject (from selected class)</Label>
+                    <select
+                      id="step1-customSubject"
+                      className="w-full rounded-md border px-3 py-2 text-sm"
+                      value={selectedSubjectClassId}
+                      onChange={(event) => setSubjectAndDefaultTitle(event.target.value)}
+                    >
+                      {classFilteredSubjectOptions.length === 0 && (
+                        <option value="">No taught subjects in this class</option>
+                      )}
+                      {classFilteredSubjectOptions.map((option) => (
+                        <option key={option.subjectClassId} value={option.subjectClassId}>
+                          {option.subjectName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 2: Slot Selection (Timetable Mode) or Time Selection (Custom Mode) */}
+            {wizardStep === 2 && useTimetableSubject && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 mb-3">Available time slots for this subject</p>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {(subjectTimetableSlots[selectedSubjectClassId] || []).length === 0 ? (
+                      <p className="text-sm text-gray-600 py-8 text-center">No timetable slots found for this subject.</p>
+                    ) : (
+                      (subjectTimetableSlots[selectedSubjectClassId] || []).map((slot, idx) => {
+                        const isSelected =
+                          selectedSlot &&
+                          selectedSlot.day_of_week === slot.day_of_week &&
+                          selectedSlot.start_time === slot.start_time;
+
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => setSelectedSlot(slot)}
+                            className={`w-full text-left p-3 rounded-lg border-2 transition ${
+                              isSelected
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-gray-200 bg-white hover:border-blue-300"
+                            }`}
+                          >
+                            <p className="font-medium text-gray-900">
+                              {slot.day_of_week.charAt(0).toUpperCase() + slot.day_of_week.slice(1)}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              {slot.start_time} - {slot.end_time}
+                            </p>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Manual Time Selection (Custom Mode) */}
+            {wizardStep === 2 && !useTimetableSubject && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="step2-start">Start time</Label>
+                    <Input
+                      id="step2-start"
+                      type="datetime-local"
+                      value={scheduledStart}
+                      onChange={(event) => setScheduledStart(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="step2-end">End time</Label>
+                    <Input
+                      id="step2-end"
+                      type="datetime-local"
+                      value={scheduledEnd}
+                      onChange={(event) => setScheduledEnd(event.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: Session Details */}
+            {wizardStep === 3 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="step3-title">Title</Label>
+                  <Input 
+                    id="step3-title" 
+                    value={title} 
+                    onChange={(event) => setTitle(event.target.value)} 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="step3-zoom">Zoom URL</Label>
+                  <Input
+                    id="step3-zoom"
+                    value={zoomUrl}
+                    onChange={(event) => setZoomUrl(event.target.value)}
+                    placeholder="https://zoom.us/j/1234567890?pwd=..."
+                  />
+                </div>
+
+                {useTimetableSubject && selectedSlot && (
+                  <div className="rounded-md bg-blue-50 p-3 border border-blue-200">
+                    <p className="text-xs font-medium text-blue-900">Scheduled for:</p>
+                    <p className="text-sm text-blue-800 mt-1">
+                      {selectedSlot.day_of_week.charAt(0).toUpperCase() + selectedSlot.day_of_week.slice(1)} {selectedSlot.start_time} - {selectedSlot.end_time}
+                    </p>
+                  </div>
+                )}
+
+                {!useTimetableSubject && (
+                  <div className="rounded-md bg-blue-50 p-3 border border-blue-200">
+                    <p className="text-xs font-medium text-blue-900">Scheduled for:</p>
+                    <p className="text-sm text-blue-800 mt-1">
+                      {scheduledStart && scheduledEnd && (
+                        <>
+                          {new Date(scheduledStart).toLocaleString()} - {new Date(scheduledEnd).toLocaleString()}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="flex items-center justify-between gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  if (wizardStep > 1) {
+                    setWizardStep(wizardStep - 1);
+                  } else {
+                    setIsCreateOpen(false);
+                  }
+                }}
+              >
+                {wizardStep === 1 ? "Cancel" : "Back"}
+              </Button>
+
+              <div className="flex gap-2">
+                {wizardStep < 3 && (
+                  <Button
+                    onClick={() => {
+                      if (wizardStep === 1) {
+                        if (!selectedSubjectClassId) {
+                          toast.error("Select a subject");
+                          return;
+                        }
+                        setWizardStep(2);
+                      } else if (wizardStep === 2) {
+                        if (useTimetableSubject && !selectedSlot) {
+                          toast.error("Select a time slot");
+                          return;
+                        }
+                        if (!useTimetableSubject && (!scheduledStart || !scheduledEnd)) {
+                          toast.error("Set both start and end time");
+                          return;
+                        }
+                        if (!useTimetableSubject) {
+                          const startDate = new Date(scheduledStart);
+                          const endDate = new Date(scheduledEnd);
+                          if (endDate.getTime() <= startDate.getTime()) {
+                            toast.error("End time must be after start time");
+                            return;
+                          }
+                        }
+                        setWizardStep(3);
                       }
                     }}
                   >
-                    {classOptions.length === 0 && <option value="">No classes available</option>}
-                    {classOptions.map((option) => (
-                      <option key={option.classId} value={option.classId}>
-                        {option.className}
-                      </option>
-                    ))}
-                  </select>
+                    Next
+                  </Button>
+                )}
+
+                {wizardStep === 3 && (
+                  <Button
+                    onClick={createLiveSession}
+                    disabled={submitting || !zoomUrl.trim()}
+                  >
+                    {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Create
+                  </Button>
                 )}
               </div>
-
-              {!useTimetableSubject && (
-                <div className="space-y-2">
-                  <Label htmlFor="customSubjectClass">Subject (from selected class)</Label>
-                  <select
-                    id="customSubjectClass"
-                    className="w-full rounded-md border px-3 py-2 text-sm"
-                    value={selectedSubjectClassId}
-                    onChange={(event) => setSubjectAndDefaultTitle(event.target.value)}
-                  >
-                    {classFilteredSubjectOptions.length === 0 && <option value="">No taught subjects in this class</option>}
-                    {classFilteredSubjectOptions.map((option) => (
-                      <option key={option.subjectClassId} value={option.subjectClassId}>
-                        {option.subjectName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="liveTitle">Title</Label>
-                <Input id="liveTitle" value={title} onChange={(event) => setTitle(event.target.value)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="liveZoomUrl">Zoom URL</Label>
-                <Input
-                  id="liveZoomUrl"
-                  value={zoomUrl}
-                  onChange={(event) => setZoomUrl(event.target.value)}
-                  placeholder="https://zoom.us/j/1234567890?pwd=..."
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="scheduledStart">Start time</Label>
-                  <Input
-                    id="scheduledStart"
-                    type="datetime-local"
-                    value={scheduledStart}
-                    onChange={(event) => setScheduledStart(event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="scheduledEnd">End time</Label>
-                  <Input
-                    id="scheduledEnd"
-                    type="datetime-local"
-                    value={scheduledEnd}
-                    onChange={(event) => setScheduledEnd(event.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={submitting}>Cancel</Button>
-              <Button
-                onClick={createLiveSession}
-                disabled={
-                  submitting ||
-                  (useTimetableSubject ? timetableSubjectOptions.length === 0 : classOptions.length === 0 || classFilteredSubjectOptions.length === 0)
-                }
-              >
-                {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Create
-              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -17,6 +17,34 @@ type SubjectClassRow = {
   teacher_id: string | null;
 };
 
+async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
+  const nowIso = new Date().toISOString();
+
+  const { data: expiredRows } = await supabase
+    .from("live_sessions")
+    .select("id")
+    .eq("school_id", schoolId)
+    .in("status", ["scheduled", "live"])
+    .not("scheduled_end_at", "is", null)
+    .lte("scheduled_end_at", nowIso);
+
+  if (!expiredRows || expiredRows.length === 0) {
+    return;
+  }
+
+  const expiredIds = expiredRows.map((row: any) => row.id);
+
+  await supabase
+    .from("live_sessions")
+    .update({
+      status: "ended",
+      ended_at: nowIso,
+      updated_at: nowIso,
+    })
+    .in("id", expiredIds)
+    .eq("school_id", schoolId);
+}
+
 async function getTeacherContext(): Promise<TeacherContext | null> {
   const supabase = createRouteHandlerClient({ cookies });
 
@@ -57,6 +85,7 @@ export async function GET(req: Request) {
     const subjectClassId = url.searchParams.get("subjectClassId");
 
     const supabase = createRouteHandlerClient({ cookies });
+    await autoCloseExpiredSessions(supabase, context.schoolId);
     const { data: assignedSubjects } = await supabase
       .from("subject_classes")
       .select("id")
@@ -74,7 +103,7 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from("live_sessions")
-      .select("id, title, class_id, subject_class_id, status, scheduled_for, started_at, ended_at, created_at")
+      .select("id, title, class_id, subject_class_id, status, scheduled_for, scheduled_end_at, started_at, ended_at, created_at")
       .eq("school_id", context.schoolId)
       .order("created_at", { ascending: false });
 
@@ -119,6 +148,7 @@ export async function POST(req: Request) {
     const title = String(body.title || "Live Class").trim();
     const zoomUrl = String(body.zoomUrl || "").trim();
     const scheduledForRaw = body.scheduledFor ? String(body.scheduledFor) : null;
+    const scheduledEndRaw = body.scheduledEndAt ? String(body.scheduledEndAt) : null;
 
     if (!zoomUrl || (!classId && !subjectClassId)) {
       return NextResponse.json({ error: "zoomUrl and either subjectClassId or classId are required" }, { status: 400 });
@@ -173,7 +203,16 @@ export async function POST(req: Request) {
     }
 
     const now = new Date().toISOString();
-    const status = scheduledForRaw ? "scheduled" : "live";
+    const scheduledStartIso = scheduledForRaw ? new Date(scheduledForRaw).toISOString() : now;
+    const scheduledEndIso = scheduledEndRaw
+      ? new Date(scheduledEndRaw).toISOString()
+      : new Date(new Date(scheduledStartIso).getTime() + 40 * 60 * 1000).toISOString();
+
+    if (new Date(scheduledEndIso).getTime() <= new Date(scheduledStartIso).getTime()) {
+      return NextResponse.json({ error: "End time must be after start time" }, { status: 400 });
+    }
+
+    const status = new Date(scheduledStartIso).getTime() <= Date.now() ? "live" : "scheduled";
 
     const { data, error } = await supabase
       .from("live_sessions")
@@ -186,12 +225,13 @@ export async function POST(req: Request) {
         zoom_join_url_original: webUrl,
         meeting_id: meetingId,
         meeting_password_encrypted: encryptedPassword,
-        scheduled_for: scheduledForRaw,
+        scheduled_for: scheduledStartIso,
+        scheduled_end_at: scheduledEndIso,
         started_at: status === "live" ? now : null,
         status,
         created_by_user_id: context.userId,
       })
-      .select("id, title, class_id, subject_class_id, status, scheduled_for, started_at, ended_at, created_at")
+      .select("id, title, class_id, subject_class_id, status, scheduled_for, scheduled_end_at, started_at, ended_at, created_at")
       .single();
 
     if (error) {

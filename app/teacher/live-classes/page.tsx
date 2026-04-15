@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,17 @@ type SubjectOption = {
   teacherName: string;
 };
 
+type ClassOption = {
+  classId: string;
+  className: string;
+};
+
+type TimetableSlot = {
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+};
+
 type LiveSession = {
   id: string;
   title: string;
@@ -36,20 +48,72 @@ type LiveSession = {
   subject_class_id: string | null;
   status: "scheduled" | "live" | "ended" | "cancelled";
   scheduled_for: string | null;
+  scheduled_end_at: string | null;
   started_at: string | null;
   ended_at: string | null;
   created_at: string;
 };
 
+const DAY_INDEX: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+function toDateInputValue(date: Date) {
+  const copy = new Date(date);
+  copy.setMinutes(copy.getMinutes() - copy.getTimezoneOffset());
+  return copy.toISOString().slice(0, 16);
+}
+
+function parseTimeToHoursAndMinutes(timeValue: string) {
+  const [h = "0", m = "0"] = timeValue.split(":");
+  return {
+    hour: Number(h),
+    minute: Number(m),
+  };
+}
+
+function nextDateForWeekday(dayName: string, timeValue: string) {
+  const now = new Date();
+  const dayKey = dayName.toLowerCase();
+  const targetDay = DAY_INDEX[dayKey];
+
+  if (targetDay === undefined) {
+    return null;
+  }
+
+  const { hour, minute } = parseTimeToHoursAndMinutes(timeValue);
+  const candidate = new Date(now);
+  const daysAhead = (targetDay - now.getDay() + 7) % 7;
+  candidate.setDate(now.getDate() + daysAhead);
+  candidate.setHours(hour, minute, 0, 0);
+
+  if (candidate.getTime() < now.getTime()) {
+    candidate.setDate(candidate.getDate() + 7);
+  }
+
+  return candidate;
+}
+
 export default function TeacherLiveClassesPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   const [loading, setLoading] = useState(true);
   const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([]);
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [subjectTimetableSlots, setSubjectTimetableSlots] = useState<Record<string, TimetableSlot[]>>({});
   const [liveSessions, setLiveSessions] = useState<LiveSession[]>([]);
+  const [useTimetableSubject, setUseTimetableSubject] = useState(true);
   const [selectedSubjectClassId, setSelectedSubjectClassId] = useState("");
+  const [selectedClassId, setSelectedClassId] = useState("");
   const [title, setTitle] = useState("Live Class");
   const [zoomUrl, setZoomUrl] = useState("");
-  const [scheduledFor, setScheduledFor] = useState("");
+  const [scheduledStart, setScheduledStart] = useState("");
+  const [scheduledEnd, setScheduledEnd] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -121,20 +185,33 @@ export default function TeacherLiveClassesPage() {
 
       const subjectClassIds = Array.from(uniqueBySubjectClass.keys());
 
-      if (subjectClassIds.length === 0) {
-        setSubjectOptions([]);
-        setLiveSessions([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data: timetableRows } = await supabase
-        .from("timetable_entries")
-        .select("subject_class_id")
-        .eq("school_id", schoolId)
-        .in("subject_class_id", subjectClassIds);
+      const { data: timetableRows } = subjectClassIds.length > 0
+        ? await supabase
+            .from("timetable_entries")
+            .select("subject_class_id, period_slots(day_of_week, start_time, end_time)")
+            .eq("school_id", schoolId)
+            .in("subject_class_id", subjectClassIds)
+        : { data: [] as any[] };
 
       const timetableSubjectIds = new Set((timetableRows ?? []).map((row: any) => row.subject_class_id));
+
+      const slotMap: Record<string, TimetableSlot[]> = {};
+      (timetableRows ?? []).forEach((row: any) => {
+        const slot = Array.isArray(row.period_slots) ? row.period_slots[0] : row.period_slots;
+        if (!row.subject_class_id || !slot) return;
+
+        if (!slotMap[row.subject_class_id]) {
+          slotMap[row.subject_class_id] = [];
+        }
+
+        slotMap[row.subject_class_id].push({
+          day_of_week: slot.day_of_week,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+        });
+      });
+
+      setSubjectTimetableSlots(slotMap);
 
       const options: SubjectOption[] = [];
       uniqueBySubjectClass.forEach((item: any) => {
@@ -158,6 +235,29 @@ export default function TeacherLiveClassesPage() {
         setSelectedSubjectClassId(options[0].subjectClassId);
       }
 
+      const classMap = new Map<string, ClassOption>();
+      options.forEach((option) => {
+        classMap.set(option.classId, { classId: option.classId, className: option.className });
+      });
+
+      if (classIds.length > 0) {
+        const { data: classRows } = await supabase
+          .from("classes")
+          .select("id, name")
+          .eq("school_id", schoolId)
+          .in("id", classIds);
+
+        (classRows ?? []).forEach((row: any) => {
+          classMap.set(row.id, { classId: row.id, className: row.name });
+        });
+      }
+
+      const classes = Array.from(classMap.values());
+      setClassOptions(classes);
+      if (!selectedClassId && classes.length > 0) {
+        setSelectedClassId(classes[0].classId);
+      }
+
       await loadLiveSessions();
     } catch (error: any) {
       toast.error(error.message || "Failed to load live classes data");
@@ -177,24 +277,91 @@ export default function TeacherLiveClassesPage() {
     setLiveSessions(payload.data ?? []);
   }
 
+  useEffect(() => {
+    if (!isCreateOpen) {
+      return;
+    }
+
+    if (useTimetableSubject && selectedSubjectClassId) {
+      const slots = subjectTimetableSlots[selectedSubjectClassId] || [];
+      let bestWindowStart: Date | null = null;
+      let bestWindowEnd: Date | null = null;
+
+      for (const slot of slots) {
+        const start = nextDateForWeekday(slot.day_of_week, slot.start_time);
+        const end = nextDateForWeekday(slot.day_of_week, slot.end_time);
+        if (!start || !end) continue;
+
+        if (!bestWindowStart || start.getTime() < bestWindowStart.getTime()) {
+          bestWindowStart = start;
+          bestWindowEnd = end;
+        }
+      }
+
+      if (bestWindowStart && bestWindowEnd) {
+        setScheduledStart(toDateInputValue(bestWindowStart));
+        setScheduledEnd(toDateInputValue(bestWindowEnd));
+      } else {
+        const now = new Date();
+        const end = new Date(now.getTime() + 40 * 60 * 1000);
+        setScheduledStart(toDateInputValue(now));
+        setScheduledEnd(toDateInputValue(end));
+      }
+
+      const selectedSubject = subjectOptions.find((item) => item.subjectClassId === selectedSubjectClassId);
+      if (selectedSubject?.classId) {
+        setSelectedClassId(selectedSubject.classId);
+      }
+      return;
+    }
+
+    const now = new Date();
+    const end = new Date(now.getTime() + 40 * 60 * 1000);
+    setScheduledStart(toDateInputValue(now));
+    setScheduledEnd(toDateInputValue(end));
+  }, [isCreateOpen, useTimetableSubject, selectedSubjectClassId, subjectTimetableSlots, subjectOptions]);
+
   async function createLiveSession() {
-    if (!selectedSubjectClassId || !zoomUrl.trim()) {
-      toast.error("Select a timetable subject and provide a Zoom link");
+    if (!zoomUrl.trim()) {
+      toast.error("Provide a Zoom link");
+      return;
+    }
+
+    if (useTimetableSubject && !selectedSubjectClassId) {
+      toast.error("Select a timetable subject");
+      return;
+    }
+
+    if (!useTimetableSubject && !selectedClassId) {
+      toast.error("Select a class");
+      return;
+    }
+
+    if (!scheduledStart || !scheduledEnd) {
+      toast.error("Set both start and end time");
+      return;
+    }
+
+    const startDate = new Date(scheduledStart);
+    const endDate = new Date(scheduledEnd);
+    if (endDate.getTime() <= startDate.getTime()) {
+      toast.error("End time must be after start time");
       return;
     }
 
     try {
       setSubmitting(true);
-      const scheduledForIso = scheduledFor ? new Date(scheduledFor).toISOString() : null;
 
       const response = await fetch("/api/teacher/live-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subjectClassId: selectedSubjectClassId,
+          subjectClassId: useTimetableSubject ? selectedSubjectClassId : null,
+          classId: useTimetableSubject ? null : selectedClassId,
           title,
           zoomUrl,
-          scheduledFor: scheduledForIso,
+          scheduledFor: startDate.toISOString(),
+          scheduledEndAt: endDate.toISOString(),
         }),
       });
 
@@ -206,7 +373,8 @@ export default function TeacherLiveClassesPage() {
       toast.success("Live class created");
       setIsCreateOpen(false);
       setZoomUrl("");
-      setScheduledFor("");
+      setScheduledStart("");
+      setScheduledEnd("");
       setTitle("Live Class");
       await loadLiveSessions();
     } catch (error: any) {
@@ -299,7 +467,7 @@ export default function TeacherLiveClassesPage() {
                           </p>
                           <p className="text-xs text-gray-500">
                             {session.scheduled_for
-                              ? `Scheduled: ${new Date(session.scheduled_for).toLocaleString()}`
+                              ? `Window: ${new Date(session.scheduled_for).toLocaleString()} - ${session.scheduled_end_at ? new Date(session.scheduled_end_at).toLocaleString() : "Open"}`
                               : `Created: ${new Date(session.created_at).toLocaleString()}`}
                           </p>
                         </div>
@@ -329,25 +497,52 @@ export default function TeacherLiveClassesPage() {
             <DialogHeader>
               <DialogTitle>Create Live Class</DialogTitle>
               <DialogDescription>
-                Choose a timetable subject assignment, then paste a Zoom link.
+                Follow timetable windows when available, or create an unexpected custom class when needed.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Use timetable subject</p>
+                  <p className="text-xs text-gray-600">Turn off for weekend/holiday/free-period custom classes.</p>
+                </div>
+                <Switch
+                  checked={useTimetableSubject}
+                  onCheckedChange={setUseTimetableSubject}
+                />
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="subjectClass">Timetable Subject</Label>
-                <select
-                  id="subjectClass"
-                  className="w-full rounded-md border px-3 py-2 text-sm"
-                  value={selectedSubjectClassId}
-                  onChange={(event) => setSelectedSubjectClassId(event.target.value)}
-                >
-                  {subjectOptions.length === 0 && <option value="">No timetable subjects available</option>}
-                  {subjectOptions.map((option) => (
-                    <option key={option.subjectClassId} value={option.subjectClassId}>
-                      {option.className} - {option.subjectName}
-                    </option>
-                  ))}
-                </select>
+                <Label htmlFor="subjectClass">{useTimetableSubject ? "Timetable Subject" : "Class"}</Label>
+                {useTimetableSubject ? (
+                  <select
+                    id="subjectClass"
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    value={selectedSubjectClassId}
+                    onChange={(event) => setSelectedSubjectClassId(event.target.value)}
+                  >
+                    {subjectOptions.length === 0 && <option value="">No timetable subjects available</option>}
+                    {subjectOptions.map((option) => (
+                      <option key={option.subjectClassId} value={option.subjectClassId}>
+                        {option.className} - {option.subjectName}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    id="classId"
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    value={selectedClassId}
+                    onChange={(event) => setSelectedClassId(event.target.value)}
+                  >
+                    {classOptions.length === 0 && <option value="">No classes available</option>}
+                    {classOptions.map((option) => (
+                      <option key={option.classId} value={option.classId}>
+                        {option.className}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -365,19 +560,30 @@ export default function TeacherLiveClassesPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="scheduledFor">Schedule (optional)</Label>
-                <Input
-                  id="scheduledFor"
-                  type="datetime-local"
-                  value={scheduledFor}
-                  onChange={(event) => setScheduledFor(event.target.value)}
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="scheduledStart">Start time</Label>
+                  <Input
+                    id="scheduledStart"
+                    type="datetime-local"
+                    value={scheduledStart}
+                    onChange={(event) => setScheduledStart(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="scheduledEnd">End time</Label>
+                  <Input
+                    id="scheduledEnd"
+                    type="datetime-local"
+                    value={scheduledEnd}
+                    onChange={(event) => setScheduledEnd(event.target.value)}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={submitting}>Cancel</Button>
-              <Button onClick={createLiveSession} disabled={submitting || subjectOptions.length === 0}>
+              <Button onClick={createLiveSession} disabled={submitting || (useTimetableSubject ? subjectOptions.length === 0 : classOptions.length === 0)}>
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Create
               </Button>

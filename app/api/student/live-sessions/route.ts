@@ -2,6 +2,32 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
+async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
+  const nowIso = new Date().toISOString();
+
+  const { data: expiredRows } = await supabase
+    .from("live_sessions")
+    .select("id")
+    .eq("school_id", schoolId)
+    .in("status", ["scheduled", "live"])
+    .not("scheduled_end_at", "is", null)
+    .lte("scheduled_end_at", nowIso);
+
+  if (!expiredRows || expiredRows.length === 0) {
+    return;
+  }
+
+  await supabase
+    .from("live_sessions")
+    .update({
+      status: "ended",
+      ended_at: nowIso,
+      updated_at: nowIso,
+    })
+    .in("id", expiredRows.map((row: any) => row.id))
+    .eq("school_id", schoolId);
+}
+
 async function getStudentContext() {
   const supabase = createRouteHandlerClient({ cookies });
 
@@ -42,6 +68,7 @@ export async function GET() {
     }
 
     const supabase = createRouteHandlerClient({ cookies });
+    await autoCloseExpiredSessions(supabase, context.schoolId);
 
     let query = supabase
       .from("live_sessions")
@@ -52,6 +79,7 @@ export async function GET() {
         subject_class_id,
         status,
         scheduled_for,
+        scheduled_end_at,
         started_at,
         ended_at,
         created_at,

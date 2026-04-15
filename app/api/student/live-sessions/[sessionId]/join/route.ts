@@ -4,6 +4,32 @@ import { cookies } from "next/headers";
 import { decryptLiveSessionSecret } from "@/lib/live-session-crypto";
 import { buildZoomJoinLinks } from "@/lib/zoom-deeplink";
 
+async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
+  const nowIso = new Date().toISOString();
+
+  const { data: expiredRows } = await supabase
+    .from("live_sessions")
+    .select("id")
+    .eq("school_id", schoolId)
+    .in("status", ["scheduled", "live"])
+    .not("scheduled_end_at", "is", null)
+    .lte("scheduled_end_at", nowIso);
+
+  if (!expiredRows || expiredRows.length === 0) {
+    return;
+  }
+
+  await supabase
+    .from("live_sessions")
+    .update({
+      status: "ended",
+      ended_at: nowIso,
+      updated_at: nowIso,
+    })
+    .in("id", expiredRows.map((row: any) => row.id))
+    .eq("school_id", schoolId);
+}
+
 async function getStudentContext() {
   const supabase = createRouteHandlerClient({ cookies });
 
@@ -44,10 +70,11 @@ export async function GET(
     }
 
     const supabase = createRouteHandlerClient({ cookies });
+    await autoCloseExpiredSessions(supabase, context.schoolId);
 
     const { data: sessionData, error } = await supabase
       .from("live_sessions")
-      .select("id, class_id, school_id, subject_class_id, status, meeting_id, meeting_password_encrypted")
+      .select("id, class_id, school_id, subject_class_id, status, scheduled_end_at, meeting_id, meeting_password_encrypted")
       .eq("id", params.sessionId)
       .eq("school_id", context.schoolId)
       .eq("class_id", context.classId)

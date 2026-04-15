@@ -103,12 +103,20 @@ export function UserNotificationsComponent({ role }: UserNotificationsProps) {
       setLoading(true);
       setError(null);
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
       const { data: notificationsData, error: fetchError } = await supabase
         .from("notification_logs")
         .select("*")
         .eq("school_id", schoolId)
         .or(
-          `and(target.eq.all),and(target.eq.role,target_value.eq.${role})`
+          `and(target.eq.all),and(target.eq.role,target_value.eq.${role}),and(target.eq.user,target_value.eq.${user.id})`
         )
         .order("created_at", { ascending: false });
 

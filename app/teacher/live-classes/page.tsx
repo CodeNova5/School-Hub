@@ -28,6 +28,7 @@ type SubjectOption = {
   className: string;
   subjectName: string;
   teacherName: string;
+  inTimetable: boolean;
 };
 
 type ClassOption = {
@@ -117,6 +118,24 @@ export default function TeacherLiveClassesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const timetableSubjectOptions = useMemo(
+    () => subjectOptions.filter((item) => item.inTimetable),
+    [subjectOptions]
+  );
+
+  const classFilteredSubjectOptions = useMemo(
+    () => subjectOptions.filter((item) => item.classId === selectedClassId),
+    [subjectOptions, selectedClassId]
+  );
+
+  function setSubjectAndDefaultTitle(subjectClassId: string) {
+    setSelectedSubjectClassId(subjectClassId);
+    const option = subjectOptions.find((item) => item.subjectClassId === subjectClassId);
+    if (option) {
+      setTitle(`${option.subjectName} Class`);
+    }
+  }
+
   useEffect(() => {
     if (!schoolLoading && schoolId) {
       loadData();
@@ -153,31 +172,7 @@ export default function TeacherLiveClassesPage() {
         .eq("school_id", schoolId)
         .eq("teacher_id", teacher.id);
 
-      const { data: classTeacherRows } = await supabase
-        .from("classes")
-        .select("id")
-        .eq("school_id", schoolId)
-        .eq("class_teacher_id", teacher.id);
-
-      const classIds = (classTeacherRows ?? []).map((row: any) => row.id);
-
-      let fallbackSubjectRows: any[] = [];
-      if (classIds.length > 0) {
-        const { data } = await supabase
-          .from("subject_classes")
-          .select(`
-            id,
-            class_id,
-            classes(id, name),
-            subjects!subject_classes_subject_id_fkey(name),
-            teachers(first_name, last_name)
-          `)
-          .eq("school_id", schoolId)
-          .in("class_id", classIds);
-        fallbackSubjectRows = data ?? [];
-      }
-
-      const merged = [...(subjectAssigned ?? []), ...fallbackSubjectRows];
+      const merged = [...(subjectAssigned ?? [])];
       const uniqueBySubjectClass = new Map<string, any>();
       merged.forEach((item: any) => {
         uniqueBySubjectClass.set(item.id, item);
@@ -227,30 +222,19 @@ export default function TeacherLiveClassesPage() {
           className: classObj?.name || "Unknown Class",
           subjectName: subjectObj?.name || "Unknown Subject",
           teacherName: teacherObj ? `${teacherObj.first_name} ${teacherObj.last_name}` : "Unassigned",
+          inTimetable: timetableSubjectIds.has(item.id),
         });
       });
 
       setSubjectOptions(options);
       if (!selectedSubjectClassId && options.length > 0) {
-        setSelectedSubjectClassId(options[0].subjectClassId);
+        setSubjectAndDefaultTitle(options[0].subjectClassId);
       }
 
       const classMap = new Map<string, ClassOption>();
       options.forEach((option) => {
         classMap.set(option.classId, { classId: option.classId, className: option.className });
       });
-
-      if (classIds.length > 0) {
-        const { data: classRows } = await supabase
-          .from("classes")
-          .select("id, name")
-          .eq("school_id", schoolId)
-          .in("id", classIds);
-
-        (classRows ?? []).forEach((row: any) => {
-          classMap.set(row.id, { classId: row.id, className: row.name });
-        });
-      }
 
       const classes = Array.from(classMap.values());
       setClassOptions(classes);
@@ -337,6 +321,11 @@ export default function TeacherLiveClassesPage() {
       return;
     }
 
+    if (!selectedSubjectClassId) {
+      toast.error("Select a subject");
+      return;
+    }
+
     if (!scheduledStart || !scheduledEnd) {
       toast.error("Set both start and end time");
       return;
@@ -356,7 +345,7 @@ export default function TeacherLiveClassesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subjectClassId: useTimetableSubject ? selectedSubjectClassId : null,
+          subjectClassId: selectedSubjectClassId,
           classId: useTimetableSubject ? null : selectedClassId,
           title,
           zoomUrl,
@@ -519,10 +508,10 @@ export default function TeacherLiveClassesPage() {
                     id="subjectClass"
                     className="w-full rounded-md border px-3 py-2 text-sm"
                     value={selectedSubjectClassId}
-                    onChange={(event) => setSelectedSubjectClassId(event.target.value)}
+                    onChange={(event) => setSubjectAndDefaultTitle(event.target.value)}
                   >
-                    {subjectOptions.length === 0 && <option value="">No timetable subjects available</option>}
-                    {subjectOptions.map((option) => (
+                    {timetableSubjectOptions.length === 0 && <option value="">No timetable subjects available</option>}
+                    {timetableSubjectOptions.map((option) => (
                       <option key={option.subjectClassId} value={option.subjectClassId}>
                         {option.className} - {option.subjectName}
                       </option>
@@ -533,7 +522,16 @@ export default function TeacherLiveClassesPage() {
                     id="classId"
                     className="w-full rounded-md border px-3 py-2 text-sm"
                     value={selectedClassId}
-                    onChange={(event) => setSelectedClassId(event.target.value)}
+                    onChange={(event) => {
+                      const nextClassId = event.target.value;
+                      setSelectedClassId(nextClassId);
+                      const firstSubject = subjectOptions.find((item) => item.classId === nextClassId);
+                      if (firstSubject) {
+                        setSubjectAndDefaultTitle(firstSubject.subjectClassId);
+                      } else {
+                        setSelectedSubjectClassId("");
+                      }
+                    }}
                   >
                     {classOptions.length === 0 && <option value="">No classes available</option>}
                     {classOptions.map((option) => (
@@ -544,6 +542,25 @@ export default function TeacherLiveClassesPage() {
                   </select>
                 )}
               </div>
+
+              {!useTimetableSubject && (
+                <div className="space-y-2">
+                  <Label htmlFor="customSubjectClass">Subject (from selected class)</Label>
+                  <select
+                    id="customSubjectClass"
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    value={selectedSubjectClassId}
+                    onChange={(event) => setSubjectAndDefaultTitle(event.target.value)}
+                  >
+                    {classFilteredSubjectOptions.length === 0 && <option value="">No taught subjects in this class</option>}
+                    {classFilteredSubjectOptions.map((option) => (
+                      <option key={option.subjectClassId} value={option.subjectClassId}>
+                        {option.subjectName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="liveTitle">Title</Label>
@@ -583,7 +600,13 @@ export default function TeacherLiveClassesPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={submitting}>Cancel</Button>
-              <Button onClick={createLiveSession} disabled={submitting || (useTimetableSubject ? subjectOptions.length === 0 : classOptions.length === 0)}>
+              <Button
+                onClick={createLiveSession}
+                disabled={
+                  submitting ||
+                  (useTimetableSubject ? timetableSubjectOptions.length === 0 : classOptions.length === 0 || classFilteredSubjectOptions.length === 0)
+                }
+              >
                 {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Create
               </Button>

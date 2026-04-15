@@ -3,6 +3,9 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { encryptLiveSessionSecret } from "@/lib/live-session-crypto";
 import { parseZoomJoinUrl } from "@/lib/zoom-deeplink";
+import { createClient } from "@supabase/supabase-js";
+import { initializeAdminSDK, sendNotificationsToMultiple } from "@/lib/firebase-admin";
+import { deactivateToken } from "@/lib/notification-utils";
 
 type TeacherContext = {
   userId: string;
@@ -16,6 +19,11 @@ type SubjectClassRow = {
   school_id: string;
   teacher_id: string | null;
 };
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
   const nowIso = new Date().toISOString();
@@ -43,6 +51,108 @@ async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
     })
     .in("id", expiredIds)
     .eq("school_id", schoolId);
+}
+
+async function notifyStudentsForLiveClassCreation(params: {
+  schoolId: string;
+  subjectClassId: string | null;
+  sessionId: string;
+  title: string;
+  body: string;
+  sentBy: string;
+}) {
+  if (!params.subjectClassId) {
+    return;
+  }
+
+  const { data: enrolledRows, error: enrolledError } = await supabaseAdmin
+    .from("student_subjects")
+    .select("student_id")
+    .eq("subject_class_id", params.subjectClassId);
+
+  if (enrolledError || !enrolledRows || enrolledRows.length === 0) {
+    return;
+  }
+
+  const studentIds = enrolledRows.map((row: any) => row.student_id);
+  const { data: studentRows, error: studentsError } = await supabaseAdmin
+    .from("students")
+    .select("id, user_id")
+    .eq("school_id", params.schoolId)
+    .in("id", studentIds)
+    .not("user_id", "is", null);
+
+  if (studentsError || !studentRows || studentRows.length === 0) {
+    return;
+  }
+
+  const recipientUserIds = Array.from(new Set(studentRows.map((row: any) => row.user_id)));
+
+  const { data: tokenRows } = await supabaseAdmin
+    .from("notification_tokens")
+    .select("token, user_id")
+    .eq("school_id", params.schoolId)
+    .eq("is_active", true)
+    .in("user_id", recipientUserIds);
+
+  const tokens = tokenRows?.map((row: any) => row.token) || [];
+  const tokenUserSet = new Set((tokenRows || []).map((row: any) => row.user_id));
+
+  if (tokens.length > 0) {
+    try {
+      initializeAdminSDK();
+      const sendResult = await sendNotificationsToMultiple(
+        tokens,
+        {
+          title: params.title,
+          body: params.body,
+        },
+        {
+          type: "live_class",
+          link: "/student/live-classes",
+          liveSessionId: params.sessionId,
+          subjectClassId: params.subjectClassId,
+        }
+      );
+
+      if (sendResult.failedTokens?.length) {
+        for (const token of sendResult.failedTokens) {
+          await deactivateToken(token);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to send live class push notification", error);
+    }
+  }
+
+  const logs = recipientUserIds.map((userId) => ({
+    title: params.title,
+    body: params.body,
+    link: "/student/live-classes",
+    target: "user",
+    target_value: userId,
+    target_name: "Subject Live Class",
+    success_count: tokenUserSet.has(userId) ? 1 : 0,
+    failure_count: tokenUserSet.has(userId) ? 0 : 1,
+    total_recipients: 1,
+    sent_by: params.sentBy,
+    school_id: params.schoolId,
+    metadata: {
+      source: "live_class",
+      live_session_id: params.sessionId,
+      subject_class_id: params.subjectClassId,
+    },
+  }));
+
+  if (logs.length > 0) {
+    const { error: logError } = await supabaseAdmin
+      .from("notification_logs")
+      .insert(logs);
+
+    if (logError) {
+      console.error("Failed to log live class notifications", logError);
+    }
+  }
 }
 
 async function getTeacherContext(): Promise<TeacherContext | null> {
@@ -214,6 +324,23 @@ export async function POST(req: Request) {
 
     const status = new Date(scheduledStartIso).getTime() <= Date.now() ? "live" : "scheduled";
 
+    let subjectName = "Live Class";
+    if (resolvedSubjectClassId) {
+      const { data: subjectMeta } = await supabase
+        .from("subject_classes")
+        .select("subjects!subject_classes_subject_id_fkey(name)")
+        .eq("id", resolvedSubjectClassId)
+        .eq("school_id", context.schoolId)
+        .maybeSingle();
+
+      const subjectObj = Array.isArray((subjectMeta as any)?.subjects)
+        ? (subjectMeta as any).subjects[0]
+        : (subjectMeta as any)?.subjects;
+      if (subjectObj?.name) {
+        subjectName = subjectObj.name;
+      }
+    }
+
     const { data, error } = await supabase
       .from("live_sessions")
       .insert({
@@ -237,6 +364,20 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    const notificationBody =
+      status === "live"
+        ? `${subjectName} class is now live. Join now.`
+        : `${subjectName} class has been scheduled. Check Live Classes for details.`;
+
+    await notifyStudentsForLiveClassCreation({
+      schoolId: context.schoolId,
+      subjectClassId: resolvedSubjectClassId,
+      sessionId: data.id,
+      title: title || `${subjectName} Class`,
+      body: notificationBody,
+      sentBy: context.userId,
+    });
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error: any) {

@@ -55,26 +55,45 @@ async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
 
 async function notifyStudentsForLiveClassCreation(params: {
   schoolId: string;
+  classId: string | null;
   subjectClassId: string | null;
   sessionId: string;
   title: string;
   body: string;
   sentBy: string;
 }) {
-  if (!params.subjectClassId) {
+  let studentIds: string[] = [];
+
+  // For timetable subjects: get enrolled students
+  if (params.subjectClassId) {
+    const { data: enrolledRows, error: enrolledError } = await supabaseAdmin
+      .from("student_subjects")
+      .select("student_id")
+      .eq("subject_class_id", params.subjectClassId);
+
+    if (enrolledError || !enrolledRows || enrolledRows.length === 0) {
+      return;
+    }
+
+    studentIds = enrolledRows.map((row: any) => row.student_id);
+  } 
+  // For custom classes: get all students in the class
+  else if (params.classId) {
+    const { data: classStudentRows, error: classStudentError } = await supabaseAdmin
+      .from("students")
+      .select("id")
+      .eq("class_id", params.classId)
+      .eq("school_id", params.schoolId);
+
+    if (classStudentError || !classStudentRows || classStudentRows.length === 0) {
+      return;
+    }
+
+    studentIds = classStudentRows.map((row: any) => row.id);
+  } 
+  else {
     return;
   }
-
-  const { data: enrolledRows, error: enrolledError } = await supabaseAdmin
-    .from("student_subjects")
-    .select("student_id")
-    .eq("subject_class_id", params.subjectClassId);
-
-  if (enrolledError || !enrolledRows || enrolledRows.length === 0) {
-    return;
-  }
-
-  const studentIds = enrolledRows.map((row: any) => row.student_id);
   const { data: studentRows, error: studentsError } = await supabaseAdmin
     .from("students")
     .select("id, user_id")
@@ -131,7 +150,7 @@ async function notifyStudentsForLiveClassCreation(params: {
     link: "/student/live-classes",
     target: "user",
     target_value: userId,
-    target_name: "Subject Live Class",
+    target_name: params.subjectClassId ? "Subject Live Class" : "Class Live Class",
     success_count: tokenUserSet.has(userId) ? 1 : 0,
     failure_count: tokenUserSet.has(userId) ? 0 : 1,
     total_recipients: 1,
@@ -141,6 +160,7 @@ async function notifyStudentsForLiveClassCreation(params: {
       source: "live_class",
       live_session_id: params.sessionId,
       subject_class_id: params.subjectClassId,
+      class_id: params.classId,
     },
   }));
 
@@ -372,6 +392,7 @@ export async function POST(req: Request) {
 
     await notifyStudentsForLiveClassCreation({
       schoolId: context.schoolId,
+      classId: resolvedClassId,
       subjectClassId: resolvedSubjectClassId,
       sessionId: data.id,
       title: title || `${subjectName} Class`,

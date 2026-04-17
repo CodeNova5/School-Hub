@@ -147,7 +147,7 @@ export default function StudentDashboardPage() {
       }
 
       // Sync notification token
-      await syncNotificationToken(user.id, "student");
+      await syncNotificationToken(user.id, "student", schoolId);
 
       // get current term ID
       const { data: termData, error: termError } = await supabase

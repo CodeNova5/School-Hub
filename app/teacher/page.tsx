@@ -101,7 +101,7 @@ export default function TeacherDashboard() {
         }
 
         // Sync notification token (non-blocking)
-        syncNotificationToken(user.id, "teacher").catch(err => console.error('Notification sync error:', err));
+        syncNotificationToken(user.id, "teacher", schoolId).catch(err => console.error('Notification sync error:', err));
 
         // Get teacher info
         const teacher = await getTeacherByUserId(user.id);

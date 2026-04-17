@@ -66,7 +66,7 @@ export async function sendNotificationToToken(
         body: notification.body,
         imageUrl:
           notification.imageUrl ||
-          "https://school-hub-sooty.vercel.app/logo.png",
+          "https://schooldeck/logo.png",
         link: data?.link || "/",
         tag: data?.tag || "default",
         ...(data || {}),

@@ -44,38 +44,61 @@ async function notifyStudentsForLiveSessionStart(params: {
   title: string;
   sentBy: string;
 }) {
+  const logPrefix = `[LIVE_START] SessionId: ${params.sessionId}`;
+  console.log(`${logPrefix} [START] Session started notification process initiated`);
+  console.log(`${logPrefix} Action: "Class is now live. Join now!" | Title: "${params.title}"`);
+
   let studentIds: string[] = [];
 
   // For timetable subjects: get enrolled students
   if (params.subjectClassId) {
+    console.log(`${logPrefix} [STEP 1] Fetching enrolled students for subject: ${params.subjectClassId}`);
     const { data: enrolledRows, error: enrolledError } = await supabaseAdmin
       .from("student_subjects")
       .select("student_id")
       .eq("subject_class_id", params.subjectClassId);
 
-    if (enrolledError || !enrolledRows || enrolledRows.length === 0) {
+    if (enrolledError) {
+      console.error(`${logPrefix} [ERROR] Failed to fetch enrolled students:`, enrolledError);
+      return;
+    }
+
+    if (!enrolledRows || enrolledRows.length === 0) {
+      console.warn(`${logPrefix} [WARNING] No enrolled students found`);
       return;
     }
 
     studentIds = enrolledRows.map((row: any) => row.student_id);
+    console.log(`${logPrefix} [STEP 1] Found ${studentIds.length} enrolled students`);
   }
   // For custom classes: get all students in the class
   else if (params.classId) {
+    console.log(`${logPrefix} [STEP 1] Fetching students for class: ${params.classId}`);
     const { data: classStudentRows, error: classStudentError } = await supabaseAdmin
       .from("students")
       .select("id")
       .eq("class_id", params.classId)
       .eq("school_id", params.schoolId);
 
-    if (classStudentError || !classStudentRows || classStudentRows.length === 0) {
+    if (classStudentError) {
+      console.error(`${logPrefix} [ERROR] Failed to fetch class students:`, classStudentError);
+      return;
+    }
+
+    if (!classStudentRows || classStudentRows.length === 0) {
+      console.warn(`${logPrefix} [WARNING] No students found in class`);
       return;
     }
 
     studentIds = classStudentRows.map((row: any) => row.id);
+    console.log(`${logPrefix} [STEP 1] Found ${studentIds.length} students in class`);
   }
   else {
+    console.warn(`${logPrefix} [WARNING] No class or subject ID provided`);
     return;
   }
+
+  console.log(`${logPrefix} [STEP 2] Fetching user IDs for ${studentIds.length} students`);
   const { data: studentRows, error: studentsError } = await supabaseAdmin
     .from("students")
     .select("id, user_id")
@@ -83,12 +106,22 @@ async function notifyStudentsForLiveSessionStart(params: {
     .in("id", studentIds)
     .not("user_id", "is", null);
 
-  if (studentsError || !studentRows || studentRows.length === 0) {
+  if (studentsError) {
+    console.error(`${logPrefix} [ERROR] Failed to fetch user IDs:`, studentsError);
     return;
   }
 
-  const recipientUserIds = Array.from(new Set(studentRows.map((row: any) => row.user_id)));
+  if (!studentRows || studentRows.length === 0) {
+    console.warn(`${logPrefix} [WARNING] No students with valid user IDs found`);
+    return;
+  }
 
+  console.log(`${logPrefix} [STEP 2] Found ${studentRows.length} students with user IDs`);
+
+  const recipientUserIds = Array.from(new Set(studentRows.map((row: any) => row.user_id)));
+  console.log(`${logPrefix} [STEP 3] Found ${recipientUserIds.length} unique user IDs to notify`);
+
+  console.log(`${logPrefix} [STEP 4] Fetching notification tokens for ${recipientUserIds.length} users`);
   const { data: tokenRows } = await supabaseAdmin
     .from("notification_tokens")
     .select("token, user_id")
@@ -99,9 +132,16 @@ async function notifyStudentsForLiveSessionStart(params: {
   const tokens = tokenRows?.map((row: any) => row.token) || [];
   const tokenUserSet = new Set((tokenRows || []).map((row: any) => row.user_id));
 
-  if (tokens.length > 0) {
+  console.log(`${logPrefix} [STEP 4] Found ${tokens.length} active notification tokens`);
+  console.log(`${logPrefix} [STEP 4] Users with tokens: ${tokenUserSet.size} / ${recipientUserIds.length}`);
+
+  if (tokens.length === 0) {
+    console.warn(`${logPrefix} [WARNING] No active tokens - skipping Firebase send`);
+  } else {
     try {
+      console.log(`${logPrefix} [STEP 5] Initializing Firebase Admin SDK`);
       initializeAdminSDK();
+      
       const notificationData: any = {
         type: "live_class",
         link: "/student/live-classes",
@@ -110,6 +150,8 @@ async function notifyStudentsForLiveSessionStart(params: {
       if (params.subjectClassId) {
         notificationData.subjectClassId = params.subjectClassId;
       }
+      
+      console.log(`${logPrefix} [STEP 6] Sending ${tokens.length} "live now" notifications via Firebase...`);
       const sendResult = await sendNotificationsToMultiple(
         tokens,
         {
@@ -119,16 +161,22 @@ async function notifyStudentsForLiveSessionStart(params: {
         notificationData
       );
 
+      console.log(`${logPrefix} [STEP 6] Firebase send completed`);
+      console.log(`${logPrefix} [RESULT] Success: ${sendResult.successCount || tokens.length - (sendResult.failedTokens?.length || 0)} | Failed: ${sendResult.failedTokens?.length || 0}`);
+
       if (sendResult.failedTokens?.length) {
+        console.log(`${logPrefix} [CLEANUP] Deactivating ${sendResult.failedTokens.length} failed tokens`);
         for (const token of sendResult.failedTokens) {
           await deactivateToken(token);
         }
+        console.log(`${logPrefix} [CLEANUP] Failed tokens deactivated`);
       }
     } catch (error) {
-      console.error("Failed to send live class start notification", error);
+      console.error(`${logPrefix} [ERROR] Firebase notification failed:`, error);
     }
   }
 
+  console.log(`${logPrefix} [STEP 7] Creating notification logs for database`);
   const logs = recipientUserIds.map((userId) => ({
     title: params.title,
     body: "Class is now live. Join now!",
@@ -141,23 +189,31 @@ async function notifyStudentsForLiveSessionStart(params: {
     total_recipients: 1,
     sent_by: params.sentBy,
     school_id: params.schoolId,
+    created_at: new Date().toISOString(),
     metadata: {
       source: "live_class_started",
       live_session_id: params.sessionId,
       subject_class_id: params.subjectClassId,
       class_id: params.classId,
+      total_students_targeted: studentIds.length,
+      total_tokens_used: tokens.length,
     },
   }));
 
+  console.log(`${logPrefix} [STEP 7] Inserting ${logs.length} notification logs into database`);
   if (logs.length > 0) {
     const { error: logError } = await supabaseAdmin
       .from("notification_logs")
       .insert(logs);
 
     if (logError) {
-      console.error("Failed to log live class start notifications", logError);
+      console.error(`${logPrefix} [ERROR] Failed to insert logs:`, logError);
+    } else {
+      console.log(`${logPrefix} [SUCCESS] Notification logs saved to database`);
     }
   }
+
+  console.log(`${logPrefix} [COMPLETE] Session start notification process finished ✓`);
 }
 
 async function getTeacherContext() {
@@ -275,7 +331,9 @@ export async function PATCH(
       updates.status = "cancelled";
       updates.ended_at = new Date().toISOString();
     }
-
+    console.log(`\\n=== SESSION ACTION: ${action.toUpperCase()} ===`);
+    console.log(`Session ID: ${sessionId}`);
+    console.log(`New Status: ${updates.status}`);
     const { data, error } = await supabase
       .from("live_sessions")
       .update(updates)
@@ -291,6 +349,12 @@ export async function PATCH(
     // Send notification when session is started
     if (action === "start" && (data.subject_class_id || data.class_id)) {
       try {
+        console.log(`\n=== SESSION STARTED ACTION ===`);
+        console.log(`Session ID: ${data.id}`);
+        console.log(`Title: ${data.title}`);
+        console.log(`Action: start`);
+        console.log(`Initiating 'class is now live' notification dispatch...\n`);
+
         await notifyStudentsForLiveSessionStart({
           schoolId: context.schoolId,
           classId: data.class_id,
@@ -299,11 +363,13 @@ export async function PATCH(
           title: data.title || "Live Class",
           sentBy: context.userId,
         });
+
+        console.log(`\n=== 'LIVE NOW' NOTIFICATION DISPATCH COMPLETE ===\n`);
       } catch (notificationError) {
         console.error("Failed to send session start notification", notificationError);
       }
     }
-
+    console.log(`=== SESSION UPDATE COMPLETE ===\\n`);
     return NextResponse.json({ data });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to update session" }, { status: 500 });

@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+import { initializeAdminSDK, sendNotificationsToMultiple } from "@/lib/firebase-admin";
+import { deactivateToken } from "@/lib/notification-utils";
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
   const nowIso = new Date().toISOString();
@@ -28,6 +36,107 @@ async function autoCloseExpiredSessions(supabase: any, schoolId: string) {
     .eq("school_id", schoolId);
 }
 
+async function notifyStudentsForLiveSessionStart(params: {
+  schoolId: string;
+  subjectClassId: string | null;
+  sessionId: string;
+  title: string;
+  sentBy: string;
+}) {
+  if (!params.subjectClassId) {
+    return;
+  }
+
+  const { data: enrolledRows, error: enrolledError } = await supabaseAdmin
+    .from("student_subjects")
+    .select("student_id")
+    .eq("subject_class_id", params.subjectClassId);
+
+  if (enrolledError || !enrolledRows || enrolledRows.length === 0) {
+    return;
+  }
+
+  const studentIds = enrolledRows.map((row: any) => row.student_id);
+  const { data: studentRows, error: studentsError } = await supabaseAdmin
+    .from("students")
+    .select("id, user_id")
+    .eq("school_id", params.schoolId)
+    .in("id", studentIds)
+    .not("user_id", "is", null);
+
+  if (studentsError || !studentRows || studentRows.length === 0) {
+    return;
+  }
+
+  const recipientUserIds = Array.from(new Set(studentRows.map((row: any) => row.user_id)));
+
+  const { data: tokenRows } = await supabaseAdmin
+    .from("notification_tokens")
+    .select("token, user_id")
+    .eq("school_id", params.schoolId)
+    .eq("is_active", true)
+    .in("user_id", recipientUserIds);
+
+  const tokens = tokenRows?.map((row: any) => row.token) || [];
+  const tokenUserSet = new Set((tokenRows || []).map((row: any) => row.user_id));
+
+  if (tokens.length > 0) {
+    try {
+      initializeAdminSDK();
+      const sendResult = await sendNotificationsToMultiple(
+        tokens,
+        {
+          title: params.title,
+          body: "Class is now live. Join now!",
+        },
+        {
+          type: "live_class",
+          link: "/student/live-classes",
+          liveSessionId: params.sessionId,
+          subjectClassId: params.subjectClassId,
+        }
+      );
+
+      if (sendResult.failedTokens?.length) {
+        for (const token of sendResult.failedTokens) {
+          await deactivateToken(token);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to send live class start notification", error);
+    }
+  }
+
+  const logs = recipientUserIds.map((userId) => ({
+    title: params.title,
+    body: "Class is now live. Join now!",
+    link: "/student/live-classes",
+    target: "user",
+    target_value: userId,
+    target_name: "Live Class Started",
+    success_count: tokenUserSet.has(userId) ? 1 : 0,
+    failure_count: tokenUserSet.has(userId) ? 0 : 1,
+    total_recipients: 1,
+    sent_by: params.sentBy,
+    school_id: params.schoolId,
+    metadata: {
+      source: "live_class_started",
+      live_session_id: params.sessionId,
+      subject_class_id: params.subjectClassId,
+    },
+  }));
+
+  if (logs.length > 0) {
+    const { error: logError } = await supabaseAdmin
+      .from("notification_logs")
+      .insert(logs);
+
+    if (logError) {
+      console.error("Failed to log live class start notifications", logError);
+    }
+  }
+}
+
 async function getTeacherContext() {
   const supabase = createRouteHandlerClient({ cookies });
 
@@ -50,6 +159,7 @@ async function getTeacherContext() {
   if (!teacher) return null;
 
   return {
+    userId: user.id,
     schoolId,
     teacherId: teacher.id,
   };
@@ -153,6 +263,21 @@ export async function PATCH(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    // Send notification when session is started
+    if (action === "start" && data.subject_class_id) {
+      try {
+        await notifyStudentsForLiveSessionStart({
+          schoolId: context.schoolId,
+          subjectClassId: data.subject_class_id,
+          sessionId: data.id,
+          title: data.title || "Live Class",
+          sentBy: context.userId,
+        });
+      } catch (notificationError) {
+        console.error("Failed to send session start notification", notificationError);
+      }
     }
 
     return NextResponse.json({ data });

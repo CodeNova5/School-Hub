@@ -94,7 +94,7 @@ export async function GET() {
       .eq("class_id", context.classId)
       .in("status", ["scheduled", "live"])
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(50);
 
     if (context.subjectClassIds.length > 0) {
       query = query.or(`subject_class_id.is.null,subject_class_id.in.(${context.subjectClassIds.join(",")})`);
@@ -105,11 +105,13 @@ export async function GET() {
     const { data, error } = await query;
 
     if (error) {
+      console.error("Error fetching live sessions:", error);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json({ data: data ?? [] });
   } catch (error: any) {
+    console.error("Error in live sessions endpoint:", error);
     return NextResponse.json({ error: error.message || "Failed to load live sessions" }, { status: 500 });
   }
 }

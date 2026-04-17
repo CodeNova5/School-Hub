@@ -22,7 +22,7 @@ type StudentLiveSession = {
     subject_code?: string;
     subjects?: { name: string };
     teachers?: { first_name: string; last_name: string };
-  };
+  } | null;
 };
 
 export default function StudentLiveClassesPage() {
@@ -117,10 +117,11 @@ export default function StudentLiveClassesPage() {
             ) : (
               <div className="space-y-3">
                 {sortedSessions.map((session) => {
-                  const teacherName = session.subject_classes?.teachers
-                    ? `${session.subject_classes.teachers.first_name} ${session.subject_classes.teachers.last_name}`
+                  const subjectInfo = session.subject_classes;
+                  const teacherName = subjectInfo?.teachers
+                    ? `${subjectInfo.teachers.first_name} ${subjectInfo.teachers.last_name}`
                     : "Teacher";
-                  const subjectName = session.subject_classes?.subjects?.name || "Subject Class";
+                  const subjectName = subjectInfo?.subjects?.name || "Subject Class";
 
                   return (
                     <div key={session.id} className="rounded-lg border bg-white p-3">

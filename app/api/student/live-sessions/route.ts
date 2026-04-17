@@ -45,17 +45,11 @@ async function getStudentContext() {
 
   if (!student?.school_id || !student.class_id) return null;
 
-  const { data: studentSubjects } = await supabase
-    .from("student_subjects")
-    .select("subject_class_id")
-    .eq("student_id", student.id);
-
   return {
     userId: user.id,
     studentId: student.id,
     schoolId: student.school_id,
     classId: student.class_id,
-    subjectClassIds: (studentSubjects ?? []).map((item: any) => item.subject_class_id),
   };
 }
 
@@ -70,7 +64,8 @@ export async function GET() {
     const supabase = createRouteHandlerClient({ cookies });
     await autoCloseExpiredSessions(supabase, context.schoolId);
 
-    let query = supabase
+    // Students can see all live sessions from their class (both timetable and custom)
+    const { data, error } = await supabase
       .from("live_sessions")
       .select(`
         id,
@@ -95,14 +90,6 @@ export async function GET() {
       .in("status", ["scheduled", "live"])
       .order("created_at", { ascending: false })
       .limit(50);
-
-    if (context.subjectClassIds.length > 0) {
-      query = query.or(`subject_class_id.is.null,subject_class_id.in.(${context.subjectClassIds.join(",")})`);
-    } else {
-      query = query.is("subject_class_id", null);
-    }
-
-    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching live sessions:", error);

@@ -120,31 +120,34 @@ async function notifyStudentsForLiveClassCreation(params: {
   if (tokens.length > 0) {
     try {
       initializeAdminSDK();
-      const sendResult = await sendNotificationsToMultiple(
-        tokens,
-        {
-          title: params.title,
-          body: params.body,
-        },
-        {
+        const notificationData: any = {
           type: "live_class",
           link: "/student/live-classes",
           liveSessionId: params.sessionId,
-          subjectClassId: params.subjectClassId,
+        };
+        if (params.subjectClassId) {
+          notificationData.subjectClassId = params.subjectClassId;
         }
-      );
+        const sendResult = await sendNotificationsToMultiple(
+          tokens,
+          {
+            title: params.title,
+            body: params.body,
+          },
+          notificationData
+        );
 
-      if (sendResult.failedTokens?.length) {
-        for (const token of sendResult.failedTokens) {
-          await deactivateToken(token);
+        if (sendResult.failedTokens?.length) {
+          for (const token of sendResult.failedTokens) {
+            await deactivateToken(token);
+          }
         }
+      } catch (error) {
+        console.error("Failed to send live class push notification", error);
       }
-    } catch (error) {
-      console.error("Failed to send live class push notification", error);
     }
-  }
 
-  const logs = recipientUserIds.map((userId) => ({
+    const logs = recipientUserIds.map((userId) => ({
     title: params.title,
     body: params.body,
     link: "/student/live-classes",

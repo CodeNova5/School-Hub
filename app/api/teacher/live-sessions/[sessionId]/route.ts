@@ -102,18 +102,21 @@ async function notifyStudentsForLiveSessionStart(params: {
   if (tokens.length > 0) {
     try {
       initializeAdminSDK();
+      const notificationData: any = {
+        type: "live_class",
+        link: "/student/live-classes",
+        liveSessionId: params.sessionId,
+      };
+      if (params.subjectClassId) {
+        notificationData.subjectClassId = params.subjectClassId;
+      }
       const sendResult = await sendNotificationsToMultiple(
         tokens,
         {
           title: params.title,
           body: "Class is now live. Join now!",
         },
-        {
-          type: "live_class",
-          link: "/student/live-classes",
-          liveSessionId: params.sessionId,
-          subjectClassId: params.subjectClassId,
-        }
+        notificationData
       );
 
       if (sendResult.failedTokens?.length) {

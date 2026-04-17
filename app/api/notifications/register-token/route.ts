@@ -58,23 +58,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1️⃣ Delete all existing tokens for this user
-    console.log("🗑️  Deleting old tokens for user:", userId);
-    const { error: deleteError } = await supabase
-      .from("notification_tokens")
-      .delete()
-      .eq("user_id", userId);
-
-    if (deleteError) {
-      console.error("Error deleting old tokens:", deleteError);
-      return NextResponse.json(
-        { error: "Failed to clean old tokens", details: deleteError },
-        { status: 500 }
-      );
-    }
-    console.log("✅ Old tokens deleted successfully");
-
-    // 2️⃣ Insert new token
+    // 1️⃣ Upsert token (insert or update if exists)
     const tokenData = {
       token: fcmToken,
       user_id: userId,
@@ -85,18 +69,18 @@ export async function POST(req: Request) {
       school_id: schoolId || null,
     };
     
-    console.log("📝 Inserting token data:", {
+    console.log("📝 Upserting token data:", {
       ...tokenData,
       token: tokenData.token ? `${tokenData.token.substring(0, 20)}...` : null,
     });
     
     const { data: insertedData, error: insertError } = await supabase
       .from("notification_tokens")
-      .insert(tokenData)
+      .upsert(tokenData, { onConflict: "token" })
       .select();
 
     if (insertError) {
-      console.error("Error inserting token:", insertError);
+      console.error("Error upserting token:", insertError);
       return NextResponse.json(
         { error: "Failed to register notification token", details: insertError },
         { status: 500 }

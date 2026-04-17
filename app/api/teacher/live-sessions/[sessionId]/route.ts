@@ -56,7 +56,8 @@ async function notifyStudentsForLiveSessionStart(params: {
     const { data: enrolledRows, error: enrolledError } = await supabaseAdmin
       .from("student_subjects")
       .select("student_id")
-      .eq("subject_class_id", params.subjectClassId);
+      .eq("subject_class_id", params.subjectClassId)
+      .eq("school_id", params.schoolId);
 
     if (enrolledError) {
       console.error(`${logPrefix} [ERROR] Failed to fetch enrolled students:`, enrolledError);

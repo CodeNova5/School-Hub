@@ -70,6 +70,8 @@ export default function StudentSubjectsPage() {
 						first_name,
 						last_name,
 						class_id,
+						department_id,
+						religion_id,
 						classes (
 							id,
 							name

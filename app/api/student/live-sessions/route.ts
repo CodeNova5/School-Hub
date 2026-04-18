@@ -39,7 +39,7 @@ async function getStudentContext() {
 
   const { data: student } = await supabase
     .from("students")
-    .select("id, school_id, class_id")
+    .select("id, school_id, class_id, department_id, religion_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -50,6 +50,8 @@ async function getStudentContext() {
     studentId: student.id,
     schoolId: student.school_id,
     classId: student.class_id,
+    departmentId: student.department_id,
+    religionId: student.religion_id,
   };
 }
 
@@ -81,6 +83,8 @@ export async function GET() {
         subject_classes (
           id,
           subject_code,
+          department_id,
+          religion_id,
           subjects!subject_classes_subject_id_fkey ( name ),
           teachers ( first_name, last_name )
         )
@@ -96,7 +100,26 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ data: data ?? [] });
+    // Filter sessions by department_id and religion_id to match student's profile
+    const filteredData = (data ?? []).filter((session: any) => {
+      if (!session.subject_class_id || !session.subject_classes) return true; // Include sessions without subject_class
+
+      const subjectClass = session.subject_classes;
+      
+      // If subject_class has department_id set, student must match
+      if (subjectClass.department_id && context.departmentId !== subjectClass.department_id) {
+        return false;
+      }
+      
+      // If subject_class has religion_id set, student must match
+      if (subjectClass.religion_id && context.religionId !== subjectClass.religion_id) {
+        return false;
+      }
+      
+      return true;
+    });
+
+    return NextResponse.json({ data: filteredData });
   } catch (error: any) {
     console.error("Error in live sessions endpoint:", error);
     return NextResponse.json({ error: error.message || "Failed to load live sessions" }, { status: 500 });

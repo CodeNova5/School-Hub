@@ -23,6 +23,16 @@ interface StudentAttendance {
     attendanceId?: string;
 }
 
+interface TeacherAttendance {
+    id: string;
+    teacher_id: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    attendanceStatus: "present" | "absent" | "late" | "excused" | "not_marked";
+    attendanceId?: string;
+}
+
 interface ClassData {
     id: string;
     name: string;
@@ -46,18 +56,23 @@ interface ClassStats {
 export default function SchoolAttendancePage() {
     const { schoolId } = useSchoolContext();
     const [classes, setClasses] = useState<ClassData[]>([]);
+    const [teachers, setTeachers] = useState<TeacherAttendance[]>([]);
     const [selectedDate, setSelectedDate] = useState<string>(
         new Date().toISOString().split("T")[0]
     );
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [attendanceData, setAttendanceData] = useState<ProcessedAttendanceData>({});
+    const [teacherAttendanceData, setTeacherAttendanceData] = useState<{
+        [teacherId: string]: TeacherAttendance;
+    }>({});
     const [selectedClassForModal, setSelectedClassForModal] = useState<string | null>(null);
 
     // Fetch all classes and their attendance data
     useEffect(() => {
         if (schoolId) {
             fetchAllClassesAndAttendance(selectedDate);
+            fetchTeachersAndAttendance(selectedDate);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [schoolId]);
@@ -146,15 +161,66 @@ export default function SchoolAttendancePage() {
         }
     }
 
+    async function fetchTeachersAndAttendance(date: string) {
+        if (!schoolId) return;
+        try {
+            const [{ data: teachersData, error: teachersError }, { data: teacherAttendanceRecords, error: teacherAttendanceError }] = await Promise.all([
+                supabase
+                    .from("teachers")
+                    .select("id, first_name, last_name, email, status")
+                    .eq("school_id", schoolId)
+                    .eq("status", "active")
+                    .order("first_name", { ascending: true }),
+                supabase
+                    .from("teacher_attendance")
+                    .select("*")
+                    .eq("school_id", schoolId)
+                    .eq("date", date),
+            ]);
+
+            if (teachersError || teacherAttendanceError) {
+                console.warn("Error fetching teacher data:", teachersError || teacherAttendanceError);
+                return;
+            }
+
+            const teacherAttendanceLookup: { [teacherId: string]: TeacherAttendance } = {};
+
+            (teachersData || []).forEach((teacher: any) => {
+                const attendance = (teacherAttendanceRecords || []).find(
+                    (a: any) => a.teacher_id === teacher.id
+                );
+
+                const teacherAttendance: TeacherAttendance = {
+                    id: teacher.id,
+                    teacher_id: teacher.id,
+                    first_name: teacher.first_name,
+                    last_name: teacher.last_name,
+                    email: teacher.email,
+                    attendanceStatus: attendance ? (attendance.status as any) : "not_marked",
+                    attendanceId: attendance?.id,
+                };
+
+                teacherAttendanceLookup[teacher.id] = teacherAttendance;
+            });
+
+            setTeachers(Object.values(teacherAttendanceLookup));
+            setTeacherAttendanceData(teacherAttendanceLookup);
+        } catch (error) {
+            console.error("Error fetching teacher attendance data:", error);
+        }
+    }
+
     function handleDateChange(date: string) {
         setSelectedDate(date);
         fetchAllClassesAndAttendance(date);
+        fetchTeachersAndAttendance(date);
     }
 
     function setToday() {
         const today = new Date().toISOString().split("T")[0];
         setSelectedDate(today);
         fetchAllClassesAndAttendance(today);
+        fetchTeachersAndAttendance(today);
     }
 
     function updateStudentAttendance(
@@ -237,6 +303,57 @@ export default function SchoolAttendancePage() {
                     }
                     : cls
             )
+        );
+    }
+
+    function updateTeacherAttendance(
+        teacherId: string,
+        status: TeacherAttendance["attendanceStatus"]
+    ) {
+        setTeacherAttendanceData((prev) => ({
+            ...prev,
+            [teacherId]: {
+                ...prev[teacherId],
+                attendanceStatus: status,
+            },
+        }));
+
+        setTeachers((prev) =>
+            prev.map((teacher) =>
+                teacher.id === teacherId
+                    ? { ...teacher, attendanceStatus: status }
+                    : teacher
+            )
+        );
+    }
+
+    function markAllTeachersPresent() {
+        const updatedData = { ...teacherAttendanceData };
+        Object.entries(updatedData).forEach(([teacherId]) => {
+            updatedData[teacherId].attendanceStatus = "present";
+        });
+        setTeacherAttendanceData(updatedData);
+
+        setTeachers((prev) =>
+            prev.map((teacher) => ({
+                ...teacher,
+                attendanceStatus: "present" as const,
+            }))
+        );
+    }
+
+    function resetAllTeachersAttendance() {
+        const updatedData = { ...teacherAttendanceData };
+        Object.entries(updatedData).forEach(([teacherId]) => {
+            updatedData[teacherId].attendanceStatus = "not_marked";
+        });
+        setTeacherAttendanceData(updatedData);
+
+        setTeachers((prev) =>
+            prev.map((teacher) => ({
+                ...teacher,
+                attendanceStatus: "not_marked" as const,
+            }))
         );
     }
 
@@ -410,7 +527,7 @@ export default function SchoolAttendancePage() {
 
     async function submitAllAttendance() {
         setIsSaving(true);
-        const savingToast = toast.loading("Saving attendance for all classes...");
+        const savingToast = toast.loading("Saving attendance for all classes and teachers...");
 
         try {
             const allAttendanceRecords: Array<{
@@ -421,14 +538,22 @@ export default function SchoolAttendancePage() {
                 status: string;
             }> = [];
 
+            const allTeacherAttendanceRecords: Array<{
+                school_id: string;
+                teacher_id: string;
+                date: string;
+                status: string;
+            }> = [];
+
             const allExistingIds: string[] = [];
+            const allExistingTeacherIds: string[] = [];
             const notificationRecords: Array<{
                 student_id: string;
                 status: string;
                 studentName: string;
             }> = [];
 
-            // Collect all records to save and delete
+            // Collect all student records to save and delete
             Object.entries(attendanceData).forEach(([classId, students]) => {
                 Object.entries(students).forEach(([studentId, student]) => {
                     if (student.attendanceStatus !== "not_marked") {
@@ -453,7 +578,23 @@ export default function SchoolAttendancePage() {
                 });
             });
 
-            // Delete existing records
+            // Collect all teacher records to save and delete
+            Object.entries(teacherAttendanceData).forEach(([teacherId, teacher]) => {
+                if (teacher.attendanceStatus !== "not_marked") {
+                    allTeacherAttendanceRecords.push({
+                        school_id: schoolId!,
+                        teacher_id: teacher.id,
+                        date: selectedDate,
+                        status: teacher.attendanceStatus,
+                    });
+                }
+
+                if (teacher.attendanceId) {
+                    allExistingTeacherIds.push(teacher.attendanceId);
+                }
+            });
+
+            // Delete existing student records
             if (allExistingIds.length > 0) {
                 const { error: deleteError } = await supabase
                     .from("attendance")
@@ -464,11 +605,31 @@ export default function SchoolAttendancePage() {
                 if (deleteError) throw deleteError;
             }
 
-            // Insert new records
+            // Delete existing teacher records
+            if (allExistingTeacherIds.length > 0) {
+                const { error: deleteError } = await supabase
+                    .from("teacher_attendance")
+                    .delete()
+                    .eq("school_id", schoolId)
+                    .in("id", allExistingTeacherIds);
+
+                if (deleteError) throw deleteError;
+            }
+
+            // Insert new student records
             if (allAttendanceRecords.length > 0) {
                 const { error: insertError } = await supabase
                     .from("attendance")
                     .insert(allAttendanceRecords);
+
+                if (insertError) throw insertError;
+            }
+
+            // Insert new teacher records
+            if (allTeacherAttendanceRecords.length > 0) {
+                const { error: insertError } = await supabase
+                    .from("teacher_attendance")
+                    .insert(allTeacherAttendanceRecords);
 
                 if (insertError) throw insertError;
             }
@@ -484,6 +645,7 @@ export default function SchoolAttendancePage() {
 
             // Refresh data
             await fetchAllClassesAndAttendance(selectedDate);
+            await fetchTeachersAndAttendance(selectedDate);
         } catch (error) {
             console.error("Error saving attendance:", error);
             toast.error("Failed to save attendance", { id: savingToast });
@@ -569,6 +731,9 @@ export default function SchoolAttendancePage() {
             sum + Object.values(classData).filter((s) => s.attendanceStatus !== "not_marked").length,
         0
     );
+    const markedTeachers = Object.values(teacherAttendanceData).filter(
+        (t) => t.attendanceStatus !== "not_marked"
+    ).length;
 
     if (isLoading) {
         return (
@@ -591,7 +756,7 @@ export default function SchoolAttendancePage() {
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    {markedStudents}/{totalStudents} students marked for {getFormattedDate(selectedDate)}
+                                    {markedStudents}/{totalStudents} students marked {teachers.length > 0 && `+ ${markedTeachers}/${teachers.length} teachers`} for {getFormattedDate(selectedDate)}
                                 </p>
                             </div>
                             <div className="flex gap-2">
@@ -636,32 +801,128 @@ export default function SchoolAttendancePage() {
                         </div>
                     ) : (
                         <>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                                {classes.map((cls) => {
-                                    const stats = getClassStats(cls.id);
-                                    return (
-                                        <AttendanceClassCard
-                                            key={cls.id}
-                                            id={cls.id}
-                                            name={cls.name}
-                                            stream={cls.stream}
-                                            studentCount={cls.students.length}
-                                            present={stats.present}
-                                            absent={stats.absent}
-                                            late={stats.late}
-                                            excused={stats.excused}
-                                            notMarked={stats.notMarked}
-                                            onMarkAttendance={() => setSelectedClassForModal(cls.id)}
-                                        />
-                                    );
-                                })}
+                        {/* Teacher Attendance Section */}
+                        {teachers.length > 0 && (
+                            <div className="mb-8">
+                                <div className="bg-white rounded-lg shadow-sm p-6">
+                                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Teacher Attendance</h2>
+                                    
+                                    {/* Teacher Actions */}
+                                    <div className="flex gap-2 mb-4">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={markAllTeachersPresent}
+                                            disabled={isSaving}
+                                        >
+                                            Mark All Present
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={resetAllTeachersAttendance}
+                                            disabled={isSaving}
+                                        >
+                                            Reset All
+                                        </Button>
+                                    </div>
+
+                                    {/* Teacher Attendance Table */}
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b bg-gray-50">
+                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">#</th>
+                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
+                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody>
+                                                {teachers.map((teacher, index) => (
+                                                    <tr key={teacher.id} className="border-b hover:bg-gray-50">
+                                                        <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                                                        <td className="px-4 py-3 font-medium text-gray-900">
+                                                            {teacher.first_name} {teacher.last_name}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-gray-600">{teacher.email}</td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant={teacher.attendanceStatus === "present" ? "default" : "outline"}
+                                                                    onClick={() => updateTeacherAttendance(teacher.id, "present")}
+                                                                    disabled={isSaving}
+                                                                    className="w-20"
+                                                                >
+                                                                    Present
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant={teacher.attendanceStatus === "absent" ? "destructive" : "outline"}
+                                                                    onClick={() => updateTeacherAttendance(teacher.id, "absent")}
+                                                                    disabled={isSaving}
+                                                                    className="w-20"
+                                                                >
+                                                                    Absent
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant={teacher.attendanceStatus === "late" ? "default" : "outline"}
+                                                                    onClick={() => updateTeacherAttendance(teacher.id, "late")}
+                                                                    disabled={isSaving}
+                                                                    className="w-20"
+                                                                >
+                                                                    Late
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant={teacher.attendanceStatus === "excused" ? "default" : "outline"}
+                                                                    onClick={() => updateTeacherAttendance(teacher.id, "excused")}
+                                                                    disabled={isSaving}
+                                                                    className="w-20"
+                                                                >
+                                                                    Excused
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
+                        )}
+
+                        {/* Student Classes Grid */}
+                        <h2 className="text-xl font-semibold text-gray-900 mb-4">Student Attendance</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                            {classes.map((cls) => {
+                                const stats = getClassStats(cls.id);
+                                return (
+                                    <AttendanceClassCard
+                                        key={cls.id}
+                                        id={cls.id}
+                                        name={cls.name}
+                                        stream={cls.stream}
+                                        studentCount={cls.students.length}
+                                        present={stats.present}
+                                        absent={stats.absent}
+                                        late={stats.late}
+                                        excused={stats.excused}
+                                        notMarked={stats.notMarked}
+                                        onMarkAttendance={() => setSelectedClassForModal(cls.id)}
+                                    />
+                                );
+                            })}
+                        </div>
 
                             {/* Save All Button */}
                             <div className="bg-white rounded-lg shadow-sm p-6 sticky bottom-0 border-t">
                                 <Button
                                     onClick={submitAllAttendance}
-                                    disabled={isSaving || markedStudents === 0}
+                                    disabled={isSaving || (markedStudents === 0 && markedTeachers === 0)}
                                     size="lg"
                                     className="w-full md:w-auto"
                                 >
@@ -671,7 +932,7 @@ export default function SchoolAttendancePage() {
                                             Saving...
                                         </>
                                     ) : (
-                                        `Save All Attendance (${markedStudents} marked)`
+                                        `Save All Attendance (${markedStudents} students${teachers.length > 0 ? ` + ${markedTeachers} teachers` : ""})`
                                     )}
                                 </Button>
                             </div>

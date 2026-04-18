@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useSchoolContext } from "@/hooks/use-school-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { AttendanceClassCard } from "@/components/attendance-class-card";
+import { AttendanceMarkingModal } from "@/components/attendance-marking-modal";
 import * as XLSX from "xlsx-js-style";
 
 interface StudentAttendance {
@@ -27,11 +28,18 @@ interface ClassData {
   stream?: string;
   class_level_id?: string;
   students: StudentAttendance[];
-  isExpanded: boolean;
 }
 
 interface ProcessedAttendanceData {
   [classId: string]: { [studentId: string]: StudentAttendance };
+}
+
+interface ClassStats {
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  notMarked: number;
 }
 
 export default function SchoolAttendancePage() {
@@ -43,6 +51,7 @@ export default function SchoolAttendancePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [attendanceData, setAttendanceData] = useState<ProcessedAttendanceData>({});
+  const [selectedClassForModal, setSelectedClassForModal] = useState<string | null>(null);
 
   // Fetch all classes and their attendance data
   useEffect(() => {
@@ -92,7 +101,6 @@ export default function SchoolAttendancePage() {
           stream: cls.stream,
           class_level_id: cls.class_level_id,
           students: [],
-          isExpanded: false,
         });
       });
 
@@ -146,14 +154,6 @@ export default function SchoolAttendancePage() {
     const today = new Date().toISOString().split("T")[0];
     setSelectedDate(today);
     fetchAllClassesAndAttendance(today);
-  }
-
-  function toggleClassExpand(classId: string) {
-    setClasses((prev) =>
-      prev.map((cls) =>
-        cls.id === classId ? { ...cls, isExpanded: !cls.isExpanded } : cls
-      )
-    );
   }
 
   function updateStudentAttendance(
@@ -212,8 +212,6 @@ export default function SchoolAttendancePage() {
           : cls
       )
     );
-
-    toast.success(`All students in ${classes.find(c => c.id === classId)?.name} marked as present`);
   }
 
   function resetClassAttendance(classId: string) {
@@ -532,12 +530,36 @@ export default function SchoolAttendancePage() {
     }
   }
 
-  const statusColors = {
-    present: "bg-green-100 text-green-800",
-    absent: "bg-red-100 text-red-800",
-    late: "bg-yellow-100 text-yellow-800",
-    excused: "bg-blue-100 text-blue-800",
-    not_marked: "bg-gray-100 text-gray-800",
+  const getClassStats = (classId: string): ClassStats => {
+    const classStudents = attendanceData[classId] || {};
+    const stats = {
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0,
+      notMarked: 0,
+    };
+
+    Object.values(classStudents).forEach((student) => {
+      switch (student.attendanceStatus) {
+        case "present":
+          stats.present++;
+          break;
+        case "absent":
+          stats.absent++;
+          break;
+        case "late":
+          stats.late++;
+          break;
+        case "excused":
+          stats.excused++;
+          break;
+        default:
+          stats.notMarked++;
+      }
+    });
+
+    return stats;
   };
 
   const totalStudents = classes.reduce((sum, cls) => sum + cls.students.length, 0);
@@ -559,195 +581,116 @@ export default function SchoolAttendancePage() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <CardTitle>School Attendance</CardTitle>
-            <p className="text-sm text-gray-600 mt-1">
-              {markedStudents}/{totalStudents} students marked
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleExportAttendance}
-              disabled={isSaving || classes.length === 0}
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Export All
-            </Button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                {markedStudents}/{totalStudents} students marked for {getFormattedDate(selectedDate)}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportAttendance}
+                disabled={isSaving || classes.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export All
+              </Button>
+            </div>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Date Selection */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b">
-          <div className="flex-1">
-            <Label className="block text-sm font-medium mb-2">Select Date</Label>
-            <div className="flex gap-2">
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Date Selection Card */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+          <div className="flex flex-col md:flex-row items-start md:items-end gap-4">
+            <div className="flex-1">
+              <Label className="block text-sm font-medium text-gray-700 mb-2">Select Date</Label>
               <Input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => handleDateChange(e.target.value)}
-                className="flex-1"
+                className="max-w-xs"
               />
-              <Button variant="outline" onClick={setToday} disabled={isSaving}>
-                Today
-              </Button>
             </div>
-            <p className="text-sm text-gray-600 mt-1">{getFormattedDate(selectedDate)}</p>
+            <Button variant="outline" onClick={setToday} disabled={isSaving}>
+              Set to Today
+            </Button>
           </div>
         </div>
 
-        {/* Classes Section */}
+        {/* Classes Grid */}
         {classes.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">No classes found for this school</div>
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <p className="text-gray-500">No classes found for this school</p>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {classes.map((cls) => (
-              <div
-                key={cls.id}
-                className="border rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow"
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+              {classes.map((cls) => {
+                const stats = getClassStats(cls.id);
+                return (
+                  <AttendanceClassCard
+                    key={cls.id}
+                    id={cls.id}
+                    name={cls.name}
+                    stream={cls.stream}
+                    studentCount={cls.students.length}
+                    present={stats.present}
+                    absent={stats.absent}
+                    late={stats.late}
+                    excused={stats.excused}
+                    notMarked={stats.notMarked}
+                    onMarkAttendance={() => setSelectedClassForModal(cls.id)}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Save All Button */}
+            <div className="bg-white rounded-lg shadow-sm p-6 sticky bottom-0 border-t">
+              <Button
+                onClick={submitAllAttendance}
+                disabled={isSaving || markedStudents === 0}
+                size="lg"
+                className="w-full md:w-auto"
               >
-                {/* Class Header */}
-                <button
-                  onClick={() => toggleClassExpand(cls.id)}
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                >
-                  <div className="text-left flex items-center gap-3">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{cls.name}</h3>
-                      <p className="text-xs text-gray-500">{cls.students.length} students</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">
-                      {cls.students.filter((s) => s.attendanceStatus !== "not_marked").length}/
-                      {cls.students.length}
-                    </span>
-                    {cls.isExpanded ? (
-                      <ChevronUp className="h-5 w-5 text-gray-600" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-gray-600" />
-                    )}
-                  </div>
-                </button>
-
-                {/* Class Content - Expanded */}
-                {cls.isExpanded && (
-                  <div className="border-t bg-gray-50 px-4 py-3 space-y-3">
-                    {/* Quick Actions */}
-                    <div className="flex gap-2 pb-3 border-b">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => markClassAllPresent(cls.id)}
-                        disabled={isSaving}
-                      >
-                        Mark All Present
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => resetClassAttendance(cls.id)}
-                        disabled={isSaving}
-                      >
-                        Reset
-                      </Button>
-                    </div>
-
-                    {/* Attendance Grid */}
-                    <div className="bg-white rounded-lg overflow-hidden">
-                      <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-100 font-medium text-xs">
-                        <div className="col-span-1">#</div>
-                        <div className="col-span-4">Student Name</div>
-                        <div className="col-span-2">Gender</div>
-                        <div className="col-span-2">Status</div>
-                        <div className="col-span-3">Action</div>
-                      </div>
-
-                      {cls.students.map((student, index) => (
-                        <div
-                          key={student.id}
-                          className="grid grid-cols-12 gap-4 px-4 py-3 border-b items-center hover:bg-gray-50 last:border-b-0"
-                        >
-                          <div className="col-span-1 text-xs text-gray-600">{index + 1}</div>
-                          <div className="col-span-4">
-                            <p className="font-medium text-sm">
-                              {student.first_name} {student.last_name}
-                            </p>
-                            <p className="text-xs text-gray-500">{student.student_id}</p>
-                          </div>
-                          <div className="col-span-2 text-xs text-gray-600 capitalize">
-                            {student.gender || "N/A"}
-                          </div>
-                          <div className="col-span-2">
-                            <span
-                              className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                                statusColors[student.attendanceStatus]
-                              }`}
-                            >
-                              {student.attendanceStatus.replace("_", " ").toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="col-span-3">
-                            <select
-                              value={student.attendanceStatus}
-                              onChange={(e) =>
-                                updateStudentAttendance(
-                                  cls.id,
-                                  student.id,
-                                  e.target.value as StudentAttendance["attendanceStatus"]
-                                )
-                              }
-                              disabled={isSaving}
-                              className="w-full px-2 py-1.5 border rounded text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <option value="not_marked">Not Marked</option>
-                              <option value="present">Present</option>
-                              <option value="absent">Absent</option>
-                              <option value="late">Late</option>
-                              <option value="excused">Excused</option>
-                            </select>
-                          </div>
-                        </div>
-                      ))}
-
-                      {cls.students.length === 0 && (
-                        <div className="text-center py-6 text-gray-500 text-sm">
-                          No students in this class
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  `Save All Attendance (${markedStudents} marked)`
                 )}
-              </div>
-            ))}
-          </div>
+              </Button>
+            </div>
+          </>
         )}
+      </div>
 
-        {/* Save Button */}
-        {classes.length > 0 && (
-          <div className="flex gap-2 pt-4 border-t sticky bottom-0 bg-white">
-            <Button
-              onClick={submitAllAttendance}
-              disabled={isSaving || markedStudents === 0}
-              className="flex-1"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save All Attendance"
-              )}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* Attendance Marking Modal */}
+      {selectedClassForModal && (
+        <AttendanceMarkingModal
+          open={selectedClassForModal !== null}
+          className={classes.find((c) => c.id === selectedClassForModal)?.name || ""}
+          students={classes.find((c) => c.id === selectedClassForModal)?.students || []}
+          onUpdateAttendance={(studentId, status) =>
+            updateStudentAttendance(selectedClassForModal, studentId, status)
+          }
+          onMarkAllPresent={() => markClassAllPresent(selectedClassForModal)}
+          onReset={() => resetClassAttendance(selectedClassForModal)}
+          onClose={() => setSelectedClassForModal(null)}
+        />
+      )}
+    </div>
   );
 }

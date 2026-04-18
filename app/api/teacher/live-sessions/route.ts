@@ -68,26 +68,62 @@ async function notifyStudentsForLiveClassCreation(params: {
 
   let studentIds: string[] = [];
 
-  // For timetable subjects: get enrolled students
+  // For timetable subjects: get students based on subject requirements
   if (params.subjectClassId) {
-    console.log(`${logPrefix} [STEP 1] Fetching enrolled students for subject: ${params.subjectClassId}`);
-    const { data: enrolledRows, error: enrolledError } = await supabaseAdmin
-      .from("student_subjects")
-      .select("student_id")
-      .eq("subject_class_id", params.subjectClassId);
-
-    if (enrolledError) {
-      console.error(`${logPrefix} [ERROR] Failed to fetch enrolled students:`, enrolledError);
+    console.log(`${logPrefix} [STEP 1] Fetching subject details for: ${params.subjectClassId}`);
+    
+    const { data: subjectClassData, error: subjectClassError } = await supabaseAdmin
+      .from("subject_classes")
+      .select("class_id, is_optional, department_id, religion_id")
+      .eq("id", params.subjectClassId)
+      .eq("school_id", params.schoolId)
+      .single();
+    
+    if (subjectClassError || !subjectClassData) {
+      console.error(`${logPrefix} [ERROR] Failed to fetch subject details:`, subjectClassError);
       return;
     }
-
-    if (!enrolledRows || enrolledRows.length === 0) {
-      console.warn(`${logPrefix} [WARNING] No enrolled students found for this subject`);
+    
+    // Skip optional subjects since they require explicit enrollment (student_subjects table not used)
+    if (subjectClassData.is_optional) {
+      console.warn(`${logPrefix} [WARNING] Subject is optional - skipping notification (no enrollment data)`);
       return;
     }
-
-    studentIds = enrolledRows.map((row: any) => row.student_id);
-    console.log(`${logPrefix} [STEP 1] Found ${studentIds.length} enrolled students`);
+    
+    console.log(`${logPrefix} [STEP 1] Subject is required. Checking filters (department: ${subjectClassData.department_id || "none"}, religion: ${subjectClassData.religion_id || "none"})`);
+    
+    let studentQuery = supabaseAdmin
+      .from("students")
+      .select("id")
+      .eq("class_id", subjectClassData.class_id)
+      .eq("school_id", params.schoolId);
+    
+    // Apply department filter if set
+    if (subjectClassData.department_id) {
+      studentQuery = studentQuery.eq("department_id", subjectClassData.department_id);
+      console.log(`${logPrefix} [STEP 1] Filtering by department: ${subjectClassData.department_id}`);
+    }
+    
+    // Apply religion filter if set
+    if (subjectClassData.religion_id) {
+      studentQuery = studentQuery.eq("religion_id", subjectClassData.religion_id);
+      console.log(`${logPrefix} [STEP 1] Filtering by religion: ${subjectClassData.religion_id}`);
+    }
+    
+    const { data: classStudentRows, error: classStudentError } = await studentQuery;
+    
+    if (classStudentError) {
+      console.error(`${logPrefix} [ERROR] Failed to fetch students:`, classStudentError);
+      return;
+    }
+    
+    if (!classStudentRows || classStudentRows.length === 0) {
+      console.warn(`${logPrefix} [WARNING] No students found matching subject criteria`);
+      return;
+    }
+    
+    studentIds = classStudentRows.map((row: any) => row.id);
+    console.log(`${logPrefix} [STEP 1] Found ${studentIds.length} students offering this subject`);
   } 
   // For custom classes: get all students in the class
   else if (params.classId) {

@@ -85,18 +85,21 @@ export default function AdminDashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { syncNotificationToken } = useNotificationSetup({ role: "admin" });
+  const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
     fetchDashboardData();
-    syncTokenOnLoad();
-  }, []);
+    if (!schoolLoading && schoolId) {
+      syncTokenOnLoad();
+    }
+  }, [schoolId, schoolLoading]);
 
   const syncTokenOnLoad = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
-      if (user) {
-        await syncNotificationToken(user.id, "admin");
+      if (user && schoolId) {
+        await syncNotificationToken(user.id, "admin", schoolId);
       }
     } catch (err) {
       console.error("Failed to sync notification token:", err);

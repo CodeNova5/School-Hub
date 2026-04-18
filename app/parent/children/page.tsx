@@ -27,7 +27,10 @@ interface Student {
   last_name: string;
   email: string;
   class_id: string;
+  school_id?: string;
   department: string;
+  department_id?: string | null;
+  religion_id?: string | null;
   status: string;
   classes?: {
     name: string;

@@ -29,51 +29,36 @@ ALTER TABLE teacher_attendance ENABLE ROW LEVEL SECURITY;
 
 -- RLS POLICIES
 
--- Admins can read all teacher attendance for their school
-CREATE POLICY "Admins can read teacher attendance" ON teacher_attendance
-  FOR SELECT
-  USING (
-    auth.uid() IN (
-      SELECT auth.users.id
-      FROM auth.users
-      JOIN user_role_links ON user_role_links.user_id = auth.users.id
-      WHERE user_role_links.role = 'admin'
-      AND user_role_links.school_id = teacher_attendance.school_id
-      AND user_role_links.is_active = true
-    )
-    OR
-    -- Super admin can read all
-    auth.uid() IN (
-      SELECT id FROM auth.users WHERE raw_user_meta_data->>'is_super_admin' = 'true'
-    )
-  );
-
--- Admins can manage teacher attendance
+-- Admins can manage teacher attendance for their school
 CREATE POLICY "Admins can manage teacher attendance" ON teacher_attendance
   FOR ALL
+  TO authenticated
   USING (
-    auth.uid() IN (
-      SELECT auth.users.id
-      FROM auth.users
-      JOIN user_role_links ON user_role_links.user_id = auth.users.id
-      WHERE user_role_links.role = 'admin'
-      AND user_role_links.school_id = teacher_attendance.school_id
-      AND user_role_links.is_active = true
-    )
-    OR
-    -- Super admin can manage all
-    auth.uid() IN (
-      SELECT id FROM auth.users WHERE raw_user_meta_data->>'is_super_admin' = 'true'
-    )
+    is_super_admin() 
+    OR (is_admin() AND school_id = get_my_school_id())
+  )
+  WITH CHECK (
+    is_super_admin() 
+    OR (is_admin() AND school_id = get_my_school_id())
   );
 
 -- Teachers can read their own attendance
 CREATE POLICY "Teachers can read their own attendance" ON teacher_attendance
   FOR SELECT
+  TO authenticated
   USING (
     teacher_id IN (
       SELECT id FROM teachers WHERE user_id = auth.uid()
     )
+  );
+
+-- School users can read teacher attendance
+CREATE POLICY "School users can read teacher attendance" ON teacher_attendance
+  FOR SELECT
+  TO authenticated
+  USING (
+    is_super_admin()
+    OR school_id = get_my_school_id()
   );
 
 -- Publish this as a notification topic

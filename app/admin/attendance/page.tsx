@@ -67,6 +67,7 @@ export default function SchoolAttendancePage() {
         [teacherId: string]: TeacherAttendance;
     }>({});
     const [selectedClassForModal, setSelectedClassForModal] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<"students" | "teachers">("students");
 
     // Fetch all classes and their attendance data
     useEffect(() => {
@@ -756,7 +757,10 @@ export default function SchoolAttendancePage() {
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    {markedStudents}/{totalStudents} students marked {teachers.length > 0 && `+ ${markedTeachers}/${teachers.length} teachers`} for {getFormattedDate(selectedDate)}
+                                    {activeTab === "students"
+                                        ? `${markedStudents}/${totalStudents} students marked for ${getFormattedDate(selectedDate)}`
+                                        : `${markedTeachers}/${teachers.length} teachers marked for ${getFormattedDate(selectedDate)}`
+                                    }
                                 </p>
                             </div>
                             <div className="flex gap-2">
@@ -776,6 +780,32 @@ export default function SchoolAttendancePage() {
 
                 {/* Main Content */}
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    {/* Tab Navigation */}
+                    <div className="flex gap-2 mb-6 border-b">
+                        <button
+                            onClick={() => setActiveTab("students")}
+                            className={`px-4 py-2 font-medium transition-colors ${
+                                activeTab === "students"
+                                    ? "text-blue-600 border-b-2 border-blue-600 -mb-px"
+                                    : "text-gray-600 hover:text-gray-900"
+                            }`}
+                        >
+                            Student Attendance
+                        </button>
+                        {teachers.length > 0 && (
+                            <button
+                                onClick={() => setActiveTab("teachers")}
+                                className={`px-4 py-2 font-medium transition-colors ${
+                                    activeTab === "teachers"
+                                        ? "text-blue-600 border-b-2 border-blue-600 -mb-px"
+                                        : "text-gray-600 hover:text-gray-900"
+                                }`}
+                            >
+                                Teacher Attendance
+                            </button>
+                        )}
+                    </div>
+
                     {/* Date Selection Card */}
                     <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
                         <div className="flex flex-col md:flex-row items-start md:items-end gap-4">
@@ -801,141 +831,161 @@ export default function SchoolAttendancePage() {
                         </div>
                     ) : (
                         <>
-                        {/* Teacher Attendance Section */}
-                        {teachers.length > 0 && (
-                            <div className="mb-8">
-                                <div className="bg-white rounded-lg shadow-sm p-6">
-                                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Teacher Attendance</h2>
-                                    
-                                    {/* Teacher Actions */}
-                                    <div className="flex gap-2 mb-4">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={markAllTeachersPresent}
-                                            disabled={isSaving}
-                                        >
-                                            Mark All Present
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={resetAllTeachersAttendance}
-                                            disabled={isSaving}
-                                        >
-                                            Reset All
-                                        </Button>
+                            {/* Student Attendance Tab */}
+                            {activeTab === "students" && (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                                        {classes.map((cls) => {
+                                            const stats = getClassStats(cls.id);
+                                            return (
+                                                <AttendanceClassCard
+                                                    key={cls.id}
+                                                    id={cls.id}
+                                                    name={cls.name}
+                                                    stream={cls.stream}
+                                                    studentCount={cls.students.length}
+                                                    present={stats.present}
+                                                    absent={stats.absent}
+                                                    late={stats.late}
+                                                    excused={stats.excused}
+                                                    notMarked={stats.notMarked}
+                                                    onMarkAttendance={() => setSelectedClassForModal(cls.id)}
+                                                />
+                                            );
+                                        })}
                                     </div>
 
-                                    {/* Teacher Attendance Table */}
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className="border-b bg-gray-50">
-                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">#</th>
-                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
-                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
-                                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                                            </tr>
-                                            </thead>
-                                            <tbody>
-                                                {teachers.map((teacher, index) => (
-                                                    <tr key={teacher.id} className="border-b hover:bg-gray-50">
-                                                        <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                                                        <td className="px-4 py-3 font-medium text-gray-900">
-                                                            {teacher.first_name} {teacher.last_name}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-gray-600">{teacher.email}</td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex gap-2">
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant={teacher.attendanceStatus === "present" ? "default" : "outline"}
-                                                                    onClick={() => updateTeacherAttendance(teacher.id, "present")}
-                                                                    disabled={isSaving}
-                                                                    className="w-20"
-                                                                >
-                                                                    Present
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant={teacher.attendanceStatus === "absent" ? "destructive" : "outline"}
-                                                                    onClick={() => updateTeacherAttendance(teacher.id, "absent")}
-                                                                    disabled={isSaving}
-                                                                    className="w-20"
-                                                                >
-                                                                    Absent
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant={teacher.attendanceStatus === "late" ? "default" : "outline"}
-                                                                    onClick={() => updateTeacherAttendance(teacher.id, "late")}
-                                                                    disabled={isSaving}
-                                                                    className="w-20"
-                                                                >
-                                                                    Late
-                                                                </Button>
-                                                                <Button
-                                                                    size="sm"
-                                                                    variant={teacher.attendanceStatus === "excused" ? "default" : "outline"}
-                                                                    onClick={() => updateTeacherAttendance(teacher.id, "excused")}
-                                                                    disabled={isSaving}
-                                                                    className="w-20"
-                                                                >
-                                                                    Excused
-                                                                </Button>
-                                                            </div>
-                                                        </td>
+                                    {/* Save All Button for Students */}
+                                    <div className="bg-white rounded-lg shadow-sm p-6 sticky bottom-0 border-t">
+                                        <Button
+                                            onClick={submitAllAttendance}
+                                            disabled={isSaving || (markedStudents === 0 && markedTeachers === 0)}
+                                            size="lg"
+                                            className="w-full md:w-auto"
+                                        >
+                                            {isSaving ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                `Save All Attendance (${markedStudents} students${teachers.length > 0 ? ` + ${markedTeachers} teachers` : ""})`
+                                            )}
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* Teacher Attendance Tab */}
+                            {activeTab === "teachers" && teachers.length > 0 && (
+                                <>
+                                    <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+                                        {/* Teacher Actions */}
+                                        <div className="flex gap-2 mb-4">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={markAllTeachersPresent}
+                                                disabled={isSaving}
+                                            >
+                                                Mark All Present
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={resetAllTeachersAttendance}
+                                                disabled={isSaving}
+                                            >
+                                                Reset All
+                                            </Button>
+                                        </div>
+
+                                        {/* Teacher Attendance Table */}
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b bg-gray-50">
+                                                        <th className="px-4 py-3 text-left font-semibold text-gray-700">#</th>
+                                                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                                                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
+                                                        <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody>
+                                                    {teachers.map((teacher, index) => (
+                                                        <tr key={teacher.id} className="border-b hover:bg-gray-50">
+                                                            <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                                                            <td className="px-4 py-3 font-medium text-gray-900">
+                                                                {teacher.first_name} {teacher.last_name}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-gray-600">{teacher.email}</td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex gap-2">
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant={teacher.attendanceStatus === "present" ? "default" : "outline"}
+                                                                        onClick={() => updateTeacherAttendance(teacher.id, "present")}
+                                                                        disabled={isSaving}
+                                                                        className="w-20"
+                                                                    >
+                                                                        Present
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant={teacher.attendanceStatus === "absent" ? "destructive" : "outline"}
+                                                                        onClick={() => updateTeacherAttendance(teacher.id, "absent")}
+                                                                        disabled={isSaving}
+                                                                        className="w-20"
+                                                                    >
+                                                                        Absent
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant={teacher.attendanceStatus === "late" ? "default" : "outline"}
+                                                                        onClick={() => updateTeacherAttendance(teacher.id, "late")}
+                                                                        disabled={isSaving}
+                                                                        className="w-20"
+                                                                    >
+                                                                        Late
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant={teacher.attendanceStatus === "excused" ? "default" : "outline"}
+                                                                        onClick={() => updateTeacherAttendance(teacher.id, "excused")}
+                                                                        disabled={isSaving}
+                                                                        className="w-20"
+                                                                    >
+                                                                        Excused
+                                                                    </Button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        )}
 
-                        {/* Student Classes Grid */}
-                        <h2 className="text-xl font-semibold text-gray-900 mb-4">Student Attendance</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                            {classes.map((cls) => {
-                                const stats = getClassStats(cls.id);
-                                return (
-                                    <AttendanceClassCard
-                                        key={cls.id}
-                                        id={cls.id}
-                                        name={cls.name}
-                                        stream={cls.stream}
-                                        studentCount={cls.students.length}
-                                        present={stats.present}
-                                        absent={stats.absent}
-                                        late={stats.late}
-                                        excused={stats.excused}
-                                        notMarked={stats.notMarked}
-                                        onMarkAttendance={() => setSelectedClassForModal(cls.id)}
-                                    />
-                                );
-                            })}
-                        </div>
-
-                            {/* Save All Button */}
-                            <div className="bg-white rounded-lg shadow-sm p-6 sticky bottom-0 border-t">
-                                <Button
-                                    onClick={submitAllAttendance}
-                                    disabled={isSaving || (markedStudents === 0 && markedTeachers === 0)}
-                                    size="lg"
-                                    className="w-full md:w-auto"
-                                >
-                                    {isSaving ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        `Save All Attendance (${markedStudents} students${teachers.length > 0 ? ` + ${markedTeachers} teachers` : ""})`
-                                    )}
-                                </Button>
-                            </div>
+                                    {/* Save All Button for Teachers */}
+                                    <div className="bg-white rounded-lg shadow-sm p-6 sticky bottom-0 border-t">
+                                        <Button
+                                            onClick={submitAllAttendance}
+                                            disabled={isSaving || (markedStudents === 0 && markedTeachers === 0)}
+                                            size="lg"
+                                            className="w-full md:w-auto"
+                                        >
+                                            {isSaving ? (
+                                                <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                `Save All Attendance (${markedStudents} students${teachers.length > 0 ? ` + ${markedTeachers} teachers` : ""})`
+                                            )}
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
                         </>
                     )}
                 </div>

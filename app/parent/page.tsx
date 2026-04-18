@@ -136,20 +136,30 @@ export default function ParentDashboardPage() {
 
           const average_attendance = totalRecords === 0 ? 0 : Math.round((presentRecords / totalRecords) * 100);
 
-          // Get pending assignments
-          const { data: studentSubjects } = await supabase
-            .from("student_subjects")
-            .select("subject_class_id")
-            .eq("student_id", student.id);
+          // Get required subjects for this student
+          const { data: subjectClasses } = await supabase
+            .from("subject_classes")
+            .select("id, subject_id, is_optional, department_id, religion_id")
+            .eq("class_id", student.class_id)
+            .eq("school_id", student.school_id)
+            .eq("is_optional", false);
 
-          const subjectClassIds = studentSubjects?.map((ss: any) => ss.subject_class_id) || [];
+          const subjectIds = subjectClasses
+            ?.filter((sc: any) => {
+              // Include if no department filter or student matches
+              if (sc.department_id && sc.department_id !== student.department_id) return false;
+              // Include if no religion filter or student matches
+              if (sc.religion_id && sc.religion_id !== student.religion_id) return false;
+              return true;
+            })
+            .map((sc: any) => sc.subject_id) || [];
 
           let pending_assignments = 0;
-          if (subjectClassIds.length > 0) {
+          if (subjectIds.length > 0) {
             const { data: assignments } = await supabase
               .from("assignments")
               .select("id")
-              .in("subject_id", subjectClassIds)
+              .in("subject_id", subjectIds)
               .gte("due_date", new Date().toISOString());
 
             const assignmentIds = assignments?.map((a: any) => a.id) || [];

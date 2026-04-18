@@ -139,20 +139,20 @@ export default function TeacherStudentsPage() {
       const classIds = Array.from(new Set(subjectClasses.map((sc: any) => sc.class_id))) as string[];
       setTeacherClasses(classIds);
 
-      // Get students who are taking the teacher's subjects
-      const { data: studentSubjects, error: ssErr } = await supabase
-        .from("student_subjects")
-        .select("student_id")
-        .in("subject_class_id", subjectClassIds)
+      // Get all students in the teacher's classes
+      const { data: allStudents, error: studentsErr } = await supabase
+        .from("students")
+        .select("id")
+        .in("class_id", classIds)
         .eq("school_id", schoolId);
 
-      if (!studentSubjects || studentSubjects.length === 0) {
-        toast.error("No students enrolled in your subjects");
+      if (!allStudents || allStudents.length === 0) {
+        toast.error("No students found in your classes");
         setIsLoading(false);
         return;
       }
 
-      let studentIds = Array.from(new Set(studentSubjects.map((ss: any) => ss.student_id)));
+      let studentIds = allStudents.map((s: any) => s.id);
 
       const [studentsRes, sessionsRes, termsRes, classesRes] = await Promise.all([
         supabase

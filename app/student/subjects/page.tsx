@@ -89,83 +89,23 @@ export default function StudentSubjectsPage() {
 			const classData = Array.isArray(student.classes) ? student.classes[0] : student.classes;
 			setClassName(classData?.name || "");
 
-			const { data: studentSubjects, error: studentSubjectsError } = await supabase
-				.from("student_subjects")
-				.select("subject_class_id")
-				.eq("student_id", student.id)
-				.eq("school_id", schoolId);
+let nextSubjects: SubjectItem[] = [];
 
-			if (studentSubjectsError) {
-				console.error("Error fetching student subjects:", studentSubjectsError);
-			}
-
-			let nextSubjects: SubjectItem[] = [];
-			const subjectClassIds = (studentSubjects || [])
-				.map((row: any) => row.subject_class_id)
-				.filter(Boolean);
-
-			if (subjectClassIds.length > 0) {
-				const { data: enrolledSubjectClasses, error: enrolledSubjectClassesError } = await supabase
+				// Get all subject classes for the student's class
+				const { data: classSubjectClasses, error: classSubjectError } = await supabase
 					.from("subject_classes")
 					.select(
 						`
 							id,
 							subject_id,
 							subject_code,
+							is_optional,
+							department_id,
+							religion_id,
 							subjects!subject_classes_subject_id_fkey (
 								id,
 								name,
-								subject_code,
-								is_optional
-							),
-							teachers (
-								first_name,
-								last_name
-							)
-						`,
-					)
-					.in("id", subjectClassIds)
-					.eq("school_id", schoolId);
-
-				if (enrolledSubjectClassesError) {
-					console.error("Error fetching enrolled subject classes:", enrolledSubjectClassesError);
-				} else if (enrolledSubjectClasses) {
-					nextSubjects = enrolledSubjectClasses
-						.map((row: any) => {
-							const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
-							const teacher = Array.isArray(row.teachers) ? row.teachers[0] : row.teachers;
-
-							if (!subject) return null;
-							const isOptional = Boolean(subject.is_optional);
-
-							return {
-								subjectClassId: row.id,
-								subjectId: subject.id,
-								subjectName: subject.name || "Unnamed subject",
-								subjectCode: row.subject_code || subject.subject_code || "N/A",
-								teacherName: getTeacherName(teacher),
-								isOptional,
-								category: isOptional ? "Optional" : "Required",
-							} as SubjectItem;
-						})
-						.filter(Boolean) as SubjectItem[];
-				}
-			}
-
-			// Fallback for data mismatch: show class subject classes if enrollment rows are missing.
-			if (nextSubjects.length === 0 && student.class_id) {
-				const { data: classSubjects, error: classSubjectsError } = await supabase
-					.from("subject_classes")
-					.select(
-						`
-							id,
-							subject_id,
-							subject_code,
-							subjects!subject_classes_subject_id_fkey (
-								id,
-								name,
-								subject_code,
-								is_optional
+								subject_code
 							),
 							teachers (
 								first_name,
@@ -176,16 +116,31 @@ export default function StudentSubjectsPage() {
 					.eq("class_id", student.class_id)
 					.eq("school_id", schoolId);
 
-				if (classSubjectsError) {
-					console.error("Error fetching class subjects:", classSubjectsError);
-				} else if (classSubjects) {
-					nextSubjects = classSubjects
+				if (classSubjectError) {
+					console.error("Error fetching subject classes:", classSubjectError);
+				} else if (classSubjectClasses) {
+					nextSubjects = classSubjectClasses
+						.filter((row: any) => {
+							// Skip optional subjects
+							if (row.is_optional) return false;
+
+							// If department_id is set, only include if student matches
+							if (row.department_id && student.department_id !== row.department_id) {
+								return false;
+							}
+
+							// If religion_id is set, only include if student matches
+							if (row.religion_id && student.religion_id !== row.religion_id) {
+								return false;
+							}
+
+							return true;
+						})
 						.map((row: any) => {
 							const subject = Array.isArray(row.subjects) ? row.subjects[0] : row.subjects;
 							const teacher = Array.isArray(row.teachers) ? row.teachers[0] : row.teachers;
 
 							if (!subject) return null;
-							const isOptional = Boolean(subject.is_optional);
 
 							return {
 								subjectClassId: row.id,
@@ -193,13 +148,14 @@ export default function StudentSubjectsPage() {
 								subjectName: subject.name || "Unnamed subject",
 								subjectCode: row.subject_code || subject.subject_code || "N/A",
 								teacherName: getTeacherName(teacher),
-								isOptional,
-								category: isOptional ? "Optional" : "Required",
+								isOptional: false,
+								category: "Required",
 							} as SubjectItem;
 						})
 						.filter(Boolean) as SubjectItem[];
-				}
 			}
+
+
 
 			const deduped = Array.from(
 				new Map(nextSubjects.map((item) => [item.subjectClassId, item])).values(),

@@ -99,44 +99,54 @@ export default function ParentChildPage() {
 
           const average_attendance = totalRecords === 0 ? 0 : Math.round((presentRecords / totalRecords) * 100);
 
-          // Get pending assignments
-          const { data: studentSubjects } = await supabase
-        .from("student_subjects")
-        .select("subject_class_id")
-        .eq("student_id", student.id);
+          // Get required subjects for this student
+          const { data: subjectClasses } = await supabase
+            .from("subject_classes")
+            .select("id, subject_id, is_optional, department_id, religion_id")
+            .eq("class_id", student.class_id)
+            .eq("school_id", student.school_id)
+            .eq("is_optional", false);
 
-          const subjectClassIds = (studentSubjects as Array<{ subject_class_id: string }>)?.map(ss => ss.subject_class_id) || [];
+          const subjectClassIds = (subjectClasses as Array<{ id: string; subject_id: string; department_id: string | null; religion_id: string | null }>)
+            ?.filter(sc => {
+              // Include if no department filter or student matches
+              if (sc.department_id && sc.department_id !== student.department_id) return false;
+              // Include if no religion filter or student matches
+              if (sc.religion_id && sc.religion_id !== student.religion_id) return false;
+              return true;
+            })
+            .map(sc => sc.id) || [];
 
           let pending_assignments = 0;
           if (subjectClassIds.length > 0) {
-        // Get subject IDs from subject_classes
-        const { data: subjectClasses } = await supabase
-          .from("subject_classes")
-          .select("subject_id")
-          .in("id", subjectClassIds);
+            // Get subject IDs from filtered subject_classes
+            const { data: filteredSubjectClasses } = await supabase
+              .from("subject_classes")
+              .select("subject_id")
+              .in("id", subjectClassIds);
 
-        const subjectIds = (subjectClasses as Array<{ subject_id: string }>)?.map(sc => sc.subject_id) || [];
+            const subjectIds = (filteredSubjectClasses as Array<{ subject_id: string }>)?.map(sc => sc.subject_id) || [];
 
-        if (subjectIds.length > 0) {
-          const { data: assignments } = await supabase
-            .from("assignments")
-            .select("id")
-            .in("subject_id", subjectIds)
-            .gte("due_date", new Date().toISOString());
+            if (subjectIds.length > 0) {
+              const { data: assignments } = await supabase
+                .from("assignments")
+                .select("id")
+                .in("subject_id", subjectIds)
+                .gte("due_date", new Date().toISOString());
 
-          const assignmentIds = (assignments as Array<{ id: string }>)?.map(a => a.id) || [];
+              const assignmentIds = (assignments as Array<{ id: string }>)?.map(a => a.id) || [];
 
-          if (assignmentIds.length > 0) {
-            const { data: submissions } = await supabase
-          .from("assignment_submissions")
-          .select("assignment_id")
-          .eq("student_id", student.id)
-          .in("assignment_id", assignmentIds);
+              if (assignmentIds.length > 0) {
+                const { data: submissions } = await supabase
+                  .from("assignment_submissions")
+                  .select("assignment_id")
+                  .eq("student_id", student.id)
+                  .in("assignment_id", assignmentIds);
 
-            const submittedIds = (submissions as Array<{ assignment_id: string }>)?.map(s => s.assignment_id) || [];
-            pending_assignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
-          }
-        }
+                const submittedIds = (submissions as Array<{ assignment_id: string }>)?.map(s => s.assignment_id) || [];
+                pending_assignments = assignmentIds.filter(id => !submittedIds.includes(id)).length;
+              }
+            }
           }
 
           return {

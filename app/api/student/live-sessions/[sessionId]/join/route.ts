@@ -41,21 +41,46 @@ async function getStudentContext() {
 
   const { data: student } = await supabase
     .from("students")
-    .select("id, school_id, class_id")
+    .select("id, school_id, class_id, department_id, religion_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!student?.school_id || !student.class_id) return null;
 
-  const { data: studentSubjects } = await supabase
-    .from("student_subjects")
-    .select("subject_class_id")
-    .eq("student_id", student.id);
+  // Get required subjects for this student based on subject_classes filters
+  const { data: subjectClasses } = await supabase
+    .from("subject_classes")
+    .select("id")
+    .eq("class_id", student.class_id)
+    .eq("school_id", student.school_id)
+    .eq("is_optional", false);
+
+  // Filter subjects based on student's department and religion
+  const validSubjectIds: string[] = [];
+  if (subjectClasses) {
+    for (const sc of subjectClasses) {
+      const { data: subjectData } = await supabase
+        .from("subject_classes")
+        .select("department_id, religion_id")
+        .eq("id", sc.id)
+        .single();
+
+      if (subjectData) {
+        // Include if no department filter or student matches
+        if (!subjectData.department_id || subjectData.department_id === student.department_id) {
+          // Include if no religion filter or student matches
+          if (!subjectData.religion_id || subjectData.religion_id === student.religion_id) {
+            validSubjectIds.push(sc.id);
+          }
+        }
+      }
+    }
+  }
 
   return {
     schoolId: student.school_id,
     classId: student.class_id,
-    subjectClassIds: (studentSubjects ?? []).map((item: any) => item.subject_class_id),
+    subjectClassIds: validSubjectIds,
   };
 }
 

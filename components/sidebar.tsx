@@ -26,9 +26,9 @@ import {
   Layers,
   QrCode,
   ChevronLeft,
+  UserCheck
 
 } from "lucide-react";
-// import periods time icon from lucide-react (if available) or use a suitable alternative
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -99,6 +99,7 @@ export function Sidebar({
     { href: "/admin/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/admin/sessions", label: "Sessions & Terms", icon: <Calendar className="h-5 w-5" /> },
     { href: "/admin/classes", label: "Classes", icon: <School className="h-5 w-5" /> },
+    { href: "/admin/attendance", label: "Attendance", icon: <ClipboardList className="h-5 w-5" /> },
     { href: "/admin/attendance/qr-scanner", label: "QR Attendance Scanner", icon: <QrCode className="h-5 w-5" /> },
     { href: "/admin/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
     { href: "/admin/periods", label: "Periods", icon: <Clock className="h-5 w-5" /> },

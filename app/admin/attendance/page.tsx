@@ -43,19 +43,6 @@ interface ClassStats {
     notMarked: number;
 }
 
-interface TeacherAttendance {
-    id: string;
-    teacher_id: string;
-    first_name: string;
-    last_name: string;
-    attendanceStatus: "present" | "absent" | "late" | "excused" | "not_marked";
-    attendanceId?: string;
-}
-
-interface ProcessedTeacherAttendanceData {
-    [teacherId: string]: TeacherAttendance;
-}
-
 export default function SchoolAttendancePage() {
     const { schoolId } = useSchoolContext();
     const [classes, setClasses] = useState<ClassData[]>([]);
@@ -65,8 +52,6 @@ export default function SchoolAttendancePage() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [attendanceData, setAttendanceData] = useState<ProcessedAttendanceData>({});
-    const [teacherAttendanceData, setTeacherAttendanceData] = useState<ProcessedTeacherAttendanceData>({});
-    const [teachers, setTeachers] = useState<TeacherAttendance[]>([]);
     const [selectedClassForModal, setSelectedClassForModal] = useState<string | null>(null);
 
     // Fetch all classes and their attendance data
@@ -81,7 +66,7 @@ export default function SchoolAttendancePage() {
         if (!schoolId) return;
         setIsLoading(true);
         try {
-            const [{ data: classesData, error: classesError }, { data: studentsData, error: studentsError }, { data: teachersData, error: teachersError }, { data: attendanceRecords, error: attendanceError }] = await Promise.all([
+            const [{ data: classesData, error: classesError }, { data: studentsData, error: studentsError }, { data: attendanceRecords, error: attendanceError }] = await Promise.all([
                 supabase
                     .from("classes")
                     .select("*")
@@ -94,19 +79,13 @@ export default function SchoolAttendancePage() {
                     .eq("status", "active")
                     .order("class_id"),
                 supabase
-                    .from("teachers")
-                    .select("*")
-                    .eq("school_id", schoolId)
-                    .eq("status", "active")
-                    .order("first_name", { ascending: true }),
-                supabase
                     .from("attendance")
                     .select("*")
                     .eq("school_id", schoolId)
                     .eq("date", date),
             ]);
 
-            if (classesError || studentsError || teachersError || attendanceError) {
+            if (classesError || studentsError || attendanceError) {
                 throw new Error("Failed to fetch data");
             }
 
@@ -159,31 +138,6 @@ export default function SchoolAttendancePage() {
 
             setClasses(finalClasses);
             setAttendanceData(attendanceLookup);
-
-            // Process teacher attendance data
-            const teacherLookup: ProcessedTeacherAttendanceData = {};
-            const processedTeachers: TeacherAttendance[] = [];
-
-            (teachersData || []).forEach((teacher: any) => {
-                const attendance = (attendanceRecords || []).find(
-                    (a: any) => a.teacher_id === teacher.id && !a.student_id
-                );
-
-                const teacherAttendance: TeacherAttendance = {
-                    id: teacher.id,
-                    teacher_id: teacher.teacher_id,
-                    first_name: teacher.first_name,
-                    last_name: teacher.last_name,
-                    attendanceStatus: attendance ? (attendance.status as any) : "not_marked",
-                    attendanceId: attendance?.id,
-                };
-
-                processedTeachers.push(teacherAttendance);
-                teacherLookup[teacher.id] = teacherAttendance;
-            });
-
-            setTeachers(processedTeachers);
-            setTeacherAttendanceData(teacherLookup);
         } catch (error) {
             console.error("Error fetching attendance data:", error);
             toast.error("Failed to load attendance data");
@@ -236,28 +190,6 @@ export default function SchoolAttendancePage() {
         );
     }
 
-    function updateTeacherAttendance(
-        teacherId: string,
-        status: TeacherAttendance["attendanceStatus"]
-    ) {
-        setTeacherAttendanceData((prev) => ({
-            ...prev,
-            [teacherId]: {
-                ...prev[teacherId],
-                attendanceStatus: status,
-            },
-        }));
-
-        // Also update the teachers state for UI refresh
-        setTeachers((prev) =>
-            prev.map((teacher) =>
-                teacher.id === teacherId
-                    ? { ...teacher, attendanceStatus: status }
-                    : teacher
-            )
-        );
-    }
-
     function markClassAllPresent(classId: string) {
         const updatedData = { ...attendanceData };
         updatedData[classId] = Object.fromEntries(
@@ -305,42 +237,6 @@ export default function SchoolAttendancePage() {
                     }
                     : cls
             )
-        );
-    }
-
-    function markAllTeachersPresent() {
-        const updatedData = { ...teacherAttendanceData };
-        Object.keys(updatedData).forEach((teacherId) => {
-            updatedData[teacherId] = {
-                ...updatedData[teacherId],
-                attendanceStatus: "present" as const,
-            };
-        });
-        setTeacherAttendanceData(updatedData);
-
-        setTeachers((prev) =>
-            prev.map((teacher) => ({
-                ...teacher,
-                attendanceStatus: "present" as const,
-            }))
-        );
-    }
-
-    function resetTeachersAttendance() {
-        const updatedData = { ...teacherAttendanceData };
-        Object.keys(updatedData).forEach((teacherId) => {
-            updatedData[teacherId] = {
-                ...updatedData[teacherId],
-                attendanceStatus: "not_marked" as const,
-            };
-        });
-        setTeacherAttendanceData(updatedData);
-
-        setTeachers((prev) =>
-            prev.map((teacher) => ({
-                ...teacher,
-                attendanceStatus: "not_marked" as const,
-            }))
         );
     }
 
@@ -514,14 +410,13 @@ export default function SchoolAttendancePage() {
 
     async function submitAllAttendance() {
         setIsSaving(true);
-        const savingToast = toast.loading("Saving attendance for all classes and teachers...");
+        const savingToast = toast.loading("Saving attendance for all classes...");
 
         try {
             const allAttendanceRecords: Array<{
                 school_id: string;
-                student_id?: string;
-                teacher_id?: string;
-                class_id?: string;
+                student_id: string;
+                class_id: string;
                 date: string;
                 status: string;
             }> = [];
@@ -533,7 +428,7 @@ export default function SchoolAttendancePage() {
                 studentName: string;
             }> = [];
 
-            // Collect all records to save and delete (students)
+            // Collect all records to save and delete
             Object.entries(attendanceData).forEach(([classId, students]) => {
                 Object.entries(students).forEach(([studentId, student]) => {
                     if (student.attendanceStatus !== "not_marked") {
@@ -558,22 +453,6 @@ export default function SchoolAttendancePage() {
                 });
             });
 
-            // Collect all teacher attendance records
-            Object.entries(teacherAttendanceData).forEach(([teacherId, teacher]) => {
-                if (teacher.attendanceStatus !== "not_marked") {
-                    allAttendanceRecords.push({
-                        school_id: schoolId!,
-                        teacher_id: teacher.id,
-                        date: selectedDate,
-                        status: teacher.attendanceStatus,
-                    });
-                }
-
-                if (teacher.attendanceId) {
-                    allExistingIds.push(teacher.attendanceId);
-                }
-            });
-
             // Delete existing records
             if (allExistingIds.length > 0) {
                 const { error: deleteError } = await supabase
@@ -594,7 +473,7 @@ export default function SchoolAttendancePage() {
                 if (insertError) throw insertError;
             }
 
-            toast.success("✅ Attendance for all classes and teachers saved successfully!", { id: savingToast });
+            toast.success("✅ Attendance saved successfully!", { id: savingToast });
 
             // Send notifications asynchronously
             if (notificationRecords.length > 0) {
@@ -690,7 +569,6 @@ export default function SchoolAttendancePage() {
             sum + Object.values(classData).filter((s) => s.attendanceStatus !== "not_marked").length,
         0
     );
-    const markedTeachers = teachers.filter((t) => t.attendanceStatus !== "not_marked").length;
 
     if (isLoading) {
         return (
@@ -713,7 +591,7 @@ export default function SchoolAttendancePage() {
                             <div>
                                 <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
                                 <p className="text-sm text-gray-600 mt-1">
-                                    {markedStudents}/{totalStudents} students, {markedTeachers}/{teachers.length} teachers marked for {getFormattedDate(selectedDate)}
+                                    {markedStudents}/{totalStudents} students marked for {getFormattedDate(selectedDate)}
                                 </p>
                             </div>
                             <div className="flex gap-2">
@@ -751,103 +629,6 @@ export default function SchoolAttendancePage() {
                         </div>
                     </div>
 
-                    {/* Teachers Attendance Section */}
-                    {teachers.length > 0 && (
-                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm p-6 mb-8 border border-blue-200">
-                            <div className="flex items-center justify-between mb-4">
-                                <div>
-                                    <h2 className="text-xl font-semibold text-gray-900">Teachers Attendance</h2>
-                                    <p className="text-sm text-gray-600 mt-1">
-                                        {markedTeachers}/{teachers.length} teachers marked
-                                    </p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={markAllTeachersPresent}
-                                        disabled={isSaving}
-                                    >
-                                        Mark All Present
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={resetTeachersAttendance}
-                                        disabled={isSaving}
-                                    >
-                                        Reset
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                                {teachers.map((teacher) => (
-                                    <div
-                                        key={teacher.id}
-                                        className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${
-                                            teacher.attendanceStatus === "not_marked"
-                                                ? "border-gray-200 bg-white hover:border-blue-300"
-                                                : teacher.attendanceStatus === "present"
-                                                    ? "border-green-500 bg-green-50"
-                                                    : teacher.attendanceStatus === "absent"
-                                                        ? "border-red-500 bg-red-50"
-                                                        : teacher.attendanceStatus === "late"
-                                                            ? "border-yellow-500 bg-yellow-50"
-                                                            : "border-purple-500 bg-purple-50"
-                                        }`}
-                                    >
-                                        <p className="text-sm font-medium text-gray-900">
-                                            {teacher.first_name} {teacher.last_name}
-                                        </p>
-                                        <div className="flex gap-1 mt-2">
-                                            <button
-                                                onClick={() => updateTeacherAttendance(teacher.id, "present")}
-                                                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                                                    teacher.attendanceStatus === "present"
-                                                        ? "bg-green-500 text-white"
-                                                        : "bg-gray-100 text-gray-700 hover:bg-green-100"
-                                                }`}
-                                            >
-                                                ✓
-                                            </button>
-                                            <button
-                                                onClick={() => updateTeacherAttendance(teacher.id, "absent")}
-                                                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                                                    teacher.attendanceStatus === "absent"
-                                                        ? "bg-red-500 text-white"
-                                                        : "bg-gray-100 text-gray-700 hover:bg-red-100"
-                                                }`}
-                                            >
-                                                ✕
-                                            </button>
-                                            <button
-                                                onClick={() => updateTeacherAttendance(teacher.id, "late")}
-                                                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                                                    teacher.attendanceStatus === "late"
-                                                        ? "bg-yellow-500 text-white"
-                                                        : "bg-gray-100 text-gray-700 hover:bg-yellow-100"
-                                                }`}
-                                            >
-                                                ⏰
-                                            </button>
-                                            <button
-                                                onClick={() => updateTeacherAttendance(teacher.id, "excused")}
-                                                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
-                                                    teacher.attendanceStatus === "excused"
-                                                        ? "bg-purple-500 text-white"
-                                                        : "bg-gray-100 text-gray-700 hover:bg-purple-100"
-                                                }`}
-                                            >
-                                                📋
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
                     {/* Classes Grid */}
                     {classes.length === 0 ? (
                         <div className="bg-white rounded-lg shadow-sm p-12 text-center">
@@ -880,7 +661,7 @@ export default function SchoolAttendancePage() {
                             <div className="bg-white rounded-lg shadow-sm p-6 sticky bottom-0 border-t">
                                 <Button
                                     onClick={submitAllAttendance}
-                                    disabled={isSaving || (markedStudents === 0 && markedTeachers === 0)}
+                                    disabled={isSaving || markedStudents === 0}
                                     size="lg"
                                     className="w-full md:w-auto"
                                 >
@@ -890,7 +671,7 @@ export default function SchoolAttendancePage() {
                                             Saving...
                                         </>
                                     ) : (
-                                        `Save All Attendance (${markedStudents + markedTeachers} marked)`
+                                        `Save All Attendance (${markedStudents} marked)`
                                     )}
                                 </Button>
                             </div>

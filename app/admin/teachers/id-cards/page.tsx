@@ -151,7 +151,7 @@ export default function TeacherIDCardGeneratorPage() {
         .select('*')
         .eq('teacher_id', teacherId)
         .eq('date', today)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching attendance:', error);

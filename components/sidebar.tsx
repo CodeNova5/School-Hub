@@ -107,6 +107,7 @@ export function Sidebar({
     { href: "/admin/students", label: "Students", icon: <Users className="h-5 w-5" /> },
     { href: "/admin/students/id-cards", label: "ID Card Generator", icon: <IdCard className="h-5 w-5" /> },
     { href: "/admin/teachers", label: "Teachers", icon: <GraduationCap className="h-5 w-5" /> },
+    { href: "/admin/teachers/id-cards", label: "Teacher ID Cards", icon: <IdCard className="h-5 w-5" /> },
     { href: "/admin/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
     { href: "/admin/history", label: "History", icon: <History className="h-5 w-5" /> },
     { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" /> },

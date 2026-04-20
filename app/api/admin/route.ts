@@ -327,7 +327,7 @@ export async function POST(req: NextRequest) {
       );
 
       try {
-        const { first_name, last_name, qualification, specialization, address, status, phone, email } = teacherData;
+        const { first_name, last_name, qualification, specialization, address, status, phone, email, photo_url } = teacherData;
 
         // Get current teacher record
         const { data: currentTeacher } = await supabaseAdmin
@@ -349,6 +349,11 @@ export async function POST(req: NextRequest) {
           status,
           phone,
         };
+
+        // Add photo_url if provided
+        if (photo_url) {
+          updateData.photo_url = photo_url;
+        }
 
         if (emailChanged) {
           updateData.email = email;

@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Camera, X, Check, AlertCircle, Clock } from "lucide-react";
+import { Camera, X, Check, AlertCircle, Clock, Users } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 
 interface Student {
@@ -32,6 +32,13 @@ interface Student {
   last_name: string;
   class_id: string;
   class_name: string;
+}
+
+interface Teacher {
+  id: string;
+  staff_id: string;
+  first_name: string;
+  last_name: string;
 }
 
 interface AttendanceRecord {
@@ -45,6 +52,7 @@ interface ScanResult {
   timestamp: number;
   status: "success" | "not_found" | "error";
   message: string;
+  type: "student" | "teacher"; // Track what type was scanned
 }
 
 export default function QRScannerPage() {
@@ -56,11 +64,12 @@ export default function QRScannerPage() {
   const scanRafRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const presentStudentIdsRef = useRef<Set<string>>(new Set());
+  const presentTeacherIdsRef = useRef<Set<string>>(new Set());
   const lastScanAtRef = useRef<Map<string, number>>(new Map());
   const scanCooldownMs = 1200;
   const scanThrottleMs = 80;
   const lastFrameScanRef = useRef(0);
-  const failedDecodeAttemptsRef = useRef<Map<string, number>>(new Map()); // Track failures per frame
+  const failedDecodeAttemptsRef = useRef<Map<string, number>>(new Map());
 
   // State management
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -69,16 +78,20 @@ export default function QRScannerPage() {
   const [selectedStatus, setSelectedStatus] = useState<"present" | "absent" | "late" | "excused">("present");
   const [studentsByUuid, setStudentsByUuid] = useState<Map<string, Student>>(new Map());
   const [studentsByStudentCode, setStudentsByStudentCode] = useState<Map<string, Student>>(new Map());
+  const [teachersById, setTeachersById] = useState<Map<string, Teacher>>(new Map());
+  const [teachersByStaffId, setTeachersByStaffId] = useState<Map<string, Teacher>>(new Map());
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [presentStudentIds, setPresentStudentIds] = useState<Set<string>>(new Set());
+  const [presentTeacherIds, setPresentTeacherIds] = useState<Set<string>>(new Set());
   const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
-  const [scanQuality, setScanQuality] = useState(0); // Visual feedback: image quality 0-100
+  const [scanQuality, setScanQuality] = useState(0);
 
-  // Fetch students for the whole school on mount
+  // Fetch students and teachers for the whole school on mount
   useEffect(() => {
     if (schoolId && !schoolLoading) {
       fetchStudents();
+      fetchTeachers();
     }
   }, [schoolId, schoolLoading]);
 
@@ -110,7 +123,7 @@ export default function QRScannerPage() {
         scanRafRef.current = null;
       }
     };
-  }, [isCameraActive, studentsByUuid, studentsByStudentCode]);
+  }, [isCameraActive, studentsByUuid, studentsByStudentCode, teachersById, teachersByStaffId]);
 
   async function fetchStudents() {
     if (!schoolId) return;
@@ -149,6 +162,39 @@ export default function QRScannerPage() {
     }
     finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchTeachers() {
+    if (!schoolId) return;
+    try {
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("id, staff_id, first_name, last_name")
+        .eq("school_id", schoolId)
+        .eq("status", "active");
+
+      if (error) throw error;
+
+      const byId = new Map<string, Teacher>();
+      const byStaffId = new Map<string, Teacher>();
+      (data || []).forEach((teacher: any) => {
+        const teacherRecord: Teacher = {
+          id: teacher.id,
+          staff_id: teacher.staff_id,
+          first_name: teacher.first_name,
+          last_name: teacher.last_name,
+        };
+        byId.set(teacher.id, teacherRecord);
+        byStaffId.set(teacher.staff_id.toUpperCase(), teacherRecord);
+      });
+
+      setTeachersById(byId);
+      setTeachersByStaffId(byStaffId);
+      setPresentTeacherIds(new Set());
+      presentTeacherIdsRef.current = new Set();
+    } catch (error) {
+      toast.error("Failed to load teachers");
     }
   }
 
@@ -309,16 +355,29 @@ export default function QRScannerPage() {
     }
   }
 
-  function parseIdCardPayload(raw: string): { sid?: string; scid?: string } | null {
+  function parseIdCardPayload(raw: string): { sid?: string; tid?: string; scid?: string; type?: string } | null {
     const trimmed = raw.trim();
 
-    // New compact format: SH1|<studentId>|<schoolId>
+    // Student format: SH1|<studentId>|<schoolId>
     if (trimmed.startsWith("SH1|")) {
       const parts = trimmed.split("|");
       if (parts.length >= 3) {
         return {
           sid: parts[1],
           scid: parts[2],
+          type: "student",
+        };
+      }
+    }
+
+    // Teacher format: TR1|<teacherId>|<schoolId>
+    if (trimmed.startsWith("TR1|")) {
+      const parts = trimmed.split("|");
+      if (parts.length >= 3) {
+        return {
+          tid: parts[1],
+          scid: parts[2],
+          type: "teacher",
         };
       }
     }
@@ -342,26 +401,62 @@ export default function QRScannerPage() {
     const raw = code.trim();
     const decoded = parseIdCardPayload(raw);
     const extractedStudentUuid = decoded?.sid;
+    const extractedTeacherId = decoded?.tid;
     const extractedSchoolId = decoded?.scid;
-    const fallbackStudentCode = raw.toUpperCase();
+    const qrType = decoded?.type;
+    const fallbackCode = raw.toUpperCase();
 
+    // Check if QR is from the same school
     if (decoded && extractedSchoolId && schoolId && extractedSchoolId !== schoolId) {
       const wrongSchoolScan: ScanResult = {
-        student_id: fallbackStudentCode,
+        student_id: fallbackCode,
         timestamp: Date.now(),
         status: "error",
         message: "QR is from a different school",
+        type: qrType as "student" | "teacher" || "student",
       };
       setRecentScans((prev) => [wrongSchoolScan, ...prev].slice(0, 10));
       toast.error("This ID card belongs to a different school");
       return;
     }
 
-    const student = extractedStudentUuid
-      ? studentsByUuid.get(extractedStudentUuid)
-      : studentsByStudentCode.get(fallbackStudentCode);
+    // Determine if scanning a student or teacher
+    const isTeacherQR = qrType === "teacher" || extractedTeacherId;
+    const isStudentQR = qrType === "student" || extractedStudentUuid;
 
-    const dedupeKey = student?.id || fallbackStudentCode;
+    if (isTeacherQR) {
+      handleTeacherScan(extractedTeacherId, fallbackCode);
+    } else if (isStudentQR) {
+      handleStudentScan(extractedStudentUuid, fallbackCode);
+    } else {
+      // Try to determine type from the code itself - for backward compatibility
+      const student = studentsByStudentCode.get(fallbackCode);
+      const teacher = teachersByStaffId.get(fallbackCode);
+      
+      if (student) {
+        handleStudentScan(student.id, fallbackCode);
+      } else if (teacher) {
+        handleTeacherScan(teacher.id, fallbackCode);
+      } else {
+        const unknownScan: ScanResult = {
+          student_id: fallbackCode,
+          timestamp: Date.now(),
+          status: "not_found",
+          message: "QR code not recognized - no student or teacher found",
+          type: "student",
+        };
+        setRecentScans((prev) => [unknownScan, ...prev].slice(0, 10));
+        toast.error("QR code not recognized");
+      }
+    }
+  }
+
+  function handleStudentScan(studentUuidOrId: string | undefined, fallbackCode: string) {
+    const student = studentUuidOrId
+      ? studentsByUuid.get(studentUuidOrId)
+      : null;
+
+    const dedupeKey = student?.id || fallbackCode;
     const lastAt = lastScanAtRef.current.get(dedupeKey) || 0;
     const now = Date.now();
 
@@ -372,25 +467,23 @@ export default function QRScannerPage() {
     lastScanAtRef.current.set(dedupeKey, now);
 
     if (!student) {
-      // Only show error if QR was successfully decoded but student doesn't exist
-      // This is a real error (invalid QR or student removed from system)
       const scanResult: ScanResult = {
-        student_id: fallbackStudentCode,
+        student_id: fallbackCode,
         timestamp: now,
         status: "not_found",
-        message: "QR decoded but student not found in system",
+        message: "Student not found in system",
+        type: "student",
       };
       setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
-      toast.error("Student not found in system");
+      toast.error("Student not found");
       return;
     }
 
-    // Avoid duplicate attendance records for same student
+    // Avoid duplicate attendance records
     if (presentStudentIdsRef.current.has(student.id)) {
       return;
     }
 
-    // Mark as present in UI immediately
     presentStudentIdsRef.current.add(student.id);
     setPresentStudentIds((prev) => new Set(prev).add(student.id));
 
@@ -398,13 +491,14 @@ export default function QRScannerPage() {
       student_id: student.student_id,
       timestamp: now,
       status: "success",
-      message: `${student.first_name} ${student.last_name} marked present`,
+      message: `${student.first_name} ${student.last_name} (Student)`,
+      type: "student",
     };
     setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
-    toast.success(`Marked: ${student.first_name} ${student.last_name}`);
+    toast.success(`${student.first_name} ${student.last_name}`);
     playWelcome();
 
-    // Save attendance to database immediately
+    // Save student attendance to database
     (async () => {
       try {
         const attendanceRecord = {
@@ -416,7 +510,6 @@ export default function QRScannerPage() {
           marked_by: null,
         };
 
-        // Check if record already exists for this student on this date
         const { data: existingRecord } = await supabase
           .from("attendance")
           .select("id")
@@ -425,20 +518,19 @@ export default function QRScannerPage() {
           .eq("date", selectedDate)
           .single();
 
-        // If exists, skip insertion (already marked)
         if (!existingRecord) {
           const { error } = await supabase
             .from("attendance")
             .insert([attendanceRecord]);
 
           if (error) {
-            console.error("Failed to save attendance to DB:", error);
-            toast.error(`Could not save attendance for ${student.first_name}. Check connection.`);
+            console.error("Failed to save student attendance:", error);
+            toast.error(`Could not save attendance for ${student.first_name}`);
             return;
           }
         }
 
-        console.log(`✅ Attendance saved for ${student.first_name} ${student.last_name}`);
+        console.log(`✅ Student attendance saved: ${student.first_name} ${student.last_name}`);
 
         // Send notification in background (no await)
         notifyParentAsync({
@@ -448,6 +540,93 @@ export default function QRScannerPage() {
         });
       } catch (error) {
         console.error("Unexpected error in attendance save:", error);
+        toast.error("Unexpected error. Check console.");
+      }
+    })();
+  }
+
+  function handleTeacherScan(teacherIdOrUuid: string | undefined, fallbackCode: string) {
+    const teacher = teacherIdOrUuid
+      ? teachersById.get(teacherIdOrUuid)
+      : teachersByStaffId.get(fallbackCode);
+
+    const dedupeKey = teacher?.id || fallbackCode;
+    const lastAt = lastScanAtRef.current.get(dedupeKey) || 0;
+    const now = Date.now();
+
+    if (now - lastAt < scanCooldownMs) {
+      return;
+    }
+
+    lastScanAtRef.current.set(dedupeKey, now);
+
+    if (!teacher) {
+      const scanResult: ScanResult = {
+        student_id: fallbackCode,
+        timestamp: now,
+        status: "not_found",
+        message: "Teacher not found in system",
+        type: "teacher",
+      };
+      setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
+      toast.error("Teacher not found");
+      return;
+    }
+
+    // Avoid duplicate attendance records
+    if (presentTeacherIdsRef.current.has(teacher.id)) {
+      return;
+    }
+
+    presentTeacherIdsRef.current.add(teacher.id);
+    setPresentTeacherIds((prev) => new Set(prev).add(teacher.id));
+
+    const scanResult: ScanResult = {
+      student_id: teacher.staff_id,
+      timestamp: now,
+      status: "success",
+      message: `${teacher.first_name} ${teacher.last_name} (Teacher)`,
+      type: "teacher",
+    };
+    setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
+    toast.success(`${teacher.first_name} ${teacher.last_name}`);
+    playWelcome();
+
+    // Save teacher attendance to database
+    (async () => {
+      try {
+        const attendanceRecord = {
+          school_id: schoolId,
+          teacher_id: teacher.id,
+          date: selectedDate,
+          status: selectedStatus,
+          marked_by: null,
+          notes: "",
+        };
+
+        const { data: existingRecord } = await supabase
+          .from("teacher_attendance")
+          .select("id")
+          .eq("school_id", schoolId)
+          .eq("teacher_id", teacher.id)
+          .eq("date", selectedDate)
+          .single();
+
+        if (!existingRecord) {
+          const { error } = await supabase
+            .from("teacher_attendance")
+            .insert([attendanceRecord]);
+
+          if (error) {
+            console.error("Failed to save teacher attendance:", error);
+            toast.error(`Could not save attendance for ${teacher.first_name}`);
+            return;
+          }
+        }
+
+        console.log(`✅ Teacher attendance saved: ${teacher.first_name} ${teacher.last_name}`);
+      } catch (error) {
+        console.error("Unexpected error in teacher attendance save:", error);
         toast.error("Unexpected error. Check console.");
       }
     })();
@@ -693,26 +872,46 @@ export default function QRScannerPage() {
   async function refreshPresentStudents() {
     if (!schoolId) return;
     try {
-      const { data, error } = await supabase
+      // Refresh students
+      const { data: studentData, error: studentError } = await supabase
         .from("attendance")
         .select("student_id")
         .eq("school_id", schoolId)
         .eq("date", selectedDate);
 
-      if (error) throw error;
+      if (studentError) throw studentError;
 
-      const presentIds = new Set(
-        ((data as Array<{ student_id: string }>) || []).map((r) => r.student_id)
+      const presentStudentIds = new Set(
+        ((studentData as Array<{ student_id: string }>) || []).map((r) => r.student_id)
       );
-      setPresentStudentIds(presentIds);
-      presentStudentIdsRef.current = presentIds;
+      setPresentStudentIds(presentStudentIds);
+      presentStudentIdsRef.current = presentStudentIds;
+
+      // Refresh teachers
+      const { data: teacherData, error: teacherError } = await supabase
+        .from("teacher_attendance")
+        .select("teacher_id")
+        .eq("school_id", schoolId)
+        .eq("date", selectedDate);
+
+      if (teacherError) throw teacherError;
+
+      const presentTeacherIds = new Set(
+        ((teacherData as Array<{ teacher_id: string }>) || []).map((r) => r.teacher_id)
+      );
+      setPresentTeacherIds(presentTeacherIds);
+      presentTeacherIdsRef.current = presentTeacherIds;
     } catch (error) {
-      console.error("Error refreshing present students:", error);
+      console.error("Error refreshing attendance data:", error);
     }
   }
 
   const totalStudents = studentsByUuid.size;
-  const presentCount = presentStudentIds.size;
+  const presentStudentCount = presentStudentIds.size;
+  const totalTeachers = teachersById.size;
+  const presentTeacherCount = presentTeacherIds.size;
+  const totalPeople = totalStudents + totalTeachers;
+  const presentPeopleCount = presentStudentCount + presentTeacherCount;
 
   if (loading || schoolLoading) {
     return (
@@ -775,23 +974,56 @@ export default function QRScannerPage() {
 
             {/* Stats */}
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-              <CardContent className="pt-6 space-y-3">
+              <CardContent className="pt-6 space-y-4">
                 <div>
-                  <p className="text-sm text-gray-600">Present Today</p>
-                  <p className="text-4xl font-bold text-blue-600">{presentCount}</p>
+                  <p className="text-sm text-gray-600">Total Present</p>
+                  <p className="text-4xl font-bold text-blue-600">{presentPeopleCount}</p>
                 </div>
                 <div className="h-1 bg-blue-200 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-600 transition-all duration-300"
                     style={{
-                      width: totalStudents > 0 ? `${(presentCount / totalStudents) * 100}%` : "0%",
+                      width: totalPeople > 0 ? `${(presentPeopleCount / totalPeople) * 100}%` : "0%",
                     }}
                   />
                 </div>
-                <p className="text-sm text-gray-600">
-                  {totalStudents > 0
-                    ? `${totalStudents - presentCount} of ${totalStudents} students remaining`
-                    : "No students found"}
+                
+                {/* Students Stats */}
+                <div className="border-t pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-600">Students</p>
+                    <span className="text-xs text-blue-600 font-semibold">{presentStudentCount}/{totalStudents}</span>
+                  </div>
+                  <div className="h-1 bg-blue-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{
+                        width: totalStudents > 0 ? `${(presentStudentCount / totalStudents) * 100}%` : "0%",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Teachers Stats */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-600">Teachers</p>
+                    <span className="text-xs text-purple-600 font-semibold">{presentTeacherCount}/{totalTeachers}</span>
+                  </div>
+                  <div className="h-1 bg-purple-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-500 transition-all duration-300"
+                      style={{
+                        width: totalTeachers > 0 ? `${(presentTeacherCount / totalTeachers) * 100}%` : "0%",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-600 text-center pt-2">
+                  {totalPeople > 0
+                    ? `${totalPeople - presentPeopleCount} of ${totalPeople} remaining`
+                    : "No attendees found"}
                 </p>
               </CardContent>
             </Card>

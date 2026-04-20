@@ -5,6 +5,9 @@ import { uploadFile, fileToBase64 } from "@/lib/github";
 
 type UploadType = 
   | "student_photo" 
+  | "teacher_photo"
+  | "parent_photo"
+  | "staff_photo"
   | "assignment_file" 
   | "teacher_assignment_file"
   | "school_logo"
@@ -44,12 +47,21 @@ export async function POST(req: Request) {
      * Decide how to handle upload based on type
      */
     switch (type) {
-      case "student_photo": {
-        const studentId = form.get("student_id") as string;
-        if (!studentId) throw new Error("student_id is required");
+      // Generic photo upload handler for all entity types (student, teacher, parent, staff, etc.)
+      case "student_photo":
+      case "teacher_photo":
+      case "parent_photo":
+      case "staff_photo": {
+        const entityType = type.replace("_photo", "");
+        const entityIdKey = `${entityType}_id`;
+        const entityId = form.get(entityIdKey) as string;
 
-        path = `students/${studentId}.${fileExtension}`;
-        commitMessage = `Upload student photo for ${studentId}`;
+        if (!entityId) {
+          throw new Error(`${entityIdKey} is required for ${type}`);
+        }
+
+        path = `${entityType}s/${entityId}.${fileExtension}`;
+        commitMessage = `Upload ${entityType} photo for ${entityId}`;
         break;
       }
 

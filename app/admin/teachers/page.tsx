@@ -4,8 +4,8 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2, MoreVertical, Eye, UserCog, BookOpen } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Plus, Search, Edit, Trash2, MoreVertical, Eye, UserCog, BookOpen, Camera, X } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { Teacher } from '@/lib/types';
@@ -84,6 +84,24 @@ export default function TeachersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<{ id: string; userId?: string; name: string } | null>(null);
+  
+  // Image handling state
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [imageUrl, setImageUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (!isDialogOpen && cameraStream) {
+      // Clean up camera when dialog closes
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+      setIsCameraOpen(false);
+    }
+  }, [isDialogOpen, cameraStream]);
 
   useEffect(() => {
     if (schoolId) {
@@ -201,6 +219,108 @@ export default function TeachersPage() {
       toast.error('Failed to fetch subject classes');
     }
   }
+
+  // Image handling functions
+  async function handleImageFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload to GitHub
+    await uploadImageToGitHub(file);
+  }
+
+  async function uploadImageToGitHub(file: File) {
+    setUploadingImage(true);
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+      uploadFormData.append("type", "teacher_photo");
+      uploadFormData.append("teacher_id", `teacher_${Date.now()}`);
+
+      // Call server-side upload API
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Unknown error');
+      }
+
+      setImageUrl(result.fileUrl);
+      toast.success('Image uploaded successfully');
+    } catch (error) {
+      console.error('Failed to upload image:', error);
+      toast.error('Failed to upload image to GitHub');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  async function handleCameraCapture() {
+    try {
+      if (!cameraStream) {
+        // Open camera
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user' },
+        });
+        setCameraStream(stream);
+        setIsCameraOpen(true);
+
+        // Add stream to video element
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } else {
+        // Capture photo
+        if (canvasRef.current && videoRef.current) {
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          const context = canvas.getContext('2d');
+
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          context?.drawImage(video, 0, 0);
+
+          // Convert canvas to blob and upload
+          canvas.toBlob(async (blob: Blob | null) => {
+            if (!blob) return;
+            const file = new File([blob], `teacher_camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            setImagePreview(canvas.toDataURL());
+            await uploadImageToGitHub(file);
+            
+            // Close camera
+            cameraStream.getTracks().forEach(track => track.stop());
+            setCameraStream(null);
+            setIsCameraOpen(false);
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      toast.error('Failed to access camera');
+    }
+  }
+
+  function closeCameraAndClear() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+    }
+    setCameraStream(null);
+    setIsCameraOpen(false);
+    setImagePreview(null);
+    setImageUrl('');
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
@@ -235,6 +355,7 @@ export default function TeachersPage() {
               status: teacherData.status,
               phone: teacherData.phone,
               email,
+              ...(imageUrl && { image_url: imageUrl }),
             },
             oldEmail: editingTeacher.email,
           }),
@@ -281,6 +402,7 @@ export default function TeachersPage() {
             teacherData: {
               ...teacherData,
               phone,
+              ...(imageUrl && { image_url: imageUrl }),
             },
             selectedClass: selectedClass || null,
           }),
@@ -350,12 +472,20 @@ export default function TeachersPage() {
 
   async function openEditDialog(teacher: Teacher) {
     setEditingTeacher(teacher);
+    // Load existing image if available
+    if ((teacher as any).image_url) {
+      setImageUrl((teacher as any).image_url);
+      setImagePreview((teacher as any).image_url);
+    }
     setIsDialogOpen(true);
   }
 
   function closeDialog() {
     setIsDialogOpen(false);
     setEditingTeacher(null);
+    setImagePreview(null);
+    setImageUrl('');
+    closeCameraAndClear();
   }
 
   async function handleAssignClass(e: React.FormEvent<HTMLFormElement>) {
@@ -472,7 +602,11 @@ export default function TeachersPage() {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingTeacher(null)}>
+              <Button onClick={() => {
+                setEditingTeacher(null);
+                setImagePreview(null);
+                setImageUrl('');
+              }}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Teacher
               </Button>
@@ -578,6 +712,109 @@ export default function TeachersPage() {
                   <Input id="address" name="address" defaultValue={editingTeacher?.address} />
                 </div>
 
+                {/* Teacher Photo Section */}
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">Teacher Photo</h3>
+                  <div className="flex flex-col gap-4">
+                    {/* Image Preview */}
+                    {imagePreview && (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full h-40 object-cover rounded-lg"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2"
+                          onClick={() => {
+                            closeCameraAndClear();
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Camera View */}
+                    {isCameraOpen && cameraStream && (
+                      <div className="relative">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          className="w-full h-40 object-cover rounded-lg bg-black"
+                        />
+                        <canvas ref={canvasRef} className="hidden" />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2"
+                          onClick={() => {
+                            cameraStream.getTracks().forEach(track => track.stop());
+                            setCameraStream(null);
+                            setIsCameraOpen(false);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Upload Options */}
+                    {!isCameraOpen && (
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => document.getElementById('teacher_photo_input')?.click()}
+                          disabled={uploadingImage}
+                        >
+                          Upload Photo
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={handleCameraCapture}
+                          disabled={uploadingImage}
+                        >
+                          <Camera className="h-4 w-4 mr-2" />
+                          Take Photo
+                        </Button>
+                        <input
+                          id="teacher_photo_input"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageFileSelect}
+                          disabled={uploadingImage}
+                        />
+                      </div>
+                    )}
+
+                    {/* Capture Button when camera is open */}
+                    {isCameraOpen && cameraStream && (
+                      <Button
+                        type="button"
+                        className="w-full"
+                        onClick={handleCameraCapture}
+                        disabled={uploadingImage}
+                      >
+                        {uploadingImage ? 'Uploading...' : 'Capture Photo'}
+                      </Button>
+                    )}
+
+                    {uploadingImage && (
+                      <p className="text-sm text-gray-600 text-center">Uploading image...</p>
+                    )}
+                  </div>
+                </div>
+
                 {!editingTeacher && (
                   <div>
                     <Label htmlFor="class_id">Assign as Class Teacher (Optional)</Label>
@@ -658,6 +895,13 @@ export default function TeachersPage() {
                       <td className="p-3">
                         <div className="flex items-center gap-3">
                           <Avatar>
+                            {(teacher as any).image_url && (
+                              <img
+                                src={(teacher as any).image_url}
+                                alt={`${teacher.first_name} ${teacher.last_name}`}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
                             <AvatarFallback className="bg-green-100 text-green-700 font-semibold">
                               {getInitials(teacher.first_name, teacher.last_name)}
                             </AvatarFallback>
@@ -756,6 +1000,13 @@ export default function TeachersPage() {
                 {/* Header with Avatar */}
                 <div className="flex items-center gap-4 pb-4 border-b">
                   <Avatar className="h-20 w-20">
+                    {(viewingTeacher as any).image_url && (
+                      <img
+                        src={(viewingTeacher as any).image_url}
+                        alt={`${viewingTeacher.first_name} ${viewingTeacher.last_name}`}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                     <AvatarFallback className="bg-gradient-to-br from-green-100 to-green-200 text-green-700 text-2xl font-semibold">
                       {getInitials(viewingTeacher.first_name, viewingTeacher.last_name)}
                     </AvatarFallback>

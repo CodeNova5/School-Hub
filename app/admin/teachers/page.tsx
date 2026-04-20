@@ -355,7 +355,7 @@ export default function TeachersPage() {
               status: teacherData.status,
               phone: teacherData.phone,
               email,
-              ...(imageUrl && { image_url: imageUrl }),
+              ...(imageUrl && { photo_url: imageUrl }),
             },
             oldEmail: editingTeacher.email,
           }),
@@ -402,7 +402,7 @@ export default function TeachersPage() {
             teacherData: {
               ...teacherData,
               phone,
-              ...(imageUrl && { image_url: imageUrl }),
+              ...(imageUrl && { photo_url: imageUrl }),
             },
             selectedClass: selectedClass || null,
           }),
@@ -473,9 +473,9 @@ export default function TeachersPage() {
   async function openEditDialog(teacher: Teacher) {
     setEditingTeacher(teacher);
     // Load existing image if available
-    if ((teacher as any).image_url) {
-      setImageUrl((teacher as any).image_url);
-      setImagePreview((teacher as any).image_url);
+    if ((teacher as any).photo_url) {
+      setImageUrl((teacher as any).photo_url);
+      setImagePreview((teacher as any).photo_url);
     }
     setIsDialogOpen(true);
   }
@@ -895,9 +895,9 @@ export default function TeachersPage() {
                       <td className="p-3">
                         <div className="flex items-center gap-3">
                           <Avatar>
-                            {(teacher as any).image_url && (
+                            {(teacher as any).photo_url && (
                               <img
-                                src={(teacher as any).image_url}
+                                src={(teacher as any).photo_url}
                                 alt={`${teacher.first_name} ${teacher.last_name}`}
                                 className="w-full h-full object-cover"
                               />
@@ -1000,9 +1000,9 @@ export default function TeachersPage() {
                 {/* Header with Avatar */}
                 <div className="flex items-center gap-4 pb-4 border-b">
                   <Avatar className="h-20 w-20">
-                    {(viewingTeacher as any).image_url && (
+                    {(viewingTeacher as any).photo_url && (
                       <img
-                        src={(viewingTeacher as any).image_url}
+                        src={(viewingTeacher as any).photo_url}
                         alt={`${viewingTeacher.first_name} ${viewingTeacher.last_name}`}
                         className="w-full h-full object-cover"
                       />

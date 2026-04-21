@@ -216,6 +216,46 @@ export async function GET(req: NextRequest) {
       "paystack",
       reference
     );
+
+    // Update bill amounts and status after successful payment
+    const { data: billData } = await supabase
+      .from("finance_student_bills")
+      .select("id, total_amount, amount_paid")
+      .eq("id", transaction.bill_id)
+      .limit(1);
+
+    if (billData && billData.length > 0) {
+      const bill = billData[0];
+      
+      // Get all successful transactions for this bill
+      const { data: successfulTxs } = await supabase
+        .from("finance_transactions")
+        .select("amount")
+        .eq("bill_id", transaction.bill_id)
+        .eq("status", "success");
+
+      const totalPaid = (successfulTxs || []).reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+      const balanceAmount = Number(bill.total_amount || 0) - totalPaid;
+      
+      // Determine new bill status
+      let newStatus = "pending";
+      if (balanceAmount <= 0) {
+        newStatus = "paid";
+      } else if (totalPaid > 0) {
+        newStatus = "partial";
+      }
+
+      // Update bill with new amounts and status
+      await supabase
+        .from("finance_student_bills")
+        .update({
+          amount_paid: totalPaid,
+          balance_amount: Math.max(0, balanceAmount),
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", transaction.bill_id);
+    }
   }
 
   return successResponse({

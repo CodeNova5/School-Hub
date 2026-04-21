@@ -41,8 +41,8 @@ function formatSequence(value: number) {
 }
 
 async function ensureReceipt(supabase: any, supabaseAdmin: any, schoolId: string, transactionId: string, billId: string, studentId: string, amount: number, paymentMethod: string, reference: string) {
-  // Use limit(1) instead of maybeSingle to avoid RLS coercion errors
-  const { data: existingArray } = await supabase
+  // Use admin client to read existing receipt (bypass RLS for system operations)
+  const { data: existingArray } = await supabaseAdmin
     .from("finance_receipts")
     .select("id, receipt_number")
     .eq("transaction_id", transactionId)
@@ -63,7 +63,8 @@ async function ensureReceipt(supabase: any, supabaseAdmin: any, schoolId: string
 
   const settings = Array.isArray(settingsArray) && settingsArray.length > 0 ? settingsArray[0] : null;
 
-  const { count } = await supabase
+  // Use admin client to count receipts (bypass RLS for system operations)
+  const { count } = await supabaseAdmin
     .from("finance_receipts")
     .select("id", { count: "exact", head: true })
     .eq("school_id", schoolId);
@@ -71,7 +72,8 @@ async function ensureReceipt(supabase: any, supabaseAdmin: any, schoolId: string
   const receiptPrefix = settings?.receipt_prefix || "RCP";
   const receiptNumber = `${receiptPrefix}-${formatSequence((count || 0) + 1)}`;
 
-  const { data: receiptArray, error } = await supabase
+  // Use admin client to upsert receipt (system operation, bypasses RLS for INSERT)
+  const { data: receiptArray, error } = await supabaseAdmin
     .from("finance_receipts")
     .upsert(
       {
@@ -117,9 +119,8 @@ export async function GET(req: NextRequest) {
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-
   const {
     data: { user },
     error: authError,

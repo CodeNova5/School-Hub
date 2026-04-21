@@ -128,7 +128,7 @@ export async function POST(req: Request) {
       reference
     );
 
-    // Update bill amounts and status after successful payment
+    // Update bill amounts and status after successful payment (admin operation)
     const { data: billData } = await supabaseAdmin
       .from("finance_student_bills")
       .select("id, total_amount, amount_paid")

@@ -217,8 +217,8 @@ export async function GET(req: NextRequest) {
       reference
     );
 
-    // Update bill amounts and status after successful payment
-    const { data: billData } = await supabase
+    // Update bill amounts and status after successful payment (use admin client for system operation)
+    const { data: billData } = await supabaseAdmin
       .from("finance_student_bills")
       .select("id, total_amount, amount_paid")
       .eq("id", transaction.bill_id)
@@ -227,8 +227,8 @@ export async function GET(req: NextRequest) {
     if (billData && billData.length > 0) {
       const bill = billData[0];
       
-      // Get all successful transactions for this bill
-      const { data: successfulTxs } = await supabase
+      // Get all successful transactions for this bill (use admin client)
+      const { data: successfulTxs } = await supabaseAdmin
         .from("finance_transactions")
         .select("amount")
         .eq("bill_id", transaction.bill_id)
@@ -245,8 +245,8 @@ export async function GET(req: NextRequest) {
         newStatus = "partial";
       }
 
-      // Update bill with new amounts and status
-      await supabase
+      // Update bill with new amounts and status (use admin client)
+      await supabaseAdmin
         .from("finance_student_bills")
         .update({
           amount_paid: totalPaid,

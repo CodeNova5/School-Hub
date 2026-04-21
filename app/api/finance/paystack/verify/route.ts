@@ -196,23 +196,35 @@ export async function GET(req: NextRequest) {
   console.log("Transaction ID:", transaction.id);
   console.log("Bill ID:", transaction.bill_id);
 
-  const { error: updateError } = await supabase
+  const { data: updatedTransactionRows, error: updateError } = await supabaseAdmin
     .from("finance_transactions")
     .update({
       status: mappedStatus,
       paid_at: mappedStatus === "success" ? verifyData.data.paid_at || new Date().toISOString() : null,
       provider_reference: verifyData.data.reference,
     })
-    .eq("id", transaction.id);
+    .eq("id", transaction.id)
+    .select("id, status")
+    .limit(1);
 
   if (updateError) {
     console.error("Transaction update error:", updateError);
     return errorResponse(updateError.message || "Failed to update transaction", 500);
   }
+
+  if (!updatedTransactionRows || updatedTransactionRows.length === 0) {
+    console.error("Transaction update affected 0 rows", {
+      transactionId: transaction.id,
+      reference,
+      mappedStatus,
+    });
+    return errorResponse("Failed to update transaction status", 500);
+  }
+
   console.log("✓ Transaction status updated to:", mappedStatus);
 
   // Re-fetch the updated transaction to include in response
-  const { data: updatedTxArray } = await supabase
+  const { data: updatedTxArray } = await supabaseAdmin
     .from("finance_transactions")
     .select("*")
     .eq("id", transaction.id)

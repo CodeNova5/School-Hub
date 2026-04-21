@@ -435,15 +435,15 @@ export default function StudentSubjectsPage() {
                       </Badge>
                       {availableDepartments.length > 1 && (
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setNewDepartmentId(studentDepartmentId || "");
                             setIsDepartmentDialogOpen(true);
                           }}
-                          className="h-6 px-2"
                         >
-                          <Edit3 className="h-3 w-3" />
+                          <Edit3 className="h-4 w-4 mr-1" />
+                          Change
                         </Button>
                       )}
                     </div>

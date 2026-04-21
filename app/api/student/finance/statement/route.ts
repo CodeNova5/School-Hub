@@ -3,6 +3,41 @@ import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import { errorResponse, successResponse } from "@/lib/api-helpers";
 
+function deriveBillTotals(row: any) {
+  const currentStatus = String(row?.status || "pending");
+
+  if (currentStatus === "waived" || currentStatus === "cancelled") {
+    return row;
+  }
+
+  const successfulTransactions = Array.isArray(row?.finance_transactions)
+    ? row.finance_transactions.filter((tx: any) => tx?.status === "success")
+    : [];
+
+  const computedPaid = successfulTransactions.reduce(
+    (sum: number, tx: any) => sum + Number(tx?.amount || 0),
+    0
+  );
+  const totalAmount = Number(row?.total_amount || 0);
+  const computedBalance = Math.max(0, totalAmount - computedPaid);
+
+  let computedStatus = currentStatus;
+  if (computedBalance <= 0 && totalAmount > 0) {
+    computedStatus = "paid";
+  } else if (computedPaid > 0) {
+    computedStatus = "partial";
+  } else {
+    computedStatus = "pending";
+  }
+
+  return {
+    ...row,
+    amount_paid: computedPaid,
+    balance_amount: computedBalance,
+    status: computedStatus,
+  };
+}
+
 export async function GET(_req: NextRequest) {
   const supabase = createRouteHandlerClient({ cookies });
 
@@ -41,7 +76,7 @@ export async function GET(_req: NextRequest) {
     return errorResponse(error.message, 500);
   }
 
-  const rows = bills || [];
+  const rows = (bills || []).map(deriveBillTotals);
   const totalDue = rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
   const totalPaid = rows.reduce((sum, row) => sum + Number(row.amount_paid || 0), 0);
   const totalOutstanding = rows.reduce((sum, row) => sum + Number(row.balance_amount || 0), 0);

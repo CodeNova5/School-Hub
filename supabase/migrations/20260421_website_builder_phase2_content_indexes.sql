@@ -24,7 +24,7 @@ WITH ranked_news AS (
   WHERE slug IS NOT NULL
 )
 UPDATE news n
-SET slug = CONCAT(rn.slug, '-', ranked_news.rn)
+SET slug = CONCAT(ranked_news.slug, '-', ranked_news.rn)
 FROM ranked_news
 WHERE n.id = ranked_news.id
   AND ranked_news.rn > 1;

@@ -119,6 +119,11 @@ export async function POST(req: Request) {
     .eq("id", transaction.id);
 
   if (nextStatus === "success") {
+    console.log("=== PAYSTACK WEBHOOK - SUCCESS ===");
+    console.log("Reference:", reference);
+    console.log("Transaction ID:", transaction.id);
+    console.log("Bill ID:", transaction.bill_id);
+
     await ensureReceipt(
       transaction.school_id,
       transaction.id,
@@ -127,37 +132,57 @@ export async function POST(req: Request) {
       Number(transaction.amount || 0),
       reference
     );
+    console.log("✓ Receipt ensured");
 
     // Update bill amounts and status after successful payment (admin operation)
-    const { data: billData } = await supabaseAdmin
+    const { data: billData, error: billFetchError } = await supabaseAdmin
       .from("finance_student_bills")
       .select("id, total_amount, amount_paid")
       .eq("id", transaction.bill_id)
       .limit(1);
 
+    if (billFetchError) {
+      console.error("Webhook: Bill fetch error:", billFetchError);
+    }
+
+    console.log("Webhook: Bill data fetched:", billData);
+
     if (billData && billData.length > 0) {
       const bill = billData[0];
+      console.log("Webhook: Current bill:", bill);
       
       // Get all successful transactions for this bill
-      const { data: successfulTxs } = await supabaseAdmin
+      const { data: successfulTxs, error: txFetchError } = await supabaseAdmin
         .from("finance_transactions")
         .select("amount")
         .eq("bill_id", transaction.bill_id)
         .eq("status", "success");
+
+      if (txFetchError) {
+        console.error("Webhook: Success transactions fetch error:", txFetchError);
+      }
+
+      console.log("Webhook: Successful transactions:", successfulTxs);
 
       const totalPaid = (successfulTxs || []).reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
       const balanceAmount = Number(bill.total_amount || 0) - totalPaid;
       
       // Determine new bill status
       let newStatus = "pending";
-      if (balanceAmount <= 0) {
+      if (balanceAmount <= 0 && Number(bill.total_amount || 0) > 0) {
         newStatus = "paid";
       } else if (totalPaid > 0) {
         newStatus = "partial";
       }
 
+      console.log("Webhook: Bill update payload:", {
+        amount_paid: totalPaid,
+        balance_amount: Math.max(0, balanceAmount),
+        status: newStatus,
+      });
+
       // Update bill with new amounts and status
-      await supabaseAdmin
+      const { error: billUpdateError } = await supabaseAdmin
         .from("finance_student_bills")
         .update({
           amount_paid: totalPaid,
@@ -166,6 +191,14 @@ export async function POST(req: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", transaction.bill_id);
+
+      if (billUpdateError) {
+        console.error("✗ Webhook: Bill update error:", billUpdateError);
+      } else {
+        console.log("✓ Webhook: Bill updated successfully");
+      }
+    } else {
+      console.warn("Webhook: No bill found for ID:", transaction.bill_id);
     }
   }
 

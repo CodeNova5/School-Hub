@@ -30,6 +30,18 @@ function deriveBillTotals(row: any) {
     computedStatus = "pending";
   }
 
+  if (computedPaid > 0 || computedStatus !== currentStatus) {
+    console.log(`[Bill ${row.id}] Derived totals:`, {
+      successfulTxCount: successfulTransactions.length,
+      oldAmount: row.amount_paid,
+      newAmount: computedPaid,
+      oldBalance: row.balance_amount,
+      newBalance: computedBalance,
+      oldStatus: currentStatus,
+      newStatus: computedStatus,
+    });
+  }
+
   return {
     ...row,
     amount_paid: computedPaid,
@@ -74,6 +86,23 @@ export async function GET(_req: NextRequest) {
 
   if (error) {
     return errorResponse(error.message, 500);
+  }
+
+  console.log(`[Statement] Fetched ${bills?.length || 0} bills for student ${student.id}`);
+  if (bills && bills.length > 0) {
+    bills.forEach((bill: any) => {
+      console.log(`[Statement] Bill ${bill.id}:`, {
+        status: bill.status,
+        total: bill.total_amount,
+        paid: bill.amount_paid,
+        balance: bill.balance_amount,
+        transactions: Array.isArray(bill.finance_transactions) ? bill.finance_transactions.map((tx: any) => ({
+          id: tx.id,
+          status: tx.status,
+          amount: tx.amount,
+        })) : [],
+      });
+    });
   }
 
   const rows = (bills || []).map(deriveBillTotals);

@@ -150,6 +150,14 @@ export async function GET(req: NextRequest) {
   }
 
   const transaction = transactionArray[0];
+  console.log("Transaction fetched:", {
+    id: transaction.id,
+    bill_id: transaction.bill_id,
+    student_id: transaction.student_id,
+    school_id: transaction.school_id,
+    amount: transaction.amount,
+    status: transaction.status,
+  });
 
   const txStudent = getSingleStudentRelation((transaction as any).students);
   // Use limit(1) instead of maybeSingle to avoid RLS coercion errors
@@ -181,6 +189,13 @@ export async function GET(req: NextRequest) {
 
   const mappedStatus = verifyData.data.status === "success" ? "success" : verifyData.data.status === "abandoned" ? "abandoned" : "failed";
 
+  console.log("=== PAYSTACK VERIFY DEBUG ===");
+  console.log("Reference:", reference);
+  console.log("Paystack status:", verifyData.data.status);
+  console.log("Mapped status:", mappedStatus);
+  console.log("Transaction ID:", transaction.id);
+  console.log("Bill ID:", transaction.bill_id);
+
   const { error: updateError } = await supabase
     .from("finance_transactions")
     .update({
@@ -191,8 +206,10 @@ export async function GET(req: NextRequest) {
     .eq("id", transaction.id);
 
   if (updateError) {
+    console.error("Transaction update error:", updateError);
     return errorResponse(updateError.message || "Failed to update transaction", 500);
   }
+  console.log("✓ Transaction status updated to:", mappedStatus);
 
   // Re-fetch the updated transaction to include in response
   const { data: updatedTxArray } = await supabase
@@ -216,23 +233,37 @@ export async function GET(req: NextRequest) {
       "paystack",
       reference
     );
+    console.log("✓ Receipt created:", receipt);
 
     // Update bill amounts and status after successful payment (use admin client for system operation)
-    const { data: billData } = await supabaseAdmin
+    const { data: billData, error: billFetchError } = await supabaseAdmin
       .from("finance_student_bills")
       .select("id, total_amount, amount_paid")
       .eq("id", transaction.bill_id)
       .limit(1);
 
+    if (billFetchError) {
+      console.error("Bill fetch error:", billFetchError);
+    }
+
+    console.log("Bill data fetched:", billData);
+
     if (billData && billData.length > 0) {
       const bill = billData[0];
+      console.log("Current bill:", bill);
       
       // Get all successful transactions for this bill (use admin client)
-      const { data: successfulTxs } = await supabaseAdmin
+      const { data: successfulTxs, error: txFetchError } = await supabaseAdmin
         .from("finance_transactions")
         .select("amount")
         .eq("bill_id", transaction.bill_id)
         .eq("status", "success");
+
+      if (txFetchError) {
+        console.error("Success transactions fetch error:", txFetchError);
+      }
+
+      console.log("Successful transactions:", successfulTxs);
 
       const totalPaid = (successfulTxs || []).reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
       const balanceAmount = Number(bill.total_amount || 0) - totalPaid;
@@ -245,8 +276,14 @@ export async function GET(req: NextRequest) {
         newStatus = "partial";
       }
 
+      console.log("Bill update payload:", {
+        amount_paid: totalPaid,
+        balance_amount: Math.max(0, balanceAmount),
+        status: newStatus,
+      });
+
       // Update bill with new amounts and status (use admin client)
-      await supabaseAdmin
+      const { error: billUpdateError } = await supabaseAdmin
         .from("finance_student_bills")
         .update({
           amount_paid: totalPaid,
@@ -255,6 +292,14 @@ export async function GET(req: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq("id", transaction.bill_id);
+
+      if (billUpdateError) {
+        console.error("✗ Bill update error:", billUpdateError);
+      } else {
+        console.log("✓ Bill updated successfully");
+      }
+    } else {
+      console.warn("No bill found for ID:", transaction.bill_id);
     }
   }
 

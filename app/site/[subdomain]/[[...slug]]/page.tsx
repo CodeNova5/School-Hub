@@ -6,12 +6,20 @@ import type { CSSProperties } from "react";
 
 type PageSection = {
   id?: string;
-  type?: string;
+  type?:
+    | "text"
+    | "feature-grid"
+    | "stats"
+    | "gallery"
+    | "faq"
+    | "cta-banner"
+    | "timeline";
   title?: string;
   body?: string;
   ctaLabel?: string;
   ctaHref?: string;
   imageUrl?: string;
+  items?: string[];
   isVisible?: boolean;
 };
 
@@ -66,6 +74,197 @@ function normalizeSections(raw: unknown): PageSection[] {
     .filter((section) => section && typeof section === "object")
     .map((section) => section as PageSection)
     .filter((section) => section.isVisible !== false);
+}
+
+function fallbackLandingSections(schoolName: string): PageSection[] {
+  return [
+    {
+      type: "feature-grid",
+      title: "Why Families Choose Us",
+      body: "A balanced approach to academics, character, and creativity.",
+      items: [
+        "Highly Qualified Teachers",
+        "Safe Campus and Student Welfare",
+        "Strong Academic Performance",
+        "Active Sports and Clubs",
+      ],
+      isVisible: true,
+    },
+    {
+      type: "stats",
+      title: "Our Impact in Numbers",
+      body: "Quick facts about our school community.",
+      items: ["1200|Students", "60|Teachers", "95|Graduation Rate", "25|Years of Excellence"],
+      isVisible: true,
+    },
+    {
+      type: "timeline",
+      title: "Admissions Journey",
+      body: "How your application moves from submission to enrollment.",
+      items: [
+        "Submit Application|Online application form",
+        "Screening Review|Admissions team evaluates",
+        "Assessment/Interview|Scheduled if needed",
+        "Final Decision|Sent by email",
+      ],
+      isVisible: true,
+    },
+    {
+      type: "faq",
+      title: "Frequently Asked Questions",
+      body: `Everything you need to know about joining ${schoolName}.`,
+      items: [
+        "How do I apply?|Use the admissions page and complete the application form.",
+        "Do you offer extracurricular activities?|Yes, sports, clubs, arts, and leadership programs.",
+      ],
+      isVisible: true,
+    },
+    {
+      type: "cta-banner",
+      title: "Ready to Join Us?",
+      body: "Take the first step toward an outstanding learning experience.",
+      ctaLabel: "Apply Now",
+      ctaHref: "/admission",
+      isVisible: true,
+    },
+  ];
+}
+
+function parsePair(item: string) {
+  const [left, ...rest] = item.split("|");
+  return {
+    left: (left || "").trim(),
+    right: rest.join("|").trim(),
+  };
+}
+
+function renderSection(section: PageSection, primaryColor: string, accentColor: string) {
+  const items = Array.isArray(section.items) ? section.items : [];
+
+  if (section.type === "feature-grid") {
+    return (
+      <article className="rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 className="text-2xl font-bold text-slate-900">{section.title || "Highlights"}</h2>
+        <p className="mt-2 text-slate-600">{section.body || ""}</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {items.map((item, idx) => (
+            <div key={`${item}-${idx}`} className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+              {item}
+            </div>
+          ))}
+        </div>
+      </article>
+    );
+  }
+
+  if (section.type === "stats") {
+    return (
+      <article className="rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 className="text-2xl font-bold text-slate-900">{section.title || "Statistics"}</h2>
+        <p className="mt-2 text-slate-600">{section.body || ""}</p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+          {items.map((item, idx) => {
+            const pair = parsePair(item);
+            return (
+              <div key={`${item}-${idx}`} className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-center">
+                <div className="text-2xl font-black" style={{ color: primaryColor }}>
+                  {pair.left || item}
+                </div>
+                <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{pair.right || "Metric"}</div>
+              </div>
+            );
+          })}
+        </div>
+      </article>
+    );
+  }
+
+  if (section.type === "faq") {
+    return (
+      <article className="rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 className="text-2xl font-bold text-slate-900">{section.title || "FAQ"}</h2>
+        <p className="mt-2 text-slate-600">{section.body || ""}</p>
+        <div className="mt-4 space-y-3">
+          {items.map((item, idx) => {
+            const pair = parsePair(item);
+            return (
+              <div key={`${item}-${idx}`} className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-900">{pair.left || "Question"}</p>
+                <p className="mt-1 text-sm text-slate-600">{pair.right || "Answer"}</p>
+              </div>
+            );
+          })}
+        </div>
+      </article>
+    );
+  }
+
+  if (section.type === "timeline") {
+    return (
+      <article className="rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 className="text-2xl font-bold text-slate-900">{section.title || "Timeline"}</h2>
+        <p className="mt-2 text-slate-600">{section.body || ""}</p>
+        <ol className="mt-4 space-y-3">
+          {items.map((item, idx) => {
+            const pair = parsePair(item);
+            return (
+              <li key={`${item}-${idx}`} className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-900">{pair.left || `Step ${idx + 1}`}</p>
+                <p className="mt-1 text-sm text-slate-600">{pair.right || ""}</p>
+              </li>
+            );
+          })}
+        </ol>
+      </article>
+    );
+  }
+
+  if (section.type === "gallery") {
+    return (
+      <article className="rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 className="text-2xl font-bold text-slate-900">{section.title || "Gallery"}</h2>
+        <p className="mt-2 text-slate-600">{section.body || ""}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {items.map((item, idx) => (
+            <div key={`${item}-${idx}`} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item} alt={`Gallery ${idx + 1}`} className="h-44 w-full object-cover" />
+            </div>
+          ))}
+        </div>
+      </article>
+    );
+  }
+
+  if (section.type === "cta-banner") {
+    return (
+      <article className="rounded-2xl p-6 text-white" style={{ background: accentColor }}>
+        <h2 className="text-2xl font-bold">{section.title || "Take the Next Step"}</h2>
+        <p className="mt-2 text-sm text-white/90">{section.body || ""}</p>
+        {section.ctaLabel && section.ctaHref && (
+          <Link href={section.ctaHref} className="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900">
+            {section.ctaLabel}
+          </Link>
+        )}
+      </article>
+    );
+  }
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-6">
+      <h2 className="text-2xl font-bold text-slate-900">{section.title || "Section"}</h2>
+      <p className="mt-2 whitespace-pre-line text-slate-600">{section.body || ""}</p>
+      {section.ctaLabel && section.ctaHref && (
+        <Link
+          href={section.ctaHref}
+          className="mt-4 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white"
+          style={{ background: primaryColor }}
+        >
+          {section.ctaLabel}
+        </Link>
+      )}
+    </article>
+  );
 }
 
 function templateContainerClass(templateKey: WebsiteSettings["template_key"]) {
@@ -299,6 +498,12 @@ export default async function PublicSchoolSitePage({
 
   const news = (newsRows ?? []) as WebsiteNews[];
   const events = (eventRows ?? []) as WebsiteEvent[];
+  const sectionsToRender =
+    page?.sections?.length
+      ? page.sections
+      : slug === "home"
+      ? fallbackLandingSections(settings.brand_name)
+      : [];
 
   const siteStyle = {
     ["--wb-primary" as string]: settings.primary_color,
@@ -353,23 +558,15 @@ export default async function PublicSchoolSitePage({
         </div>
       </section>
 
-      {page?.sections?.length ? (
+      {sectionsToRender.length ? (
         <section className="mx-auto max-w-6xl space-y-4 px-6 pb-12">
-          {page.sections.map((section, idx) => (
-            <article key={section.id || `${section.type || "section"}-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-6">
-              <h2 className="text-2xl font-bold text-slate-900">{section.title || "Section"}</h2>
-              <p className="mt-2 whitespace-pre-line text-slate-600">{section.body || ""}</p>
-              {section.ctaLabel && section.ctaHref && (
-                <Link
-                  href={section.ctaHref}
-                  className="mt-4 inline-block rounded-lg px-4 py-2 text-sm font-semibold text-white"
-                  style={{ background: settings.primary_color }}
-                >
-                  {section.ctaLabel}
-                </Link>
-              )}
-            </article>
-          ))}
+          {sectionsToRender
+            .filter((section) => section.isVisible !== false)
+            .map((section, idx) => (
+              <div key={section.id || `${section.type || "section"}-${idx}`}>
+                {renderSection(section, settings.primary_color, settings.accent_color)}
+              </div>
+            ))}
         </section>
       ) : null}
 

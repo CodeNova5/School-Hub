@@ -11,16 +11,6 @@ const nextConfig = {
     missingSuspenseWithCSRBailout: false,
   },
 
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "x-school-id", value: "" },
-        ],
-      },
-    ];
-  },
 };
 
 module.exports = nextConfig;

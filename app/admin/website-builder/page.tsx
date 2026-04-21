@@ -190,14 +190,14 @@ export default function AdminWebsiteBuilderPage() {
         ...(settingsData || {}),
       });
 
-      const mappedPages = (pagesData || []).map((page) => ({
+      const mappedPages = (pagesData || []).map((page: { sections: any; }) => ({
         ...page,
         sections: Array.isArray(page.sections) ? page.sections : [],
       })) as WebsitePage[];
 
       setPages(mappedPages);
 
-      const appMainDomain = (process.env.NEXT_PUBLIC_MAIN_DOMAIN || "myapp.com")
+      const appMainDomain = (process.env.NEXT_PUBLIC_MAIN_DOMAIN || "schooldeck.tech")
         .replace(/^https?:\/\//, "")
         .replace(/\/$/, "");
       if (schoolData?.subdomain) {

@@ -23,6 +23,12 @@ interface WebsiteSection {
     hero_stats?: string[];
     mission?: string;
     vision?: string;
+    program_items?: Array<{
+      title: string;
+      description: string;
+      icon?: string;
+      image_url?: string;
+    }>;
   };
 }
 
@@ -315,7 +321,46 @@ function renderAbout(section: WebsiteSection | undefined) {
   );
 }
 
-function renderCardGrid(section: WebsiteSection | undefined, items: Array<{ icon: string; title: string; description: string }>, sectionId: string, accentClass: string) {
+function getProgramCardItems(section: WebsiteSection | undefined) {
+  const structuredItems = (section?.content.program_items || [])
+    .map((item, index) => {
+      const fallback = FALLBACK_CONTENT.programs[index % FALLBACK_CONTENT.programs.length];
+      return {
+        title: (item.title || "").trim(),
+        description: (item.description || fallback.description || "").trim(),
+        icon: (item.icon || fallback.icon || "📘").trim() || "📘",
+        image_url: (item.image_url || "").trim(),
+      };
+    })
+    .filter((item) => item.title);
+
+  if (structuredItems.length > 0) {
+    return structuredItems;
+  }
+
+  const legacyItems = (section?.content.items || []).map((item) => item.trim()).filter(Boolean);
+  if (legacyItems.length > 0) {
+    return legacyItems.map((title, index) => {
+      const matched = FALLBACK_CONTENT.programs.find((item) => item.title.toLowerCase() === title.toLowerCase());
+      const fallback = matched || FALLBACK_CONTENT.programs[index % FALLBACK_CONTENT.programs.length];
+      return {
+        title,
+        description: fallback?.description || "",
+        icon: fallback?.icon || "📘",
+        image_url: "",
+      };
+    });
+  }
+
+  return FALLBACK_CONTENT.programs;
+}
+
+function renderCardGrid(
+  section: WebsiteSection | undefined,
+  items: Array<{ icon: string; title: string; description: string; image_url?: string }>,
+  sectionId: string,
+  accentClass: string
+) {
   const title = section?.content.heading || (sectionId === "programs" ? "Academic Programs" : "Our Facilities");
   const subtitle = section?.content.subheading || (sectionId === "programs" ? "Comprehensive educational programs designed to develop critical thinking and academic excellence" : "State-of-the-art infrastructure designed for comprehensive student development");
 
@@ -330,8 +375,12 @@ function renderCardGrid(section: WebsiteSection | undefined, items: Array<{ icon
         <div className={`mt-12 grid gap-6 ${sectionId === "programs" ? "md:grid-cols-3 xl:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
           {items.map((item) => (
             <article key={item.title} className="group rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-950 text-3xl text-white shadow-lg shadow-slate-950/10">
-                {item.icon}
+              <div className="mb-5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-3xl text-white shadow-lg shadow-slate-950/10">
+                {sectionId === "programs" && item.image_url ? (
+                  <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
+                ) : (
+                  <span>{item.icon}</span>
+                )}
               </div>
               <h3 className="text-xl font-bold text-slate-950">{item.title}</h3>
               <p className="mt-3 text-sm leading-7 text-slate-600">{item.description}</p>
@@ -771,6 +820,7 @@ export default async function PublicSchoolWebsite({
   const gallerySection = visibleSections.find((section) => section.section_key === "gallery");
   const admissionsSection = visibleSections.find((section) => section.section_key === "admissions");
   const contactSection = visibleSections.find((section) => section.section_key === "contact");
+  const programCards = getProgramCardItems(programsSection);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -778,7 +828,7 @@ export default async function PublicSchoolWebsite({
       <main>
         {renderHero(siteSettings, visibleSections)}
         {renderAbout(aboutSection || homeSection)}
-        {renderCardGrid(programsSection, FALLBACK_CONTENT.programs, "programs", "bg-white")}
+        {renderCardGrid(programsSection, programCards, "programs", "bg-white")}
         {renderCardGrid(facilitiesSection, FALLBACK_CONTENT.facilities, "facilities", "bg-slate-50")}
         {renderFaculty(facultySection)}
         {renderNews(newsSection)}

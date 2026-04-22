@@ -10,6 +10,13 @@ export type WebsiteSectionKey =
   | "admissions"
   | "contact";
 
+export interface WebsiteProgramItem {
+  title: string;
+  description: string;
+  icon?: string;
+  image_url?: string;
+}
+
 export interface WebsiteSectionContent {
   heading?: string;
   subheading?: string;
@@ -24,6 +31,7 @@ export interface WebsiteSectionContent {
   hero_stats?: string[];
   mission?: string;
   vision?: string;
+  program_items?: WebsiteProgramItem[];
 }
 
 export interface WebsiteSectionTemplate {
@@ -71,7 +79,38 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     content: {
       heading: "Academic Programs",
       subheading: "Well-rounded and future-ready learning paths",
-      items: ["Science", "Arts", "Commerce", "Technology"],
+      program_items: [
+        {
+          title: "Science Stream",
+          description: "Physics, Chemistry, Biology, and Mathematics with strong lab-based learning.",
+          icon: "🔬",
+        },
+        {
+          title: "Arts Stream",
+          description: "History, Literature, Geography, and Social Sciences with deep analysis.",
+          icon: "📖",
+        },
+        {
+          title: "Commerce Stream",
+          description: "Accounting, Economics, and Business Studies for professional readiness.",
+          icon: "💼",
+        },
+        {
+          title: "Computer Science",
+          description: "Coding, algorithms, web development, and modern digital skills.",
+          icon: "🖥️",
+        },
+        {
+          title: "Co-Curricular",
+          description: "Sports, arts, music, and leadership programs for holistic growth.",
+          icon: "🎨",
+        },
+        {
+          title: "Skill Development",
+          description: "Career guidance, communication, and life skills for future success.",
+          icon: "🌍",
+        },
+      ],
     },
   },
   {

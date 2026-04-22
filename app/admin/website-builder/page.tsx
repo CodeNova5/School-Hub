@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw, RefreshCcw } from "lucide-react";
+import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw, RefreshCcw, Plus, Trash2 } from "lucide-react";
 import { WEBSITE_SECTION_TEMPLATES } from "@/lib/website-builder";
 
 interface SiteSettings {
@@ -56,7 +56,15 @@ interface SectionData {
         hero_stats?: string[];
         mission?: string;
         vision?: string;
+        program_items?: ProgramItem[];
     };
+}
+
+interface ProgramItem {
+    title: string;
+    description: string;
+    icon?: string;
+    image_url?: string;
 }
 
 interface MediaData {
@@ -106,12 +114,12 @@ const SECTION_EDITOR_CONFIG: Record<
     },
     programs: {
         descriptionLabel: "Programs Intro",
-        itemsLabel: "Programs (one per line)",
+        itemsLabel: "Programs",
         showSubheading: true,
         showDescription: false,
         showImage: false,
         showButton: false,
-        showItems: true,
+        showItems: false,
     },
     facilities: {
         descriptionLabel: "Facilities Intro",
@@ -191,6 +199,15 @@ const DEFAULT_SETTINGS: SiteSettings = {
     is_website_enabled: true,
 };
 
+const DEFAULT_PROGRAM_ITEMS: ProgramItem[] = (
+    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "programs")?.content.program_items || []
+).map((item) => ({
+    title: item.title || "",
+    description: item.description || "",
+    icon: item.icon || "📘",
+    image_url: item.image_url || "",
+}));
+
 export default function WebsiteBuilderPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -250,7 +267,7 @@ export default function WebsiteBuilderPage() {
         }
     }, [activeEditorTab, sortedSections]);
 
-    function updateSectionContent(sectionId: string, field: string, value: string | string[]) {
+    function updateSectionContent(sectionId: string, field: string, value: string | string[] | ProgramItem[]) {
         setSections((prev) =>
             prev.map((section) =>
                 section.id === sectionId
@@ -264,6 +281,93 @@ export default function WebsiteBuilderPage() {
                     : section
             )
         );
+    }
+
+    function getProgramItems(section: SectionData) {
+        const fromStructured = (section.content.program_items || [])
+            .map((item) => ({
+                title: (item.title || "").trim(),
+                description: (item.description || "").trim(),
+                icon: (item.icon || "📘").trim() || "📘",
+                image_url: (item.image_url || "").trim(),
+            }))
+            .filter((item) => item.title);
+
+        if (fromStructured.length > 0) {
+            return fromStructured;
+        }
+
+        const fromLegacy = (section.content.items || []).map((item) => item.trim()).filter(Boolean);
+        if (fromLegacy.length > 0) {
+            return fromLegacy.map((title, index) => {
+                const matched = DEFAULT_PROGRAM_ITEMS.find(
+                    (fallback) => fallback.title.toLowerCase() === title.toLowerCase()
+                );
+                const fallback = matched || DEFAULT_PROGRAM_ITEMS[index];
+                return {
+                    title,
+                    description: fallback?.description || "",
+                    icon: fallback?.icon || "📘",
+                    image_url: "",
+                };
+            });
+        }
+
+        return DEFAULT_PROGRAM_ITEMS.map((item) => ({ ...item }));
+    }
+
+    function setProgramItems(sectionId: string, programItems: ProgramItem[]) {
+        const sanitized = programItems.map((item) => ({
+            title: (item.title || "").trim(),
+            description: (item.description || "").trim(),
+            icon: (item.icon || "📘").trim() || "📘",
+            image_url: (item.image_url || "").trim(),
+        }));
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            program_items: sanitized,
+                            items: sanitized.map((item) => item.title).filter(Boolean),
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function addProgramItem(sectionId: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = [...getProgramItems(target), { title: "", description: "", icon: "📘", image_url: "" }];
+        setProgramItems(sectionId, next);
+    }
+
+    function updateProgramItem(sectionId: string, index: number, field: keyof ProgramItem, value: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+
+        const next = getProgramItems(target).map((item, itemIndex) =>
+            itemIndex === index
+                ? {
+                    ...item,
+                    [field]: value,
+                }
+                : item
+        );
+
+        setProgramItems(sectionId, next);
+    }
+
+    function removeProgramItem(sectionId: string, index: number) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = getProgramItems(target).filter((_, itemIndex) => itemIndex !== index);
+        setProgramItems(sectionId, next);
     }
 
     function moveSection(sectionId: string, direction: "up" | "down") {
@@ -595,6 +699,7 @@ export default function WebsiteBuilderPage() {
                                         {sortedSections.map((section) => {
                                             const editorConfig =
                                                 SECTION_EDITOR_CONFIG[section.section_key] || SECTION_EDITOR_CONFIG.contact;
+                                            const programItems = section.section_key === "programs" ? getProgramItems(section) : [];
 
                                             return (
                                                 <TabsContent key={section.id} value={`section-${section.id}`} className="space-y-3">
@@ -791,6 +896,133 @@ export default function WebsiteBuilderPage() {
                                                                             )
                                                                         }
                                                                     />
+                                                                </div>
+                                                            ) : null}
+
+                                                            {section.section_key === "programs" ? (
+                                                                <div className="space-y-3 md:col-span-2">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <Label>Program Cards</Label>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => addProgramItem(section.id)}
+                                                                        >
+                                                                            <Plus className="mr-2 h-4 w-4" />
+                                                                            Add Program
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    <div className="space-y-3">
+                                                                        {programItems.map((program, index) => {
+                                                                            const mediaKey = `${section.id}-program-${index}`;
+                                                                            return (
+                                                                                <div key={mediaKey} className="rounded-lg border border-slate-200 p-3">
+                                                                                    <div className="mb-3 flex items-center justify-between">
+                                                                                        <p className="text-sm font-semibold text-slate-800">Program {index + 1}</p>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => removeProgramItem(section.id, index)}
+                                                                                        >
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+
+                                                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Title</Label>
+                                                                                            <Input
+                                                                                                value={program.title}
+                                                                                                onChange={(e) =>
+                                                                                                    updateProgramItem(section.id, index, "title", e.target.value)
+                                                                                                }
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Emoji Fallback</Label>
+                                                                                            <Input
+                                                                                                value={program.icon || ""}
+                                                                                                onChange={(e) =>
+                                                                                                    updateProgramItem(section.id, index, "icon", e.target.value)
+                                                                                                }
+                                                                                                placeholder="🔬"
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1 md:col-span-2">
+                                                                                            <Label>Description</Label>
+                                                                                            <Textarea
+                                                                                                rows={2}
+                                                                                                value={program.description}
+                                                                                                onChange={(e) =>
+                                                                                                    updateProgramItem(
+                                                                                                        section.id,
+                                                                                                        index,
+                                                                                                        "description",
+                                                                                                        e.target.value
+                                                                                                    )
+                                                                                                }
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1 md:col-span-2">
+                                                                                            <Label>Program Image URL (optional)</Label>
+                                                                                            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                                                                                <Input
+                                                                                                    value={program.image_url || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        updateProgramItem(
+                                                                                                            section.id,
+                                                                                                            index,
+                                                                                                            "image_url",
+                                                                                                            e.target.value
+                                                                                                        )
+                                                                                                    }
+                                                                                                />
+                                                                                                <select
+                                                                                                    className="h-10 rounded-md border border-slate-200 px-2 text-sm"
+                                                                                                    value={selectedMediaBySection[mediaKey] || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        setSelectedMediaBySection((prev) => ({
+                                                                                                            ...prev,
+                                                                                                            [mediaKey]: e.target.value,
+                                                                                                        }))
+                                                                                                    }
+                                                                                                >
+                                                                                                    <option value="">Pick uploaded media...</option>
+                                                                                                    {media.map((item) => (
+                                                                                                        <option key={item.id} value={item.public_url}>
+                                                                                                            {item.file_name}
+                                                                                                        </option>
+                                                                                                    ))}
+                                                                                                </select>
+                                                                                            </div>
+                                                                                            <div className="mt-2">
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    variant="outline"
+                                                                                                    size="sm"
+                                                                                                    onClick={() => {
+                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
+                                                                                                        if (!selectedUrl) {
+                                                                                                            toast.error("Select a media item first");
+                                                                                                            return;
+                                                                                                        }
+                                                                                                        updateProgramItem(section.id, index, "image_url", selectedUrl);
+                                                                                                        toast.success("Program image updated from media library");
+                                                                                                    }}
+                                                                                                >
+                                                                                                    Use Selected Media
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
                                                                 </div>
                                                             ) : null}
 

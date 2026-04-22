@@ -17,6 +17,13 @@ export interface WebsiteProgramItem {
   image_url?: string;
 }
 
+export interface WebsiteFacilityItem {
+  title: string;
+  description: string;
+  icon?: string;
+  image_url?: string;
+}
+
 export interface WebsiteSectionContent {
   heading?: string;
   subheading?: string;
@@ -32,6 +39,7 @@ export interface WebsiteSectionContent {
   mission?: string;
   vision?: string;
   program_items?: WebsiteProgramItem[];
+  facility_items?: WebsiteFacilityItem[];
 }
 
 export interface WebsiteSectionTemplate {
@@ -120,7 +128,39 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     visible: true,
     content: {
       heading: "Facilities",
-      items: ["Library", "Laboratories", "ICT Center", "Sports Complex"],
+      subheading: "State-of-the-art infrastructure for holistic development",
+      facility_items: [
+        {
+          title: "Modern Laboratories",
+          description: "Well-equipped science and computer labs with the latest technology.",
+          icon: "🔬",
+        },
+        {
+          title: "Central Library",
+          description: "Extensive books, digital resources, and reading areas.",
+          icon: "📚",
+        },
+        {
+          title: "Sports Complex",
+          description: "Indoor and outdoor sports facilities for active development.",
+          icon: "🏃",
+        },
+        {
+          title: "Auditorium",
+          description: "A professional event space for presentations and performances.",
+          icon: "🎭",
+        },
+        {
+          title: "Cafeteria",
+          description: "Hygienic, spacious, and nutritious meal service.",
+          icon: "🍽️",
+        },
+        {
+          title: "Smart Classrooms",
+          description: "Interactive learning spaces with digital teaching tools.",
+          icon: "🏫",
+        },
+      ],
     },
   },
   {

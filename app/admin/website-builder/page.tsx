@@ -57,10 +57,18 @@ interface SectionData {
         mission?: string;
         vision?: string;
         program_items?: ProgramItem[];
+        facility_items?: FacilityItem[];
     };
 }
 
 interface ProgramItem {
+    title: string;
+    description: string;
+    icon?: string;
+    image_url?: string;
+}
+
+interface FacilityItem {
     title: string;
     description: string;
     icon?: string;
@@ -123,12 +131,12 @@ const SECTION_EDITOR_CONFIG: Record<
     },
     facilities: {
         descriptionLabel: "Facilities Intro",
-        itemsLabel: "Facilities (one per line)",
+        itemsLabel: "Facilities",
         showSubheading: true,
         showDescription: false,
         showImage: false,
         showButton: false,
-        showItems: true,
+        showItems: false,
     },
     faculty: {
         descriptionLabel: "Faculty Intro",
@@ -205,6 +213,15 @@ const DEFAULT_PROGRAM_ITEMS: ProgramItem[] = (
     title: item.title || "",
     description: item.description || "",
     icon: item.icon || "📘",
+    image_url: item.image_url || "",
+}));
+
+const DEFAULT_FACILITY_ITEMS: FacilityItem[] = (
+    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "facilities")?.content.facility_items || []
+).map((item) => ({
+    title: item.title || "",
+    description: item.description || "",
+    icon: item.icon || "🏢",
     image_url: item.image_url || "",
 }));
 
@@ -368,6 +385,93 @@ export default function WebsiteBuilderPage() {
         if (!target) return;
         const next = getProgramItems(target).filter((_, itemIndex) => itemIndex !== index);
         setProgramItems(sectionId, next);
+    }
+
+    function getFacilityItems(section: SectionData) {
+        const fromStructured = (section.content.facility_items || [])
+            .map((item) => ({
+                title: (item.title || "").trim(),
+                description: (item.description || "").trim(),
+                icon: (item.icon || "🏢").trim() || "🏢",
+                image_url: (item.image_url || "").trim(),
+            }))
+            .filter((item) => item.title);
+
+        if (fromStructured.length > 0) {
+            return fromStructured;
+        }
+
+        const fromLegacy = (section.content.items || []).map((item) => item.trim()).filter(Boolean);
+        if (fromLegacy.length > 0) {
+            return fromLegacy.map((title, index) => {
+                const matched = DEFAULT_FACILITY_ITEMS.find(
+                    (fallback) => fallback.title.toLowerCase() === title.toLowerCase()
+                );
+                const fallback = matched || DEFAULT_FACILITY_ITEMS[index];
+                return {
+                    title,
+                    description: fallback?.description || "",
+                    icon: fallback?.icon || "🏢",
+                    image_url: "",
+                };
+            });
+        }
+
+        return DEFAULT_FACILITY_ITEMS.map((item) => ({ ...item }));
+    }
+
+    function setFacilityItems(sectionId: string, facilityItems: FacilityItem[]) {
+        const sanitized = facilityItems.map((item) => ({
+            title: (item.title || "").trim(),
+            description: (item.description || "").trim(),
+            icon: (item.icon || "🏢").trim() || "🏢",
+            image_url: (item.image_url || "").trim(),
+        }));
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            facility_items: sanitized,
+                            items: sanitized.map((item) => item.title).filter(Boolean),
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function addFacilityItem(sectionId: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = [...getFacilityItems(target), { title: "", description: "", icon: "🏢", image_url: "" }];
+        setFacilityItems(sectionId, next);
+    }
+
+    function updateFacilityItem(sectionId: string, index: number, field: keyof FacilityItem, value: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+
+        const next = getFacilityItems(target).map((item, itemIndex) =>
+            itemIndex === index
+                ? {
+                    ...item,
+                    [field]: value,
+                }
+                : item
+        );
+
+        setFacilityItems(sectionId, next);
+    }
+
+    function removeFacilityItem(sectionId: string, index: number) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = getFacilityItems(target).filter((_, itemIndex) => itemIndex !== index);
+        setFacilityItems(sectionId, next);
     }
 
     function moveSection(sectionId: string, direction: "up" | "down") {
@@ -701,6 +805,8 @@ export default function WebsiteBuilderPage() {
                                                 SECTION_EDITOR_CONFIG[section.section_key] || SECTION_EDITOR_CONFIG.contact;
                                             const programItems = section.section_key === "programs" ? getProgramItems(section) : [];
 
+                                            const facilityItems = section.section_key === "facilities" ? getFacilityItems(section) : [];
+
                                             return (
                                                 <TabsContent key={section.id} value={`section-${section.id}`} className="space-y-3">
                                                     <div className="rounded-lg border bg-white p-4">
@@ -772,6 +878,133 @@ export default function WebsiteBuilderPage() {
                                                                             updateSectionContent(section.id, "subheading", e.target.value)
                                                                         }
                                                                     />
+                                                                </div>
+                                                            ) : null}
+
+                                                            {section.section_key === "facilities" ? (
+                                                                <div className="space-y-3 md:col-span-2">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <Label>Facility Cards</Label>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => addFacilityItem(section.id)}
+                                                                        >
+                                                                            <Plus className="mr-2 h-4 w-4" />
+                                                                            Add Facility
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    <div className="space-y-3">
+                                                                        {facilityItems.map((facility, index) => {
+                                                                            const mediaKey = `${section.id}-facility-${index}`;
+                                                                            return (
+                                                                                <div key={mediaKey} className="rounded-lg border border-slate-200 p-3">
+                                                                                    <div className="mb-3 flex items-center justify-between">
+                                                                                        <p className="text-sm font-semibold text-slate-800">Facility {index + 1}</p>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => removeFacilityItem(section.id, index)}
+                                                                                        >
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+
+                                                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Title</Label>
+                                                                                            <Input
+                                                                                                value={facility.title}
+                                                                                                onChange={(e) =>
+                                                                                                    updateFacilityItem(section.id, index, "title", e.target.value)
+                                                                                                }
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Emoji Fallback</Label>
+                                                                                            <Input
+                                                                                                value={facility.icon || ""}
+                                                                                                onChange={(e) =>
+                                                                                                    updateFacilityItem(section.id, index, "icon", e.target.value)
+                                                                                                }
+                                                                                                placeholder="🏢"
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1 md:col-span-2">
+                                                                                            <Label>Description</Label>
+                                                                                            <Textarea
+                                                                                                rows={2}
+                                                                                                value={facility.description}
+                                                                                                onChange={(e) =>
+                                                                                                    updateFacilityItem(
+                                                                                                        section.id,
+                                                                                                        index,
+                                                                                                        "description",
+                                                                                                        e.target.value
+                                                                                                    )
+                                                                                                }
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1 md:col-span-2">
+                                                                                            <Label>Facility Image URL (optional)</Label>
+                                                                                            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                                                                                <Input
+                                                                                                    value={facility.image_url || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        updateFacilityItem(
+                                                                                                            section.id,
+                                                                                                            index,
+                                                                                                            "image_url",
+                                                                                                            e.target.value
+                                                                                                        )
+                                                                                                    }
+                                                                                                />
+                                                                                                <select
+                                                                                                    className="h-10 rounded-md border border-slate-200 px-2 text-sm"
+                                                                                                    value={selectedMediaBySection[mediaKey] || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        setSelectedMediaBySection((prev) => ({
+                                                                                                            ...prev,
+                                                                                                            [mediaKey]: e.target.value,
+                                                                                                        }))
+                                                                                                    }
+                                                                                                >
+                                                                                                    <option value="">Pick uploaded media...</option>
+                                                                                                    {media.map((item) => (
+                                                                                                        <option key={item.id} value={item.public_url}>
+                                                                                                            {item.file_name}
+                                                                                                        </option>
+                                                                                                    ))}
+                                                                                                </select>
+                                                                                            </div>
+                                                                                            <div className="mt-2">
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    variant="outline"
+                                                                                                    size="sm"
+                                                                                                    onClick={() => {
+                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
+                                                                                                        if (!selectedUrl) {
+                                                                                                            toast.error("Select a media item first");
+                                                                                                            return;
+                                                                                                        }
+                                                                                                        updateFacilityItem(section.id, index, "image_url", selectedUrl);
+                                                                                                        toast.success("Facility image updated from media library");
+                                                                                                    }}
+                                                                                                >
+                                                                                                    Use Selected Media
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
                                                                 </div>
                                                             ) : null}
 

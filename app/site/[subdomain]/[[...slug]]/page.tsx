@@ -372,19 +372,25 @@ function renderCardGrid(
           <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subtitle}</p>
         </div>
 
-        <div className={`mt-12 grid gap-6 ${sectionId === "programs" ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
+        <div className={`mt-12 grid gap-6 ${sectionId === "programs" || sectionId === "facilities" ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
           {items.map((item, index) =>
-            sectionId === "programs" ? (
+            sectionId === "programs" || sectionId === "facilities" ? (
               <article key={`${item.title}-${index}`} className="group overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
                 <div className="relative h-56 w-full overflow-hidden bg-slate-900">
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#1e3a8a,#0f766e)] text-7xl text-white/90">
+                    <div className={`flex h-full w-full items-center justify-center text-7xl text-white/90 ${
+                      sectionId === "programs" 
+                        ? "bg-[linear-gradient(135deg,#1e3a8a,#0f766e)]" 
+                        : "bg-[linear-gradient(135deg,#047857,#059669)]"
+                    }`}>
                       {item.icon}
                     </div>
                   )}
-                  <div className="absolute right-0 top-4 bg-rose-700 px-5 py-2 text-sm font-bold text-white shadow-md">
+                  <div className={`absolute right-0 top-4 px-5 py-2 text-sm font-bold text-white shadow-md ${
+                    sectionId === "programs" ? "bg-rose-700" : "bg-emerald-700"
+                  }`}>
                     {item.title}
                   </div>
                 </div>
@@ -396,8 +402,10 @@ function renderCardGrid(
 
                 <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
                   <div className="text-xl tracking-[0.15em] text-amber-400">★★★★</div>
-                  <div className="inline-flex items-center gap-2 text-[1.35rem] font-semibold text-slate-900">
-                    <span className="text-rose-700">✧</span>
+                  <div className={`inline-flex items-center gap-2 text-[1.35rem] font-semibold text-slate-900 ${
+                    sectionId === "programs" ? "text-rose-700" : "text-emerald-700"
+                  }`}>
+                    <span>✧</span>
                     <span>{item.title}</span>
                   </div>
                 </div>

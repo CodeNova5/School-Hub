@@ -91,7 +91,7 @@ export async function GET() {
   const supabase = createRouteHandlerClient({ cookies });
 
   try {
-    const [{ data: settings, error: settingsError }, homepageResult, mediaResult] = await Promise.all([
+    const [{ data: settings, error: settingsError }, homepageResult, mediaResult, schoolResult] = await Promise.all([
       supabase
         .from("website_site_settings")
         .select("*")
@@ -104,16 +104,23 @@ export async function GET() {
         .eq("school_id", permission.schoolId)
         .order("created_at", { ascending: false })
         .limit(100),
+      supabase
+        .from("schools")
+        .select("id, name, subdomain")
+        .eq("id", permission.schoolId)
+        .maybeSingle(),
     ]);
 
     if (settingsError) throw settingsError;
     if (mediaResult.error) throw mediaResult.error;
+    if (schoolResult.error) throw schoolResult.error;
 
     return successResponse({
       settings: settings || null,
       page: homepageResult.page,
       sections: homepageResult.sections,
       media: mediaResult.data || [],
+      school: schoolResult.data || null,
     });
   } catch (error: any) {
     return errorResponse(error.message || "Failed to load website builder", 500);

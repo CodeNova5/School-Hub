@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw } from "lucide-react";
 import { WEBSITE_SECTION_TEMPLATES } from "@/lib/website-builder";
 
 interface SiteSettings {
@@ -60,6 +60,116 @@ interface MediaData {
 	page_id: string | null;
 }
 
+interface SchoolData {
+	id: string;
+	name: string;
+	subdomain: string | null;
+}
+
+const SECTION_EDITOR_CONFIG: Record<
+	string,
+	{
+		descriptionLabel: string;
+		itemsLabel: string;
+		showSubheading: boolean;
+		showDescription: boolean;
+		showImage: boolean;
+		showButton: boolean;
+		showItems: boolean;
+	}
+> = {
+	home: {
+		descriptionLabel: "Hero Description",
+		itemsLabel: "Highlights",
+		showSubheading: true,
+		showDescription: true,
+		showImage: true,
+		showButton: true,
+		showItems: false,
+	},
+	about: {
+		descriptionLabel: "About Text",
+		itemsLabel: "About Highlights",
+		showSubheading: false,
+		showDescription: true,
+		showImage: true,
+		showButton: false,
+		showItems: true,
+	},
+	programs: {
+		descriptionLabel: "Programs Intro",
+		itemsLabel: "Programs (one per line)",
+		showSubheading: true,
+		showDescription: false,
+		showImage: false,
+		showButton: false,
+		showItems: true,
+	},
+	facilities: {
+		descriptionLabel: "Facilities Intro",
+		itemsLabel: "Facilities (one per line)",
+		showSubheading: true,
+		showDescription: false,
+		showImage: false,
+		showButton: false,
+		showItems: true,
+	},
+	faculty: {
+		descriptionLabel: "Faculty Intro",
+		itemsLabel: "Faculty Cards",
+		showSubheading: true,
+		showDescription: true,
+		showImage: true,
+		showButton: false,
+		showItems: false,
+	},
+	news: {
+		descriptionLabel: "News Intro",
+		itemsLabel: "News Headlines",
+		showSubheading: true,
+		showDescription: true,
+		showImage: false,
+		showButton: false,
+		showItems: true,
+	},
+	testimonials: {
+		descriptionLabel: "Testimonials Intro",
+		itemsLabel: "Testimonials (one per line)",
+		showSubheading: true,
+		showDescription: true,
+		showImage: false,
+		showButton: false,
+		showItems: true,
+	},
+	gallery: {
+		descriptionLabel: "Gallery Intro",
+		itemsLabel: "Gallery Captions",
+		showSubheading: true,
+		showDescription: false,
+		showImage: true,
+		showButton: false,
+		showItems: true,
+	},
+	admissions: {
+		descriptionLabel: "Admissions Details",
+		itemsLabel: "Requirements (one per line)",
+		showSubheading: true,
+		showDescription: true,
+		showImage: false,
+		showButton: true,
+		showItems: true,
+	},
+	contact: {
+		descriptionLabel: "Contact Message",
+		itemsLabel: "Contact Points",
+		showSubheading: true,
+		showDescription: true,
+		showImage: false,
+		showButton: false,
+		showItems: false,
+	},
+};
+
 const DEFAULT_SETTINGS: SiteSettings = {
 	site_title: "School Website",
 	site_tagline: "Excellence in education",
@@ -82,6 +192,8 @@ export default function WebsiteBuilderPage() {
 	const [page, setPage] = useState<PageData | null>(null);
 	const [sections, setSections] = useState<SectionData[]>([]);
 	const [media, setMedia] = useState<MediaData[]>([]);
+	const [school, setSchool] = useState<SchoolData | null>(null);
+	const [selectedMediaBySection, setSelectedMediaBySection] = useState<Record<string, string>>({});
 
 	const sortedSections = useMemo(
 		() => [...sections].sort((a, b) => a.order_sequence - b.order_sequence),
@@ -102,6 +214,7 @@ export default function WebsiteBuilderPage() {
 			setPage(payload.data.page || null);
 			setSections(payload.data.sections || []);
 			setMedia(payload.data.media || []);
+			setSchool(payload.data.school || null);
 		} catch (error: any) {
 			toast.error(error.message || "Unable to load Website Builder");
 		} finally {
@@ -211,18 +324,59 @@ export default function WebsiteBuilderPage() {
 		}
 	}
 
-	function getPublicUrl() {
-		if (typeof window === "undefined") return "#";
-		const host = window.location.host;
-		const parts = host.split(".");
-
-		if (parts.length > 2) {
-			return `${window.location.protocol}//${host}`;
+	function applyMediaToSection(sectionId: string) {
+		const selectedUrl = selectedMediaBySection[sectionId];
+		if (!selectedUrl) {
+			toast.error("Select a media item first");
+			return;
 		}
 
+		updateSectionContent(sectionId, "image_url", selectedUrl);
+		toast.success("Section image updated from media library");
+	}
+
+	function resetToTemplateDefaults() {
+		setSections((prev) =>
+			prev.map((section) => {
+				const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === section.section_key);
+				if (!template) return section;
+
+				return {
+					...section,
+					section_label: template.label,
+					is_visible: template.visible,
+					order_sequence: template.order,
+					content: {
+						...template.content,
+					},
+				};
+			})
+		);
+
+		toast.success("Section defaults restored. Click Save Changes to persist.");
+	}
+
+	function getPublicUrl() {
+		if (typeof window === "undefined") return "#";
+
+		if (!school?.subdomain) return "#";
+
 		const protocol = window.location.protocol;
-		const baseHost = host.replace(/^www\./, "");
-		return `${protocol}//${baseHost}`;
+		const host = window.location.host;
+		const [hostname, port] = host.split(":");
+		const withPort = (value: string) => (port ? `${value}:${port}` : value);
+
+		if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+			return `${protocol}//${withPort(`${school.subdomain}.localhost`)}`;
+		}
+
+		const parts = hostname.split(".");
+		if (parts.length >= 3) {
+			const rootDomain = parts.slice(1).join(".");
+			return `${protocol}//${withPort(`${school.subdomain}.${rootDomain}`)}`;
+		}
+
+		return `${protocol}//${withPort(`${school.subdomain}.${hostname}`)}`;
 	}
 
 	return (
@@ -234,6 +388,9 @@ export default function WebsiteBuilderPage() {
 						<p className="text-sm text-slate-600">
 							Edit your school homepage, upload media assets, and publish to your school subdomain.
 						</p>
+						{school?.subdomain ? (
+							<p className="mt-1 text-xs text-slate-500">Live URL target: {school.subdomain}</p>
+						) : null}
 					</div>
 					<div className="flex items-center gap-2">
 						{page?.status === "published" ? (
@@ -250,6 +407,10 @@ export default function WebsiteBuilderPage() {
 						<Button onClick={saveAll} disabled={saving || loading}>
 							{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
 							Save Changes
+						</Button>
+						<Button variant="outline" onClick={resetToTemplateDefaults} disabled={loading || saving}>
+							<RotateCcw className="mr-2 h-4 w-4" />
+							Apply Template Defaults
 						</Button>
 					</div>
 				</div>
@@ -315,6 +476,28 @@ export default function WebsiteBuilderPage() {
 								/>
 								<Label>Website enabled</Label>
 							</div>
+							<div className="space-y-2">
+								<Label>Contact Email</Label>
+								<Input
+									value={settings.contact_email}
+									onChange={(e) => setSettings((prev) => ({ ...prev, contact_email: e.target.value }))}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>Contact Phone</Label>
+								<Input
+									value={settings.contact_phone}
+									onChange={(e) => setSettings((prev) => ({ ...prev, contact_phone: e.target.value }))}
+								/>
+							</div>
+							<div className="space-y-2 md:col-span-2">
+								<Label>Contact Address</Label>
+								<Textarea
+									rows={2}
+									value={settings.contact_address}
+									onChange={(e) => setSettings((prev) => ({ ...prev, contact_address: e.target.value }))}
+								/>
+							</div>
 						</div>
 
 						<div className="rounded-lg border bg-white p-4">
@@ -324,7 +507,11 @@ export default function WebsiteBuilderPage() {
 							</div>
 
 							<div className="space-y-4">
-								{sortedSections.map((section) => (
+								{sortedSections.map((section) => {
+									const editorConfig =
+										SECTION_EDITOR_CONFIG[section.section_key] || SECTION_EDITOR_CONFIG.contact;
+
+									return (
 									<div key={section.id} className="rounded-md border p-4">
 										<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
 											<div className="flex items-center gap-2">
@@ -384,6 +571,7 @@ export default function WebsiteBuilderPage() {
 													}
 												/>
 											</div>
+											{editorConfig.showSubheading ? (
 											<div className="space-y-1">
 												<Label>Subheading</Label>
 												<Input
@@ -393,8 +581,11 @@ export default function WebsiteBuilderPage() {
 													}
 												/>
 											</div>
+											) : null}
+
+											{editorConfig.showDescription ? (
 											<div className="space-y-1 md:col-span-2">
-												<Label>Description</Label>
+												<Label>{editorConfig.descriptionLabel}</Label>
 												<Textarea
 													rows={3}
 													value={section.content.description || ""}
@@ -403,35 +594,70 @@ export default function WebsiteBuilderPage() {
 													}
 												/>
 											</div>
-											<div className="space-y-1">
-												<Label>Image URL</Label>
-												<Input
-													value={section.content.image_url || ""}
-													onChange={(e) =>
-														updateSectionContent(section.id, "image_url", e.target.value)
-													}
-												/>
-											</div>
-											<div className="space-y-1">
-												<Label>Button Label</Label>
-												<Input
-													value={section.content.button_label || ""}
-													onChange={(e) =>
-														updateSectionContent(section.id, "button_label", e.target.value)
-													}
-												/>
-											</div>
-											<div className="space-y-1">
-												<Label>Button Link</Label>
-												<Input
-													value={section.content.button_link || ""}
-													onChange={(e) =>
-														updateSectionContent(section.id, "button_link", e.target.value)
-													}
-												/>
-											</div>
+											) : null}
+
+											{editorConfig.showImage ? (
 											<div className="space-y-1 md:col-span-2">
-												<Label>Items (one per line)</Label>
+												<Label>Image URL</Label>
+												<div className="grid gap-2 md:grid-cols-[1fr_auto]">
+													<Input
+														value={section.content.image_url || ""}
+														onChange={(e) =>
+															updateSectionContent(section.id, "image_url", e.target.value)
+														}
+													/>
+													<select
+														className="h-10 rounded-md border border-slate-200 px-2 text-sm"
+														value={selectedMediaBySection[section.id] || ""}
+														onChange={(e) =>
+															setSelectedMediaBySection((prev) => ({
+																...prev,
+																[section.id]: e.target.value,
+															}))
+														}
+													>
+														<option value="">Pick uploaded media...</option>
+														{media.map((item) => (
+															<option key={item.id} value={item.public_url}>
+																{item.file_name}
+															</option>
+														))}
+													</select>
+												</div>
+												<div className="mt-2">
+													<Button type="button" variant="outline" size="sm" onClick={() => applyMediaToSection(section.id)}>
+														Use Selected Media
+													</Button>
+												</div>
+											</div>
+											) : null}
+
+											{editorConfig.showButton ? (
+											<>
+												<div className="space-y-1">
+													<Label>Button Label</Label>
+													<Input
+														value={section.content.button_label || ""}
+														onChange={(e) =>
+															updateSectionContent(section.id, "button_label", e.target.value)
+														}
+													/>
+												</div>
+												<div className="space-y-1">
+													<Label>Button Link</Label>
+													<Input
+														value={section.content.button_link || ""}
+														onChange={(e) =>
+															updateSectionContent(section.id, "button_link", e.target.value)
+														}
+													/>
+												</div>
+											</>
+											) : null}
+
+											{editorConfig.showItems ? (
+											<div className="space-y-1 md:col-span-2">
+												<Label>{editorConfig.itemsLabel}</Label>
 												<Textarea
 													rows={4}
 													value={(section.content.items || []).join("\n")}
@@ -447,9 +673,11 @@ export default function WebsiteBuilderPage() {
 													}
 												/>
 											</div>
+											) : null}
 										</div>
 									</div>
-								))}
+									);
+								})}
 							</div>
 						</div>
 

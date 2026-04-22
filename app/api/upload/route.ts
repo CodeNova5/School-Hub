@@ -11,8 +11,7 @@ type UploadType =
   | "assignment_file" 
   | "teacher_assignment_file"
   | "school_logo"
-  | "admin_signature"
-  | "website_media";
+  | "admin_signature";
 
 export async function POST(req: Request) {
   try {
@@ -106,31 +105,6 @@ export async function POST(req: Request) {
 
         path = `signatures/${adminId}.${fileExtension}`;
         commitMessage = `Upload admin signature for ${adminId}`;
-        break;
-      }
-
-      case "website_media": {
-        const schoolId = form.get("school_id") as string;
-        const folder = ((form.get("folder") as string) || "assets").toLowerCase();
-
-        if (!schoolId) {
-          throw new Error("school_id is required");
-        }
-
-        const { data: isSuperAdmin } = await routeClient.rpc("is_super_admin");
-
-        if (!isSuperAdmin) {
-          const { data: mySchoolId, error: schoolError } = await routeClient.rpc("get_my_school_id");
-          if (schoolError || !mySchoolId || mySchoolId !== schoolId) {
-            throw new Error("You are not allowed to upload website media for this school");
-          }
-        }
-
-        const safeFolder = folder.replace(/[^a-z0-9/-]/g, "") || "assets";
-        const safeFileName = `${Date.now()}-${file.name}`.replace(/[^a-zA-Z0-9._-]/g, "-");
-
-        path = `websites/${schoolId}/${safeFolder}/${safeFileName}`;
-        commitMessage = `Upload website media for school ${schoolId}`;
         break;
       }
 

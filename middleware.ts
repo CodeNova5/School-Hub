@@ -44,90 +44,6 @@ const PUBLIC_ROUTES = [
     pathname === `${config.prefix}/reset-password`,
 ];
 
-const STATIC_FILE_REGEX = /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|map|txt|xml)$/i;
-
-function getConfiguredMainDomain() {
-  const raw =
-    process.env.NEXT_PUBLIC_MAIN_DOMAIN ||
-    process.env.APP_MAIN_DOMAIN ||
-    "";
-
-  return raw
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/\/$/, "");
-}
-
-function splitHostAndPort(host: string) {
-  const [hostname, port] = host.toLowerCase().split(":");
-  return { hostname, port };
-}
-
-function getRequestHost(req: NextRequest) {
-  return (
-    req.headers.get("x-forwarded-host") ||
-    req.headers.get("host") ||
-    req.nextUrl.host ||
-    ""
-  );
-}
-
-function resolveMainDomainHost(host: string) {
-  const configuredDomain = getConfiguredMainDomain();
-  if (configuredDomain) {
-    return configuredDomain;
-  }
-
-  const { hostname, port } = splitHostAndPort(host);
-
-  if (hostname.endsWith(".localhost")) {
-    return `localhost${port ? `:${port}` : ""}`;
-  }
-
-  const labels = hostname.split(".");
-  if (labels.length >= 3) {
-    return `${labels.slice(-2).join(".")}${port ? `:${port}` : ""}`;
-  }
-
-  return host;
-}
-
-function extractSchoolSubdomain(host: string) {
-  const { hostname } = splitHostAndPort(host);
-
-  if (!hostname || hostname === "localhost") {
-    return null;
-  }
-
-  if (hostname.endsWith(".localhost")) {
-    return hostname.replace(/\.localhost$/, "") || null;
-  }
-
-  const configuredDomain = getConfiguredMainDomain();
-
-  if (configuredDomain) {
-    if (hostname === configuredDomain || hostname === `www.${configuredDomain}`) {
-      return null;
-    }
-
-    if (hostname.endsWith(`.${configuredDomain}`)) {
-      const subdomain = hostname.slice(0, hostname.length - configuredDomain.length - 1);
-      if (subdomain && !subdomain.includes(".")) {
-        return subdomain;
-      }
-    }
-
-    return null;
-  }
-
-  const labels = hostname.split(".");
-  if (labels.length >= 3) {
-    return labels[0];
-  }
-
-  return null;
-}
-
 function getPortalConfig(pathname: string) {
   for (const [, config] of Object.entries(PORTAL_CONFIG)) {
     if (pathname.startsWith(config.prefix)) {
@@ -145,73 +61,6 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
   const { pathname } = req.nextUrl;
-
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/static") ||
-    pathname.startsWith("/images") ||
-    STATIC_FILE_REGEX.test(pathname)
-  ) {
-    return res;
-  }
-
-  const requestHost = getRequestHost(req);
-  const schoolSubdomain = extractSchoolSubdomain(requestHost);
-
-  if (schoolSubdomain) {
-    const { data: schoolRows, error: schoolError } = await supabase.rpc(
-      "get_school_by_subdomain",
-      { p_subdomain: schoolSubdomain }
-    );
-
-    const school = Array.isArray(schoolRows) ? schoolRows[0] : null;
-
-    if (schoolError || !school || !school.is_active) {
-      if (pathname !== "/school-not-found") {
-        const notFoundUrl = req.nextUrl.clone();
-        notFoundUrl.pathname = "/school-not-found";
-        notFoundUrl.search = "";
-        return NextResponse.rewrite(notFoundUrl);
-      }
-      return res;
-    }
-
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set("x-school-id", school.id);
-    requestHeaders.set("x-school-subdomain", schoolSubdomain);
-
-    const portalConfig = getPortalConfig(pathname);
-    if (portalConfig) {
-      const redirectUrl = req.nextUrl.clone();
-      redirectUrl.host = resolveMainDomainHost(requestHost);
-      return NextResponse.redirect(redirectUrl);
-    }
-
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    }
-
-    if (pathname.startsWith("/site/")) {
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    }
-
-    const rewriteUrl = req.nextUrl.clone();
-    rewriteUrl.pathname = `/site/${schoolSubdomain}${pathname === "/" ? "" : pathname}`;
-
-    return NextResponse.rewrite(rewriteUrl, {
-      request: {
-        headers: requestHeaders,
-      },
-    });
-  }
 
   // Handle root path
   if (pathname === "/") {
@@ -286,6 +135,10 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/:path*",
+    "/",
+    "/admin/:path*",
+    "/teacher/:path*",
+    "/student/:path*",
+    "/parent/:path*",
   ],
 };

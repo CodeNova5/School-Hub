@@ -485,26 +485,31 @@ export default function WebsiteBuilderPage() {
                                     </div>
 
                                     <Tabs value={activeEditorTab} onValueChange={setActiveEditorTab} className="space-y-4">
-                                        <div className="relative">
-                                            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-white to-transparent" />
-                                            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-white to-transparent" />
-                                            <TabsList className="h-auto w-full justify-start gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-2 shadow-sm">
-                                            <TabsTrigger
-                                                value="settings"
-                                                className="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-white/70 hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
-                                            >
-                                                Global Settings
-                                            </TabsTrigger>
-                                            {sortedSections.map((section) => (
+                                        <div className="rounded-xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-2 shadow-sm">
+                                            <TabsList className="h-auto w-full justify-start gap-2 overflow-x-auto bg-transparent p-1">
                                                 <TabsTrigger
-                                                    key={section.id}
-                                                    value={`section-${section.id}`}
-                                                    className="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-white/70 hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
+                                                    value="settings"
+                                                    className="h-10 whitespace-nowrap rounded-full border border-transparent px-4 text-sm font-medium text-slate-600 transition-all data-[state=active]:border-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
                                                 >
-                                                    {section.section_label || section.section_key}
+                                                    Global Settings
                                                 </TabsTrigger>
-                                            ))}
+                                                {sortedSections.map((section, index) => (
+                                                    <TabsTrigger
+                                                        key={section.id}
+                                                        value={`section-${section.id}`}
+                                                        className="h-10 whitespace-nowrap rounded-full border border-transparent px-4 text-sm font-medium text-slate-600 transition-all data-[state=active]:border-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
+                                                    >
+                                                        <span className="mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[11px] font-semibold text-slate-600">
+                                                            {index + 1}
+                                                        </span>
+                                                        <span>{section.section_label || section.section_key}</span>
+                                                    </TabsTrigger>
+                                                ))}
                                             </TabsList>
+                                            <div className="mt-2 flex items-center justify-between px-1 text-[11px] text-slate-500">
+                                                <span>{sortedSections.length} editable sections</span>
+                                                <span>Scroll to view all tabs</span>
+                                            </div>
                                         </div>
 
                                         <TabsContent value="settings" className="space-y-4">

@@ -40,6 +40,25 @@ export interface WebsiteSectionContent {
   vision?: string;
   program_items?: WebsiteProgramItem[];
   facility_items?: WebsiteFacilityItem[];
+  faculty_items?: {
+    title: string;
+    position?: string;
+    description: string;
+    image_url?: string;
+  }[];
+  news_items?: {
+    title: string;
+    description: string;
+  }[];
+  testimonial_items?: {
+    text: string;
+    author: string;
+    role?: string;
+  }[];
+  gallery_items?: {
+    image_url: string;
+    caption?: string;
+  }[];
 }
 
 export interface WebsiteSectionTemplate {
@@ -171,6 +190,28 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     content: {
       heading: "Our Faculty",
       description: "Experienced educators shaping future leaders.",
+      faculty_items: [
+        {
+          title: "Dr. Rajesh Kumar",
+          position: "Principal",
+          description: "Experienced academic leader focused on institutional excellence.",
+        },
+        {
+          title: "Ms. Priya Sharma",
+          position: "Head of Science Department",
+          description: "Curriculum development and student mentorship specialist.",
+        },
+        {
+          title: "Mr. Arun Verma",
+          position: "Head of Humanities",
+          description: "Innovative teaching methodologies and cultural education.",
+        },
+        {
+          title: "Dr. Anjali Patel",
+          position: "Counselor & Psychologist",
+          description: "Student welfare, career guidance, and holistic development.",
+        },
+      ],
     },
   },
   {
@@ -181,6 +222,20 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     content: {
       heading: "News and Updates",
       subheading: "Latest announcements and school events",
+      news_items: [
+        {
+          title: "Annual Sports Day Announced",
+          description: "Students, parents, and staff are invited to celebrate this year’s athletics and team events.",
+        },
+        {
+          title: "New Science Lab Opening",
+          description: "A modern lab space will support hands-on learning in physics, chemistry, and biology.",
+        },
+        {
+          title: "Parent-Teacher Conference Week",
+          description: "Book your slot to discuss progress, goals, and support plans with teachers.",
+        },
+      ],
     },
   },
   {
@@ -191,6 +246,23 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     content: {
       heading: "What Families Say",
       description: "Trusted by parents and loved by students.",
+      testimonial_items: [
+        {
+          text: "The school has created a caring environment where our child feels supported and challenged every day.",
+          author: "Mrs. Amina Bello",
+          role: "Parent",
+        },
+        {
+          text: "The teachers are attentive, approachable, and genuinely invested in student success.",
+          author: "Daniel K.",
+          role: "Grade 10 Student",
+        },
+        {
+          text: "We’ve seen amazing growth in confidence, communication, and academic performance.",
+          author: "Mr. Chinedu Okafor",
+          role: "Parent",
+        },
+      ],
     },
   },
   {
@@ -201,6 +273,20 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     content: {
       heading: "Gallery",
       subheading: "Moments from our campus life",
+      gallery_items: [
+        {
+          image_url: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=1200&q=80",
+          caption: "Students collaborating in class",
+        },
+        {
+          image_url: "https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?auto=format&fit=crop&w=1200&q=80",
+          caption: "Campus events and celebrations",
+        },
+        {
+          image_url: "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1200&q=80",
+          caption: "Teachers guiding learners",
+        },
+      ],
     },
   },
   {

@@ -83,7 +83,7 @@ interface FacultyItem {
     title: string;
     position?: string;
     description: string;
-    image_url?: string;
+    image_url?: string; 
 }
 
 interface NewsItem {
@@ -250,6 +250,37 @@ const DEFAULT_FACILITY_ITEMS: FacilityItem[] = (
     description: item.description || "",
     icon: item.icon || "🏢",
     image_url: item.image_url || "",
+}));
+
+const DEFAULT_FACULTY_ITEMS: FacultyItem[] = (
+    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "faculty")?.content.faculty_items || []
+).map((item) => ({
+    title: item.title || "",
+    position: item.position || "",
+    description: item.description || "",
+    image_url: item.image_url || "",
+}));
+
+const DEFAULT_NEWS_ITEMS: NewsItem[] = (
+    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "news")?.content.news_items || []
+).map((item) => ({
+    title: item.title || "",
+    description: item.description || "",
+}));
+
+const DEFAULT_TESTIMONIAL_ITEMS: TestimonialItem[] = (
+    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "testimonials")?.content.testimonial_items || []
+).map((item) => ({
+    text: item.text || "",
+    author: item.author || "",
+    role: item.role || "",
+}));
+
+const DEFAULT_GALLERY_ITEMS: GalleryItem[] = (
+    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "gallery")?.content.gallery_items || []
+).map((item) => ({
+    image_url: item.image_url || "",
+    caption: item.caption || "",
 }));
 
 export default function WebsiteBuilderPage() {
@@ -512,7 +543,11 @@ export default function WebsiteBuilderPage() {
             }))
             .filter((item) => item.title);
 
-        return fromStructured.length > 0 ? fromStructured : [];
+        if (fromStructured.length > 0) {
+            return fromStructured;
+        }
+
+        return DEFAULT_FACULTY_ITEMS.map((item) => ({ ...item }));
     }
 
     function setFacultyItems(sectionId: string, facultyItems: FacultyItem[]) {
@@ -577,7 +612,11 @@ export default function WebsiteBuilderPage() {
             }))
             .filter((item) => item.title);
 
-        return fromStructured.length > 0 ? fromStructured : [];
+        if (fromStructured.length > 0) {
+            return fromStructured;
+        }
+
+        return DEFAULT_NEWS_ITEMS.map((item) => ({ ...item }));
     }
 
     function setNewsItems(sectionId: string, newsItems: NewsItem[]) {
@@ -641,7 +680,11 @@ export default function WebsiteBuilderPage() {
             }))
             .filter((item) => item.text && item.author);
 
-        return fromStructured.length > 0 ? fromStructured : [];
+        if (fromStructured.length > 0) {
+            return fromStructured;
+        }
+
+        return DEFAULT_TESTIMONIAL_ITEMS.map((item) => ({ ...item }));
     }
 
     function setTestimonialItems(sectionId: string, testimonialItems: TestimonialItem[]) {
@@ -705,7 +748,11 @@ export default function WebsiteBuilderPage() {
             }))
             .filter((item) => item.image_url);
 
-        return fromStructured.length > 0 ? fromStructured : [];
+        if (fromStructured.length > 0) {
+            return fromStructured;
+        }
+
+        return DEFAULT_GALLERY_ITEMS.map((item) => ({ ...item }));
     }
 
     function setGalleryItems(sectionId: string, galleryItems: GalleryItem[]) {

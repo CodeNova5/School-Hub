@@ -485,16 +485,27 @@ export default function WebsiteBuilderPage() {
                                     </div>
 
                                     <Tabs value={activeEditorTab} onValueChange={setActiveEditorTab} className="space-y-4">
-                                        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-md border bg-slate-50 p-1">
-                                            <TabsTrigger value="settings" className="whitespace-nowrap">
+                                        <div className="relative">
+                                            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-white to-transparent" />
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-white to-transparent" />
+                                            <TabsList className="h-auto w-full justify-start gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-[linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] p-2 shadow-sm">
+                                            <TabsTrigger
+                                                value="settings"
+                                                className="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-white/70 hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
+                                            >
                                                 Global Settings
                                             </TabsTrigger>
                                             {sortedSections.map((section) => (
-                                                <TabsTrigger key={section.id} value={`section-${section.id}`} className="whitespace-nowrap">
+                                                <TabsTrigger
+                                                    key={section.id}
+                                                    value={`section-${section.id}`}
+                                                    className="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-white/70 hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
+                                                >
                                                     {section.section_label || section.section_key}
                                                 </TabsTrigger>
                                             ))}
-                                        </TabsList>
+                                            </TabsList>
+                                        </div>
 
                                         <TabsContent value="settings" className="space-y-4">
                                             <div className="grid gap-4 rounded-lg border bg-white p-4 md:grid-cols-2">

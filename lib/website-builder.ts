@@ -22,6 +22,8 @@ export interface WebsiteSectionContent {
   hero_card_title?: string;
   hero_card_description?: string;
   hero_stats?: string[];
+  mission?: string;
+  vision?: string;
 }
 
 export interface WebsiteSectionTemplate {
@@ -57,6 +59,8 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     content: {
       heading: "About Our School",
       description: "We are committed to academic excellence and holistic student development.",
+      mission: "Our Mission\n\nTo provide quality education that develops critical thinking, creativity, and character while empowering students to become responsible global citizens.",
+      vision: "Our Vision\n\nA learning community where every student achieves excellence, discovers their potential, and contributes meaningfully to society.",
     },
   },
   {

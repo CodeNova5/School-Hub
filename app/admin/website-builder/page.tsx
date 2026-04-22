@@ -54,6 +54,8 @@ interface SectionData {
         hero_card_title?: string;
         hero_card_description?: string;
         hero_stats?: string[];
+        mission?: string;
+        vision?: string;
     };
 }
 
@@ -100,7 +102,7 @@ const SECTION_EDITOR_CONFIG: Record<
         showDescription: true,
         showImage: true,
         showButton: false,
-        showItems: true,
+        showItems: false,
     },
     programs: {
         descriptionLabel: "Programs Intro",
@@ -663,6 +665,33 @@ export default function WebsiteBuilderPage() {
                                                                         }
                                                                     />
                                                                 </div>
+                                                            ) : null}
+
+                                                            {section.section_key === "about" ? (
+                                                                <>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Mission Statement</Label>
+                                                                        <Textarea
+                                                                            rows={3}
+                                                                            value={section.content.mission || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(section.id, "mission", e.target.value)
+                                                                            }
+                                                                            placeholder="Our Mission&#10;&#10;To provide quality education..."
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Vision Statement</Label>
+                                                                        <Textarea
+                                                                            rows={3}
+                                                                            value={section.content.vision || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(section.id, "vision", e.target.value)
+                                                                            }
+                                                                            placeholder="Our Vision&#10;&#10;A learning community..."
+                                                                        />
+                                                                    </div>
+                                                                </>
                                                             ) : null}
 
                                                             {editorConfig.showImage ? (

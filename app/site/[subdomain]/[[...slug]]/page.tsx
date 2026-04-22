@@ -21,6 +21,8 @@ interface WebsiteSection {
     hero_card_title?: string;
     hero_card_description?: string;
     hero_stats?: string[];
+    mission?: string;
+    vision?: string;
   };
 }
 
@@ -58,12 +60,8 @@ const FALLBACK_CONTENT = {
     heading: "About Our School",
     description:
       "We are dedicated to academic excellence, character formation, and creating opportunities for every learner to thrive.",
-    stats: [
-      { value: "850+", label: "Students" },
-      { value: "95%", label: "Pass Rate" },
-      { value: "25+", label: "Years" },
-      { value: "50+", label: "Faculty" },
-    ],
+    mission: "Our Mission\n\nTo provide quality education that develops critical thinking, creativity, and character while empowering students to become responsible global citizens.",
+    vision: "Our Vision\n\nA learning community where every student achieves excellence, discovers their potential, and contributes meaningfully to society.",
     image: "📚",
   },
   programs: [
@@ -281,7 +279,8 @@ function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
 
 function renderAbout(section: WebsiteSection | undefined) {
   const fallback = FALLBACK_CONTENT.about;
-  const stats = fallback.stats;
+  const mission = section?.content.mission || fallback.mission;
+  const vision = section?.content.vision || fallback.vision;
 
   return (
     <section id="about" className="bg-slate-50 px-4 py-20 md:px-6">
@@ -291,13 +290,13 @@ function renderAbout(section: WebsiteSection | undefined) {
           <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{section?.content.heading || fallback.heading}</h2>
           <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">{section?.content.description || fallback.description}</p>
 
-          <div className="mt-8 grid grid-cols-2 gap-4 md:gap-6">
-            {stats.map((stat) => (
-              <div key={stat.label} className="rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-                <div className="text-3xl font-black text-slate-950">{stat.value}</div>
-                <div className="mt-2 text-sm text-slate-500">{stat.label}</div>
-              </div>
-            ))}
+          <div className="mt-8 space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="whitespace-pre-line text-sm leading-7 text-slate-700">{mission}</div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="whitespace-pre-line text-sm leading-7 text-slate-700">{vision}</div>
+            </div>
           </div>
         </div>
 

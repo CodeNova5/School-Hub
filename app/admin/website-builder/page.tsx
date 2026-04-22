@@ -361,8 +361,22 @@ export default function WebsiteBuilderPage() {
 
 		if (!school?.subdomain) return "#";
 
-		// Use the route-based public renderer so preview works even when wildcard subdomains are not configured.
-		return `${window.location.origin}/site/${school.subdomain}`;
+		const protocol = window.location.protocol;
+		const host = window.location.host;
+		const [hostname, port] = host.split(":");
+		const withPort = (value: string) => (port ? `${value}:${port}` : value);
+
+		if (hostname === "localhost" || hostname.endsWith(".localhost")) {
+			return `${protocol}//${withPort(`${school.subdomain}.localhost`)}`;
+		}
+
+		const parts = hostname.split(".");
+		if (parts.length >= 3) {
+			const rootDomain = parts.slice(1).join(".");
+			return `${protocol}//${withPort(`${school.subdomain}.${rootDomain}`)}`;
+		}
+
+		return `${protocol}//${withPort(`${school.subdomain}.${hostname}`)}`;
 	}
 
 	return (

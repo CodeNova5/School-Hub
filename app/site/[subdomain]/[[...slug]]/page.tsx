@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 interface WebsiteSection {
@@ -112,18 +113,34 @@ export default async function PublicSchoolWebsite({
   }
 
   const supabase = getSupabaseAnonClient();
+  const reqHeaders = headers();
+  const schoolIdFromHeader = reqHeaders.get("x-school-id");
 
-  const { data: school, error: schoolError } = await supabase
-    .from("schools")
-    .select("id, name, is_active")
-    .eq("subdomain", subdomain)
-    .maybeSingle();
+  let school: { id: string; name: string; is_active: boolean } | null = null;
 
-  if (schoolError) {
-    throw new Error(schoolError.message);
+  if (schoolIdFromHeader) {
+    const { data: schoolResult, error: schoolError } = await supabase
+      .rpc("get_school_by_subdomain", { p_subdomain: subdomain })
+      .maybeSingle();
+
+    if (schoolError) {
+      throw new Error(schoolError.message);
+    }
+
+    school = (schoolResult as { id: string; name: string; is_active: boolean } | null) || null;
+  } else {
+    const { data: schoolResult, error: schoolError } = await supabase
+      .rpc("get_school_by_subdomain", { p_subdomain: subdomain })
+      .maybeSingle();
+
+    if (schoolError) {
+      throw new Error(schoolError.message);
+    }
+
+    school = (schoolResult as { id: string; name: string; is_active: boolean } | null) || null;
   }
 
-  if (!school) {
+  if (!school || !school.is_active) {
     notFound();
   }
 

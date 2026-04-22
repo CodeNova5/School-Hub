@@ -11,7 +11,8 @@ type UploadType =
   | "assignment_file" 
   | "teacher_assignment_file"
   | "school_logo"
-  | "admin_signature";
+  | "admin_signature"
+  | "website_media";
 
 export async function POST(req: Request) {
   try {
@@ -39,9 +40,24 @@ export async function POST(req: Request) {
 
     let path = "";
     let commitMessage = "";
+    let websiteMediaMeta:
+      | {
+          schoolId: string;
+          pageId: string | null;
+          fileName: string;
+          mimeType: string;
+          fileSize: number;
+        }
+      | null = null;
 
     // Updated the file extension logic to dynamically use the uploaded file's extension
     const fileExtension = file.name.split('.').pop();
+
+    const sanitizeFileName = (name: string) =>
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9.-]/g, "-")
+        .replace(/-+/g, "-");
 
     /**
      * Decide how to handle upload based on type
@@ -108,6 +124,63 @@ export async function POST(req: Request) {
         break;
       }
 
+      case "website_media": {
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+          throw new Error("website media exceeds 10MB size limit");
+        }
+
+        const allowedTypes = [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+          "image/svg+xml",
+          "video/mp4",
+          "application/pdf",
+        ];
+
+        if (!allowedTypes.includes(file.type)) {
+          throw new Error("unsupported website media type");
+        }
+
+        const { data: schoolId, error: schoolError } = await routeClient.rpc("get_my_school_id");
+        if (schoolError || !schoolId) {
+          throw new Error("Unable to resolve school context for website upload");
+        }
+
+        const pageId = (form.get("page_id") as string) || null;
+
+        if (pageId) {
+          const { data: page, error: pageError } = await routeClient
+            .from("website_pages")
+            .select("id")
+            .eq("id", pageId)
+            .eq("school_id", schoolId)
+            .maybeSingle();
+
+          if (pageError) {
+            throw new Error(pageError.message);
+          }
+
+          if (!page) {
+            throw new Error("Invalid page_id for this school");
+          }
+        }
+
+        const safeName = sanitizeFileName(file.name);
+        path = `websites/${schoolId}/${pageId || "shared"}/${Date.now()}-${safeName}`;
+        commitMessage = `Upload website media for school ${schoolId}`;
+        websiteMediaMeta = {
+          schoolId,
+          pageId,
+          fileName: file.name,
+          mimeType: file.type,
+          fileSize: file.size,
+        };
+        break;
+      }
+
       default:
         return NextResponse.json(
           { error: "Unsupported upload type" },
@@ -120,6 +193,22 @@ export async function POST(req: Request) {
       content: base64,
       commitMessage,
     });
+
+    if (type === "website_media" && websiteMediaMeta) {
+      const { error: mediaError } = await routeClient.from("website_media").insert({
+        school_id: websiteMediaMeta.schoolId,
+        page_id: websiteMediaMeta.pageId,
+        file_name: websiteMediaMeta.fileName,
+        github_path: path,
+        public_url: fileUrl,
+        mime_type: websiteMediaMeta.mimeType,
+        file_size: websiteMediaMeta.fileSize,
+      });
+
+      if (mediaError) {
+        throw new Error(mediaError.message);
+      }
+    }
 
     return NextResponse.json({ 
       success: true,

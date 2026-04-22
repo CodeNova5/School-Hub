@@ -57,10 +57,102 @@ function isPublicRoute(pathname: string, config: (typeof PORTAL_CONFIG)[keyof ty
   return PUBLIC_ROUTES.some((checker) => checker(pathname, config));
 }
 
+function extractSubdomain(hostname: string) {
+  const hostWithoutPort = hostname.split(":")[0].toLowerCase();
+  if (!hostWithoutPort) return null;
+
+  if (hostWithoutPort.includes("localhost")) {
+    const parts = hostWithoutPort.split(".");
+    if (parts.length >= 2 && parts[parts.length - 1] === "localhost") {
+      const candidate = parts[0];
+      if (candidate && candidate !== "www" && candidate !== "localhost") {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  const parts = hostWithoutPort.split(".");
+  if (parts.length >= 3) {
+    const candidate = parts[0];
+    if (candidate && candidate !== "www") {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function rootHostFromSubdomainHost(hostname: string) {
+  const [host, port] = hostname.split(":");
+  const parts = host.split(".");
+
+  let rootHost = host;
+  if (host.includes("localhost")) {
+    if (parts.length >= 2 && parts[parts.length - 1] === "localhost") {
+      rootHost = "localhost";
+    }
+  } else if (parts.length >= 3) {
+    rootHost = parts.slice(1).join(".");
+  }
+
+  return port ? `${rootHost}:${port}` : rootHost;
+}
+
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
   const supabase = createMiddlewareClient({ req, res });
   const { pathname } = req.nextUrl;
+
+  const hostHeader = req.headers.get("x-forwarded-host") || req.headers.get("host") || "";
+  const subdomain = extractSubdomain(hostHeader);
+
+  if (
+    subdomain &&
+    !pathname.startsWith("/api") &&
+    !pathname.startsWith("/_next") &&
+    !pathname.startsWith("/site")
+  ) {
+    const isPortalPath = ["/admin", "/teacher", "/student", "/parent"].some((prefix) =>
+      pathname.startsWith(prefix)
+    );
+
+    if (isPortalPath) {
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.host = rootHostFromSubdomainHost(hostHeader);
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    const { data: school, error: schoolError } = await supabase
+      .rpc("get_school_by_subdomain", { p_subdomain: subdomain })
+      .single<{ id: string; name: string; is_active: boolean }>();
+
+    if (schoolError || !school?.id) {
+      const notFoundUrl = req.nextUrl.clone();
+      notFoundUrl.pathname = "/school-not-found";
+      notFoundUrl.search = "";
+      return NextResponse.rewrite(notFoundUrl);
+    }
+
+    if (!school.is_active) {
+      const suspendedUrl = req.nextUrl.clone();
+      suspendedUrl.pathname = "/school-suspended";
+      suspendedUrl.search = "";
+      return NextResponse.rewrite(suspendedUrl);
+    }
+
+    const rewriteUrl = req.nextUrl.clone();
+    rewriteUrl.pathname = `/site/${subdomain}${pathname === "/" ? "" : pathname}`;
+
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-school-id", school.id);
+
+    return NextResponse.rewrite(rewriteUrl, {
+      request: {
+        headers: requestHeaders,
+      },
+    });
+  }
 
   // Handle root path
   if (pathname === "/") {
@@ -135,10 +227,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/",
-    "/admin/:path*",
-    "/teacher/:path*",
-    "/student/:path*",
-    "/parent/:path*",
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
   ],
 };

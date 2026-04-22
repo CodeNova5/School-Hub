@@ -17,6 +17,10 @@ interface WebsiteSection {
     button_label?: string;
     button_link?: string;
     items?: string[];
+    hero_card_badge?: string;
+    hero_card_title?: string;
+    hero_card_description?: string;
+    hero_stats?: string[];
   };
 }
 
@@ -208,6 +212,21 @@ function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
   const buttonLabel = section?.content.button_label || "Apply Now";
   const buttonLink = section?.content.button_link || "#admissions";
   const heroImage = section?.content.image_url || siteSettings.hero_background_url;
+  const heroCardBadge = section?.content.hero_card_badge || "Student Focus";
+  const heroCardTitle = section?.content.hero_card_title || "Modern learning. Strong values. Real outcomes.";
+  const heroCardDescription =
+    section?.content.hero_card_description ||
+    "A school website built to communicate trust, clarity, and excellence from the first glance.";
+  const heroStats =
+    section?.content.hero_stats
+      ?.map((entry) => entry.split("|").map((value) => value.trim()))
+      .filter((entry) => entry.length >= 2 && entry[0] && entry[1])
+      .map(([value, label]) => [value, label] as [string, string]) || [
+      ["850+", "Students"],
+      ["95%", "Pass Rate"],
+      ["25+", "Years"],
+      ["50+", "Faculty"],
+    ];
 
   return (
     <section id="home" className="relative overflow-hidden bg-slate-950 text-white">
@@ -241,17 +260,12 @@ function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
         <div className="flex items-end justify-end">
           <div className="grid w-full max-w-md gap-4 rounded-[28px] border border-white/10 bg-white/8 p-4 shadow-2xl backdrop-blur-xl">
             <div className="rounded-[24px] bg-white/10 p-6">
-              <p className="text-xs uppercase tracking-[0.22em] text-amber-200/80">Student Focus</p>
-              <p className="mt-3 text-2xl font-semibold text-white">Modern learning. Strong values. Real outcomes.</p>
-              <p className="mt-3 text-sm leading-6 text-white/70">A school website built to communicate trust, clarity, and excellence from the first glance.</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-amber-200/80">{heroCardBadge}</p>
+              <p className="mt-3 text-2xl font-semibold text-white">{heroCardTitle}</p>
+              <p className="mt-3 text-sm leading-6 text-white/70">{heroCardDescription}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {[
-                ["850+", "Students"],
-                ["95%", "Pass Rate"],
-                ["25+", "Years"],
-                ["50+", "Faculty"],
-              ].map(([value, label]) => (
+              {heroStats.map(([value, label]) => (
                 <div key={label} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-center">
                   <div className="text-2xl font-black text-amber-300">{value}</div>
                   <div className="mt-1 text-xs uppercase tracking-[0.16em] text-white/60">{label}</div>

@@ -100,7 +100,7 @@ export async function GET() {
       ensureHomepage(supabase, permission.schoolId),
       supabase
         .from("website_media")
-        .select("id, file_name, public_url, created_at, page_id")
+        .select("id, file_name, public_url, mime_type, created_at, page_id")
         .eq("school_id", permission.schoolId)
         .order("created_at", { ascending: false })
         .limit(100),

@@ -18,6 +18,10 @@ export interface WebsiteSectionContent {
   button_label?: string;
   button_link?: string;
   items?: string[];
+  hero_card_badge?: string;
+  hero_card_title?: string;
+  hero_card_description?: string;
+  hero_stats?: string[];
 }
 
 export interface WebsiteSectionTemplate {
@@ -39,6 +43,10 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
       subheading: "Excellence in education and character",
       button_label: "Apply Now",
       button_link: "#admissions",
+      hero_card_badge: "Student Focus",
+      hero_card_title: "Modern learning. Strong values. Real outcomes.",
+      hero_card_description: "A school website built to communicate trust, clarity, and excellence from the first glance.",
+      hero_stats: ["850+|Students", "95%|Pass Rate", "25+|Years", "50+|Faculty"],
     },
   },
   {

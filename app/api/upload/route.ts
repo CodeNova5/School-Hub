@@ -144,6 +144,12 @@ export async function POST(req: Request) {
           throw new Error("unsupported website media type");
         }
 
+        const displayNameRaw = (form.get("display_name") as string) || "";
+        const displayName = displayNameRaw.trim();
+        if (displayName.length > 120) {
+          throw new Error("display_name must be 120 characters or less");
+        }
+
         const { data: schoolId, error: schoolError } = await routeClient.rpc("get_my_school_id");
         if (schoolError || !schoolId) {
           throw new Error("Unable to resolve school context for website upload");
@@ -174,7 +180,7 @@ export async function POST(req: Request) {
         websiteMediaMeta = {
           schoolId,
           pageId,
-          fileName: file.name,
+          fileName: displayName || file.name,
           mimeType: file.type,
           fileSize: file.size,
         };

@@ -50,6 +50,10 @@ interface SectionData {
         button_label?: string;
         button_link?: string;
         items?: string[];
+        hero_card_badge?: string;
+        hero_card_title?: string;
+        hero_card_description?: string;
+        hero_stats?: string[];
     };
 }
 
@@ -57,6 +61,7 @@ interface MediaData {
     id: string;
     file_name: string;
     public_url: string;
+    mime_type?: string;
     created_at: string;
     page_id: string | null;
 }
@@ -197,6 +202,7 @@ export default function WebsiteBuilderPage() {
     const [selectedMediaBySection, setSelectedMediaBySection] = useState<Record<string, string>>({});
     const [activeEditorTab, setActiveEditorTab] = useState("settings");
     const [previewNonce, setPreviewNonce] = useState(0);
+    const [uploadDisplayName, setUploadDisplayName] = useState("");
 
     const sortedSections = useMemo(
         () => [...sections].sort((a, b) => a.order_sequence - b.order_sequence),
@@ -311,7 +317,7 @@ export default function WebsiteBuilderPage() {
         }
     }
 
-    async function uploadMedia(file: File) {
+    async function uploadMedia(file: File, displayName?: string) {
         if (!page) return;
 
         setUploading(true);
@@ -320,6 +326,9 @@ export default function WebsiteBuilderPage() {
             formData.append("file", file);
             formData.append("type", "website_media");
             formData.append("page_id", page.id);
+            if (displayName?.trim()) {
+                formData.append("display_name", displayName.trim());
+            }
 
             const res = await fetch("/api/upload", {
                 method: "POST",
@@ -332,12 +341,20 @@ export default function WebsiteBuilderPage() {
             }
 
             toast.success("Media uploaded successfully");
+            setUploadDisplayName("");
             await loadWebsiteBuilder();
         } catch (error: any) {
             toast.error(error.message || "Unable to upload media");
         } finally {
             setUploading(false);
         }
+    }
+
+    function isPreviewableImage(item: MediaData) {
+        const url = item.public_url.toLowerCase();
+        const mime = item.mime_type?.toLowerCase() || "";
+        if (mime.startsWith("image/")) return true;
+        return [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"].some((ext) => url.includes(ext));
     }
 
     function applyMediaToSection(sectionId: string) {
@@ -731,6 +748,73 @@ export default function WebsiteBuilderPage() {
                                                                     />
                                                                 </div>
                                                             ) : null}
+
+                                                            {section.section_key === "home" ? (
+                                                                <>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Hero Card Badge</Label>
+                                                                        <Input
+                                                                            value={section.content.hero_card_badge || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(
+                                                                                    section.id,
+                                                                                    "hero_card_badge",
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
+                                                                            placeholder="Student Focus"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Hero Card Title</Label>
+                                                                        <Textarea
+                                                                            rows={2}
+                                                                            value={section.content.hero_card_title || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(
+                                                                                    section.id,
+                                                                                    "hero_card_title",
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
+                                                                            placeholder="Modern learning. Strong values. Real outcomes."
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Hero Card Description</Label>
+                                                                        <Textarea
+                                                                            rows={3}
+                                                                            value={section.content.hero_card_description || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(
+                                                                                    section.id,
+                                                                                    "hero_card_description",
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
+                                                                            placeholder="A school website built to communicate trust, clarity, and excellence from the first glance."
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Hero Stats (value|label, one per line)</Label>
+                                                                        <Textarea
+                                                                            rows={4}
+                                                                            value={(section.content.hero_stats || []).join("\n")}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(
+                                                                                    section.id,
+                                                                                    "hero_stats",
+                                                                                    e.target.value
+                                                                                        .split("\n")
+                                                                                        .map((item) => item.trim())
+                                                                                        .filter(Boolean)
+                                                                                )
+                                                                            }
+                                                                            placeholder={"850+|Students\n95%|Pass Rate\n25+|Years\n50+|Faculty"}
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            ) : null}
                                                         </div>
                                                     </div>
                                                 </TabsContent>
@@ -742,26 +826,35 @@ export default function WebsiteBuilderPage() {
                                 <div className="rounded-lg border bg-white p-4">
                                     <div className="mb-4 flex items-center justify-between">
                                         <h2 className="text-lg font-semibold text-slate-900">Media Library (GitHub)</h2>
-                                        <label className="inline-flex cursor-pointer items-center">
-                                            <input
-                                                type="file"
-                                                className="hidden"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) {
-                                                        uploadMedia(file);
-                                                    }
-                                                }}
+                                        <div className="flex w-full max-w-xl items-center justify-end gap-2">
+                                            <Input
+                                                value={uploadDisplayName}
+                                                onChange={(e) => setUploadDisplayName(e.target.value)}
+                                                placeholder="Asset name (optional, for easier reuse)"
+                                                className="h-10"
                                             />
-                                            <span className="inline-flex items-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
-                                                {uploading ? (
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                ) : (
-                                                    <Upload className="mr-2 h-4 w-4" />
-                                                )}
-                                                Upload Asset
-                                            </span>
-                                        </label>
+                                            <label className="inline-flex cursor-pointer items-center">
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            uploadMedia(file, uploadDisplayName);
+                                                            e.currentTarget.value = "";
+                                                        }
+                                                    }}
+                                                />
+                                                <span className="inline-flex items-center rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white">
+                                                    {uploading ? (
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Upload className="mr-2 h-4 w-4" />
+                                                    )}
+                                                    Upload Asset
+                                                </span>
+                                            </label>
+                                        </div>
                                     </div>
 
                                     {media.length === 0 ? (
@@ -771,11 +864,28 @@ export default function WebsiteBuilderPage() {
                                             {media.map((item) => (
                                                 <div
                                                     key={item.id}
-                                                    className="flex flex-wrap items-center justify-between gap-2 rounded border p-2"
+                                                    className="flex flex-wrap items-center justify-between gap-3 rounded border p-2"
                                                 >
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="truncate text-sm font-medium text-slate-800">{item.file_name}</p>
-                                                        <p className="text-xs text-slate-500">{new Date(item.created_at).toLocaleString()}</p>
+                                                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                                                        <div className="h-14 w-14 overflow-hidden rounded border bg-slate-100">
+                                                            {isPreviewableImage(item) ? (
+                                                                <img
+                                                                    src={item.public_url}
+                                                                    alt={item.file_name}
+                                                                    className="h-full w-full object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-500">
+                                                                    FILE
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-medium text-slate-800">{item.file_name}</p>
+                                                            <p className="text-xs text-slate-500">
+                                                                {item.mime_type || "file"} • {new Date(item.created_at).toLocaleString()}
+                                                            </p>
+                                                        </div>
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <Button

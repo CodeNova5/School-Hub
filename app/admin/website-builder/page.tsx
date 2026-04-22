@@ -58,6 +58,10 @@ interface SectionData {
         vision?: string;
         program_items?: ProgramItem[];
         facility_items?: FacilityItem[];
+        faculty_items?: FacultyItem[];
+        news_items?: NewsItem[];
+        testimonial_items?: TestimonialItem[];
+        gallery_items?: GalleryItem[];
     };
 }
 
@@ -73,6 +77,29 @@ interface FacilityItem {
     description: string;
     icon?: string;
     image_url?: string;
+}
+
+interface FacultyItem {
+    title: string;
+    position?: string;
+    description: string;
+    image_url?: string;
+}
+
+interface NewsItem {
+    title: string;
+    description: string;
+}
+
+interface TestimonialItem {
+    text: string;
+    author: string;
+    role?: string;
+}
+
+interface GalleryItem {
+    image_url: string;
+    caption?: string;
 }
 
 interface MediaData {
@@ -154,25 +181,25 @@ const SECTION_EDITOR_CONFIG: Record<
         showDescription: true,
         showImage: false,
         showButton: false,
-        showItems: true,
+        showItems: false,
     },
     testimonials: {
         descriptionLabel: "Testimonials Intro",
-        itemsLabel: "Testimonials (one per line)",
+        itemsLabel: "Testimonials",
         showSubheading: true,
         showDescription: true,
         showImage: false,
         showButton: false,
-        showItems: true,
+        showItems: false,
     },
     gallery: {
         descriptionLabel: "Gallery Intro",
-        itemsLabel: "Gallery Captions",
+        itemsLabel: "Gallery Images",
         showSubheading: true,
         showDescription: false,
         showImage: true,
         showButton: false,
-        showItems: true,
+        showItems: false,
     },
     admissions: {
         descriptionLabel: "Admissions Details",
@@ -472,6 +499,264 @@ export default function WebsiteBuilderPage() {
         if (!target) return;
         const next = getFacilityItems(target).filter((_, itemIndex) => itemIndex !== index);
         setFacilityItems(sectionId, next);
+    }
+
+    // Faculty Items CRUD
+    function getFacultyItems(section: SectionData) {
+        const fromStructured = (section.content.faculty_items || [])
+            .map((item) => ({
+                title: (item.title || "").trim(),
+                position: (item.position || "").trim(),
+                description: (item.description || "").trim(),
+                image_url: (item.image_url || "").trim(),
+            }))
+            .filter((item) => item.title);
+
+        return fromStructured.length > 0 ? fromStructured : [];
+    }
+
+    function setFacultyItems(sectionId: string, facultyItems: FacultyItem[]) {
+        const sanitized = facultyItems.map((item) => ({
+            title: (item.title || "").trim(),
+            position: (item.position || "").trim(),
+            description: (item.description || "").trim(),
+            image_url: (item.image_url || "").trim(),
+        }));
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            faculty_items: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function addFacultyItem(sectionId: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = [...getFacultyItems(target), { title: "", position: "", description: "", image_url: "" }];
+        setFacultyItems(sectionId, next);
+    }
+
+    function updateFacultyItem(sectionId: string, index: number, field: keyof FacultyItem, value: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+
+        const next = getFacultyItems(target).map((item, itemIndex) =>
+            itemIndex === index
+                ? {
+                    ...item,
+                    [field]: value,
+                }
+                : item
+        );
+
+        setFacultyItems(sectionId, next);
+    }
+
+    function removeFacultyItem(sectionId: string, index: number) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = getFacultyItems(target).filter((_, itemIndex) => itemIndex !== index);
+        setFacultyItems(sectionId, next);
+    }
+
+    // News Items CRUD
+    function getNewsItems(section: SectionData) {
+        const fromStructured = (section.content.news_items || [])
+            .map((item) => ({
+                title: (item.title || "").trim(),
+                description: (item.description || "").trim(),
+            }))
+            .filter((item) => item.title);
+
+        return fromStructured.length > 0 ? fromStructured : [];
+    }
+
+    function setNewsItems(sectionId: string, newsItems: NewsItem[]) {
+        const sanitized = newsItems.map((item) => ({
+            title: (item.title || "").trim(),
+            description: (item.description || "").trim(),
+        }));
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            news_items: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function addNewsItem(sectionId: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = [...getNewsItems(target), { title: "", description: "" }];
+        setNewsItems(sectionId, next);
+    }
+
+    function updateNewsItem(sectionId: string, index: number, field: keyof NewsItem, value: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+
+        const next = getNewsItems(target).map((item, itemIndex) =>
+            itemIndex === index
+                ? {
+                    ...item,
+                    [field]: value,
+                }
+                : item
+        );
+
+        setNewsItems(sectionId, next);
+    }
+
+    function removeNewsItem(sectionId: string, index: number) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = getNewsItems(target).filter((_, itemIndex) => itemIndex !== index);
+        setNewsItems(sectionId, next);
+    }
+
+    // Testimonial Items CRUD
+    function getTestimonialItems(section: SectionData) {
+        const fromStructured = (section.content.testimonial_items || [])
+            .map((item) => ({
+                text: (item.text || "").trim(),
+                author: (item.author || "").trim(),
+                role: (item.role || "").trim(),
+            }))
+            .filter((item) => item.text && item.author);
+
+        return fromStructured.length > 0 ? fromStructured : [];
+    }
+
+    function setTestimonialItems(sectionId: string, testimonialItems: TestimonialItem[]) {
+        const sanitized = testimonialItems.map((item) => ({
+            text: (item.text || "").trim(),
+            author: (item.author || "").trim(),
+            role: (item.role || "").trim(),
+        }));
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            testimonial_items: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function addTestimonialItem(sectionId: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = [...getTestimonialItems(target), { text: "", author: "", role: "" }];
+        setTestimonialItems(sectionId, next);
+    }
+
+    function updateTestimonialItem(sectionId: string, index: number, field: keyof TestimonialItem, value: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+
+        const next = getTestimonialItems(target).map((item, itemIndex) =>
+            itemIndex === index
+                ? {
+                    ...item,
+                    [field]: value,
+                }
+                : item
+        );
+
+        setTestimonialItems(sectionId, next);
+    }
+
+    function removeTestimonialItem(sectionId: string, index: number) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = getTestimonialItems(target).filter((_, itemIndex) => itemIndex !== index);
+        setTestimonialItems(sectionId, next);
+    }
+
+    // Gallery Items CRUD
+    function getGalleryItems(section: SectionData) {
+        const fromStructured = (section.content.gallery_items || [])
+            .map((item) => ({
+                image_url: (item.image_url || "").trim(),
+                caption: (item.caption || "").trim(),
+            }))
+            .filter((item) => item.image_url);
+
+        return fromStructured.length > 0 ? fromStructured : [];
+    }
+
+    function setGalleryItems(sectionId: string, galleryItems: GalleryItem[]) {
+        const sanitized = galleryItems.map((item) => ({
+            image_url: (item.image_url || "").trim(),
+            caption: (item.caption || "").trim(),
+        }));
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            gallery_items: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function addGalleryItem(sectionId: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = [...getGalleryItems(target), { image_url: "", caption: "" }];
+        setGalleryItems(sectionId, next);
+    }
+
+    function updateGalleryItem(sectionId: string, index: number, field: keyof GalleryItem, value: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+
+        const next = getGalleryItems(target).map((item, itemIndex) =>
+            itemIndex === index
+                ? {
+                    ...item,
+                    [field]: value,
+                }
+                : item
+        );
+
+        setGalleryItems(sectionId, next);
+    }
+
+    function removeGalleryItem(sectionId: string, index: number) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = getGalleryItems(target).filter((_, itemIndex) => itemIndex !== index);
+        setGalleryItems(sectionId, next);
     }
 
     function moveSection(sectionId: string, direction: "up" | "down") {
@@ -1250,6 +1535,367 @@ export default function WebsiteBuilderPage() {
                                                                                                     Use Selected Media
                                                                                                 </Button>
                                                                                             </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            ) : null}
+
+                                                            {section.section_key === "faculty" ? (
+                                                                <div className="space-y-3 md:col-span-2">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <Label>Faculty Cards</Label>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => addFacultyItem(section.id)}
+                                                                        >
+                                                                            <Plus className="mr-2 h-4 w-4" />
+                                                                            Add Faculty
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    <div className="space-y-3">
+                                                                        {getFacultyItems(section).map((faculty, index) => {
+                                                                            const mediaKey = `${section.id}-faculty-${index}`;
+                                                                            return (
+                                                                                <div key={mediaKey} className="rounded-lg border border-slate-200 p-3">
+                                                                                    <div className="mb-3 flex items-center justify-between">
+                                                                                        <p className="text-sm font-semibold text-slate-800">Faculty {index + 1}</p>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => removeFacultyItem(section.id, index)}
+                                                                                        >
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+
+                                                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Name</Label>
+                                                                                            <Input
+                                                                                                value={faculty.title}
+                                                                                                onChange={(e) =>
+                                                                                                    updateFacultyItem(section.id, index, "title", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Dr. Jane Smith"
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Position/Role</Label>
+                                                                                            <Input
+                                                                                                value={faculty.position || ""}
+                                                                                                onChange={(e) =>
+                                                                                                    updateFacultyItem(section.id, index, "position", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Head of Science"
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1 md:col-span-2">
+                                                                                            <Label>Bio/Description</Label>
+                                                                                            <Textarea
+                                                                                                rows={2}
+                                                                                                value={faculty.description}
+                                                                                                onChange={(e) =>
+                                                                                                    updateFacultyItem(section.id, index, "description", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Brief bio or qualifications..."
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1 md:col-span-2">
+                                                                                            <Label>Faculty Photo URL</Label>
+                                                                                            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                                                                                <Input
+                                                                                                    value={faculty.image_url || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        updateFacultyItem(
+                                                                                                            section.id,
+                                                                                                            index,
+                                                                                                            "image_url",
+                                                                                                            e.target.value
+                                                                                                        )
+                                                                                                    }
+                                                                                                />
+                                                                                                <select
+                                                                                                    className="h-10 rounded-md border border-slate-200 px-2 text-sm"
+                                                                                                    value={selectedMediaBySection[mediaKey] || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        setSelectedMediaBySection((prev) => ({
+                                                                                                            ...prev,
+                                                                                                            [mediaKey]: e.target.value,
+                                                                                                        }))
+                                                                                                    }
+                                                                                                >
+                                                                                                    <option value="">Pick uploaded media...</option>
+                                                                                                    {media.map((item) => (
+                                                                                                        <option key={item.id} value={item.public_url}>
+                                                                                                            {item.file_name}
+                                                                                                        </option>
+                                                                                                    ))}
+                                                                                                </select>
+                                                                                            </div>
+                                                                                            <div className="mt-2">
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    variant="outline"
+                                                                                                    size="sm"
+                                                                                                    onClick={() => {
+                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
+                                                                                                        if (!selectedUrl) {
+                                                                                                            toast.error("Select a media item first");
+                                                                                                            return;
+                                                                                                        }
+                                                                                                        updateFacultyItem(section.id, index, "image_url", selectedUrl);
+                                                                                                        toast.success("Faculty photo updated from media library");
+                                                                                                    }}
+                                                                                                >
+                                                                                                    Use Selected Media
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            ) : null}
+
+                                                            {section.section_key === "news" ? (
+                                                                <div className="space-y-3 md:col-span-2">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <Label>News Headlines</Label>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => addNewsItem(section.id)}
+                                                                        >
+                                                                            <Plus className="mr-2 h-4 w-4" />
+                                                                            Add News
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    <div className="space-y-3">
+                                                                        {getNewsItems(section).map((newsItem, index) => {
+                                                                            return (
+                                                                                <div key={`news-${index}`} className="rounded-lg border border-slate-200 p-3">
+                                                                                    <div className="mb-3 flex items-center justify-between">
+                                                                                        <p className="text-sm font-semibold text-slate-800">News {index + 1}</p>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => removeNewsItem(section.id, index)}
+                                                                                        >
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+
+                                                                                    <div className="space-y-3">
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Headline</Label>
+                                                                                            <Input
+                                                                                                value={newsItem.title}
+                                                                                                onChange={(e) =>
+                                                                                                    updateNewsItem(section.id, index, "title", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Latest school news..."
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Description</Label>
+                                                                                            <Textarea
+                                                                                                rows={2}
+                                                                                                value={newsItem.description}
+                                                                                                onChange={(e) =>
+                                                                                                    updateNewsItem(section.id, index, "description", e.target.value)
+                                                                                                }
+                                                                                                placeholder="News details..."
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            ) : null}
+
+                                                            {section.section_key === "testimonials" ? (
+                                                                <div className="space-y-3 md:col-span-2">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <Label>What People Say</Label>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => addTestimonialItem(section.id)}
+                                                                        >
+                                                                            <Plus className="mr-2 h-4 w-4" />
+                                                                            Add Testimonial
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    <div className="space-y-3">
+                                                                        {getTestimonialItems(section).map((testimonial, index) => {
+                                                                            return (
+                                                                                <div key={`testimonial-${index}`} className="rounded-lg border border-slate-200 p-3">
+                                                                                    <div className="mb-3 flex items-center justify-between">
+                                                                                        <p className="text-sm font-semibold text-slate-800">Testimonial {index + 1}</p>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => removeTestimonialItem(section.id, index)}
+                                                                                        >
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+
+                                                                                    <div className="space-y-3">
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Testimonial Text</Label>
+                                                                                            <Textarea
+                                                                                                rows={2}
+                                                                                                value={testimonial.text}
+                                                                                                onChange={(e) =>
+                                                                                                    updateTestimonialItem(section.id, index, "text", e.target.value)
+                                                                                                }
+                                                                                                placeholder="What they said..."
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Author Name</Label>
+                                                                                            <Input
+                                                                                                value={testimonial.author}
+                                                                                                onChange={(e) =>
+                                                                                                    updateTestimonialItem(section.id, index, "author", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Parent name, student name, etc."
+                                                                                            />
+                                                                                        </div>
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Role/Title (optional)</Label>
+                                                                                            <Input
+                                                                                                value={testimonial.role || ""}
+                                                                                                onChange={(e) =>
+                                                                                                    updateTestimonialItem(section.id, index, "role", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Parent, Grade 5 Student, Alumni, etc."
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            ) : null}
+
+                                                            {section.section_key === "gallery" ? (
+                                                                <div className="space-y-3 md:col-span-2">
+                                                                    <div className="flex items-center justify-between gap-2">
+                                                                        <Label>Gallery Items</Label>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => addGalleryItem(section.id)}
+                                                                        >
+                                                                            <Plus className="mr-2 h-4 w-4" />
+                                                                            Add Image
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    <div className="space-y-3">
+                                                                        {getGalleryItems(section).map((galleryItem, index) => {
+                                                                            const mediaKey = `${section.id}-gallery-${index}`;
+                                                                            return (
+                                                                                <div key={mediaKey} className="rounded-lg border border-slate-200 p-3">
+                                                                                    <div className="mb-3 flex items-center justify-between">
+                                                                                        <p className="text-sm font-semibold text-slate-800">Image {index + 1}</p>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            onClick={() => removeGalleryItem(section.id, index)}
+                                                                                        >
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+
+                                                                                    <div className="space-y-3">
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Image URL</Label>
+                                                                                            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                                                                                <Input
+                                                                                                    value={galleryItem.image_url || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        updateGalleryItem(
+                                                                                                            section.id,
+                                                                                                            index,
+                                                                                                            "image_url",
+                                                                                                            e.target.value
+                                                                                                        )
+                                                                                                    }
+                                                                                                />
+                                                                                                <select
+                                                                                                    className="h-10 rounded-md border border-slate-200 px-2 text-sm"
+                                                                                                    value={selectedMediaBySection[mediaKey] || ""}
+                                                                                                    onChange={(e) =>
+                                                                                                        setSelectedMediaBySection((prev) => ({
+                                                                                                            ...prev,
+                                                                                                            [mediaKey]: e.target.value,
+                                                                                                        }))
+                                                                                                    }
+                                                                                                >
+                                                                                                    <option value="">Pick uploaded media...</option>
+                                                                                                    {media.map((item) => (
+                                                                                                        <option key={item.id} value={item.public_url}>
+                                                                                                            {item.file_name}
+                                                                                                        </option>
+                                                                                                    ))}
+                                                                                                </select>
+                                                                                            </div>
+                                                                                            <div className="mt-2">
+                                                                                                <Button
+                                                                                                    type="button"
+                                                                                                    variant="outline"
+                                                                                                    size="sm"
+                                                                                                    onClick={() => {
+                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
+                                                                                                        if (!selectedUrl) {
+                                                                                                            toast.error("Select a media item first");
+                                                                                                            return;
+                                                                                                        }
+                                                                                                        updateGalleryItem(section.id, index, "image_url", selectedUrl);
+                                                                                                        toast.success("Gallery image updated from media library");
+                                                                                                    }}
+                                                                                                >
+                                                                                                    Use Selected Media
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="space-y-1">
+                                                                                            <Label>Caption (optional)</Label>
+                                                                                            <Input
+                                                                                                value={galleryItem.caption || ""}
+                                                                                                onChange={(e) =>
+                                                                                                    updateGalleryItem(section.id, index, "caption", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Image caption..."
+                                                                                            />
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>

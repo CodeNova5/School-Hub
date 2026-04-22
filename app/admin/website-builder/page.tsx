@@ -379,6 +379,12 @@ export default function WebsiteBuilderPage() {
 		return `${protocol}//${withPort(`${school.subdomain}.${hostname}`)}`;
 	}
 
+	function getPreviewUrl() {
+		const publicUrl = getPublicUrl();
+		if (publicUrl === "#") return "#";
+		return `${publicUrl}?preview=1`;
+	}
+
 	return (
 		<DashboardLayout role="admin">
 			<div className="space-y-6">
@@ -399,9 +405,9 @@ export default function WebsiteBuilderPage() {
 							<Badge variant="outline">Draft</Badge>
 						)}
 						<Button variant="outline" asChild>
-							<a href={getPublicUrl()} target="_blank" rel="noreferrer">
+							<a href={getPreviewUrl()} target="_blank" rel="noreferrer">
 								<ExternalLink className="mr-2 h-4 w-4" />
-								Preview
+								Preview Draft
 							</a>
 						</Button>
 						<Button onClick={saveAll} disabled={saving || loading}>

@@ -372,25 +372,46 @@ function renderCardGrid(
           <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subtitle}</p>
         </div>
 
-        <div className={`mt-12 grid gap-6 ${sectionId === "programs" ? "md:grid-cols-3 xl:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
-          {items.map((item) => (
-            <article key={item.title} className="group rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-3xl text-white shadow-lg shadow-slate-950/10">
-                {sectionId === "programs" && item.image_url ? (
-                  <img src={item.image_url} alt={item.title} className="h-full w-full object-cover" />
-                ) : (
+        <div className={`mt-12 grid gap-6 ${sectionId === "programs" ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2 xl:grid-cols-3"}`}>
+          {items.map((item, index) =>
+            sectionId === "programs" ? (
+              <article key={`${item.title}-${index}`} className="group overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+                <div className="relative h-56 w-full overflow-hidden bg-slate-900">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#1e3a8a,#0f766e)] text-7xl text-white/90">
+                      {item.icon}
+                    </div>
+                  )}
+                  <div className="absolute right-0 top-4 bg-rose-700 px-5 py-2 text-sm font-bold text-white shadow-md">
+                    {item.title}
+                  </div>
+                </div>
+
+                <div className="px-6 py-7">
+                  <h3 className="text-[2rem] font-black leading-tight text-slate-900">{item.title}</h3>
+                  <p className="mt-4 text-[1.65rem] leading-snug text-slate-600">{item.description}</p>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
+                  <div className="text-xl tracking-[0.15em] text-amber-400">★★★★</div>
+                  <div className="inline-flex items-center gap-2 text-[1.35rem] font-semibold text-slate-900">
+                    <span className="text-rose-700">✧</span>
+                    <span>{item.title}</span>
+                  </div>
+                </div>
+              </article>
+            ) : (
+              <article key={`${item.title}-${index}`} className="group rounded-[28px] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-3xl text-white shadow-lg shadow-slate-950/10">
                   <span>{item.icon}</span>
-                )}
-              </div>
-              <h3 className="text-xl font-bold text-slate-950">{item.title}</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{item.description}</p>
-              {sectionId === "programs" ? (
-                <button className="mt-6 inline-flex items-center rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition group-hover:bg-amber-500">
-                  Learn More
-                </button>
-              ) : null}
-            </article>
-          ))}
+                </div>
+                <h3 className="text-xl font-bold text-slate-950">{item.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{item.description}</p>
+              </article>
+            )
+          )}
         </div>
       </div>
     </section>

@@ -480,6 +480,28 @@ function getTestimonialCardItems(section: WebsiteSection | undefined) {
     return structuredItems;
   }
 
+  const legacyItems = (section?.content.items || [])
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [textPart, authorPart, rolePart] = line.split("|").map((value) => value.trim());
+      const fallback = FALLBACK_CONTENT.testimonials[index % FALLBACK_CONTENT.testimonials.length];
+      const text = textPart || fallback.text;
+      const name = authorPart || fallback.name || `Family ${index + 1}`;
+      const role = rolePart || fallback.role || "";
+      return {
+        stars: "⭐⭐⭐⭐⭐",
+        text,
+        name,
+        role,
+      };
+    })
+    .filter((item) => item.text && item.name);
+
+  if (legacyItems.length > 0) {
+    return legacyItems;
+  }
+
   return FALLBACK_CONTENT.testimonials;
 }
 
@@ -493,10 +515,19 @@ function getGalleryItems(section: WebsiteSection | undefined) {
         fallbackIcon: fallback,
       };
     })
-    .filter((item) => item.image_url || item.fallbackIcon);
+    .filter((item) => item.image_url || item.caption);
 
   if (structuredItems.length > 0) {
     return structuredItems;
+  }
+
+  const legacyCaptions = (section?.content.items || []).map((item) => item.trim()).filter(Boolean);
+  if (legacyCaptions.length > 0) {
+    return legacyCaptions.map((caption, index) => ({
+      image_url: "",
+      caption,
+      fallbackIcon: FALLBACK_CONTENT.gallery[index % FALLBACK_CONTENT.gallery.length],
+    }));
   }
 
   return FALLBACK_CONTENT.gallery.map((icon) => ({ image_url: "", caption: "", fallbackIcon: icon }));
@@ -640,7 +671,7 @@ function renderNews(section: WebsiteSection | undefined) {
 
 function renderTestimonials(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Student & Parent Testimonials";
-  const subtitle = section?.content.subheading || "Hear from our students and parents about their experience at Tosfeb Presidency School";
+  const subtitle = section?.content.description || section?.content.subheading || "Hear from our students and parents about their experience at Tosfeb Presidency School";
   const testimonialItems = getTestimonialCardItems(section);
 
   return (

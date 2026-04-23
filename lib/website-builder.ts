@@ -254,6 +254,7 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     visible: true,
     content: {
       heading: "What Families Say",
+      subheading: "Hear from our students and parents about their experience at Tosfeb Presidency School",
       description: "Trusted by parents and loved by students.",
       testimonial_items: [
         {

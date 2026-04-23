@@ -56,6 +56,8 @@ interface SectionData {
         hero_stats?: string[];
         mission?: string;
         vision?: string;
+        admissions_requirements?: string[];
+        admissions_steps?: string[];
         program_items?: ProgramItem[];
         facility_items?: FacilityItem[];
         faculty_items?: FacultyItem[];
@@ -83,7 +85,7 @@ interface FacultyItem {
     title: string;
     position?: string;
     description: string;
-    image_url?: string; 
+    image_url?: string;
 }
 
 interface NewsItem {
@@ -208,7 +210,7 @@ const SECTION_EDITOR_CONFIG: Record<
         showDescription: true,
         showImage: false,
         showButton: true,
-        showItems: true,
+        showItems: false,
     },
     contact: {
         descriptionLabel: "Contact Message",
@@ -753,6 +755,74 @@ export default function WebsiteBuilderPage() {
         }
 
         return DEFAULT_GALLERY_ITEMS.map((item) => ({ ...item }));
+    }
+
+    function getAdmissionRequirements(section: SectionData) {
+        const structured = (section.content.admissions_requirements || [])
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        if (structured.length > 0) {
+            return structured;
+        }
+
+        const fromLegacy = (section.content.items || []).map((item) => item.trim()).filter(Boolean);
+        if (fromLegacy.length > 0) {
+            return fromLegacy;
+        }
+
+        const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === "admissions")?.content;
+        return (template?.admissions_requirements || []).map((item) => item.trim()).filter(Boolean);
+    }
+
+    function setAdmissionRequirements(sectionId: string, requirements: string[]) {
+        const sanitized = requirements.map((item) => item.trim()).filter(Boolean);
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            admissions_requirements: sanitized,
+                            items: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function getAdmissionSteps(section: SectionData) {
+        const structured = (section.content.admissions_steps || [])
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        if (structured.length > 0) {
+            return structured;
+        }
+
+        const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === "admissions")?.content;
+        return (template?.admissions_steps || []).map((item) => item.trim()).filter(Boolean);
+    }
+
+    function setAdmissionSteps(sectionId: string, steps: string[]) {
+        const sanitized = steps.map((item) => item.trim()).filter(Boolean);
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            admissions_steps: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
     }
 
     function setGalleryItems(sectionId: string, galleryItems: GalleryItem[]) {
@@ -1952,6 +2022,43 @@ export default function WebsiteBuilderPage() {
                                                                 </div>
                                                             ) : null}
 
+                                                            {section.section_key === "admissions" ? (
+                                                                <>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Admission Requirements (one per line)</Label>
+                                                                        <Textarea
+                                                                            rows={6}
+                                                                            value={getAdmissionRequirements(section).join("\n")}
+                                                                            onChange={(e) =>
+                                                                                setAdmissionRequirements(
+                                                                                    section.id,
+                                                                                    e.target.value
+                                                                                        .split("\n")
+                                                                                        .map((item) => item.trim())
+                                                                                        .filter(Boolean)
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Admission Process Steps (one per line)</Label>
+                                                                        <Textarea
+                                                                            rows={6}
+                                                                            value={getAdmissionSteps(section).join("\n")}
+                                                                            onChange={(e) =>
+                                                                                setAdmissionSteps(
+                                                                                    section.id,
+                                                                                    e.target.value
+                                                                                        .split("\n")
+                                                                                        .map((item) => item.trim())
+                                                                                        .filter(Boolean)
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            ) : null}
+
                                                             {section.section_key === "home" ? (
                                                                 <>
                                                                     <div className="space-y-1 md:col-span-2">
@@ -2188,7 +2295,7 @@ export default function WebsiteBuilderPage() {
                         </div>
                     </>
                 )}
-                    </div>
+            </div>
         </DashboardLayout>
     );
 }

@@ -38,6 +38,8 @@ export interface WebsiteSectionContent {
   hero_stats?: string[];
   mission?: string;
   vision?: string;
+  admissions_requirements?: string[];
+  admissions_steps?: string[];
   program_items?: WebsiteProgramItem[];
   facility_items?: WebsiteFacilityItem[];
   faculty_items?: {
@@ -296,7 +298,23 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     visible: true,
     content: {
       heading: "Admissions",
-      description: "Join our school community today.",
+      subheading: "Join our community of learners and leaders",
+      description: "We welcome students who demonstrate academic potential, leadership qualities, and a commitment to excellence.",
+      admissions_requirements: [
+        "Age-appropriate for the applying class",
+        "Previous academic records",
+        "Entrance examination (if applicable)",
+        "Personal interview and aptitude assessment",
+        "Transfer certificate from previous institution",
+        "Character certificate and health records",
+      ],
+      admissions_steps: [
+        "Application Form — Submit complete application with required documents",
+        "Entrance Test — Evaluate academic aptitude and learning capability",
+        "Personal Interview — Meet admission counselors to assess fit",
+        "Merit List — Selection based on comprehensive evaluation",
+        "Admission Confirmation — Fee deposit and official enrollment",
+      ],
       button_label: "Start Application",
       button_link: "#contact",
     },

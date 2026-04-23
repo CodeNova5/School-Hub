@@ -24,6 +24,8 @@ interface WebsiteSection {
     hero_stats?: string[];
     mission?: string;
     vision?: string;
+    admissions_requirements?: string[];
+    admissions_steps?: string[];
     program_items?: Array<{
       title: string;
       description: string;
@@ -735,6 +737,23 @@ function renderGallery(section: WebsiteSection | undefined) {
 function renderAdmissions(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Admissions";
   const subtitle = section?.content.subheading || "Join our community of learners and leaders";
+  const description =
+    section?.content.description ||
+    "We welcome students who demonstrate academic potential, leadership qualities, and a commitment to excellence.";
+  const requirements = (section?.content.admissions_requirements || [])
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const legacyRequirements = (section?.content.items || []).map((item) => item.trim()).filter(Boolean);
+  const admissionRequirements =
+    requirements.length > 0
+      ? requirements
+      : legacyRequirements.length > 0
+        ? legacyRequirements
+        : FALLBACK_CONTENT.admissions.requirements;
+  const admissionSteps = (section?.content.admissions_steps || [])
+    .map((step) => step.trim())
+    .filter(Boolean);
+  const processSteps = admissionSteps.length > 0 ? admissionSteps : FALLBACK_CONTENT.admissions.steps;
 
   return (
     <section id="admissions" className="bg-white px-4 py-20 md:px-6">
@@ -748,11 +767,11 @@ function renderAdmissions(section: WebsiteSection | undefined) {
           <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-8 shadow-sm">
             <h3 className="text-2xl font-bold text-slate-950">Admission Requirements</h3>
             <p className="mt-4 text-base leading-8 text-slate-600">
-              We welcome students who demonstrate academic potential, leadership qualities, and a commitment to excellence.
+              {description}
             </p>
             <h4 className="mt-8 text-lg font-bold text-slate-950">Eligibility Criteria:</h4>
             <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-600">
-              {FALLBACK_CONTENT.admissions.requirements.map((item) => (
+              {admissionRequirements.map((item) => (
                 <li key={item} className="flex gap-3">
                   <span className="mt-1 text-emerald-600">✓</span>
                   <span>{item}</span>
@@ -764,7 +783,7 @@ function renderAdmissions(section: WebsiteSection | undefined) {
           <div className="rounded-[28px] bg-[linear-gradient(135deg,#1e3a8a,#059669)] p-8 text-white shadow-xl">
             <h3 className="text-2xl font-bold">Admission Process</h3>
             <div className="mt-8 space-y-5">
-              {FALLBACK_CONTENT.admissions.steps.map((step, index) => (
+              {processSteps.map((step, index) => (
                 <div key={step} className="flex gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-slate-950">
                     {index + 1}

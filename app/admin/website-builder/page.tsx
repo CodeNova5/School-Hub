@@ -292,6 +292,32 @@ const DEFAULT_GALLERY_ITEMS: GalleryItem[] = (
     caption: item.caption || "",
 }));
 
+function buildEditorSnapshot(settings: SiteSettings, page: PageData | null, sections: SectionData[]) {
+    return JSON.stringify({
+        settings,
+        page: page
+            ? {
+                id: page.id,
+                title: page.title,
+                slug: page.slug,
+                status: page.status,
+                seo_title: page.seo_title,
+                seo_description: page.seo_description,
+            }
+            : null,
+        sections: [...sections]
+            .sort((a, b) => a.order_sequence - b.order_sequence)
+            .map((section) => ({
+                id: section.id,
+                section_key: section.section_key,
+                section_label: section.section_label,
+                is_visible: section.is_visible,
+                order_sequence: section.order_sequence,
+                content: section.content,
+            })),
+    });
+}
+
 export default function WebsiteBuilderPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -306,6 +332,7 @@ export default function WebsiteBuilderPage() {
     const [activeEditorTab, setActiveEditorTab] = useState("settings");
     const [previewNonce, setPreviewNonce] = useState(0);
     const [uploadDisplayName, setUploadDisplayName] = useState("");
+    const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
 
     const sortedSections = useMemo(
         () => [...sections].sort((a, b) => a.order_sequence - b.order_sequence),
@@ -316,6 +343,13 @@ export default function WebsiteBuilderPage() {
         () => sortedSections.find((section) => `section-${section.id}` === activeEditorTab) || null,
         [activeEditorTab, sortedSections]
     );
+
+    const currentSnapshot = useMemo(
+        () => buildEditorSnapshot(settings, page, sections),
+        [settings, page, sections]
+    );
+
+    const hasUnsavedChanges = Boolean(lastSavedSnapshot) && currentSnapshot !== lastSavedSnapshot;
 
     async function loadWebsiteBuilder() {
         setLoading(true);
@@ -332,6 +366,13 @@ export default function WebsiteBuilderPage() {
             setSections(payload.data.sections || []);
             setMedia(payload.data.media || []);
             setSchool(payload.data.school || null);
+            setLastSavedSnapshot(
+                buildEditorSnapshot(
+                    payload.data.settings || DEFAULT_SETTINGS,
+                    payload.data.page || null,
+                    payload.data.sections || []
+                )
+            );
         } catch (error: any) {
             toast.error(error.message || "Unable to load Website Builder");
         } finally {
@@ -350,6 +391,53 @@ export default function WebsiteBuilderPage() {
             setActiveEditorTab("settings");
         }
     }, [activeEditorTab, sortedSections]);
+
+    useEffect(() => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (!hasUnsavedChanges) return;
+            event.preventDefault();
+            event.returnValue = "";
+        };
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+        };
+    }, [hasUnsavedChanges]);
+
+    useEffect(() => {
+        const handleDocumentClick = (event: MouseEvent) => {
+            if (!hasUnsavedChanges) return;
+
+            const target = event.target as HTMLElement | null;
+            const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
+            if (!anchor) return;
+            if (anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+
+            const href = anchor.getAttribute("href") || "";
+            if (!href || href.startsWith("#") || href.startsWith("javascript:")) return;
+
+            const nextUrl = new URL(anchor.href, window.location.href);
+            const currentUrl = new URL(window.location.href);
+            const sameLocation =
+                nextUrl.pathname === currentUrl.pathname &&
+                nextUrl.search === currentUrl.search &&
+                nextUrl.hash === currentUrl.hash;
+
+            if (sameLocation) return;
+
+            const shouldLeave = window.confirm("You have unsaved changes. Leave this page without saving?");
+            if (!shouldLeave) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        };
+
+        document.addEventListener("click", handleDocumentClick, true);
+        return () => {
+            document.removeEventListener("click", handleDocumentClick, true);
+        };
+    }, [hasUnsavedChanges]);
 
     function updateSectionContent(sectionId: string, field: string, value: string | string[] | ProgramItem[]) {
         setSections((prev) =>
@@ -2457,6 +2545,17 @@ export default function WebsiteBuilderPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {hasUnsavedChanges ? (
+                            <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 rounded-full border border-amber-300 bg-amber-50 px-4 py-2 shadow-lg">
+                                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                                <p className="text-sm font-medium text-amber-900">Unsaved changes</p>
+                                <Button size="sm" onClick={saveAll} disabled={saving || loading}>
+                                    {saving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                                    Save now
+                                </Button>
+                            </div>
+                        ) : null}
                     </>
                 )}
             </div>

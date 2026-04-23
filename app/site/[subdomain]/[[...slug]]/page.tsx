@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { WEBSITE_SECTION_TEMPLATES } from "@/lib/website-builder";
 
 interface WebsiteSection {
   id: string;
@@ -152,6 +153,12 @@ const FALLBACK_CONTENT = {
     hours: ["Monday - Friday: 8:00 AM - 4:00 PM", "Saturday: 9:00 AM - 1:00 PM", "Sunday: Closed"],
   },
 };
+
+const TEMPLATE_TESTIMONIAL_ITEMS =
+  WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "testimonials")?.content.testimonial_items || [];
+
+const TEMPLATE_GALLERY_ITEMS =
+  WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "gallery")?.content.gallery_items || [];
 
 function getSupabaseAnonClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -480,29 +487,12 @@ function getTestimonialCardItems(section: WebsiteSection | undefined) {
     return structuredItems;
   }
 
-  const legacyItems = (section?.content.items || [])
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((line, index) => {
-      const [textPart, authorPart, rolePart] = line.split("|").map((value) => value.trim());
-      const fallback = FALLBACK_CONTENT.testimonials[index % FALLBACK_CONTENT.testimonials.length];
-      const text = textPart || fallback.text;
-      const name = authorPart || fallback.name || `Family ${index + 1}`;
-      const role = rolePart || fallback.role || "";
-      return {
-        stars: "⭐⭐⭐⭐⭐",
-        text,
-        name,
-        role,
-      };
-    })
-    .filter((item) => item.text && item.name);
-
-  if (legacyItems.length > 0) {
-    return legacyItems;
-  }
-
-  return FALLBACK_CONTENT.testimonials;
+  return TEMPLATE_TESTIMONIAL_ITEMS.map((item) => ({
+    stars: "⭐⭐⭐⭐⭐",
+    text: item.text,
+    name: item.author,
+    role: item.role || "",
+  }));
 }
 
 function getGalleryItems(section: WebsiteSection | undefined) {
@@ -515,22 +505,20 @@ function getGalleryItems(section: WebsiteSection | undefined) {
         fallbackIcon: fallback,
       };
     })
-    .filter((item) => item.image_url || item.caption);
+    .filter((item) => item.image_url || item.fallbackIcon);
 
   if (structuredItems.length > 0) {
     return structuredItems;
   }
 
-  const legacyCaptions = (section?.content.items || []).map((item) => item.trim()).filter(Boolean);
-  if (legacyCaptions.length > 0) {
-    return legacyCaptions.map((caption, index) => ({
-      image_url: "",
-      caption,
-      fallbackIcon: FALLBACK_CONTENT.gallery[index % FALLBACK_CONTENT.gallery.length],
-    }));
-  }
-
-  return FALLBACK_CONTENT.gallery.map((icon) => ({ image_url: "", caption: "", fallbackIcon: icon }));
+  return TEMPLATE_GALLERY_ITEMS.map((item, index) => {
+    const fallbackIcon = FALLBACK_CONTENT.gallery[index % FALLBACK_CONTENT.gallery.length];
+    return {
+      image_url: item.image_url || "",
+      caption: item.caption || "",
+      fallbackIcon,
+    };
+  });
 }
 
 function renderCardGrid(
@@ -671,7 +659,7 @@ function renderNews(section: WebsiteSection | undefined) {
 
 function renderTestimonials(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Student & Parent Testimonials";
-  const subtitle = section?.content.description || section?.content.subheading || "Hear from our students and parents about their experience at Tosfeb Presidency School";
+  const subtitle = section?.content.subheading || "Hear from our students and parents about their experience at Tosfeb Presidency School";
   const testimonialItems = getTestimonialCardItems(section);
 
   return (

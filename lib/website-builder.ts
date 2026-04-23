@@ -40,6 +40,13 @@ export interface WebsiteSectionContent {
   vision?: string;
   admissions_requirements?: string[];
   admissions_steps?: string[];
+  contact_info_title?: string;
+  contact_form_title?: string;
+  contact_form_button_label?: string;
+  contact_address_lines?: string[];
+  contact_phone_lines?: string[];
+  contact_email_lines?: string[];
+  contact_hours_lines?: string[];
   program_items?: WebsiteProgramItem[];
   facility_items?: WebsiteFacilityItem[];
   faculty_items?: {
@@ -327,6 +334,14 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     content: {
       heading: "Contact Us",
       subheading: "We would love to hear from you",
+      description: "We'd love to hear from you. Contact us for admissions, inquiries, or feedback.",
+      contact_info_title: "Contact Information",
+      contact_form_title: "Send us a Message",
+      contact_form_button_label: "Send Message",
+      contact_address_lines: ["Presidency School, Education Avenue", "City Center, State 123456", "India"],
+      contact_phone_lines: ["Main Office: +91 (123) 456-7890", "Admissions: +91 (123) 456-7891", "Support: +91 (123) 456-7892"],
+      contact_email_lines: ["info@tosfebpresidency.edu", "admissions@tosfebpresidency.edu", "support@tosfebpresidency.edu"],
+      contact_hours_lines: ["Monday - Friday: 8:00 AM - 4:00 PM", "Saturday: 9:00 AM - 1:00 PM", "Sunday: Closed"],
     },
   },
 ];

@@ -26,6 +26,13 @@ interface WebsiteSection {
     vision?: string;
     admissions_requirements?: string[];
     admissions_steps?: string[];
+    contact_info_title?: string;
+    contact_form_title?: string;
+    contact_form_button_label?: string;
+    contact_address_lines?: string[];
+    contact_phone_lines?: string[];
+    contact_email_lines?: string[];
+    contact_hours_lines?: string[];
     program_items?: Array<{
       title: string;
       description: string;
@@ -806,47 +813,70 @@ function renderAdmissions(section: WebsiteSection | undefined) {
 function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
   const title = section?.content.heading || "Get In Touch";
   const subtitle = section?.content.subheading || "We'd love to hear from you. Contact us for admissions, inquiries, or feedback";
+  const introMessage = section?.content.description || subtitle;
+  const infoTitle = section?.content.contact_info_title || "Contact Information";
+  const formTitle = section?.content.contact_form_title || "Send us a Message";
+  const formButtonLabel = section?.content.contact_form_button_label || "Send Message";
 
-  const address = siteSettings.contact_address
-    ? siteSettings.contact_address.split(/\r?\n/).filter(Boolean)
-    : FALLBACK_CONTENT.contact.address;
-  const phones = siteSettings.contact_phone ? [siteSettings.contact_phone] : FALLBACK_CONTENT.contact.phone;
-  const emails = siteSettings.contact_email ? [siteSettings.contact_email] : FALLBACK_CONTENT.contact.email;
+  const address = (section?.content.contact_address_lines || []).map((item) => item.trim()).filter(Boolean);
+  const phones = (section?.content.contact_phone_lines || []).map((item) => item.trim()).filter(Boolean);
+  const emails = (section?.content.contact_email_lines || []).map((item) => item.trim()).filter(Boolean);
+  const hours = (section?.content.contact_hours_lines || []).map((item) => item.trim()).filter(Boolean);
+
+  const resolvedAddress =
+    address.length > 0
+      ? address
+      : siteSettings.contact_address
+        ? siteSettings.contact_address.split(/\r?\n/).filter(Boolean)
+        : FALLBACK_CONTENT.contact.address;
+  const resolvedPhones =
+    phones.length > 0
+      ? phones
+      : siteSettings.contact_phone
+        ? [siteSettings.contact_phone]
+        : FALLBACK_CONTENT.contact.phone;
+  const resolvedEmails =
+    emails.length > 0
+      ? emails
+      : siteSettings.contact_email
+        ? [siteSettings.contact_email]
+        : FALLBACK_CONTENT.contact.email;
+  const resolvedHours = hours.length > 0 ? hours : FALLBACK_CONTENT.contact.hours;
 
   return (
     <section id="contact" className="bg-slate-50 px-4 py-20 md:px-6">
       <div className="mx-auto max-w-[1200px]">
         <div className="text-center">
           <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{title}</h2>
-          <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subtitle}</p>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{introMessage}</p>
         </div>
 
         <div className="mt-12 grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="rounded-[28px] bg-white p-8 shadow-sm ring-1 ring-slate-200">
-            <h3 className="text-2xl font-bold text-slate-950">Contact Information</h3>
+            <h3 className="text-2xl font-bold text-slate-950">{infoTitle}</h3>
 
             <div className="mt-8 space-y-6 text-sm text-slate-600">
               <div>
                 <h4 className="font-bold text-slate-950">Location</h4>
-                <p className="mt-2 whitespace-pre-line leading-7">{address.join("\n")}</p>
+                <p className="mt-2 whitespace-pre-line leading-7">{resolvedAddress.join("\n")}</p>
               </div>
               <div>
                 <h4 className="font-bold text-slate-950">Phone</h4>
-                <p className="mt-2 whitespace-pre-line leading-7">{phones.join("\n")}</p>
+                <p className="mt-2 whitespace-pre-line leading-7">{resolvedPhones.join("\n")}</p>
               </div>
               <div>
                 <h4 className="font-bold text-slate-950">Email</h4>
-                <p className="mt-2 whitespace-pre-line leading-7">{emails.join("\n")}</p>
+                <p className="mt-2 whitespace-pre-line leading-7">{resolvedEmails.join("\n")}</p>
               </div>
               <div>
                 <h4 className="font-bold text-slate-950">Office Hours</h4>
-                <p className="mt-2 whitespace-pre-line leading-7">{FALLBACK_CONTENT.contact.hours.join("\n")}</p>
+                <p className="mt-2 whitespace-pre-line leading-7">{resolvedHours.join("\n")}</p>
               </div>
             </div>
           </div>
 
           <form className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
-            <h3 className="text-2xl font-bold text-slate-950">Send us a Message</h3>
+            <h3 className="text-2xl font-bold text-slate-950">{formTitle}</h3>
             <div className="mt-6 grid gap-4">
               {[
                 ["Full Name *", "text"],
@@ -864,7 +894,7 @@ function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSe
                 <textarea rows={6} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-emerald-500" />
               </div>
               <button type="submit" className="mt-2 inline-flex items-center justify-center rounded-full bg-slate-950 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-600">
-                Send Message
+                {formButtonLabel}
               </button>
             </div>
           </form>

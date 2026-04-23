@@ -58,6 +58,13 @@ interface SectionData {
         vision?: string;
         admissions_requirements?: string[];
         admissions_steps?: string[];
+        contact_info_title?: string;
+        contact_form_title?: string;
+        contact_form_button_label?: string;
+        contact_address_lines?: string[];
+        contact_phone_lines?: string[];
+        contact_email_lines?: string[];
+        contact_hours_lines?: string[];
         program_items?: ProgramItem[];
         facility_items?: FacilityItem[];
         faculty_items?: FacultyItem[];
@@ -216,7 +223,7 @@ const SECTION_EDITOR_CONFIG: Record<
         descriptionLabel: "Contact Message",
         itemsLabel: "Contact Points",
         showSubheading: true,
-        showDescription: true,
+        showDescription: false,
         showImage: false,
         showButton: false,
         showItems: false,
@@ -818,6 +825,46 @@ export default function WebsiteBuilderPage() {
                         content: {
                             ...section.content,
                             admissions_steps: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function getContactLines(section: SectionData, field: "contact_address_lines" | "contact_phone_lines" | "contact_email_lines" | "contact_hours_lines") {
+        const structured = (section.content[field] || [])
+            .map((item) => item.trim())
+            .filter(Boolean);
+
+        if (structured.length > 0) {
+            return structured;
+        }
+
+        const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === "contact")?.content;
+        const templateLines = (template?.[field] || []) as string[];
+        if (templateLines.length > 0) {
+            return templateLines.map((item) => item.trim()).filter(Boolean);
+        }
+
+        return [];
+    }
+
+    function setContactLines(
+        sectionId: string,
+        field: "contact_address_lines" | "contact_phone_lines" | "contact_email_lines" | "contact_hours_lines",
+        values: string[]
+    ) {
+        const sanitized = values.map((item) => item.trim()).filter(Boolean);
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            [field]: sanitized,
                         },
                     }
                     : section
@@ -2048,6 +2095,123 @@ export default function WebsiteBuilderPage() {
                                                                             onChange={(e) =>
                                                                                 setAdmissionSteps(
                                                                                     section.id,
+                                                                                    e.target.value
+                                                                                        .split("\n")
+                                                                                        .map((item) => item.trim())
+                                                                                        .filter(Boolean)
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            ) : null}
+
+                                                            {section.section_key === "contact" ? (
+                                                                <>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Contact Intro Message</Label>
+                                                                        <Textarea
+                                                                            rows={3}
+                                                                            value={section.content.description || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(section.id, "description", e.target.value)
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <Label>Contact Info Card Title</Label>
+                                                                        <Input
+                                                                            value={section.content.contact_info_title || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(section.id, "contact_info_title", e.target.value)
+                                                                            }
+                                                                            placeholder="Contact Information"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <Label>Contact Form Title</Label>
+                                                                        <Input
+                                                                            value={section.content.contact_form_title || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(section.id, "contact_form_title", e.target.value)
+                                                                            }
+                                                                            placeholder="Send us a Message"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Form Button Label</Label>
+                                                                        <Input
+                                                                            value={section.content.contact_form_button_label || ""}
+                                                                            onChange={(e) =>
+                                                                                updateSectionContent(
+                                                                                    section.id,
+                                                                                    "contact_form_button_label",
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
+                                                                            placeholder="Send Message"
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Address Lines (one per line)</Label>
+                                                                        <Textarea
+                                                                            rows={4}
+                                                                            value={getContactLines(section, "contact_address_lines").join("\n")}
+                                                                            onChange={(e) =>
+                                                                                setContactLines(
+                                                                                    section.id,
+                                                                                    "contact_address_lines",
+                                                                                    e.target.value
+                                                                                        .split("\n")
+                                                                                        .map((item) => item.trim())
+                                                                                        .filter(Boolean)
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Phone Lines (one per line)</Label>
+                                                                        <Textarea
+                                                                            rows={4}
+                                                                            value={getContactLines(section, "contact_phone_lines").join("\n")}
+                                                                            onChange={(e) =>
+                                                                                setContactLines(
+                                                                                    section.id,
+                                                                                    "contact_phone_lines",
+                                                                                    e.target.value
+                                                                                        .split("\n")
+                                                                                        .map((item) => item.trim())
+                                                                                        .filter(Boolean)
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Email Lines (one per line)</Label>
+                                                                        <Textarea
+                                                                            rows={4}
+                                                                            value={getContactLines(section, "contact_email_lines").join("\n")}
+                                                                            onChange={(e) =>
+                                                                                setContactLines(
+                                                                                    section.id,
+                                                                                    "contact_email_lines",
+                                                                                    e.target.value
+                                                                                        .split("\n")
+                                                                                        .map((item) => item.trim())
+                                                                                        .filter(Boolean)
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1 md:col-span-2">
+                                                                        <Label>Office Hours (one per line)</Label>
+                                                                        <Textarea
+                                                                            rows={4}
+                                                                            value={getContactLines(section, "contact_hours_lines").join("\n")}
+                                                                            onChange={(e) =>
+                                                                                setContactLines(
+                                                                                    section.id,
+                                                                                    "contact_hours_lines",
                                                                                     e.target.value
                                                                                         .split("\n")
                                                                                         .map((item) => item.trim())

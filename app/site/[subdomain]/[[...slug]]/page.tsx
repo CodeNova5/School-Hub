@@ -29,6 +29,31 @@ interface WebsiteSection {
       icon?: string;
       image_url?: string;
     }>;
+    facility_items?: Array<{
+      title: string;
+      description: string;
+      icon?: string;
+      image_url?: string;
+    }>;
+    faculty_items?: Array<{
+      title: string;
+      position?: string;
+      description: string;
+      image_url?: string;
+    }>;
+    news_items?: Array<{
+      title: string;
+      description: string;
+    }>;
+    testimonial_items?: Array<{
+      text: string;
+      author: string;
+      role?: string;
+    }>;
+    gallery_items?: Array<{
+      image_url: string;
+      caption?: string;
+    }>;
   };
 }
 
@@ -355,6 +380,128 @@ function getProgramCardItems(section: WebsiteSection | undefined) {
   return FALLBACK_CONTENT.programs;
 }
 
+function getFacilityCardItems(section: WebsiteSection | undefined) {
+  const structuredItems = (section?.content.facility_items || [])
+    .map((item, index) => {
+      const fallback = FALLBACK_CONTENT.facilities[index % FALLBACK_CONTENT.facilities.length];
+      return {
+        title: (item.title || "").trim(),
+        description: (item.description || fallback.description || "").trim(),
+        icon: (item.icon || fallback.icon || "🏢").trim() || "🏢",
+        image_url: (item.image_url || "").trim(),
+      };
+    })
+    .filter((item) => item.title);
+
+  if (structuredItems.length > 0) {
+    return structuredItems;
+  }
+
+  const legacyItems = (section?.content.items || []).map((item) => item.trim()).filter(Boolean);
+  if (legacyItems.length > 0) {
+    return legacyItems.map((title, index) => {
+      const matched = FALLBACK_CONTENT.facilities.find((item) => item.title.toLowerCase() === title.toLowerCase());
+      const fallback = matched || FALLBACK_CONTENT.facilities[index % FALLBACK_CONTENT.facilities.length];
+      return {
+        title,
+        description: fallback?.description || "",
+        icon: fallback?.icon || "🏢",
+        image_url: "",
+      };
+    });
+  }
+
+  return FALLBACK_CONTENT.facilities;
+}
+
+interface FacultyCardItem {
+  avatar: string;
+  name: string;
+  role: string;
+  bio: string;
+  image_url: string;
+}
+
+function getFacultyCardItems(section: WebsiteSection | undefined): FacultyCardItem[] {
+  const structuredItems = (section?.content.faculty_items || [])
+    .map((item, index) => {
+      const fallback = FALLBACK_CONTENT.faculty[index % FALLBACK_CONTENT.faculty.length];
+      return {
+        avatar: fallback.avatar,
+        name: (item.title || "").trim(),
+        role: (item.position || fallback.role || "").trim(),
+        bio: (item.description || fallback.bio || "").trim(),
+        image_url: (item.image_url || "").trim(),
+      };
+    })
+    .filter((item) => item.name);
+
+  if (structuredItems.length > 0) {
+    return structuredItems;
+  }
+
+  return FALLBACK_CONTENT.faculty.map((item) => ({
+    ...item,
+    image_url: "",
+  }));
+}
+
+function getNewsCardItems(section: WebsiteSection | undefined) {
+  const structuredItems = (section?.content.news_items || [])
+    .map((item, index) => {
+      const fallback = FALLBACK_CONTENT.news[index % FALLBACK_CONTENT.news.length];
+      return {
+        icon: fallback.icon,
+        date: fallback.date,
+        title: (item.title || "").trim(),
+        description: (item.description || fallback.description || "").trim(),
+      };
+    })
+    .filter((item) => item.title);
+
+  if (structuredItems.length > 0) {
+    return structuredItems;
+  }
+
+  return FALLBACK_CONTENT.news;
+}
+
+function getTestimonialCardItems(section: WebsiteSection | undefined) {
+  const structuredItems = (section?.content.testimonial_items || [])
+    .map((item) => ({
+      stars: "⭐⭐⭐⭐⭐",
+      text: (item.text || "").trim(),
+      name: (item.author || "").trim(),
+      role: (item.role || "").trim(),
+    }))
+    .filter((item) => item.text && item.name);
+
+  if (structuredItems.length > 0) {
+    return structuredItems;
+  }
+
+  return FALLBACK_CONTENT.testimonials;
+}
+
+function getGalleryItems(section: WebsiteSection | undefined) {
+  const structuredItems = (section?.content.gallery_items || [])
+    .map((item, index) => {
+      const fallback = FALLBACK_CONTENT.gallery[index % FALLBACK_CONTENT.gallery.length];
+      return {
+        image_url: (item.image_url || "").trim(),
+        caption: (item.caption || "").trim(),
+        fallbackIcon: fallback,
+      };
+    })
+    .filter((item) => item.image_url || item.fallbackIcon);
+
+  if (structuredItems.length > 0) {
+    return structuredItems;
+  }
+
+  return FALLBACK_CONTENT.gallery.map((icon) => ({ image_url: "", caption: "", fallbackIcon: icon }));
+}
+
 function renderCardGrid(
   section: WebsiteSection | undefined,
   items: Array<{ icon: string; title: string; description: string; image_url?: string }>,
@@ -429,6 +576,7 @@ function renderCardGrid(
 function renderFaculty(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Our Faculty";
   const subtitle = section?.content.subheading || "Distinguished educators committed to nurturing excellence and shaping future leaders";
+  const facultyItems = getFacultyCardItems(section);
 
   return (
     <section id="faculty" className="bg-white px-4 py-20 md:px-6">
@@ -438,10 +586,14 @@ function renderFaculty(section: WebsiteSection | undefined) {
           <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subtitle}</p>
         </div>
         <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {FALLBACK_CONTENT.faculty.map((member) => (
+          {facultyItems.map((member) => (
             <article key={member.name} className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
               <div className="flex h-64 items-center justify-center bg-[linear-gradient(135deg,#1e3a8a,#059669)] text-6xl text-white/35">
-                {member.avatar}
+                {member.image_url ? (
+                  <img src={member.image_url} alt={member.name} className="h-full w-full object-cover" />
+                ) : (
+                  member.avatar
+                )}
               </div>
               <div className="p-6 text-center">
                 <h3 className="text-lg font-bold text-slate-950">{member.name}</h3>
@@ -459,6 +611,7 @@ function renderFaculty(section: WebsiteSection | undefined) {
 function renderNews(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Latest News & Updates";
   const subtitle = section?.content.subheading || "Stay informed about school events, achievements, and important announcements";
+  const newsItems = getNewsCardItems(section);
 
   return (
     <section id="news" className="bg-slate-50 px-4 py-20 md:px-6">
@@ -469,7 +622,7 @@ function renderNews(section: WebsiteSection | undefined) {
         </div>
 
         <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {FALLBACK_CONTENT.news.map((item) => (
+          {newsItems.map((item) => (
             <article key={item.title} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
               <div className="flex h-48 items-center justify-center bg-[linear-gradient(135deg,#f59e0b,#f97316)] text-5xl text-white">{item.icon}</div>
               <div className="p-6">
@@ -488,6 +641,7 @@ function renderNews(section: WebsiteSection | undefined) {
 function renderTestimonials(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Student & Parent Testimonials";
   const subtitle = section?.content.subheading || "Hear from our students and parents about their experience at Tosfeb Presidency School";
+  const testimonialItems = getTestimonialCardItems(section);
 
   return (
     <section id="testimonials" className="bg-white px-4 py-20 md:px-6">
@@ -498,7 +652,7 @@ function renderTestimonials(section: WebsiteSection | undefined) {
         </div>
 
         <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {FALLBACK_CONTENT.testimonials.map((item) => (
+          {testimonialItems.map((item) => (
             <article key={item.name} className="rounded-[28px] border border-slate-200 bg-slate-50 p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
               <div className="text-amber-400">{item.stars}</div>
               <p className="mt-5 text-sm leading-7 text-slate-700 italic">{item.text}</p>
@@ -515,6 +669,7 @@ function renderTestimonials(section: WebsiteSection | undefined) {
 function renderGallery(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Campus Gallery";
   const subtitle = section?.content.subheading || "Explore moments and memories from Tosfeb Presidency School";
+  const galleryItems = getGalleryItems(section);
 
   return (
     <section id="gallery" className="bg-slate-50 px-4 py-20 md:px-6">
@@ -524,7 +679,7 @@ function renderGallery(section: WebsiteSection | undefined) {
           <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subtitle}</p>
         </div>
         <div className="mt-12 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3">
-          {FALLBACK_CONTENT.gallery.map((icon, index) => {
+          {galleryItems.map((item, index) => {
             const palette = [
               "bg-[linear-gradient(135deg,#1e3a8a,#059669)]",
               "bg-[linear-gradient(135deg,#f59e0b,#f97316)]",
@@ -537,9 +692,18 @@ function renderGallery(section: WebsiteSection | undefined) {
               "bg-[linear-gradient(135deg,#65a30d,#16a34a)]",
             ];
             return (
-              <div key={`${icon}-${index}`} className={`group relative flex h-52 items-center justify-center overflow-hidden rounded-[24px] text-5xl text-white shadow-lg ${palette[index % palette.length]}`}>
+              <div key={`${item.image_url || item.fallbackIcon}-${index}`} className={`group relative flex h-52 items-center justify-center overflow-hidden rounded-[24px] text-5xl text-white shadow-lg ${palette[index % palette.length]}`}>
+                {item.image_url ? (
+                  <img src={item.image_url} alt={item.caption || `Gallery ${index + 1}`} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="relative z-10">{item.fallbackIcon}</span>
+                )}
                 <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/20" />
-                <span className="relative z-10">{icon}</span>
+                {item.caption ? (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-2 text-xs font-medium text-white">
+                    {item.caption}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -850,6 +1014,7 @@ export default async function PublicSchoolWebsite({
   const admissionsSection = visibleSections.find((section) => section.section_key === "admissions");
   const contactSection = visibleSections.find((section) => section.section_key === "contact");
   const programCards = getProgramCardItems(programsSection);
+  const facilityCards = getFacilityCardItems(facilitiesSection);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -858,7 +1023,7 @@ export default async function PublicSchoolWebsite({
         {renderHero(siteSettings, visibleSections)}
         {renderAbout(aboutSection || homeSection)}
         {renderCardGrid(programsSection, programCards, "programs", "bg-white")}
-        {renderCardGrid(facilitiesSection, FALLBACK_CONTENT.facilities, "facilities", "bg-slate-50")}
+        {renderCardGrid(facilitiesSection, facilityCards, "facilities", "bg-slate-50")}
         {renderFaculty(facultySection)}
         {renderNews(newsSection)}
         {renderTestimonials(testimonialsSection)}

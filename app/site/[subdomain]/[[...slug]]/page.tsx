@@ -215,14 +215,14 @@ async function isAdminPreviewAllowed() {
 function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], preview: boolean) {
   return (
     <header className="sticky top-0 z-40 bg-slate-950/95 text-white backdrop-blur border-b border-white/10">
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-4 md:px-6">
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 md:px-6">
         <a href="#home" className="flex items-center gap-3">
           {siteSettings.logo_url ? (
-            <div className="flex h-14 max-w-[220px] shrink-0 items-center rounded-2xl bg-white/95 px-0.5 shadow-[0_0_0_1px_rgba(255,255,255,0.45),0_8px_20px_rgba(2,6,23,0.45)]">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 ring-1 ring-white/30 shadow-[0_6px_18px_rgba(2,6,23,0.45)]">
               <img
                 src={siteSettings.logo_url}
                 alt={siteSettings.site_title}
-                className="h-full w-auto max-w-none origin-left scale-[1.2] transform-gpu object-contain"
+                className="h-full w-full origin-center scale-[1.55] transform-gpu object-contain"
               />
             </div>
           ) : (

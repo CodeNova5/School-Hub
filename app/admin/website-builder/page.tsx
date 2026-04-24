@@ -1065,7 +1065,7 @@ export default function WebsiteBuilderPage() {
     }
 
     async function uploadMedia(file: File, displayName?: string) {
-        if (!page) return;
+        if (!page) return null;
 
         setUploading(true);
         try {
@@ -1087,11 +1087,28 @@ export default function WebsiteBuilderPage() {
                 throw new Error(payload.error || "Media upload failed");
             }
 
+            const uploadedUrl = payload.fileUrl as string;
+
+            setMedia((prev) => {
+                const nextItem: MediaData = {
+                    id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    file_name: displayName?.trim() || file.name,
+                    public_url: uploadedUrl,
+                    mime_type: file.type || undefined,
+                    created_at: new Date().toISOString(),
+                    page_id: page.id,
+                };
+
+                const withoutDuplicate = prev.filter((item) => item.public_url !== uploadedUrl);
+                return [nextItem, ...withoutDuplicate];
+            });
+
             toast.success("Media uploaded successfully");
             setUploadDisplayName("");
-            await loadWebsiteBuilder();
+            return uploadedUrl;
         } catch (error: any) {
             toast.error(error.message || "Unable to upload media");
+            return null;
         } finally {
             setUploading(false);
         }
@@ -1102,17 +1119,6 @@ export default function WebsiteBuilderPage() {
         const mime = item.mime_type?.toLowerCase() || "";
         if (mime.startsWith("image/")) return true;
         return [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"].some((ext) => url.includes(ext));
-    }
-
-    function applyMediaToSection(sectionId: string) {
-        const selectedUrl = selectedMediaBySection[sectionId];
-        if (!selectedUrl) {
-            toast.error("Select a media item first");
-            return;
-        }
-
-        updateSectionContent(sectionId, "image_url", selectedUrl);
-        toast.success("Section image updated from media library");
     }
 
     function resetToTemplateDefaults() {
@@ -1503,12 +1509,15 @@ export default function WebsiteBuilderPage() {
                                                                                                 <select
                                                                                                     className="h-10 rounded-md border border-slate-200 px-2 text-sm"
                                                                                                     value={selectedMediaBySection[mediaKey] || ""}
-                                                                                                    onChange={(e) =>
+                                                                                                    onChange={(e) => {
+                                                                                                        const selectedUrl = e.target.value;
                                                                                                         setSelectedMediaBySection((prev) => ({
                                                                                                             ...prev,
-                                                                                                            [mediaKey]: e.target.value,
-                                                                                                        }))
-                                                                                                    }
+                                                                                                            [mediaKey]: selectedUrl,
+                                                                                                        }));
+                                                                                                        if (!selectedUrl) return;
+                                                                                                        updateFacilityItem(section.id, index, "image_url", selectedUrl);
+                                                                                                    }}
                                                                                                 >
                                                                                                     <option value="">Pick uploaded media...</option>
                                                                                                     {media.map((item) => (
@@ -1519,22 +1528,30 @@ export default function WebsiteBuilderPage() {
                                                                                                 </select>
                                                                                             </div>
                                                                                             <div className="mt-2">
-                                                                                                <Button
-                                                                                                    type="button"
-                                                                                                    variant="outline"
-                                                                                                    size="sm"
-                                                                                                    onClick={() => {
-                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
-                                                                                                        if (!selectedUrl) {
-                                                                                                            toast.error("Select a media item first");
-                                                                                                            return;
-                                                                                                        }
-                                                                                                        updateFacilityItem(section.id, index, "image_url", selectedUrl);
-                                                                                                        toast.success("Facility image updated from media library");
-                                                                                                    }}
-                                                                                                >
-                                                                                                    Use Selected Media
-                                                                                                </Button>
+                                                                                                <label className="inline-flex cursor-pointer items-center">
+                                                                                                    <input
+                                                                                                        type="file"
+                                                                                                        className="hidden"
+                                                                                                        accept="image/*"
+                                                                                                        onChange={async (e) => {
+                                                                                                            const file = e.target.files?.[0];
+                                                                                                            if (!file) return;
+                                                                                                            const uploadedUrl = await uploadMedia(file);
+                                                                                                            if (uploadedUrl) {
+                                                                                                                updateFacilityItem(section.id, index, "image_url", uploadedUrl);
+                                                                                                                setSelectedMediaBySection((prev) => ({
+                                                                                                                    ...prev,
+                                                                                                                    [mediaKey]: uploadedUrl,
+                                                                                                                }));
+                                                                                                            }
+                                                                                                            e.currentTarget.value = "";
+                                                                                                        }}
+                                                                                                    />
+                                                                                                    <span className="inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
+                                                                                                        {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                                                                                        Upload Image
+                                                                                                    </span>
+                                                                                                </label>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
@@ -1598,12 +1615,15 @@ export default function WebsiteBuilderPage() {
                                                                         <select
                                                                             className="h-10 rounded-md border border-slate-200 px-2 text-sm"
                                                                             value={selectedMediaBySection[section.id] || ""}
-                                                                            onChange={(e) =>
+                                                                            onChange={(e) => {
+                                                                                const selectedUrl = e.target.value;
                                                                                 setSelectedMediaBySection((prev) => ({
                                                                                     ...prev,
-                                                                                    [section.id]: e.target.value,
-                                                                                }))
-                                                                            }
+                                                                                    [section.id]: selectedUrl,
+                                                                                }));
+                                                                                if (!selectedUrl) return;
+                                                                                updateSectionContent(section.id, "image_url", selectedUrl);
+                                                                            }}
                                                                         >
                                                                             <option value="">Pick uploaded media...</option>
                                                                             {media.map((item) => (
@@ -1614,14 +1634,30 @@ export default function WebsiteBuilderPage() {
                                                                         </select>
                                                                     </div>
                                                                     <div className="mt-2">
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            onClick={() => applyMediaToSection(section.id)}
-                                                                        >
-                                                                            Use Selected Media
-                                                                        </Button>
+                                                                        <label className="inline-flex cursor-pointer items-center">
+                                                                            <input
+                                                                                type="file"
+                                                                                className="hidden"
+                                                                                accept="image/*"
+                                                                                onChange={async (e) => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (!file) return;
+                                                                                    const uploadedUrl = await uploadMedia(file);
+                                                                                    if (uploadedUrl) {
+                                                                                        updateSectionContent(section.id, "image_url", uploadedUrl);
+                                                                                        setSelectedMediaBySection((prev) => ({
+                                                                                            ...prev,
+                                                                                            [section.id]: uploadedUrl,
+                                                                                        }));
+                                                                                    }
+                                                                                    e.currentTarget.value = "";
+                                                                                }}
+                                                                            />
+                                                                            <span className="inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
+                                                                                {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                                                                Upload Image
+                                                                            </span>
+                                                                        </label>
                                                                     </div>
                                                                 </div>
                                                             ) : null}
@@ -1754,12 +1790,15 @@ export default function WebsiteBuilderPage() {
                                                                                                 <select
                                                                                                     className="h-10 rounded-md border border-slate-200 px-2 text-sm"
                                                                                                     value={selectedMediaBySection[mediaKey] || ""}
-                                                                                                    onChange={(e) =>
+                                                                                                    onChange={(e) => {
+                                                                                                        const selectedUrl = e.target.value;
                                                                                                         setSelectedMediaBySection((prev) => ({
                                                                                                             ...prev,
-                                                                                                            [mediaKey]: e.target.value,
-                                                                                                        }))
-                                                                                                    }
+                                                                                                            [mediaKey]: selectedUrl,
+                                                                                                        }));
+                                                                                                        if (!selectedUrl) return;
+                                                                                                        updateProgramItem(section.id, index, "image_url", selectedUrl);
+                                                                                                    }}
                                                                                                 >
                                                                                                     <option value="">Pick uploaded media...</option>
                                                                                                     {media.map((item) => (
@@ -1770,22 +1809,30 @@ export default function WebsiteBuilderPage() {
                                                                                                 </select>
                                                                                             </div>
                                                                                             <div className="mt-2">
-                                                                                                <Button
-                                                                                                    type="button"
-                                                                                                    variant="outline"
-                                                                                                    size="sm"
-                                                                                                    onClick={() => {
-                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
-                                                                                                        if (!selectedUrl) {
-                                                                                                            toast.error("Select a media item first");
-                                                                                                            return;
-                                                                                                        }
-                                                                                                        updateProgramItem(section.id, index, "image_url", selectedUrl);
-                                                                                                        toast.success("Program image updated from media library");
-                                                                                                    }}
-                                                                                                >
-                                                                                                    Use Selected Media
-                                                                                                </Button>
+                                                                                                <label className="inline-flex cursor-pointer items-center">
+                                                                                                    <input
+                                                                                                        type="file"
+                                                                                                        className="hidden"
+                                                                                                        accept="image/*"
+                                                                                                        onChange={async (e) => {
+                                                                                                            const file = e.target.files?.[0];
+                                                                                                            if (!file) return;
+                                                                                                            const uploadedUrl = await uploadMedia(file);
+                                                                                                            if (uploadedUrl) {
+                                                                                                                updateProgramItem(section.id, index, "image_url", uploadedUrl);
+                                                                                                                setSelectedMediaBySection((prev) => ({
+                                                                                                                    ...prev,
+                                                                                                                    [mediaKey]: uploadedUrl,
+                                                                                                                }));
+                                                                                                            }
+                                                                                                            e.currentTarget.value = "";
+                                                                                                        }}
+                                                                                                    />
+                                                                                                    <span className="inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
+                                                                                                        {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                                                                                        Upload Image
+                                                                                                    </span>
+                                                                                                </label>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
@@ -1878,12 +1925,15 @@ export default function WebsiteBuilderPage() {
                                                                                                 <select
                                                                                                     className="h-10 rounded-md border border-slate-200 px-2 text-sm"
                                                                                                     value={selectedMediaBySection[mediaKey] || ""}
-                                                                                                    onChange={(e) =>
+                                                                                                    onChange={(e) => {
+                                                                                                        const selectedUrl = e.target.value;
                                                                                                         setSelectedMediaBySection((prev) => ({
                                                                                                             ...prev,
-                                                                                                            [mediaKey]: e.target.value,
-                                                                                                        }))
-                                                                                                    }
+                                                                                                            [mediaKey]: selectedUrl,
+                                                                                                        }));
+                                                                                                        if (!selectedUrl) return;
+                                                                                                        updateFacultyItem(section.id, index, "image_url", selectedUrl);
+                                                                                                    }}
                                                                                                 >
                                                                                                     <option value="">Pick uploaded media...</option>
                                                                                                     {media.map((item) => (
@@ -1894,22 +1944,30 @@ export default function WebsiteBuilderPage() {
                                                                                                 </select>
                                                                                             </div>
                                                                                             <div className="mt-2">
-                                                                                                <Button
-                                                                                                    type="button"
-                                                                                                    variant="outline"
-                                                                                                    size="sm"
-                                                                                                    onClick={() => {
-                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
-                                                                                                        if (!selectedUrl) {
-                                                                                                            toast.error("Select a media item first");
-                                                                                                            return;
-                                                                                                        }
-                                                                                                        updateFacultyItem(section.id, index, "image_url", selectedUrl);
-                                                                                                        toast.success("Faculty photo updated from media library");
-                                                                                                    }}
-                                                                                                >
-                                                                                                    Use Selected Media
-                                                                                                </Button>
+                                                                                                <label className="inline-flex cursor-pointer items-center">
+                                                                                                    <input
+                                                                                                        type="file"
+                                                                                                        className="hidden"
+                                                                                                        accept="image/*"
+                                                                                                        onChange={async (e) => {
+                                                                                                            const file = e.target.files?.[0];
+                                                                                                            if (!file) return;
+                                                                                                            const uploadedUrl = await uploadMedia(file);
+                                                                                                            if (uploadedUrl) {
+                                                                                                                updateFacultyItem(section.id, index, "image_url", uploadedUrl);
+                                                                                                                setSelectedMediaBySection((prev) => ({
+                                                                                                                    ...prev,
+                                                                                                                    [mediaKey]: uploadedUrl,
+                                                                                                                }));
+                                                                                                            }
+                                                                                                            e.currentTarget.value = "";
+                                                                                                        }}
+                                                                                                    />
+                                                                                                    <span className="inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
+                                                                                                        {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                                                                                        Upload Image
+                                                                                                    </span>
+                                                                                                </label>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
@@ -2105,12 +2163,15 @@ export default function WebsiteBuilderPage() {
                                                                                                 <select
                                                                                                     className="h-10 rounded-md border border-slate-200 px-2 text-sm"
                                                                                                     value={selectedMediaBySection[mediaKey] || ""}
-                                                                                                    onChange={(e) =>
+                                                                                                    onChange={(e) => {
+                                                                                                        const selectedUrl = e.target.value;
                                                                                                         setSelectedMediaBySection((prev) => ({
                                                                                                             ...prev,
-                                                                                                            [mediaKey]: e.target.value,
-                                                                                                        }))
-                                                                                                    }
+                                                                                                            [mediaKey]: selectedUrl,
+                                                                                                        }));
+                                                                                                        if (!selectedUrl) return;
+                                                                                                        updateGalleryItem(section.id, index, "image_url", selectedUrl);
+                                                                                                    }}
                                                                                                 >
                                                                                                     <option value="">Pick uploaded media...</option>
                                                                                                     {media.map((item) => (
@@ -2121,22 +2182,30 @@ export default function WebsiteBuilderPage() {
                                                                                                 </select>
                                                                                             </div>
                                                                                             <div className="mt-2">
-                                                                                                <Button
-                                                                                                    type="button"
-                                                                                                    variant="outline"
-                                                                                                    size="sm"
-                                                                                                    onClick={() => {
-                                                                                                        const selectedUrl = selectedMediaBySection[mediaKey];
-                                                                                                        if (!selectedUrl) {
-                                                                                                            toast.error("Select a media item first");
-                                                                                                            return;
-                                                                                                        }
-                                                                                                        updateGalleryItem(section.id, index, "image_url", selectedUrl);
-                                                                                                        toast.success("Gallery image updated from media library");
-                                                                                                    }}
-                                                                                                >
-                                                                                                    Use Selected Media
-                                                                                                </Button>
+                                                                                                <label className="inline-flex cursor-pointer items-center">
+                                                                                                    <input
+                                                                                                        type="file"
+                                                                                                        className="hidden"
+                                                                                                        accept="image/*"
+                                                                                                        onChange={async (e) => {
+                                                                                                            const file = e.target.files?.[0];
+                                                                                                            if (!file) return;
+                                                                                                            const uploadedUrl = await uploadMedia(file);
+                                                                                                            if (uploadedUrl) {
+                                                                                                                updateGalleryItem(section.id, index, "image_url", uploadedUrl);
+                                                                                                                setSelectedMediaBySection((prev) => ({
+                                                                                                                    ...prev,
+                                                                                                                    [mediaKey]: uploadedUrl,
+                                                                                                                }));
+                                                                                                            }
+                                                                                                            e.currentTarget.value = "";
+                                                                                                        }}
+                                                                                                    />
+                                                                                                    <span className="inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
+                                                                                                        {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                                                                                        Upload Image
+                                                                                                    </span>
+                                                                                                </label>
                                                                                             </div>
                                                                                         </div>
                                                                                         <div className="space-y-1">
@@ -2402,7 +2471,7 @@ export default function WebsiteBuilderPage() {
                                                     onChange={(e) => {
                                                         const file = e.target.files?.[0];
                                                         if (file) {
-                                                            uploadMedia(file, uploadDisplayName);
+                                                            void uploadMedia(file, uploadDisplayName);
                                                             e.currentTarget.value = "";
                                                         }
                                                     }}

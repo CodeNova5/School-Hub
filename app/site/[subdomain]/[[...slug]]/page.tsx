@@ -218,7 +218,7 @@ function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], pr
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 md:px-6">
         <a href="#home" className="flex items-center gap-3">
           {siteSettings.logo_url ? (
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 ring-1 ring-white/30 shadow-[0_6px_18px_rgba(2,6,23,0.45)]">
+            <div className="bg-white flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 ring-1 ring-white/30 shadow-[0_6px_18px_rgba(2,6,23,0.45)]">
               <img
                 src={siteSettings.logo_url}
                 alt={siteSettings.site_title}

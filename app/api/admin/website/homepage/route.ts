@@ -15,6 +15,101 @@ interface WebsiteSectionRow {
   content: Record<string, any>;
 }
 
+const DEFAULT_SITE_SETTINGS = {
+  site_title: "School Website",
+  site_tagline: "Excellence in education",
+  logo_url: "",
+  hero_background_url: "",
+  primary_color: "#1e3a8a",
+  secondary_color: "#059669",
+  contact_email: "",
+  contact_phone: "",
+  contact_address: "",
+  is_website_enabled: true,
+};
+
+function normalizeValue(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeValue(item));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = normalizeValue(value[key]);
+        return acc;
+      }, {} as Record<string, any>);
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  return value;
+}
+
+function isSectionCustomized(section: { section_key: string; content: Record<string, any> }) {
+  const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === section.section_key);
+  if (!template) return true;
+
+  const currentNormalized = normalizeValue(section.content || {});
+  const templateNormalized = normalizeValue(template.content || {});
+  return JSON.stringify(currentNormalized) !== JSON.stringify(templateNormalized);
+}
+
+function getMissingGlobalSettings(settings: Record<string, any>) {
+  const requiredChecks = [
+    {
+      key: "site_title",
+      valid: typeof settings.site_title === "string" && settings.site_title.trim().length > 0 && settings.site_title.trim() !== DEFAULT_SITE_SETTINGS.site_title,
+      label: "Site title",
+    },
+    {
+      key: "site_tagline",
+      valid: typeof settings.site_tagline === "string" && settings.site_tagline.trim().length > 0 && settings.site_tagline.trim() !== DEFAULT_SITE_SETTINGS.site_tagline,
+      label: "Site tagline",
+    },
+    {
+      key: "logo_url",
+      valid: typeof settings.logo_url === "string" && settings.logo_url.trim().length > 0,
+      label: "Logo URL",
+    },
+    {
+      key: "hero_background_url",
+      valid: typeof settings.hero_background_url === "string" && settings.hero_background_url.trim().length > 0,
+      label: "Hero background URL",
+    },
+    {
+      key: "contact_email",
+      valid: typeof settings.contact_email === "string" && settings.contact_email.trim().length > 0,
+      label: "Contact email",
+    },
+    {
+      key: "contact_phone",
+      valid: typeof settings.contact_phone === "string" && settings.contact_phone.trim().length > 0,
+      label: "Contact phone",
+    },
+    {
+      key: "contact_address",
+      valid: typeof settings.contact_address === "string" && settings.contact_address.trim().length > 0,
+      label: "Contact address",
+    },
+    {
+      key: "primary_color",
+      valid: typeof settings.primary_color === "string" && settings.primary_color.trim().length > 0 && settings.primary_color.trim().toLowerCase() !== DEFAULT_SITE_SETTINGS.primary_color,
+      label: "Primary color",
+    },
+    {
+      key: "secondary_color",
+      valid: typeof settings.secondary_color === "string" && settings.secondary_color.trim().length > 0 && settings.secondary_color.trim().toLowerCase() !== DEFAULT_SITE_SETTINGS.secondary_color,
+      label: "Secondary color",
+    },
+  ];
+
+  return requiredChecks.filter((item) => !item.valid).map((item) => item.label);
+}
+
 async function ensureHomepage(supabase: any, schoolId: string) {
   let { data: page, error } = await supabase
     .from("website_pages")
@@ -142,6 +237,65 @@ export async function PATCH(req: NextRequest) {
       page?: Record<string, any>;
       sections?: Array<Partial<WebsiteSectionRow> & { id: string }>;
     };
+
+    if (page?.status === "published") {
+      const [{ data: existingSettings, error: settingsError }, { data: existingSections, error: sectionsError }] = await Promise.all([
+        supabase
+          .from("website_site_settings")
+          .select("*")
+          .eq("school_id", permission.schoolId)
+          .maybeSingle(),
+        supabase
+          .from("website_sections")
+          .select("id, section_key, section_label, content")
+          .eq("school_id", permission.schoolId),
+      ]);
+
+      if (settingsError) throw settingsError;
+      if (sectionsError) throw sectionsError;
+
+      const mergedSettings = {
+        ...DEFAULT_SITE_SETTINGS,
+        ...(existingSettings || {}),
+        ...(settings || {}),
+      };
+
+      const updatesById = new Map((sections || []).map((item) => [item.id, item]));
+      const mergedSections = (existingSections || []).map((section: any) => {
+        const incoming = updatesById.get(section.id);
+        return {
+          ...section,
+          section_label:
+            typeof incoming?.section_label === "string" ? incoming.section_label : section.section_label,
+          content: incoming?.content || section.content || {},
+        };
+      });
+
+      const missingGlobalSettings = getMissingGlobalSettings(mergedSettings);
+      const sectionByKey = new Map(mergedSections.map((section) => [section.section_key, section]));
+      const uncustomizedSections = WEBSITE_SECTION_TEMPLATES
+        .filter((template) => {
+          const section = sectionByKey.get(template.key);
+          if (!section) return true;
+          return !isSectionCustomized(section);
+        })
+        .map((template) => {
+          const section = sectionByKey.get(template.key);
+          return section?.section_label || template.label || template.key;
+        });
+
+      if (missingGlobalSettings.length > 0 || uncustomizedSections.length > 0) {
+        const messageParts: string[] = [];
+        if (missingGlobalSettings.length > 0) {
+          messageParts.push(`Global settings still required: ${missingGlobalSettings.join(", ")}.`);
+        }
+        if (uncustomizedSections.length > 0) {
+          messageParts.push(`Customize all sections before publishing. Pending sections: ${uncustomizedSections.join(", ")}.`);
+        }
+
+        return errorResponse(messageParts.join(" "), 400);
+      }
+    }
 
     if (settings) {
       const payload = {

@@ -318,6 +318,94 @@ function buildEditorSnapshot(settings: SiteSettings, page: PageData | null, sect
     });
 }
 
+function normalizeValue(value: any): any {
+    if (Array.isArray(value)) {
+        return value.map((item) => normalizeValue(item));
+    }
+
+    if (value && typeof value === "object") {
+        return Object.keys(value)
+            .sort()
+            .reduce((acc, key) => {
+                acc[key] = normalizeValue(value[key]);
+                return acc;
+            }, {} as Record<string, any>);
+    }
+
+    if (typeof value === "string") {
+        return value.trim();
+    }
+
+    return value;
+}
+
+function isSectionCustomized(section: SectionData) {
+    const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === section.section_key);
+    if (!template) return true;
+
+    const currentNormalized = normalizeValue(section.content || {});
+    const templateNormalized = normalizeValue(template.content || {});
+    return JSON.stringify(currentNormalized) !== JSON.stringify(templateNormalized);
+}
+
+function getMissingGlobalSettings(settings: SiteSettings) {
+    const checks = [
+        {
+            label: "Site title",
+            valid:
+                typeof settings.site_title === "string" &&
+                settings.site_title.trim().length > 0 &&
+                settings.site_title.trim() !== DEFAULT_SETTINGS.site_title,
+        },
+        {
+            label: "Site tagline",
+            valid:
+                typeof settings.site_tagline === "string" &&
+                settings.site_tagline.trim().length > 0 &&
+                settings.site_tagline.trim() !== DEFAULT_SETTINGS.site_tagline,
+        },
+        {
+            label: "Logo URL",
+            valid: typeof settings.logo_url === "string" && settings.logo_url.trim().length > 0,
+        },
+        {
+            label: "Hero background URL",
+            valid:
+                typeof settings.hero_background_url === "string" &&
+                settings.hero_background_url.trim().length > 0,
+        },
+        {
+            label: "Contact email",
+            valid: typeof settings.contact_email === "string" && settings.contact_email.trim().length > 0,
+        },
+        {
+            label: "Contact phone",
+            valid: typeof settings.contact_phone === "string" && settings.contact_phone.trim().length > 0,
+        },
+        {
+            label: "Contact address",
+            valid:
+                typeof settings.contact_address === "string" && settings.contact_address.trim().length > 0,
+        },
+        {
+            label: "Primary color",
+            valid:
+                typeof settings.primary_color === "string" &&
+                settings.primary_color.trim().length > 0 &&
+                settings.primary_color.trim().toLowerCase() !== DEFAULT_SETTINGS.primary_color,
+        },
+        {
+            label: "Secondary color",
+            valid:
+                typeof settings.secondary_color === "string" &&
+                settings.secondary_color.trim().length > 0 &&
+                settings.secondary_color.trim().toLowerCase() !== DEFAULT_SETTINGS.secondary_color,
+        },
+    ];
+
+    return checks.filter((check) => !check.valid).map((check) => check.label);
+}
+
 export default function WebsiteBuilderPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -350,6 +438,27 @@ export default function WebsiteBuilderPage() {
     );
 
     const hasUnsavedChanges = Boolean(lastSavedSnapshot) && currentSnapshot !== lastSavedSnapshot;
+
+    const missingGlobalSettings = useMemo(() => getMissingGlobalSettings(settings), [settings]);
+
+    const uncustomizedSections = useMemo(
+        () => sortedSections.filter((section) => !isSectionCustomized(section)),
+        [sortedSections]
+    );
+
+    const customizedSectionIds = useMemo(
+        () => new Set(sortedSections.filter((section) => isSectionCustomized(section)).map((section) => section.id)),
+        [sortedSections]
+    );
+
+    const publishBlocked = missingGlobalSettings.length > 0 || uncustomizedSections.length > 0;
+    const totalPublishRequirements = sortedSections.length + 1;
+    const completedPublishRequirements =
+        (sortedSections.length - uncustomizedSections.length) + (missingGlobalSettings.length === 0 ? 1 : 0);
+    const publishProgress =
+        totalPublishRequirements > 0
+            ? Math.round((completedPublishRequirements / totalPublishRequirements) * 100)
+            : 0;
 
     async function loadWebsiteBuilder() {
         setLoading(true);
@@ -1142,10 +1251,36 @@ export default function WebsiteBuilderPage() {
         toast.success("Section defaults restored. Click Save Changes to persist.");
     }
 
-    function getPublicUrl() {
-        if (typeof window === "undefined") return "#";
+    function handleMarkPublished() {
+        if (publishBlocked) {
+            const pendingSectionLabels = uncustomizedSections
+                .slice(0, 4)
+                .map((section) => section.section_label || section.section_key);
+            const pendingSectionSummary =
+                uncustomizedSections.length > 4
+                    ? `${pendingSectionLabels.join(", ")} +${uncustomizedSections.length - 4} more`
+                    : pendingSectionLabels.join(", ");
 
-        if (!school?.subdomain) return "#";
+            const problems = [
+                missingGlobalSettings.length > 0
+                    ? `Missing global settings: ${missingGlobalSettings.join(", ")}`
+                    : "",
+                uncustomizedSections.length > 0
+                    ? `Unedited sections: ${pendingSectionSummary}`
+                    : "",
+            ]
+                .filter(Boolean)
+                .join(" | ");
+
+            toast.error(`Publishing is locked until all requirements are complete. ${problems}`);
+            return;
+        }
+
+        setPage((prev) => (prev ? { ...prev, status: "published" } : prev));
+    }
+
+    function getRootWebsiteHostUrl() {
+        if (typeof window === "undefined") return "#";
 
         const protocol = window.location.protocol;
         const host = window.location.host;
@@ -1153,22 +1288,26 @@ export default function WebsiteBuilderPage() {
         const withPort = (value: string) => (port ? `${value}:${port}` : value);
 
         if (hostname === "localhost" || hostname.endsWith(".localhost")) {
-            return `${protocol}//${withPort(`${school.subdomain}.localhost`)}`;
+            return `${protocol}//${withPort("localhost")}`;
+        }
+
+        if (hostname === "schooldeck.tech" || hostname.endsWith(".schooldeck.tech")) {
+            return `${protocol}//${withPort("schooldeck.tech")}`;
         }
 
         const parts = hostname.split(".");
-        if (parts.length >= 3) {
-            const rootDomain = parts.slice(1).join(".");
-            return `${protocol}//${withPort(`${school.subdomain}.${rootDomain}`)}`;
+        if (parts.length >= 2) {
+            return `${protocol}//${withPort(parts.slice(-2).join("."))}`;
         }
 
-        return `${protocol}//${withPort(`${school.subdomain}.${hostname}`)}`;
+        return `${protocol}//${host}`;
     }
 
     function getPreviewUrl() {
-        const publicUrl = getPublicUrl();
-        if (publicUrl === "#") return "#";
-        return `${publicUrl}?preview=1`;
+        if (!school?.subdomain) return "#";
+        const rootHostUrl = getRootWebsiteHostUrl();
+        if (rootHostUrl === "#") return "#";
+        return `${rootHostUrl}/site/${school.subdomain}?preview=1`;
     }
 
     function getSectionPreviewUrl(sectionKey?: string) {
@@ -1191,7 +1330,9 @@ export default function WebsiteBuilderPage() {
                             Edit your school homepage, upload media assets, and publish to your school subdomain.
                         </p>
                         {school?.subdomain ? (
-                            <p className="mt-1 text-xs text-slate-500">Live URL target: {school.subdomain}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                                Live URL target: {school.subdomain}.schooldeck.tech | Draft preview: /site/{school.subdomain}
+                            </p>
                         ) : null}
                     </div>
                     <div className="flex items-center gap-2">
@@ -1243,17 +1384,39 @@ export default function WebsiteBuilderPage() {
                                                     className="h-10 whitespace-nowrap rounded-full border border-transparent px-4 text-sm font-medium text-slate-600 transition-all data-[state=active]:border-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
                                                 >
                                                     Global Settings
+                                                    <span
+                                                        className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                                            missingGlobalSettings.length === 0
+                                                                ? "bg-emerald-100 text-emerald-700"
+                                                                : "bg-amber-100 text-amber-700"
+                                                        }`}
+                                                    >
+                                                        {missingGlobalSettings.length === 0 ? "Ready" : "Pending"}
+                                                    </span>
                                                 </TabsTrigger>
                                                 {sortedSections.map((section, index) => (
                                                     <TabsTrigger
                                                         key={section.id}
                                                         value={`section-${section.id}`}
-                                                        className="h-10 whitespace-nowrap rounded-full border border-transparent px-4 text-sm font-medium text-slate-600 transition-all data-[state=active]:border-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
+                                                        className={`h-10 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm ${
+                                                            customizedSectionIds.has(section.id)
+                                                                ? "border-transparent text-slate-600 data-[state=active]:border-slate-300"
+                                                                : "border-amber-200 bg-amber-50 text-amber-800 data-[state=active]:border-amber-300"
+                                                        }`}
                                                     >
                                                         <span className="mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[11px] font-semibold text-slate-600">
                                                             {index + 1}
                                                         </span>
                                                         <span>{section.section_label || section.section_key}</span>
+                                                        <span
+                                                            className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                                                customizedSectionIds.has(section.id)
+                                                                    ? "bg-emerald-100 text-emerald-700"
+                                                                    : "bg-amber-100 text-amber-700"
+                                                            }`}
+                                                        >
+                                                            {customizedSectionIds.has(section.id) ? "Done" : "Edit"}
+                                                        </span>
                                                     </TabsTrigger>
                                                 ))}
                                             </TabsList>
@@ -2544,6 +2707,45 @@ export default function WebsiteBuilderPage() {
 
                                 <div className="rounded-lg border bg-white p-4">
                                     <h2 className="mb-3 text-lg font-semibold text-slate-900">Publishing</h2>
+                                    <div className="mb-4 rounded-xl border border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_55%,#0b3b2a_100%)] p-4 text-white shadow-sm">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-xs uppercase tracking-[0.18em] text-emerald-200/90">Publish Readiness</p>
+                                                <p className="mt-1 text-2xl font-bold">{publishProgress}% complete</p>
+                                            </div>
+                                            <Badge className={publishBlocked ? "bg-amber-500 text-amber-950" : "bg-emerald-500 text-emerald-950"}>
+                                                {publishBlocked ? "Locked" : "Ready"}
+                                            </Badge>
+                                        </div>
+                                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/20">
+                                            <div
+                                                className="h-full rounded-full bg-gradient-to-r from-amber-300 via-emerald-300 to-cyan-300 transition-all duration-500"
+                                                style={{ width: `${publishProgress}%` }}
+                                            />
+                                        </div>
+                                        <p className="mt-2 text-xs text-white/80">
+                                            {completedPublishRequirements}/{totalPublishRequirements} requirements completed
+                                        </p>
+                                    </div>
+
+                                    {missingGlobalSettings.length > 0 ? (
+                                        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                            <p className="font-semibold">Complete global settings:</p>
+                                            <p>{missingGlobalSettings.join(", ")}</p>
+                                        </div>
+                                    ) : null}
+
+                                    {uncustomizedSections.length > 0 ? (
+                                        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                            <p className="font-semibold">Sections still using defaults:</p>
+                                            <p>
+                                                {uncustomizedSections
+                                                    .map((section) => section.section_label || section.section_key)
+                                                    .join(", ")}
+                                            </p>
+                                        </div>
+                                    ) : null}
+
                                     <div className="flex flex-wrap items-center gap-3">
                                         <Button
                                             variant="outline"
@@ -2552,14 +2754,17 @@ export default function WebsiteBuilderPage() {
                                             Save as Draft
                                         </Button>
                                         <Button
-                                            onClick={() => setPage((prev) => (prev ? { ...prev, status: "published" } : prev))}
-                                            className="bg-emerald-600 hover:bg-emerald-700"
+                                            onClick={handleMarkPublished}
+                                            disabled={publishBlocked}
+                                            className="bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                                         >
                                             <Globe className="mr-2 h-4 w-4" />
                                             Mark as Published
                                         </Button>
                                         <span className="text-sm text-slate-500">
-                                            Click Save Changes after selecting your desired status.
+                                            {publishBlocked
+                                                ? "Publishing stays locked until every section and global setting is customized."
+                                                : "Click Save Changes after selecting your desired status."}
                                         </span>
                                     </div>
                                 </div>

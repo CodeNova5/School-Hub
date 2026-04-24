@@ -218,7 +218,11 @@ function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], pr
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-4 md:px-6">
         <a href="#home" className="flex items-center gap-3">
           {siteSettings.logo_url ? (
-            <img src={siteSettings.logo_url} alt={siteSettings.site_title} className="h-10 w-10 rounded-full object-cover ring-2 ring-white/20" />
+            <img
+              src={siteSettings.logo_url}
+              alt={siteSettings.site_title}
+              className="h-11 w-11 rounded-full bg-white p-1 object-contain ring-2 ring-white/45 shadow-[0_0_0_1px_rgba(255,255,255,0.35),0_8px_20px_rgba(2,6,23,0.45)]"
+            />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400 text-sm font-black text-slate-950 shadow-lg">
               {siteSettings.site_title.slice(0, 2).toUpperCase()}

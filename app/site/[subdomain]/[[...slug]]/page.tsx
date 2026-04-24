@@ -158,7 +158,7 @@ const FALLBACK_CONTENT = {
   contact: {
     address: ["Presidency School, Education Avenue", "City Center, State 123456", "India"],
     phone: ["Main Office: +91 (123) 456-7890", "Admissions: +91 (123) 456-7891", "Support: +91 (123) 456-7892"],
-    email: ["info@tosfebpresidency.edu", "admissions@tosfebpresidency.edu", "support@tosfebpresidency.edu"],
+    email: ["info@school.edu", "admissions@school.edu", "support@school.edu"],
     hours: ["Monday - Friday: 8:00 AM - 4:00 PM", "Saturday: 9:00 AM - 1:00 PM", "Sunday: Closed"],
   },
 };
@@ -258,7 +258,7 @@ function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], pr
 
 function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
   const section = sections.find((item) => item.section_key === "home");
-  const heading = section?.content.heading || "Welcome to Tosfeb Presidency School";
+  const heading = section?.content.heading || `Welcome to ${siteSettings.site_title}`;
   const subheading = section?.content.subheading || "Excellence in Education • Nurturing Future Leaders • Building Tomorrow's Dreams";
   const buttonLabel = section?.content.button_label || "Apply Now";
   const buttonLink = section?.content.button_link || "#admissions";
@@ -672,9 +672,9 @@ function renderNews(section: WebsiteSection | undefined) {
   );
 }
 
-function renderTestimonials(section: WebsiteSection | undefined) {
+function renderTestimonials(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
   const title = section?.content.heading || "Student & Parent Testimonials";
-  const subtitle = section?.content.subheading || "Hear from our students and parents about their experience at Tosfeb Presidency School";
+  const subtitle = section?.content.subheading || `Hear from our students and parents about their experience at ${siteSettings.site_title}`;
   const testimonialItems = getTestimonialCardItems(section);
 
   return (
@@ -700,9 +700,9 @@ function renderTestimonials(section: WebsiteSection | undefined) {
   );
 }
 
-function renderGallery(section: WebsiteSection | undefined) {
+function renderGallery(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
   const title = section?.content.heading || "Campus Gallery";
-  const subtitle = section?.content.subheading || "Explore moments and memories from Tosfeb Presidency School";
+  const subtitle = section?.content.subheading || `Explore moments and memories from ${siteSettings.site_title}`;
   const galleryItems = getGalleryItems(section);
 
   return (
@@ -1100,8 +1100,8 @@ export default async function PublicSchoolWebsite({
         {renderCardGrid(facilitiesSection, facilityCards, "facilities", "bg-slate-50")}
         {renderFaculty(facultySection)}
         {renderNews(newsSection)}
-        {renderTestimonials(testimonialsSection)}
-        {renderGallery(gallerySection)}
+        {renderTestimonials(testimonialsSection, siteSettings)}
+        {renderGallery(gallerySection, siteSettings)}
         {renderAdmissions(admissionsSection)}
         {renderContact(contactSection, siteSettings)}
       </main>

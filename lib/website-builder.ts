@@ -254,7 +254,7 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     visible: true,
     content: {
       heading: "What Families Say",
-      subheading: "Hear from our students and parents about their experience at Tosfeb Presidency School",
+      subheading: "Hear from our students and parents about their experience at our school",
       description: "Trusted by parents and loved by students.",
       testimonial_items: [
         {
@@ -339,9 +339,9 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
       contact_info_title: "Contact Information",
       contact_form_title: "Send us a Message",
       contact_form_button_label: "Send Message",
-      contact_address_lines: ["Presidency School, Education Avenue", "City Center, State 123456", "India"],
+      contact_address_lines: ["School Name, Education Avenue", "City Center, State 123456", "India"],
       contact_phone_lines: ["Main Office: +91 (123) 456-7890", "Admissions: +91 (123) 456-7891", "Support: +91 (123) 456-7892"],
-      contact_email_lines: ["info@tosfebpresidency.edu", "admissions@tosfebpresidency.edu", "support@tosfebpresidency.edu"],
+      contact_email_lines: ["info@school.edu", "admissions@school.edu", "support@school.edu"],
       contact_hours_lines: ["Monday - Friday: 8:00 AM - 4:00 PM", "Saturday: 9:00 AM - 1:00 PM", "Sunday: Closed"],
     },
   },

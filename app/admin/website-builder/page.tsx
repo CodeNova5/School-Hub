@@ -9,10 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw, RefreshCcw, Plus, Trash2 } from "lucide-react";
-import { WEBSITE_SECTION_TEMPLATES } from "@/lib/website-builder";
+import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw, RefreshCcw, Plus, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
+import {
+    WEBSITE_DEFAULT_SITE_SETTINGS,
+    WEBSITE_SECTION_TEMPLATES,
+    getWebsiteGlobalSettingsQualification,
+    isWebsiteSectionCustomized,
+} from "@/lib/website-builder";
 
 interface SiteSettings {
     site_title: string;
@@ -230,18 +236,7 @@ const SECTION_EDITOR_CONFIG: Record<
     },
 };
 
-const DEFAULT_SETTINGS: SiteSettings = {
-    site_title: "School Website",
-    site_tagline: "Excellence in education",
-    logo_url: "",
-    hero_background_url: "",
-    primary_color: "#1e3a8a",
-    secondary_color: "#059669",
-    contact_email: "",
-    contact_phone: "",
-    contact_address: "",
-    is_website_enabled: true,
-};
+const DEFAULT_SETTINGS: SiteSettings = WEBSITE_DEFAULT_SITE_SETTINGS;
 
 const DEFAULT_PROGRAM_ITEMS: ProgramItem[] = (
     WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "programs")?.content.program_items || []
@@ -318,97 +313,10 @@ function buildEditorSnapshot(settings: SiteSettings, page: PageData | null, sect
     });
 }
 
-function normalizeValue(value: any): any {
-    if (Array.isArray(value)) {
-        return value.map((item) => normalizeValue(item));
-    }
-
-    if (value && typeof value === "object") {
-        return Object.keys(value)
-            .sort()
-            .reduce((acc, key) => {
-                acc[key] = normalizeValue(value[key]);
-                return acc;
-            }, {} as Record<string, any>);
-    }
-
-    if (typeof value === "string") {
-        return value.trim();
-    }
-
-    return value;
-}
-
-function isSectionCustomized(section: SectionData) {
-    const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === section.section_key);
-    if (!template) return true;
-
-    const currentNormalized = normalizeValue(section.content || {});
-    const templateNormalized = normalizeValue(template.content || {});
-    return JSON.stringify(currentNormalized) !== JSON.stringify(templateNormalized);
-}
-
-function getMissingGlobalSettings(settings: SiteSettings) {
-    const checks = [
-        {
-            label: "Site title",
-            valid:
-                typeof settings.site_title === "string" &&
-                settings.site_title.trim().length > 0 &&
-                settings.site_title.trim() !== DEFAULT_SETTINGS.site_title,
-        },
-        {
-            label: "Site tagline",
-            valid:
-                typeof settings.site_tagline === "string" &&
-                settings.site_tagline.trim().length > 0 &&
-                settings.site_tagline.trim() !== DEFAULT_SETTINGS.site_tagline,
-        },
-        {
-            label: "Logo URL",
-            valid: typeof settings.logo_url === "string" && settings.logo_url.trim().length > 0,
-        },
-        {
-            label: "Hero background URL",
-            valid:
-                typeof settings.hero_background_url === "string" &&
-                settings.hero_background_url.trim().length > 0,
-        },
-        {
-            label: "Contact email",
-            valid: typeof settings.contact_email === "string" && settings.contact_email.trim().length > 0,
-        },
-        {
-            label: "Contact phone",
-            valid: typeof settings.contact_phone === "string" && settings.contact_phone.trim().length > 0,
-        },
-        {
-            label: "Contact address",
-            valid:
-                typeof settings.contact_address === "string" && settings.contact_address.trim().length > 0,
-        },
-        {
-            label: "Primary color",
-            valid:
-                typeof settings.primary_color === "string" &&
-                settings.primary_color.trim().length > 0 &&
-                settings.primary_color.trim().toLowerCase() !== DEFAULT_SETTINGS.primary_color,
-        },
-        {
-            label: "Secondary color",
-            valid:
-                typeof settings.secondary_color === "string" &&
-                settings.secondary_color.trim().length > 0 &&
-                settings.secondary_color.trim().toLowerCase() !== DEFAULT_SETTINGS.secondary_color,
-        },
-    ];
-
-    return checks.filter((check) => !check.valid).map((check) => check.label);
-}
-
 export default function WebsiteBuilderPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [savingSectionId, setSavingSectionId] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
 
     const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
@@ -437,28 +345,36 @@ export default function WebsiteBuilderPage() {
         [settings, page, sections]
     );
 
+    const globalSettingsQualification = useMemo(
+        () => getWebsiteGlobalSettingsQualification(settings),
+        [settings]
+    );
+
+    const sectionCustomizationMap = useMemo(() => {
+        const map: Record<string, boolean> = {};
+        sortedSections.forEach((section) => {
+            map[section.id] = isWebsiteSectionCustomized(section.section_key, section.content);
+        });
+        return map;
+    }, [sortedSections]);
+
+    const sectionsNeedingCustomization = useMemo(
+        () => sortedSections.filter((section) => !sectionCustomizationMap[section.id]),
+        [sortedSections, sectionCustomizationMap]
+    );
+
+    const totalPublishChecklistItems = sortedSections.length + 1;
+    const completedPublishChecklistItems =
+        sortedSections.filter((section) => sectionCustomizationMap[section.id]).length +
+        (globalSettingsQualification.ready ? 1 : 0);
+    const publishProgressPercent =
+        totalPublishChecklistItems === 0
+            ? 0
+            : Math.min(100, Math.round((completedPublishChecklistItems / totalPublishChecklistItems) * 100));
+    const canPublishSite =
+        sectionsNeedingCustomization.length === 0 && globalSettingsQualification.ready;
+
     const hasUnsavedChanges = Boolean(lastSavedSnapshot) && currentSnapshot !== lastSavedSnapshot;
-
-    const missingGlobalSettings = useMemo(() => getMissingGlobalSettings(settings), [settings]);
-
-    const uncustomizedSections = useMemo(
-        () => sortedSections.filter((section) => !isSectionCustomized(section)),
-        [sortedSections]
-    );
-
-    const customizedSectionIds = useMemo(
-        () => new Set(sortedSections.filter((section) => isSectionCustomized(section)).map((section) => section.id)),
-        [sortedSections]
-    );
-
-    const publishBlocked = missingGlobalSettings.length > 0 || uncustomizedSections.length > 0;
-    const totalPublishRequirements = sortedSections.length + 1;
-    const completedPublishRequirements =
-        (sortedSections.length - uncustomizedSections.length) + (missingGlobalSettings.length === 0 ? 1 : 0);
-    const publishProgress =
-        totalPublishRequirements > 0
-            ? Math.round((completedPublishRequirements / totalPublishRequirements) * 100)
-            : 0;
 
     async function loadWebsiteBuilder() {
         setLoading(true);
@@ -1139,6 +1055,21 @@ export default function WebsiteBuilderPage() {
     async function saveAll() {
         if (!page) return;
 
+        if (page.status === "published" && !canPublishSite) {
+            const sectionList = sectionsNeedingCustomization.map((section) => section.section_label || section.section_key).join(", ");
+            const settingsList = globalSettingsQualification.missingLabels.join(", ");
+            toast.error(
+                [
+                    "Publishing is locked until all sections and global settings are completed.",
+                    sectionList ? `Sections: ${sectionList}.` : "",
+                    settingsList ? `Global settings: ${settingsList}.` : "",
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+            );
+            return;
+        }
+
         setSaving(true);
         try {
             const sectionPayload = sections.map((section) => ({
@@ -1170,6 +1101,42 @@ export default function WebsiteBuilderPage() {
             toast.error(error.message || "Save failed");
         } finally {
             setSaving(false);
+        }
+    }
+
+    async function saveSection(sectionId: string) {
+        const section = sections.find((item) => item.id === sectionId);
+        if (!section) return;
+
+        setSavingSectionId(sectionId);
+        try {
+            const res = await fetch("/api/admin/website/homepage", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sections: [
+                        {
+                            id: section.id,
+                            section_label: section.section_label,
+                            is_visible: section.is_visible,
+                            order_sequence: section.order_sequence,
+                            content: section.content,
+                        },
+                    ],
+                }),
+            });
+
+            const payload = await res.json();
+            if (!res.ok || !payload.success) {
+                throw new Error(payload.error || "Failed to save section");
+            }
+
+            toast.success(`${section.section_label || section.section_key} saved`);
+            await loadWebsiteBuilder();
+        } catch (error: any) {
+            toast.error(error.message || "Section save failed");
+        } finally {
+            setSavingSectionId(null);
         }
     }
 
@@ -1251,63 +1218,18 @@ export default function WebsiteBuilderPage() {
         toast.success("Section defaults restored. Click Save Changes to persist.");
     }
 
-    function handleMarkPublished() {
-        if (publishBlocked) {
-            const pendingSectionLabels = uncustomizedSections
-                .slice(0, 4)
-                .map((section) => section.section_label || section.section_key);
-            const pendingSectionSummary =
-                uncustomizedSections.length > 4
-                    ? `${pendingSectionLabels.join(", ")} +${uncustomizedSections.length - 4} more`
-                    : pendingSectionLabels.join(", ");
-
-            const problems = [
-                missingGlobalSettings.length > 0
-                    ? `Missing global settings: ${missingGlobalSettings.join(", ")}`
-                    : "",
-                uncustomizedSections.length > 0
-                    ? `Unedited sections: ${pendingSectionSummary}`
-                    : "",
-            ]
-                .filter(Boolean)
-                .join(" | ");
-
-            toast.error(`Publishing is locked until all requirements are complete. ${problems}`);
-            return;
-        }
-
-        setPage((prev) => (prev ? { ...prev, status: "published" } : prev));
-    }
-
-    function getRootWebsiteHostUrl() {
+    function getPublicUrl() {
         if (typeof window === "undefined") return "#";
 
-        const protocol = window.location.protocol;
-        const host = window.location.host;
-        const [hostname, port] = host.split(":");
-        const withPort = (value: string) => (port ? `${value}:${port}` : value);
+        if (!school?.subdomain) return "#";
 
-        if (hostname === "localhost" || hostname.endsWith(".localhost")) {
-            return `${protocol}//${withPort("localhost")}`;
-        }
-
-        if (hostname === "schooldeck.tech" || hostname.endsWith(".schooldeck.tech")) {
-            return `${protocol}//${withPort("schooldeck.tech")}`;
-        }
-
-        const parts = hostname.split(".");
-        if (parts.length >= 2) {
-            return `${protocol}//${withPort(parts.slice(-2).join("."))}`;
-        }
-
-        return `${protocol}//${host}`;
+        return `${window.location.origin}/site/${school.subdomain}`;
     }
 
     function getPreviewUrl() {
-        if (!school?.subdomain) return "#";
-        const rootHostUrl = getRootWebsiteHostUrl();
-        if (rootHostUrl === "#") return "#";
-        return `${rootHostUrl}/site/${school.subdomain}?preview=1`;
+        const publicUrl = getPublicUrl();
+        if (publicUrl === "#") return "#";
+        return `${publicUrl}?preview=1`;
     }
 
     function getSectionPreviewUrl(sectionKey?: string) {
@@ -1320,6 +1242,25 @@ export default function WebsiteBuilderPage() {
         setPreviewNonce((prev) => prev + 1);
     }
 
+    function handleMarkPublished() {
+        if (!canPublishSite) {
+            const sectionList = sectionsNeedingCustomization.map((section) => section.section_label || section.section_key).join(", ");
+            const settingsList = globalSettingsQualification.missingLabels.join(", ");
+            toast.error(
+                [
+                    "Publishing is locked. Finish customization first.",
+                    sectionList ? `Sections: ${sectionList}.` : "",
+                    settingsList ? `Global settings: ${settingsList}.` : "",
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+            );
+            return;
+        }
+
+        setPage((prev) => (prev ? { ...prev, status: "published" } : prev));
+    }
+
     return (
         <DashboardLayout role="admin">
             <div className="space-y-6">
@@ -1327,12 +1268,10 @@ export default function WebsiteBuilderPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900">Website Builder</h1>
                         <p className="text-sm text-slate-600">
-                            Edit your school homepage, upload media assets, and publish to your school subdomain.
+                            Edit your school homepage, upload media assets, and publish only when fully customized.
                         </p>
                         {school?.subdomain ? (
-                            <p className="mt-1 text-xs text-slate-500">
-                                Live URL target: {school.subdomain}.schooldeck.tech | Draft preview: /site/{school.subdomain}
-                            </p>
+                            <p className="mt-1 text-xs text-slate-500">Draft preview URL: {getPublicUrl()}</p>
                         ) : null}
                     </div>
                     <div className="flex items-center gap-2">
@@ -1384,39 +1323,22 @@ export default function WebsiteBuilderPage() {
                                                     className="h-10 whitespace-nowrap rounded-full border border-transparent px-4 text-sm font-medium text-slate-600 transition-all data-[state=active]:border-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
                                                 >
                                                     Global Settings
-                                                    <span
-                                                        className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                                            missingGlobalSettings.length === 0
-                                                                ? "bg-emerald-100 text-emerald-700"
-                                                                : "bg-amber-100 text-amber-700"
-                                                        }`}
-                                                    >
-                                                        {missingGlobalSettings.length === 0 ? "Ready" : "Pending"}
-                                                    </span>
                                                 </TabsTrigger>
                                                 {sortedSections.map((section, index) => (
                                                     <TabsTrigger
                                                         key={section.id}
                                                         value={`section-${section.id}`}
-                                                        className={`h-10 whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm ${
-                                                            customizedSectionIds.has(section.id)
-                                                                ? "border-transparent text-slate-600 data-[state=active]:border-slate-300"
-                                                                : "border-amber-200 bg-amber-50 text-amber-800 data-[state=active]:border-amber-300"
-                                                        }`}
+                                                        className="h-10 whitespace-nowrap rounded-full border border-transparent px-4 text-sm font-medium text-slate-600 transition-all data-[state=active]:border-slate-300 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
                                                     >
                                                         <span className="mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-[11px] font-semibold text-slate-600">
                                                             {index + 1}
                                                         </span>
                                                         <span>{section.section_label || section.section_key}</span>
-                                                        <span
-                                                            className={`ml-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                                                customizedSectionIds.has(section.id)
-                                                                    ? "bg-emerald-100 text-emerald-700"
-                                                                    : "bg-amber-100 text-amber-700"
-                                                            }`}
-                                                        >
-                                                            {customizedSectionIds.has(section.id) ? "Done" : "Edit"}
-                                                        </span>
+                                                        {sectionCustomizationMap[section.id] ? (
+                                                            <CheckCircle2 className="ml-2 h-3.5 w-3.5 text-emerald-600" />
+                                                        ) : (
+                                                            <AlertTriangle className="ml-2 h-3.5 w-3.5 text-amber-500" />
+                                                        )}
                                                     </TabsTrigger>
                                                 ))}
                                             </TabsList>
@@ -1519,6 +1441,13 @@ export default function WebsiteBuilderPage() {
                                                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                                                             <div className="flex items-center gap-2">
                                                                 <Badge variant="outline">{section.section_key}</Badge>
+                                                                {sectionCustomizationMap[section.id] ? (
+                                                                    <Badge className="bg-emerald-600">Customized</Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="border-amber-300 text-amber-700">
+                                                                        Needs Editing
+                                                                    </Badge>
+                                                                )}
                                                                 <Input
                                                                     className="h-8 w-60"
                                                                     value={section.section_label}
@@ -1561,6 +1490,19 @@ export default function WebsiteBuilderPage() {
                                                                     }
                                                                 />
                                                                 <span className="text-xs text-slate-500">Visible</span>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    onClick={() => saveSection(section.id)}
+                                                                    disabled={savingSectionId === section.id || loading || saving}
+                                                                >
+                                                                    {savingSectionId === section.id ? (
+                                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Save className="mr-2 h-4 w-4" />
+                                                                    )}
+                                                                    Save Section
+                                                                </Button>
                                                             </div>
                                                         </div>
 
@@ -2707,45 +2649,41 @@ export default function WebsiteBuilderPage() {
 
                                 <div className="rounded-lg border bg-white p-4">
                                     <h2 className="mb-3 text-lg font-semibold text-slate-900">Publishing</h2>
-                                    <div className="mb-4 rounded-xl border border-slate-200 bg-[linear-gradient(135deg,#0f172a_0%,#1e293b_55%,#0b3b2a_100%)] p-4 text-white shadow-sm">
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <p className="text-xs uppercase tracking-[0.18em] text-emerald-200/90">Publish Readiness</p>
-                                                <p className="mt-1 text-2xl font-bold">{publishProgress}% complete</p>
-                                            </div>
-                                            <Badge className={publishBlocked ? "bg-amber-500 text-amber-950" : "bg-emerald-500 text-emerald-950"}>
-                                                {publishBlocked ? "Locked" : "Ready"}
+                                    <div className="mb-4 rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 via-emerald-50 to-sky-50 p-4">
+                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                            <p className="text-sm font-semibold text-slate-900">Publish Readiness</p>
+                                            <Badge variant={canPublishSite ? "default" : "outline"} className={canPublishSite ? "bg-emerald-600" : ""}>
+                                                {completedPublishChecklistItems}/{totalPublishChecklistItems} complete
                                             </Badge>
                                         </div>
-                                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/20">
-                                            <div
-                                                className="h-full rounded-full bg-gradient-to-r from-amber-300 via-emerald-300 to-cyan-300 transition-all duration-500"
-                                                style={{ width: `${publishProgress}%` }}
-                                            />
-                                        </div>
-                                        <p className="mt-2 text-xs text-white/80">
-                                            {completedPublishRequirements}/{totalPublishRequirements} requirements completed
+                                        <Progress value={publishProgressPercent} className="h-2.5" />
+                                        <p className="mt-2 text-xs text-slate-600">
+                                            {canPublishSite
+                                                ? "Everything is customized. You can publish when ready."
+                                                : `${publishProgressPercent}% complete. Finish all sections and global settings to unlock publishing.`}
                                         </p>
-                                    </div>
-
-                                    {missingGlobalSettings.length > 0 ? (
-                                        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                                            <p className="font-semibold">Complete global settings:</p>
-                                            <p>{missingGlobalSettings.join(", ")}</p>
-                                        </div>
-                                    ) : null}
-
-                                    {uncustomizedSections.length > 0 ? (
-                                        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                                            <p className="font-semibold">Sections still using defaults:</p>
-                                            <p>
-                                                {uncustomizedSections
-                                                    .map((section) => section.section_label || section.section_key)
-                                                    .join(", ")}
+                                        {globalSettingsQualification.missingLabels.length > 0 ? (
+                                            <p className="mt-2 text-xs text-amber-700">
+                                                Global settings missing: {globalSettingsQualification.missingLabels.join(", ")}.
                                             </p>
-                                        </div>
-                                    ) : null}
-
+                                        ) : null}
+                                        {sectionsNeedingCustomization.length > 0 ? (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {sectionsNeedingCustomization.map((section) => (
+                                                    <Button
+                                                        key={section.id}
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-7 border-amber-300 text-amber-700"
+                                                        onClick={() => setActiveEditorTab(`section-${section.id}`)}
+                                                    >
+                                                        Edit {section.section_label || section.section_key}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        ) : null}
+                                    </div>
                                     <div className="flex flex-wrap items-center gap-3">
                                         <Button
                                             variant="outline"
@@ -2755,16 +2693,14 @@ export default function WebsiteBuilderPage() {
                                         </Button>
                                         <Button
                                             onClick={handleMarkPublished}
-                                            disabled={publishBlocked}
-                                            className="bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
+                                            className="bg-emerald-600 hover:bg-emerald-700"
+                                            disabled={!canPublishSite}
                                         >
                                             <Globe className="mr-2 h-4 w-4" />
                                             Mark as Published
                                         </Button>
                                         <span className="text-sm text-slate-500">
-                                            {publishBlocked
-                                                ? "Publishing stays locked until every section and global setting is customized."
-                                                : "Click Save Changes after selecting your desired status."}
+                                            Click Save Changes after selecting status. Publishing unlocks only at 100% readiness.
                                         </span>
                                     </div>
                                 </div>

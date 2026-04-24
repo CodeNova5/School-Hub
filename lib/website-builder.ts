@@ -78,6 +78,113 @@ export interface WebsiteSectionTemplate {
   content: WebsiteSectionContent;
 }
 
+export interface WebsiteSiteSettingsDefaults {
+  site_title: string;
+  site_tagline: string;
+  logo_url: string;
+  hero_background_url: string;
+  primary_color: string;
+  secondary_color: string;
+  contact_email: string;
+  contact_phone: string;
+  contact_address: string;
+  is_website_enabled: boolean;
+}
+
+export const WEBSITE_DEFAULT_SITE_SETTINGS: WebsiteSiteSettingsDefaults = {
+  site_title: "School Website",
+  site_tagline: "Excellence in education",
+  logo_url: "",
+  hero_background_url: "",
+  primary_color: "#1e3a8a",
+  secondary_color: "#059669",
+  contact_email: "",
+  contact_phone: "",
+  contact_address: "",
+  is_website_enabled: true,
+};
+
+export interface WebsiteGlobalSettingsQualification {
+  ready: boolean;
+  missingLabels: string[];
+}
+
+function normalizeForComparison(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeForComparison(item));
+  }
+
+  if (value && typeof value === "object") {
+    const normalized: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      const child = normalizeForComparison((value as Record<string, unknown>)[key]);
+      if (child === undefined) continue;
+      normalized[key] = child;
+    }
+    return normalized;
+  }
+
+  if (typeof value === "string") {
+    return value.trim();
+  }
+
+  return value;
+}
+
+export function isWebsiteSectionCustomized(sectionKey: string, content: unknown): boolean {
+  const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === sectionKey);
+  if (!template) return true;
+
+  const current = JSON.stringify(normalizeForComparison(content || {}));
+  const templateContent = JSON.stringify(normalizeForComparison(template.content || {}));
+  return current !== templateContent;
+}
+
+export function getWebsiteGlobalSettingsQualification(settings: Partial<WebsiteSiteSettingsDefaults>): WebsiteGlobalSettingsQualification {
+  const merged: WebsiteSiteSettingsDefaults = {
+    ...WEBSITE_DEFAULT_SITE_SETTINGS,
+    ...settings,
+  };
+
+  const missingLabels: string[] = [];
+
+  if (!merged.site_title.trim() || merged.site_title.trim() === WEBSITE_DEFAULT_SITE_SETTINGS.site_title) {
+    missingLabels.push("Site title");
+  }
+  if (!merged.site_tagline.trim() || merged.site_tagline.trim() === WEBSITE_DEFAULT_SITE_SETTINGS.site_tagline) {
+    missingLabels.push("Tagline");
+  }
+  if (!merged.logo_url.trim()) {
+    missingLabels.push("Logo URL");
+  }
+  if (!merged.hero_background_url.trim()) {
+    missingLabels.push("Hero background URL");
+  }
+  if (!merged.primary_color.trim() || merged.primary_color.trim().toLowerCase() === WEBSITE_DEFAULT_SITE_SETTINGS.primary_color) {
+    missingLabels.push("Primary color");
+  }
+  if (!merged.secondary_color.trim() || merged.secondary_color.trim().toLowerCase() === WEBSITE_DEFAULT_SITE_SETTINGS.secondary_color) {
+    missingLabels.push("Secondary color");
+  }
+  if (!merged.contact_email.trim()) {
+    missingLabels.push("Contact email");
+  }
+  if (!merged.contact_phone.trim()) {
+    missingLabels.push("Contact phone");
+  }
+  if (!merged.contact_address.trim()) {
+    missingLabels.push("Contact address");
+  }
+  if (!merged.is_website_enabled) {
+    missingLabels.push("Website enabled toggle");
+  }
+
+  return {
+    ready: missingLabels.length === 0,
+    missingLabels,
+  };
+}
+
 export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
   {
     key: "home",

@@ -2,7 +2,13 @@ import { NextRequest } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
-import { WEBSITE_SECTION_TEMPLATES, type WebsiteSectionTemplate } from "@/lib/website-builder";
+import {
+  WEBSITE_DEFAULT_SITE_SETTINGS,
+  WEBSITE_SECTION_TEMPLATES,
+  getWebsiteGlobalSettingsQualification,
+  isWebsiteSectionCustomized,
+  type WebsiteSectionTemplate,
+} from "@/lib/website-builder";
 
 interface WebsiteSectionRow {
   id: string;
@@ -15,99 +21,34 @@ interface WebsiteSectionRow {
   content: Record<string, any>;
 }
 
-const DEFAULT_SITE_SETTINGS = {
-  site_title: "School Website",
-  site_tagline: "Excellence in education",
-  logo_url: "",
-  hero_background_url: "",
-  primary_color: "#1e3a8a",
-  secondary_color: "#059669",
-  contact_email: "",
-  contact_phone: "",
-  contact_address: "",
-  is_website_enabled: true,
-};
-
-function normalizeValue(value: any): any {
-  if (Array.isArray(value)) {
-    return value.map((item) => normalizeValue(item));
-  }
-
-  if (value && typeof value === "object") {
-    return Object.keys(value)
-      .sort()
-      .reduce((acc, key) => {
-        acc[key] = normalizeValue(value[key]);
-        return acc;
-      }, {} as Record<string, any>);
-  }
-
-  if (typeof value === "string") {
-    return value.trim();
-  }
-
-  return value;
-}
-
-function isSectionCustomized(section: { section_key: string; content: Record<string, any> }) {
-  const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === section.section_key);
-  if (!template) return true;
-
-  const currentNormalized = normalizeValue(section.content || {});
-  const templateNormalized = normalizeValue(template.content || {});
-  return JSON.stringify(currentNormalized) !== JSON.stringify(templateNormalized);
-}
-
-function getMissingGlobalSettings(settings: Record<string, any>) {
-  const requiredChecks = [
-    {
-      key: "site_title",
-      valid: typeof settings.site_title === "string" && settings.site_title.trim().length > 0 && settings.site_title.trim() !== DEFAULT_SITE_SETTINGS.site_title,
-      label: "Site title",
-    },
-    {
-      key: "site_tagline",
-      valid: typeof settings.site_tagline === "string" && settings.site_tagline.trim().length > 0 && settings.site_tagline.trim() !== DEFAULT_SITE_SETTINGS.site_tagline,
-      label: "Site tagline",
-    },
-    {
-      key: "logo_url",
-      valid: typeof settings.logo_url === "string" && settings.logo_url.trim().length > 0,
-      label: "Logo URL",
-    },
-    {
-      key: "hero_background_url",
-      valid: typeof settings.hero_background_url === "string" && settings.hero_background_url.trim().length > 0,
-      label: "Hero background URL",
-    },
-    {
-      key: "contact_email",
-      valid: typeof settings.contact_email === "string" && settings.contact_email.trim().length > 0,
-      label: "Contact email",
-    },
-    {
-      key: "contact_phone",
-      valid: typeof settings.contact_phone === "string" && settings.contact_phone.trim().length > 0,
-      label: "Contact phone",
-    },
-    {
-      key: "contact_address",
-      valid: typeof settings.contact_address === "string" && settings.contact_address.trim().length > 0,
-      label: "Contact address",
-    },
-    {
-      key: "primary_color",
-      valid: typeof settings.primary_color === "string" && settings.primary_color.trim().length > 0 && settings.primary_color.trim().toLowerCase() !== DEFAULT_SITE_SETTINGS.primary_color,
-      label: "Primary color",
-    },
-    {
-      key: "secondary_color",
-      valid: typeof settings.secondary_color === "string" && settings.secondary_color.trim().length > 0 && settings.secondary_color.trim().toLowerCase() !== DEFAULT_SITE_SETTINGS.secondary_color,
-      label: "Secondary color",
-    },
-  ];
-
-  return requiredChecks.filter((item) => !item.valid).map((item) => item.label);
+function normalizeSiteSettings(settings?: Record<string, any>) {
+  return {
+    site_title: typeof settings?.site_title === "string" ? settings.site_title : WEBSITE_DEFAULT_SITE_SETTINGS.site_title,
+    site_tagline: typeof settings?.site_tagline === "string" ? settings.site_tagline : WEBSITE_DEFAULT_SITE_SETTINGS.site_tagline,
+    logo_url: typeof settings?.logo_url === "string" ? settings.logo_url : WEBSITE_DEFAULT_SITE_SETTINGS.logo_url,
+    hero_background_url:
+      typeof settings?.hero_background_url === "string"
+        ? settings.hero_background_url
+        : WEBSITE_DEFAULT_SITE_SETTINGS.hero_background_url,
+    primary_color:
+      typeof settings?.primary_color === "string" ? settings.primary_color : WEBSITE_DEFAULT_SITE_SETTINGS.primary_color,
+    secondary_color:
+      typeof settings?.secondary_color === "string"
+        ? settings.secondary_color
+        : WEBSITE_DEFAULT_SITE_SETTINGS.secondary_color,
+    contact_email:
+      typeof settings?.contact_email === "string" ? settings.contact_email : WEBSITE_DEFAULT_SITE_SETTINGS.contact_email,
+    contact_phone:
+      typeof settings?.contact_phone === "string" ? settings.contact_phone : WEBSITE_DEFAULT_SITE_SETTINGS.contact_phone,
+    contact_address:
+      typeof settings?.contact_address === "string"
+        ? settings.contact_address
+        : WEBSITE_DEFAULT_SITE_SETTINGS.contact_address,
+    is_website_enabled:
+      typeof settings?.is_website_enabled === "boolean"
+        ? settings.is_website_enabled
+        : WEBSITE_DEFAULT_SITE_SETTINGS.is_website_enabled,
+  };
 }
 
 async function ensureHomepage(supabase: any, schoolId: string) {
@@ -238,78 +179,85 @@ export async function PATCH(req: NextRequest) {
       sections?: Array<Partial<WebsiteSectionRow> & { id: string }>;
     };
 
-    if (page?.status === "published") {
-      const [{ data: existingSettings, error: settingsError }, { data: existingSections, error: sectionsError }] = await Promise.all([
+    const wantsPublish = page?.status === "published";
+
+    if (wantsPublish) {
+      const [homepageState, existingSettingsResult] = await Promise.all([
+        ensureHomepage(supabase, permission.schoolId),
         supabase
           .from("website_site_settings")
           .select("*")
           .eq("school_id", permission.schoolId)
           .maybeSingle(),
-        supabase
-          .from("website_sections")
-          .select("id, section_key, section_label, content")
-          .eq("school_id", permission.schoolId),
       ]);
 
-      if (settingsError) throw settingsError;
-      if (sectionsError) throw sectionsError;
+      if (existingSettingsResult.error) throw existingSettingsResult.error;
 
-      const mergedSettings = {
-        ...DEFAULT_SITE_SETTINGS,
-        ...(existingSettings || {}),
-        ...(settings || {}),
-      };
+      const incomingSectionMap = new Map((sections || []).map((item) => [item.id, item]));
+      const effectiveSections = homepageState.sections.map((existing: WebsiteSectionRow) => {
+        const incoming = incomingSectionMap.get(existing.id);
+        if (!incoming) return existing;
 
-      const updatesById = new Map((sections || []).map((item) => [item.id, item]));
-      const mergedSections = (existingSections || []).map((section: any) => {
-        const incoming = updatesById.get(section.id);
         return {
-          ...section,
+          ...existing,
           section_label:
-            typeof incoming?.section_label === "string" ? incoming.section_label : section.section_label,
-          content: incoming?.content || section.content || {},
+            typeof incoming.section_label === "string" ? incoming.section_label : existing.section_label,
+          is_visible:
+            typeof incoming.is_visible === "boolean" ? incoming.is_visible : existing.is_visible,
+          order_sequence:
+            typeof incoming.order_sequence === "number" ? incoming.order_sequence : existing.order_sequence,
+          content: incoming.content ?? existing.content,
         };
       });
 
-      const missingGlobalSettings = getMissingGlobalSettings(mergedSettings);
-      const sectionByKey = new Map(mergedSections.map((section) => [section.section_key, section]));
-      const uncustomizedSections = WEBSITE_SECTION_TEMPLATES
-        .filter((template) => {
-          const section = sectionByKey.get(template.key);
-          if (!section) return true;
-          return !isSectionCustomized(section);
-        })
-        .map((template) => {
-          const section = sectionByKey.get(template.key);
-          return section?.section_label || template.label || template.key;
-        });
+      const uncustomizedSections = effectiveSections.filter(
+        (section: WebsiteSectionRow) => !isWebsiteSectionCustomized(section.section_key, section.content)
+      );
 
-      if (missingGlobalSettings.length > 0 || uncustomizedSections.length > 0) {
-        const messageParts: string[] = [];
-        if (missingGlobalSettings.length > 0) {
-          messageParts.push(`Global settings still required: ${missingGlobalSettings.join(", ")}.`);
-        }
-        if (uncustomizedSections.length > 0) {
-          messageParts.push(`Customize all sections before publishing. Pending sections: ${uncustomizedSections.join(", ")}.`);
-        }
+      const effectiveSettings = normalizeSiteSettings({
+        ...(existingSettingsResult.data || {}),
+        ...(settings || {}),
+      });
+      const globalSettingsQualification = getWebsiteGlobalSettingsQualification(effectiveSettings);
 
-        return errorResponse(messageParts.join(" "), 400);
+      if (uncustomizedSections.length > 0 || !globalSettingsQualification.ready) {
+        const sectionLabels = uncustomizedSections.map((item: WebsiteSectionRow) => item.section_label || item.section_key);
+        const sectionMessage =
+          sectionLabels.length > 0
+            ? `Customize these sections first: ${sectionLabels.join(", ")}.`
+            : "";
+        const settingsMessage =
+          globalSettingsQualification.missingLabels.length > 0
+            ? `Complete these global settings: ${globalSettingsQualification.missingLabels.join(", ")}.`
+            : "";
+
+        return errorResponse(
+          [
+            "Publishing is locked until every section is customized and global settings are completed.",
+            sectionMessage,
+            settingsMessage,
+          ]
+            .filter(Boolean)
+            .join(" "),
+          400
+        );
       }
     }
 
     if (settings) {
+      const normalizedSettings = normalizeSiteSettings(settings);
       const payload = {
         school_id: permission.schoolId,
-        site_title: settings.site_title || "School Website",
-        site_tagline: settings.site_tagline || "",
-        logo_url: settings.logo_url || "",
-        hero_background_url: settings.hero_background_url || "",
-        primary_color: settings.primary_color || "#1e3a8a",
-        secondary_color: settings.secondary_color || "#059669",
-        contact_email: settings.contact_email || "",
-        contact_phone: settings.contact_phone || "",
-        contact_address: settings.contact_address || "",
-        is_website_enabled: settings.is_website_enabled ?? true,
+        site_title: normalizedSettings.site_title,
+        site_tagline: normalizedSettings.site_tagline,
+        logo_url: normalizedSettings.logo_url,
+        hero_background_url: normalizedSettings.hero_background_url,
+        primary_color: normalizedSettings.primary_color,
+        secondary_color: normalizedSettings.secondary_color,
+        contact_email: normalizedSettings.contact_email,
+        contact_phone: normalizedSettings.contact_phone,
+        contact_address: normalizedSettings.contact_address,
+        is_website_enabled: normalizedSettings.is_website_enabled,
       };
 
       const { error } = await supabase

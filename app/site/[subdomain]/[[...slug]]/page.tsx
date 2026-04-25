@@ -174,6 +174,61 @@ const TEMPLATE_TESTIMONIAL_ITEMS =
 const TEMPLATE_GALLERY_ITEMS =
   WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "gallery")?.content.gallery_items || [];
 
+const HEX_COLOR_PATTERN = /^#?([0-9a-fA-F]{6})$/;
+
+function normalizeHexColor(value: string | undefined, fallback: string) {
+  const candidate = (value || "").trim();
+  const match = candidate.match(HEX_COLOR_PATTERN);
+  if (!match) {
+    return fallback;
+  }
+  return `#${match[1].toLowerCase()}`;
+}
+
+function hexToRgbString(hex: string) {
+  const normalized = normalizeHexColor(hex, "#000000").slice(1);
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `${r} ${g} ${b}`;
+}
+
+function blendHexColors(hexA: string, hexB: string, weight = 0.5) {
+  const a = normalizeHexColor(hexA, "#000000").slice(1);
+  const b = normalizeHexColor(hexB, "#000000").slice(1);
+  const mix = Math.min(1, Math.max(0, weight));
+
+  const toChannel = (index: number) => {
+    const channelA = parseInt(a.slice(index, index + 2), 16);
+    const channelB = parseInt(b.slice(index, index + 2), 16);
+    return Math.round(channelA * (1 - mix) + channelB * mix)
+      .toString(16)
+      .padStart(2, "0");
+  };
+
+  return `#${toChannel(0)}${toChannel(2)}${toChannel(4)}`;
+}
+
+function buildThemeStyleVariables(siteSettings: SiteSettings) {
+  const primary = normalizeHexColor(siteSettings.primary_color, WEBSITE_DEFAULT_SITE_SETTINGS.primary_color);
+  const secondary = normalizeHexColor(siteSettings.secondary_color, WEBSITE_DEFAULT_SITE_SETTINGS.secondary_color);
+  const primarySoft = blendHexColors(primary, "#ffffff", 0.74);
+  const secondarySoft = blendHexColors(secondary, "#ffffff", 0.74);
+  const primaryDeep = blendHexColors(primary, "#0f172a", 0.2);
+  const secondaryDeep = blendHexColors(secondary, "#0f172a", 0.2);
+
+  return {
+    "--wb-primary": primary,
+    "--wb-secondary": secondary,
+    "--wb-primary-rgb": hexToRgbString(primary),
+    "--wb-secondary-rgb": hexToRgbString(secondary),
+    "--wb-primary-soft": primarySoft,
+    "--wb-secondary-soft": secondarySoft,
+    "--wb-primary-deep": primaryDeep,
+    "--wb-secondary-deep": secondaryDeep,
+  } as any;
+}
+
 function getSupabaseAnonClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -231,7 +286,7 @@ function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], pr
               />
             </div>
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400 text-sm font-black text-slate-950 shadow-lg">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-black text-slate-950 shadow-lg" style={{ backgroundColor: "var(--wb-secondary)" }}>
               {siteSettings.site_title.slice(0, 2).toUpperCase()}
             </div>
           )}
@@ -245,7 +300,7 @@ function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], pr
           {sections
             .filter((section) => section.is_visible)
             .map((section) => (
-              <a key={section.id} href={`#${section.section_key}`} className="text-white/80 transition hover:text-amber-300">
+              <a key={section.id} href={`#${section.section_key}`} className="text-white/80 transition hover:text-[var(--wb-secondary)]">
                 {makeSlugLabel(section)}
               </a>
             ))}
@@ -253,7 +308,14 @@ function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], pr
       </div>
 
       {preview ? (
-        <div className="border-t border-amber-400/30 bg-amber-400/10 px-4 py-2 text-center text-xs font-medium text-amber-200">
+        <div
+          className="border-t px-4 py-2 text-center text-xs font-medium"
+          style={{
+            borderColor: "rgba(var(--wb-secondary-rgb),0.35)",
+            backgroundColor: "rgba(var(--wb-secondary-rgb),0.12)",
+            color: "rgba(var(--wb-secondary-rgb),0.92)",
+          }}
+        >
           Preview mode. Draft content is visible to authenticated admins only.
         </div>
       ) : null}
@@ -290,21 +352,34 @@ function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
         {heroImage ? (
           <img src={heroImage} alt="Hero background" className="h-full w-full object-cover opacity-30" />
         ) : (
-          <div className="h-full w-full bg-[radial-gradient(circle_at_top_right,_rgba(245,158,11,0.25),_transparent_35%),linear-gradient(135deg,_#0f172a_0%,_#111827_50%,_#1f2937_100%)]" />
+          <div
+            className="h-full w-full"
+            style={{
+              background:
+                "radial-gradient(circle at top right, rgba(var(--wb-secondary-rgb),0.28), transparent 35%), linear-gradient(135deg, #0f172a 0%, #111827 50%, #1f2937 100%)",
+            }}
+          />
         )}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.15),rgba(2,6,23,0.88))]" />
       </div>
 
       <div className="relative mx-auto grid max-w-[1200px] gap-10 px-4 py-24 md:grid-cols-[1.2fr_0.8fr] md:px-6 md:py-32">
         <div className="max-w-3xl">
-          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.22em] text-amber-200 backdrop-blur">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.22em] backdrop-blur" style={{ color: "rgba(var(--wb-secondary-rgb),0.95)" }}>
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--wb-secondary)" }} />
             Your School Website
           </div>
           <h1 className="text-4xl font-black leading-[1.05] tracking-tight md:text-6xl">{heading}</h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/82 md:text-xl">{subheading}</p>
           <div className="mt-10 flex flex-wrap gap-4">
-            <a href={buttonLink} className="inline-flex items-center rounded-full bg-amber-400 px-7 py-3.5 text-sm font-bold text-slate-950 shadow-[0_18px_50px_rgba(245,158,11,0.35)] transition hover:translate-y-[-1px] hover:bg-amber-300">
+            <a
+              href={buttonLink}
+              className="inline-flex items-center rounded-full px-7 py-3.5 text-sm font-bold text-slate-950 transition hover:translate-y-[-1px] hover:opacity-90"
+              style={{
+                backgroundColor: "var(--wb-secondary)",
+                boxShadow: "0 18px 50px rgba(var(--wb-secondary-rgb),0.35)",
+              }}
+            >
               {buttonLabel}
             </a>
             <a href="#contact" className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-7 py-3.5 text-sm font-semibold text-white/90 backdrop-blur transition hover:bg-white/10">
@@ -316,14 +391,14 @@ function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
         <div className="flex items-end justify-end">
           <div className="grid w-full max-w-md gap-4 rounded-[28px] border border-white/10 bg-white/8 p-4 shadow-2xl backdrop-blur-xl">
             <div className="rounded-[24px] bg-white/10 p-6">
-              <p className="text-xs uppercase tracking-[0.22em] text-amber-200/80">{heroCardBadge}</p>
+              <p className="text-xs uppercase tracking-[0.22em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.82)" }}>{heroCardBadge}</p>
               <p className="mt-3 text-2xl font-semibold text-white">{heroCardTitle}</p>
               <p className="mt-3 text-sm leading-6 text-white/70">{heroCardDescription}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {heroStats.map(([value, label]) => (
                 <div key={label} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-center">
-                  <div className="text-2xl font-black text-amber-300">{value}</div>
+                  <div className="text-2xl font-black" style={{ color: "var(--wb-secondary)" }}>{value}</div>
                   <div className="mt-1 text-xs uppercase tracking-[0.16em] text-white/60">{label}</div>
                 </div>
               ))}
@@ -344,7 +419,7 @@ function renderAbout(section: WebsiteSection | undefined) {
     <section id="about" className="bg-slate-50 px-4 py-20 md:px-6">
       <div className="mx-auto grid max-w-[1200px] items-center gap-14 md:grid-cols-2">
         <div>
-          <p className="mb-3 text-sm font-bold uppercase tracking-[0.26em] text-amber-600">About</p>
+          <p className="mb-3 text-sm font-bold uppercase tracking-[0.26em]" style={{ color: "var(--wb-secondary)" }}>About</p>
           <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{section?.content.heading || fallback.heading}</h2>
           <p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 md:text-lg">{section?.content.description || fallback.description}</p>
 
@@ -359,8 +434,8 @@ function renderAbout(section: WebsiteSection | undefined) {
         </div>
 
         <div className="relative">
-          <div className="absolute -inset-4 rounded-[34px] bg-gradient-to-br from-amber-200 to-emerald-200 blur-2xl opacity-70" />
-          <div className="relative flex h-[420px] items-center justify-center rounded-[34px] bg-[linear-gradient(135deg,#1e3a8a_0%,#0f766e_100%)] text-[5rem] shadow-2xl">
+          <div className="absolute -inset-4 rounded-[34px] blur-2xl opacity-70" style={{ background: "linear-gradient(135deg, var(--wb-secondary-soft), var(--wb-primary-soft))" }} />
+          <div className="relative flex h-[420px] items-center justify-center rounded-[34px] text-[5rem] shadow-2xl" style={{ background: "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))" }}>
             {section?.content.image_url ? (
               <img src={section.content.image_url} alt={section.section_label || fallback.heading} className="h-full w-full rounded-[34px] object-cover" />
             ) : (
@@ -566,17 +641,22 @@ function renderCardGrid(
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                   ) : (
-                    <div className={`flex h-full w-full items-center justify-center text-7xl text-white/90 ${
-                      sectionId === "programs" 
-                        ? "bg-[linear-gradient(135deg,#1e3a8a,#0f766e)]" 
-                        : "bg-[linear-gradient(135deg,#047857,#059669)]"
-                    }`}>
+                    <div
+                      className="flex h-full w-full items-center justify-center text-7xl text-white/90"
+                      style={{
+                        background:
+                          sectionId === "programs"
+                            ? "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))"
+                            : "linear-gradient(135deg, var(--wb-secondary-deep), var(--wb-secondary))",
+                      }}
+                    >
                       {item.icon}
                     </div>
                   )}
-                  <div className={`absolute right-0 top-4 px-5 py-2 text-sm font-bold text-white shadow-md ${
-                    sectionId === "programs" ? "bg-rose-700" : "bg-emerald-700"
-                  }`}>
+                  <div
+                    className="absolute right-0 top-4 px-5 py-2 text-sm font-bold text-white shadow-md"
+                    style={{ backgroundColor: sectionId === "programs" ? "var(--wb-primary-deep)" : "var(--wb-secondary-deep)" }}
+                  >
                     {item.title}
                   </div>
                 </div>
@@ -587,10 +667,11 @@ function renderCardGrid(
                 </div>
 
                 <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
-                  <div className="text-xl tracking-[0.15em] text-amber-400">★★★★</div>
-                  <div className={`inline-flex items-center gap-2 text-[1.35rem] font-semibold text-slate-900 ${
-                    sectionId === "programs" ? "text-rose-700" : "text-emerald-700"
-                  }`}>
+                  <div className="text-xl tracking-[0.15em]" style={{ color: "var(--wb-secondary)" }}>★★★★</div>
+                  <div
+                    className="inline-flex items-center gap-2 text-[1.35rem] font-semibold text-slate-900"
+                    style={{ color: sectionId === "programs" ? "var(--wb-primary-deep)" : "var(--wb-secondary-deep)" }}
+                  >
                     <span>✧</span>
                     <span>{item.title}</span>
                   </div>
@@ -627,7 +708,7 @@ function renderFaculty(section: WebsiteSection | undefined) {
         <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           {facultyItems.map((member) => (
             <article key={member.name} className="overflow-hidden rounded-[28px] border border-slate-200 bg-slate-50 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="flex h-64 items-center justify-center bg-[linear-gradient(135deg,#1e3a8a,#059669)] text-6xl text-white/35">
+              <div className="flex h-64 items-center justify-center text-6xl text-white/35" style={{ background: "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))" }}>
                 {member.image_url ? (
                   <img src={member.image_url} alt={member.name} className="h-full w-full object-cover" />
                 ) : (
@@ -636,7 +717,7 @@ function renderFaculty(section: WebsiteSection | undefined) {
               </div>
               <div className="p-6 text-center">
                 <h3 className="text-lg font-bold text-slate-950">{member.name}</h3>
-                <p className="mt-1 text-sm font-medium text-emerald-600">{member.role}</p>
+                <p className="mt-1 text-sm font-medium" style={{ color: "var(--wb-secondary-deep)" }}>{member.role}</p>
                 <p className="mt-3 text-sm leading-7 text-slate-600">{member.bio}</p>
               </div>
             </article>
@@ -663,9 +744,9 @@ function renderNews(section: WebsiteSection | undefined) {
         <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {newsItems.map((item) => (
             <article key={item.title} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="flex h-48 items-center justify-center bg-[linear-gradient(135deg,#f59e0b,#f97316)] text-5xl text-white">{item.icon}</div>
+              <div className="flex h-48 items-center justify-center text-5xl text-white" style={{ background: "linear-gradient(135deg, var(--wb-secondary), var(--wb-primary))" }}>{item.icon}</div>
               <div className="p-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600">{item.date}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--wb-secondary-deep)" }}>{item.date}</p>
                 <h3 className="mt-3 text-xl font-bold text-slate-950">{item.title}</h3>
                 <p className="mt-3 text-sm leading-7 text-slate-600">{item.description}</p>
               </div>
@@ -693,7 +774,7 @@ function renderTestimonials(section: WebsiteSection | undefined, siteSettings: S
         <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           {testimonialItems.map((item) => (
             <article key={item.name} className="rounded-[28px] border border-slate-200 bg-slate-50 p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="text-amber-400">{item.stars}</div>
+              <div style={{ color: "var(--wb-secondary)" }}>{item.stars}</div>
               <p className="mt-5 text-sm leading-7 text-slate-700 italic">{item.text}</p>
               <div className="mt-6 font-bold text-slate-950">{item.name}</div>
               <div className="text-sm text-slate-500">{item.role}</div>
@@ -720,18 +801,22 @@ function renderGallery(section: WebsiteSection | undefined, siteSettings: SiteSe
         <div className="mt-12 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3">
           {galleryItems.map((item, index) => {
             const palette = [
-              "bg-[linear-gradient(135deg,#1e3a8a,#059669)]",
-              "bg-[linear-gradient(135deg,#f59e0b,#f97316)]",
-              "bg-[linear-gradient(135deg,#0f766e,#14b8a6)]",
-              "bg-[linear-gradient(135deg,#10b981,#059669)]",
-              "bg-[linear-gradient(135deg,#0ea5e9,#2563eb)]",
-              "bg-[linear-gradient(135deg,#8b5cf6,#7c3aed)]",
-              "bg-[linear-gradient(135deg,#0f172a,#334155)]",
-              "bg-[linear-gradient(135deg,#ec4899,#db2777)]",
-              "bg-[linear-gradient(135deg,#65a30d,#16a34a)]",
+              "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))",
+              "linear-gradient(135deg, rgba(var(--wb-secondary-rgb),0.95), rgba(var(--wb-primary-rgb),0.85))",
+              "linear-gradient(135deg, var(--wb-secondary-deep), var(--wb-secondary))",
+              "linear-gradient(135deg, var(--wb-primary-deep), var(--wb-primary))",
+              "linear-gradient(135deg, rgba(var(--wb-primary-rgb),0.78), rgba(var(--wb-secondary-rgb),0.78))",
+              "linear-gradient(135deg, var(--wb-secondary), var(--wb-primary-soft))",
+              "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary-soft))",
+              "linear-gradient(135deg, rgba(var(--wb-secondary-rgb),0.88), rgba(var(--wb-primary-rgb),0.62))",
+              "linear-gradient(135deg, var(--wb-primary-soft), var(--wb-secondary-soft))",
             ];
             return (
-              <div key={`${item.image_url || item.fallbackIcon}-${index}`} className={`group relative flex h-52 items-center justify-center overflow-hidden rounded-[24px] text-5xl text-white shadow-lg ${palette[index % palette.length]}`}>
+              <div
+                key={`${item.image_url || item.fallbackIcon}-${index}`}
+                className="group relative flex h-52 items-center justify-center overflow-hidden rounded-[24px] text-5xl text-white shadow-lg"
+                style={{ background: palette[index % palette.length] }}
+              >
                 {item.image_url ? (
                   <img src={item.image_url} alt={item.caption || `Gallery ${index + 1}`} className="h-full w-full object-cover" />
                 ) : (
@@ -791,14 +876,14 @@ function renderAdmissions(section: WebsiteSection | undefined) {
             <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-600">
               {admissionRequirements.map((item) => (
                 <li key={item} className="flex gap-3">
-                  <span className="mt-1 text-emerald-600">✓</span>
+                  <span className="mt-1" style={{ color: "var(--wb-secondary-deep)" }}>✓</span>
                   <span>{item}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="rounded-[28px] bg-[linear-gradient(135deg,#1e3a8a,#059669)] p-8 text-white shadow-xl">
+          <div className="rounded-[28px] p-8 text-white shadow-xl" style={{ background: "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))" }}>
             <h3 className="text-2xl font-bold">Admission Process</h3>
             <div className="mt-8 space-y-5">
               {processSteps.map((step, index) => (
@@ -897,14 +982,18 @@ function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSe
               ].map(([label, type]) => (
                 <div key={label} className="grid gap-2">
                   <label className="text-sm font-medium text-slate-700">{label}</label>
-                  <input type={type} className="h-11 rounded-xl border border-slate-200 px-4 outline-none transition focus:border-emerald-500" />
+                  <input type={type} className="h-11 rounded-xl border border-slate-200 px-4 outline-none transition focus:border-[var(--wb-secondary)]" />
                 </div>
               ))}
               <div className="grid gap-2">
                 <label className="text-sm font-medium text-slate-700">Message *</label>
-                <textarea rows={6} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-emerald-500" />
+                <textarea rows={6} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-[var(--wb-secondary)]" />
               </div>
-              <button type="submit" className="mt-2 inline-flex items-center justify-center rounded-full bg-slate-950 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-emerald-600">
+              <button
+                type="submit"
+                className="mt-2 inline-flex items-center justify-center rounded-full px-6 py-3.5 text-sm font-bold text-white transition hover:opacity-90"
+                style={{ backgroundColor: "var(--wb-secondary-deep)" }}
+              >
                 {formButtonLabel}
               </button>
             </div>
@@ -920,7 +1009,7 @@ function renderFooter(siteSettings: SiteSettings) {
     <footer className="bg-slate-950 px-4 pt-16 text-white md:px-6">
       <div className="mx-auto grid max-w-[1200px] gap-10 md:grid-cols-2 xl:grid-cols-4">
         <div>
-          <h4 className="text-lg font-bold text-amber-300">About School</h4>
+          <h4 className="text-lg font-bold" style={{ color: "var(--wb-secondary)" }}>About School</h4>
           <ul className="mt-4 space-y-3 text-sm text-white/75">
             <li><a href="#about" className="hover:text-white">About Us</a></li>
             <li><a href="#programs" className="hover:text-white">Programs</a></li>
@@ -929,7 +1018,7 @@ function renderFooter(siteSettings: SiteSettings) {
           </ul>
         </div>
         <div>
-          <h4 className="text-lg font-bold text-amber-300">Quick Links</h4>
+          <h4 className="text-lg font-bold" style={{ color: "var(--wb-secondary)" }}>Quick Links</h4>
           <ul className="mt-4 space-y-3 text-sm text-white/75">
             <li><a href="#admissions" className="hover:text-white">Admissions</a></li>
             <li><a href="#news" className="hover:text-white">News</a></li>
@@ -938,7 +1027,7 @@ function renderFooter(siteSettings: SiteSettings) {
           </ul>
         </div>
         <div>
-          <h4 className="text-lg font-bold text-amber-300">Resources</h4>
+          <h4 className="text-lg font-bold" style={{ color: "var(--wb-secondary)" }}>Resources</h4>
           <ul className="mt-4 space-y-3 text-sm text-white/75">
             <li><a href="#" className="hover:text-white">Student Portal</a></li>
             <li><a href="#" className="hover:text-white">Parent Portal</a></li>
@@ -947,10 +1036,15 @@ function renderFooter(siteSettings: SiteSettings) {
           </ul>
         </div>
         <div>
-          <h4 className="text-lg font-bold text-amber-300">Connect</h4>
+          <h4 className="text-lg font-bold" style={{ color: "var(--wb-secondary)" }}>Connect</h4>
           <div className="mt-4 flex gap-3">
             {["📘", "🐦", "📷", "🎬"].map((icon) => (
-              <a key={icon} href="#" className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-lg transition hover:bg-amber-400 hover:text-slate-950">
+              <a
+                key={icon}
+                href="#"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-slate-950 transition hover:opacity-90"
+                style={{ backgroundColor: "var(--wb-secondary)" }}
+              >
                 {icon}
               </a>
             ))}
@@ -961,8 +1055,8 @@ function renderFooter(siteSettings: SiteSettings) {
       <div className="mt-12 border-t border-white/10 py-6 text-center text-sm text-white/70">
         <p>
           &copy; 2026 {siteSettings.site_title}. All rights reserved. | {" "}
-          <a href="#" className="text-amber-300">Privacy Policy</a> | {" "}
-          <a href="#" className="text-amber-300">Terms of Service</a>
+          <a href="#" style={{ color: "var(--wb-secondary)" }}>Privacy Policy</a> | {" "}
+          <a href="#" style={{ color: "var(--wb-secondary)" }}>Terms of Service</a>
         </p>
       </div>
     </footer>
@@ -1079,6 +1173,8 @@ export default async function PublicSchoolWebsite({
     is_website_enabled: settings?.is_website_enabled ?? WEBSITE_DEFAULT_SITE_SETTINGS.is_website_enabled,
   };
 
+  const themeStyleVariables = buildThemeStyleVariables(siteSettings);
+
   const sectionsNeedingCustomization = sections.filter(
     (section) => !isWebsiteSectionCustomized(section.section_key, section.content)
   );
@@ -1109,7 +1205,7 @@ export default async function PublicSchoolWebsite({
   const facilityCards = getFacilityCardItems(facilitiesSection);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
       {renderHeader(siteSettings, visibleSections, isPreview)}
       <main>
         {renderHero(siteSettings, visibleSections)}

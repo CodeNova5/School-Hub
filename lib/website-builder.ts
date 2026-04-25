@@ -109,6 +109,24 @@ export interface WebsiteGlobalSettingsQualification {
   missingLabels: string[];
 }
 
+export interface WebsiteColorThemePreset {
+  id: string;
+  name: string;
+  primary: string;
+  secondary: string;
+}
+
+export const WEBSITE_COLOR_THEME_PRESETS: WebsiteColorThemePreset[] = [
+  { id: "classic-navy-emerald", name: "Classic Navy + Emerald", primary: "#1e3a8a", secondary: "#059669" },
+  { id: "royal-blue-gold", name: "Royal Blue + Gold", primary: "#1d4ed8", secondary: "#ca8a04" },
+  { id: "teal-coral", name: "Teal + Coral", primary: "#0f766e", secondary: "#f97316" },
+  { id: "plum-rose", name: "Plum + Rose", primary: "#7e22ce", secondary: "#e11d48" },
+  { id: "forest-lime", name: "Forest + Lime", primary: "#166534", secondary: "#65a30d" },
+  { id: "slate-cyan", name: "Slate + Cyan", primary: "#334155", secondary: "#0891b2" },
+  { id: "charcoal-amber", name: "Charcoal + Amber", primary: "#1f2937", secondary: "#d97706" },
+  { id: "indigo-sky", name: "Indigo + Sky", primary: "#4338ca", secondary: "#0284c7" },
+];
+
 function normalizeForComparison(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => normalizeForComparison(item));
@@ -148,35 +166,14 @@ export function getWebsiteGlobalSettingsQualification(settings: Partial<WebsiteS
 
   const missingLabels: string[] = [];
 
-  if (!merged.site_title.trim() || merged.site_title.trim() === WEBSITE_DEFAULT_SITE_SETTINGS.site_title) {
-    missingLabels.push("Site title");
-  }
-  if (!merged.site_tagline.trim() || merged.site_tagline.trim() === WEBSITE_DEFAULT_SITE_SETTINGS.site_tagline) {
-    missingLabels.push("Tagline");
-  }
   if (!merged.logo_url.trim()) {
     missingLabels.push("Logo URL");
   }
-  if (!merged.hero_background_url.trim()) {
-    missingLabels.push("Hero background URL");
-  }
-  if (!merged.primary_color.trim() || merged.primary_color.trim().toLowerCase() === WEBSITE_DEFAULT_SITE_SETTINGS.primary_color) {
+  if (!merged.primary_color.trim()) {
     missingLabels.push("Primary color");
   }
-  if (!merged.secondary_color.trim() || merged.secondary_color.trim().toLowerCase() === WEBSITE_DEFAULT_SITE_SETTINGS.secondary_color) {
+  if (!merged.secondary_color.trim()) {
     missingLabels.push("Secondary color");
-  }
-  if (!merged.contact_email.trim()) {
-    missingLabels.push("Contact email");
-  }
-  if (!merged.contact_phone.trim()) {
-    missingLabels.push("Contact phone");
-  }
-  if (!merged.contact_address.trim()) {
-    missingLabels.push("Contact address");
-  }
-  if (!merged.is_website_enabled) {
-    missingLabels.push("Website enabled toggle");
   }
 
   return {

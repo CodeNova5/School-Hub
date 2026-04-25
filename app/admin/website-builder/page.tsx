@@ -11,9 +11,11 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw, RefreshCcw, Plus, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
 import {
+    WEBSITE_COLOR_THEME_PRESETS,
     WEBSITE_DEFAULT_SITE_SETTINGS,
     WEBSITE_SECTION_TEMPLATES,
     getWebsiteGlobalSettingsQualification,
@@ -349,6 +351,16 @@ export default function WebsiteBuilderPage() {
         () => getWebsiteGlobalSettingsQualification(settings),
         [settings]
     );
+
+    const selectedThemePresetId = useMemo(() => {
+        const matchedPreset = WEBSITE_COLOR_THEME_PRESETS.find(
+            (preset) =>
+                preset.primary.toLowerCase() === settings.primary_color.trim().toLowerCase() &&
+                preset.secondary.toLowerCase() === settings.secondary_color.trim().toLowerCase()
+        );
+
+        return matchedPreset?.id || "custom";
+    }, [settings.primary_color, settings.secondary_color]);
 
     const sectionCustomizationMap = useMemo(() => {
         const map: Record<string, boolean> = {};
@@ -1242,6 +1254,19 @@ export default function WebsiteBuilderPage() {
         setPreviewNonce((prev) => prev + 1);
     }
 
+    function applyThemePreset(presetId: string) {
+        if (presetId === "custom") return;
+
+        const preset = WEBSITE_COLOR_THEME_PRESETS.find((item) => item.id === presetId);
+        if (!preset) return;
+
+        setSettings((prev) => ({
+            ...prev,
+            primary_color: preset.primary,
+            secondary_color: preset.secondary,
+        }));
+    }
+
     function handleMarkPublished() {
         if (!canPublishSite) {
             const sectionList = sectionsNeedingCustomization.map((section) => section.section_label || section.section_key).join(", ");
@@ -1364,9 +1389,54 @@ export default function WebsiteBuilderPage() {
                                                         onChange={(e) => setSettings((prev) => ({ ...prev, site_tagline: e.target.value }))}
                                                     />
                                                 </div>
+                                                <div className="space-y-2 md:col-span-2">
+                                                    <Label>Color Theme (Required)</Label>
+                                                    <Select value={selectedThemePresetId} onValueChange={applyThemePreset}>
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Select a color theme" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {WEBSITE_COLOR_THEME_PRESETS.map((preset) => (
+                                                                <SelectItem key={preset.id} value={preset.id}>
+                                                                    {preset.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                            <SelectItem value="custom">Custom (manual colors)</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                        {WEBSITE_COLOR_THEME_PRESETS.map((preset) => {
+                                                            const isSelected = preset.id === selectedThemePresetId;
+                                                            return (
+                                                                <button
+                                                                    key={`swatch-${preset.id}`}
+                                                                    type="button"
+                                                                    onClick={() => applyThemePreset(preset.id)}
+                                                                    className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs transition ${
+                                                                        isSelected
+                                                                            ? "border-slate-900 bg-slate-50 text-slate-900"
+                                                                            : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                                                    }`}
+                                                                    title={preset.name}
+                                                                >
+                                                                    <span
+                                                                        className="h-3 w-3 rounded-full border border-white/70 shadow-sm"
+                                                                        style={{ backgroundColor: preset.primary }}
+                                                                    />
+                                                                    <span
+                                                                        className="h-3 w-3 rounded-full border border-white/70 shadow-sm"
+                                                                        style={{ backgroundColor: preset.secondary }}
+                                                                    />
+                                                                    <span>{preset.name}</span>
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
                                                 <div className="space-y-2">
                                                     <Label>Primary Color</Label>
                                                     <Input
+                                                        placeholder="#1e3a8a"
                                                         value={settings.primary_color}
                                                         onChange={(e) => setSettings((prev) => ({ ...prev, primary_color: e.target.value }))}
                                                     />
@@ -1374,12 +1444,13 @@ export default function WebsiteBuilderPage() {
                                                 <div className="space-y-2">
                                                     <Label>Secondary Color</Label>
                                                     <Input
+                                                        placeholder="#059669"
                                                         value={settings.secondary_color}
                                                         onChange={(e) => setSettings((prev) => ({ ...prev, secondary_color: e.target.value }))}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>Logo URL</Label>
+                                                    <Label>Logo URL (Required)</Label>
                                                     <Input
                                                         value={settings.logo_url}
                                                         onChange={(e) => setSettings((prev) => ({ ...prev, logo_url: e.target.value }))}

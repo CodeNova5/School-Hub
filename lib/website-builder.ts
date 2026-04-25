@@ -224,17 +224,17 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
       subheading: "Well-rounded and future-ready learning paths",
       program_items: [
         {
-          title: "Science Stream",
+          title: "Science Department",
           description: "Physics, Chemistry, Biology, and Mathematics with strong lab-based learning.",
           icon: "🔬",
         },
         {
-          title: "Arts Stream",
+          title: "Arts Department",
           description: "History, Literature, Geography, and Social Sciences with deep analysis.",
           icon: "📖",
         },
         {
-          title: "Commerce Stream",
+          title: "Commerce Department",
           description: "Accounting, Economics, and Business Studies for professional readiness.",
           icon: "💼",
         },

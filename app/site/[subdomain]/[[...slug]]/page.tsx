@@ -204,29 +204,6 @@ function resolvePreviewMode(searchParams: { preview?: string }) {
   return searchParams.preview === "1" || searchParams.preview === "true";
 }
 
-async function isAdminPreviewAllowed(expectedSchoolId: string) {
-  try {
-    const supabase = createServerComponentClient({ cookies });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) return false;
-
-    // Simple admin check: if user_metadata.role exists and user is authenticated, allow preview
-    const userRole = user.user_metadata?.role;
-    if (userRole !== "admin") return false;
-
-    const { data: schoolId, error } = await supabase.rpc("get_my_school_id");
-    if (error || !schoolId) return false;
-
-    return String(schoolId) === String(expectedSchoolId);
-  } catch (err) {
-    console.error("Error in isAdminPreviewAllowed:", err);
-    return false;
-  }
-}
-
 function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], preview: boolean) {
   return (
     <header className="sticky top-0 z-40 bg-slate-950/95 text-white backdrop-blur border-b border-white/10">
@@ -1002,23 +979,55 @@ export default async function PublicSchoolWebsite({
     notFound();
   }
 
-  const supabase = getSupabaseAnonClient();
   const headerStore = headers();
   const host = headerStore.get("x-forwarded-host") || headerStore.get("host") || "";
   const hostSubdomain = getHostSubdomain(host);
   const subdomain = hostSubdomain || requestedSubdomain;
+
+  // Determine which client to use based on preview mode
+  let supabase: ReturnType<typeof getSupabaseAnonClient>;
+  let user: any = null;
+  let schoolId: string | null = null;
+
+  if (isPreviewRequested) {
+    // Use authenticated client for preview mode
+    const authSupabase = createServerComponentClient({ cookies });
+    const {
+      data: { user: authUser },
+    } = await authSupabase.auth.getUser();
+
+    if (!authUser) {
+      notFound();
+    }
+
+    // Check if user is admin
+    const userRole = authUser.user_metadata?.role;
+    if (userRole !== "admin") {
+      notFound();
+    }
+
+    const { data: mySchoolId } = await authSupabase.rpc("get_my_school_id");
+    if (!mySchoolId) {
+      notFound();
+    }
+
+    user = authUser;
+    schoolId = mySchoolId;
+    supabase = authSupabase as any; // Use authenticated client
+  } else {
+    // Use anon client for public mode
+    supabase = getSupabaseAnonClient();
+  }
 
   const school = await resolveSchool(subdomain, supabase);
   if (!school || !school.is_active) {
     notFound();
   }
 
-  let previewAllowed = false;
-  if (isPreviewRequested) {
-    previewAllowed = await isAdminPreviewAllowed(school.id);
+  // In preview mode, verify the school matches the user's school
+  if (isPreviewRequested && schoolId && String(school.id) !== String(schoolId)) {
+    notFound();
   }
-
-  const isPreview = isPreviewRequested && previewAllowed;
 
   const [{ data: settings }, { data: publishedPage }, { data: draftPage }] = await Promise.all([
     supabase
@@ -1033,7 +1042,7 @@ export default async function PublicSchoolWebsite({
       .eq("slug", "home")
       .eq("status", "published")
       .maybeSingle(),
-    isPreview
+    isPreviewRequested
       ? supabase
           .from("website_pages")
           .select("*")
@@ -1045,7 +1054,7 @@ export default async function PublicSchoolWebsite({
       : Promise.resolve({ data: null }),
   ]);
 
-  const page: PublishPage | null = (isPreview ? (draftPage || publishedPage) : publishedPage) || null;
+  const page: PublishPage | null = (isPreviewRequested ? (draftPage || publishedPage) : publishedPage) || null;
 
   const [{ data: publishedSections }, { data: draftSections }] = await Promise.all([
     publishedPage
@@ -1055,7 +1064,7 @@ export default async function PublicSchoolWebsite({
           .eq("page_id", publishedPage.id)
           .order("order_sequence", { ascending: true })
       : Promise.resolve({ data: [] }),
-    isPreview && draftPage
+    isPreviewRequested && draftPage
       ? supabase
           .from("website_sections")
           .select("*")
@@ -1064,7 +1073,7 @@ export default async function PublicSchoolWebsite({
       : Promise.resolve({ data: [] }),
   ]);
 
-  const sections = ((isPreview ? (draftSections || publishedSections) : publishedSections) || []) as WebsiteSection[];
+  const sections = ((isPreviewRequested ? (draftSections || publishedSections) : publishedSections) || []) as WebsiteSection[];
 
   if (!page) {
     return (
@@ -1106,7 +1115,7 @@ export default async function PublicSchoolWebsite({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {renderHeader(siteSettings, visibleSections, isPreview)}
+      {renderHeader(siteSettings, visibleSections, isPreviewRequested)}
       <main>
         {renderHero(siteSettings, visibleSections)}
         {renderAbout(aboutSection || homeSection)}

@@ -204,12 +204,17 @@ function resolvePreviewMode(searchParams: { preview?: string }) {
   return searchParams.preview === "1" || searchParams.preview === "true";
 }
 
-async function isAdminPreviewAllowed() {
+async function isAdminPreviewAllowed(expectedSchoolId: string) {
   const supabase = createServerComponentClient({ cookies });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
   const { data: isAdmin } = await supabase.rpc("is_admin");
-  return Boolean(isAdmin);
+  if (!isAdmin) return false;
+
+  const { data: schoolId, error } = await supabase.rpc("get_my_school_id");
+  if (error || !schoolId) return false;
+
+  return String(schoolId) === String(expectedSchoolId);
 }
 
 function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], preview: boolean) {
@@ -1000,14 +1005,7 @@ export default async function PublicSchoolWebsite({
 
   let previewAllowed = false;
   if (isPreviewRequested) {
-    const cookieStore = cookies();
-    const hasAuthCookie = cookieStore
-      .getAll()
-      .some((item) => item.name.startsWith("sb-") || item.name.includes("supabase"));
-
-    if (hasAuthCookie) {
-      previewAllowed = await isAdminPreviewAllowed();
-    }
+    previewAllowed = await isAdminPreviewAllowed(school.id);
   }
 
   const isPreview = isPreviewRequested && previewAllowed;

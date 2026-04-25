@@ -2,7 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { WEBSITE_SECTION_TEMPLATES } from "@/lib/website-builder";
+import {
+  WEBSITE_DEFAULT_SITE_SETTINGS,
+  WEBSITE_SECTION_TEMPLATES,
+  getWebsiteGlobalSettingsQualification,
+  isWebsiteSectionCustomized,
+} from "@/lib/website-builder";
 
 interface WebsiteSection {
   id: string;
@@ -202,6 +207,14 @@ async function resolveSchool(subdomain: string, supabase: ReturnType<typeof getS
 
 function resolvePreviewMode(searchParams: { preview?: string }) {
   return searchParams.preview === "1" || searchParams.preview === "true";
+}
+
+async function isAdminPreviewAllowed() {
+  const supabase = createServerComponentClient({ cookies });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data: isAdmin } = await supabase.rpc("is_admin");
+  return Boolean(isAdmin);
 }
 
 function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], preview: boolean) {
@@ -964,6 +977,17 @@ function MobileMenu() {
   );
 }
 
+function renderWebsiteNotPublished(message: string) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="max-w-md rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h1 className="text-3xl font-black text-slate-950">Website Not Published</h1>
+        <p className="mt-3 text-slate-600">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 export default async function PublicSchoolWebsite({
   params,
   searchParams,
@@ -979,57 +1003,32 @@ export default async function PublicSchoolWebsite({
     notFound();
   }
 
+  const supabase = getSupabaseAnonClient();
   const headerStore = headers();
   const host = headerStore.get("x-forwarded-host") || headerStore.get("host") || "";
   const hostSubdomain = getHostSubdomain(host);
   const subdomain = hostSubdomain || requestedSubdomain;
-
-  // Determine which client to use based on preview mode
-  let supabase: ReturnType<typeof getSupabaseAnonClient>;
-  let user: any = null;
-  let schoolId: string | null = null;
-
-  if (isPreviewRequested) {
-    // Use authenticated client for preview mode
-    const authSupabase = createServerComponentClient({ cookies });
-    const {
-      data: { user: authUser },
-    } = await authSupabase.auth.getUser();
-
-    if (!authUser) {
-      notFound();
-    }
-
-    // Check if user is admin
-    const userRole = authUser.user_metadata?.role;
-    if (userRole !== "admin") {
-      notFound();
-    }
-
-    const { data: mySchoolId } = await authSupabase.rpc("get_my_school_id");
-    if (!mySchoolId) {
-      notFound();
-    }
-
-    user = authUser;
-    schoolId = mySchoolId;
-    supabase = authSupabase as any; // Use authenticated client
-  } else {
-    // Use anon client for public mode
-    supabase = getSupabaseAnonClient();
-  }
 
   const school = await resolveSchool(subdomain, supabase);
   if (!school || !school.is_active) {
     notFound();
   }
 
-  // In preview mode, verify the school matches the user's school
-  if (isPreviewRequested && schoolId && String(school.id) !== String(schoolId)) {
-    notFound();
+  let previewAllowed = false;
+  if (isPreviewRequested) {
+    const cookieStore = cookies();
+    const hasAuthCookie = cookieStore
+      .getAll()
+      .some((item) => item.name.startsWith("sb-") || item.name.includes("supabase"));
+
+    if (hasAuthCookie) {
+      previewAllowed = await isAdminPreviewAllowed();
+    }
   }
 
-  const [{ data: settings }, { data: publishedPage }, { data: draftPage }] = await Promise.all([
+  const isPreview = isPreviewRequested && previewAllowed;
+
+  const [{ data: settings }, { data: publishedPage }, { data: draftPage }, { data: publishedSections }, { data: draftSections }] = await Promise.all([
     supabase
       .from("website_site_settings")
       .select("*")
@@ -1042,7 +1041,7 @@ export default async function PublicSchoolWebsite({
       .eq("slug", "home")
       .eq("status", "published")
       .maybeSingle(),
-    isPreviewRequested
+    isPreview
       ? supabase
           .from("website_pages")
           .select("*")
@@ -1052,52 +1051,50 @@ export default async function PublicSchoolWebsite({
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-  ]);
-
-  const page: PublishPage | null = (isPreviewRequested ? (draftPage || publishedPage) : publishedPage) || null;
-
-  const [{ data: publishedSections }, { data: draftSections }] = await Promise.all([
-    publishedPage
+    supabase
+      .from("website_sections")
+      .select("*")
+      .eq("school_id", school.id)
+      .order("order_sequence", { ascending: true }),
+    isPreview
       ? supabase
           .from("website_sections")
           .select("*")
-          .eq("page_id", publishedPage.id)
-          .order("order_sequence", { ascending: true })
-      : Promise.resolve({ data: [] }),
-    isPreviewRequested && draftPage
-      ? supabase
-          .from("website_sections")
-          .select("*")
-          .eq("page_id", draftPage.id)
+          .eq("school_id", school.id)
           .order("order_sequence", { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
 
-  const sections = ((isPreviewRequested ? (draftSections || publishedSections) : publishedSections) || []) as WebsiteSection[];
-
-  if (!page) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="max-w-md rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-3xl font-black text-slate-950">Website Not Published</h1>
-          <p className="mt-3 text-slate-600">This school website is not live yet.</p>
-        </div>
-      </div>
-    );
-  }
+  const page: PublishPage | null = (isPreview ? (draftPage || publishedPage) : publishedPage) || null;
+  const sections = ((isPreview ? (draftSections || publishedSections) : publishedSections) || []) as WebsiteSection[];
 
   const siteSettings: SiteSettings = {
-    site_title: settings?.site_title || school.name,
-    site_tagline: settings?.site_tagline || "Excellence in education",
-    logo_url: settings?.logo_url || "",
-    hero_background_url: settings?.hero_background_url || "",
-    primary_color: settings?.primary_color || "#1e3a8a",
-    secondary_color: settings?.secondary_color || "#059669",
-    contact_email: settings?.contact_email || "",
-    contact_phone: settings?.contact_phone || "",
-    contact_address: settings?.contact_address || "",
-    is_website_enabled: settings?.is_website_enabled ?? true,
+    site_title: settings?.site_title || school.name || WEBSITE_DEFAULT_SITE_SETTINGS.site_title,
+    site_tagline: settings?.site_tagline || WEBSITE_DEFAULT_SITE_SETTINGS.site_tagline,
+    logo_url: settings?.logo_url || WEBSITE_DEFAULT_SITE_SETTINGS.logo_url,
+    hero_background_url: settings?.hero_background_url || WEBSITE_DEFAULT_SITE_SETTINGS.hero_background_url,
+    primary_color: settings?.primary_color || WEBSITE_DEFAULT_SITE_SETTINGS.primary_color,
+    secondary_color: settings?.secondary_color || WEBSITE_DEFAULT_SITE_SETTINGS.secondary_color,
+    contact_email: settings?.contact_email || WEBSITE_DEFAULT_SITE_SETTINGS.contact_email,
+    contact_phone: settings?.contact_phone || WEBSITE_DEFAULT_SITE_SETTINGS.contact_phone,
+    contact_address: settings?.contact_address || WEBSITE_DEFAULT_SITE_SETTINGS.contact_address,
+    is_website_enabled: settings?.is_website_enabled ?? WEBSITE_DEFAULT_SITE_SETTINGS.is_website_enabled,
   };
+
+  const sectionsNeedingCustomization = sections.filter(
+    (section) => !isWebsiteSectionCustomized(section.section_key, section.content)
+  );
+  const globalSettingsQualification = getWebsiteGlobalSettingsQualification(siteSettings);
+  const isPublishReady =
+    sectionsNeedingCustomization.length === 0 && globalSettingsQualification.ready;
+
+  if (!page) {
+    return renderWebsiteNotPublished("This school website is not live yet.");
+  }
+
+  if (!isPreview && !isPublishReady) {
+    return renderWebsiteNotPublished("This school website is still being customized by the school admin.");
+  }
 
   const visibleSections = sections.filter((section) => section.is_visible).sort((a, b) => a.order_sequence - b.order_sequence);
   const homeSection = visibleSections.find((section) => section.section_key === "home");
@@ -1115,7 +1112,7 @@ export default async function PublicSchoolWebsite({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      {renderHeader(siteSettings, visibleSections, isPreviewRequested)}
+      {renderHeader(siteSettings, visibleSections, isPreview)}
       <main>
         {renderHero(siteSettings, visibleSections)}
         {renderAbout(aboutSection || homeSection)}

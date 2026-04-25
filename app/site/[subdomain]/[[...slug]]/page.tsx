@@ -205,21 +205,26 @@ function resolvePreviewMode(searchParams: { preview?: string }) {
 }
 
 async function isAdminPreviewAllowed(expectedSchoolId: string) {
-  const supabase = createServerComponentClient({ cookies });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = createServerComponentClient({ cookies });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) return false;
+    if (!user) return false;
 
-  // Keep preview authorization aligned with middleware portal access checks.
-  const { data: canAccessAdmin, error: canAccessAdminError } = await supabase.rpc("can_access_admin");
-  if (canAccessAdminError || !canAccessAdmin) return false;
+    // Simple admin check: if user_metadata.role exists and user is authenticated, allow preview
+    const userRole = user.user_metadata?.role;
+    if (userRole !== "admin") return false;
 
-  const { data: schoolId, error } = await supabase.rpc("get_my_school_id");
-  if (error || !schoolId) return false;
+    const { data: schoolId, error } = await supabase.rpc("get_my_school_id");
+    if (error || !schoolId) return false;
 
-  return String(schoolId) === String(expectedSchoolId);
+    return String(schoolId) === String(expectedSchoolId);
+  } catch (err) {
+    console.error("Error in isAdminPreviewAllowed:", err);
+    return false;
+  }
 }
 
 function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], preview: boolean) {
@@ -1015,7 +1020,7 @@ export default async function PublicSchoolWebsite({
 
   const isPreview = isPreviewRequested && previewAllowed;
 
-  const [{ data: settings }, { data: publishedPage }, { data: draftPage }, { data: publishedSections }, { data: draftSections }] = await Promise.all([
+  const [{ data: settings }, { data: publishedPage }, { data: draftPage }] = await Promise.all([
     supabase
       .from("website_site_settings")
       .select("*")
@@ -1038,21 +1043,27 @@ export default async function PublicSchoolWebsite({
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase
-      .from("website_sections")
-      .select("*")
-      .eq("school_id", school.id)
-      .order("order_sequence", { ascending: true }),
-    isPreview
+  ]);
+
+  const page: PublishPage | null = (isPreview ? (draftPage || publishedPage) : publishedPage) || null;
+
+  const [{ data: publishedSections }, { data: draftSections }] = await Promise.all([
+    publishedPage
       ? supabase
           .from("website_sections")
           .select("*")
-          .eq("school_id", school.id)
+          .eq("page_id", publishedPage.id)
+          .order("order_sequence", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    isPreview && draftPage
+      ? supabase
+          .from("website_sections")
+          .select("*")
+          .eq("page_id", draftPage.id)
           .order("order_sequence", { ascending: true })
       : Promise.resolve({ data: [] }),
   ]);
 
-  const page: PublishPage | null = (isPreview ? (draftPage || publishedPage) : publishedPage) || null;
   const sections = ((isPreview ? (draftSections || publishedSections) : publishedSections) || []) as WebsiteSection[];
 
   if (!page) {

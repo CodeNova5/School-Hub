@@ -2,12 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
-import {
-  WEBSITE_DEFAULT_SITE_SETTINGS,
-  WEBSITE_SECTION_TEMPLATES,
-  getWebsiteGlobalSettingsQualification,
-  isWebsiteSectionCustomized,
-} from "@/lib/website-builder";
+import { WEBSITE_SECTION_TEMPLATES } from "@/lib/website-builder";
 
 interface WebsiteSection {
   id: string;
@@ -977,17 +972,6 @@ function MobileMenu() {
   );
 }
 
-function renderWebsiteNotPublished(message: string) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="max-w-md rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
-        <h1 className="text-3xl font-black text-slate-950">Website Not Published</h1>
-        <p className="mt-3 text-slate-600">{message}</p>
-      </div>
-    </div>
-  );
-}
-
 export default async function PublicSchoolWebsite({
   params,
   searchParams,
@@ -1068,33 +1052,29 @@ export default async function PublicSchoolWebsite({
   const page: PublishPage | null = (isPreview ? (draftPage || publishedPage) : publishedPage) || null;
   const sections = ((isPreview ? (draftSections || publishedSections) : publishedSections) || []) as WebsiteSection[];
 
-  const siteSettings: SiteSettings = {
-    site_title: settings?.site_title || school.name || WEBSITE_DEFAULT_SITE_SETTINGS.site_title,
-    site_tagline: settings?.site_tagline || WEBSITE_DEFAULT_SITE_SETTINGS.site_tagline,
-    logo_url: settings?.logo_url || WEBSITE_DEFAULT_SITE_SETTINGS.logo_url,
-    hero_background_url: settings?.hero_background_url || WEBSITE_DEFAULT_SITE_SETTINGS.hero_background_url,
-    primary_color: settings?.primary_color || WEBSITE_DEFAULT_SITE_SETTINGS.primary_color,
-    secondary_color: settings?.secondary_color || WEBSITE_DEFAULT_SITE_SETTINGS.secondary_color,
-    contact_email: settings?.contact_email || WEBSITE_DEFAULT_SITE_SETTINGS.contact_email,
-    contact_phone: settings?.contact_phone || WEBSITE_DEFAULT_SITE_SETTINGS.contact_phone,
-    contact_address: settings?.contact_address || WEBSITE_DEFAULT_SITE_SETTINGS.contact_address,
-    is_website_enabled: settings?.is_website_enabled ?? WEBSITE_DEFAULT_SITE_SETTINGS.is_website_enabled,
-  };
-
-  const sectionsNeedingCustomization = sections.filter(
-    (section) => !isWebsiteSectionCustomized(section.section_key, section.content)
-  );
-  const globalSettingsQualification = getWebsiteGlobalSettingsQualification(siteSettings);
-  const isPublishReady =
-    sectionsNeedingCustomization.length === 0 && globalSettingsQualification.ready;
-
   if (!page) {
-    return renderWebsiteNotPublished("This school website is not live yet.");
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="max-w-md rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-3xl font-black text-slate-950">Website Not Published</h1>
+          <p className="mt-3 text-slate-600">This school website is not live yet.</p>
+        </div>
+      </div>
+    );
   }
 
-  if (!isPreview && !isPublishReady) {
-    return renderWebsiteNotPublished("This school website is still being customized by the school admin.");
-  }
+  const siteSettings: SiteSettings = {
+    site_title: settings?.site_title || school.name,
+    site_tagline: settings?.site_tagline || "Excellence in education",
+    logo_url: settings?.logo_url || "",
+    hero_background_url: settings?.hero_background_url || "",
+    primary_color: settings?.primary_color || "#1e3a8a",
+    secondary_color: settings?.secondary_color || "#059669",
+    contact_email: settings?.contact_email || "",
+    contact_phone: settings?.contact_phone || "",
+    contact_address: settings?.contact_address || "",
+    is_website_enabled: settings?.is_website_enabled ?? true,
+  };
 
   const visibleSections = sections.filter((section) => section.is_visible).sort((a, b) => a.order_sequence - b.order_sequence);
   const homeSection = visibleSections.find((section) => section.section_key === "home");

@@ -1014,19 +1014,15 @@ export default async function PublicSchoolWebsite({
     notFound();
   }
 
-  let previewAllowed = false;
-  if (isPreviewRequested) {
-    const cookieStore = cookies();
-    const hasAuthCookie = cookieStore
-      .getAll()
-      .some((item) => item.name.startsWith("sb-") || item.name.includes("supabase"));
+  const cookieStore = cookies();
+  const hasAuthCookie = cookieStore
+    .getAll()
+    .some((item) => item.name.startsWith("sb-") || item.name.includes("supabase"));
+  const isAdminSession = hasAuthCookie ? await isAdminPreviewAllowed() : false;
 
-    if (hasAuthCookie) {
-      previewAllowed = await isAdminPreviewAllowed();
-    }
-  }
-
-  const isPreview = isPreviewRequested && previewAllowed;
+  // Admins can always view in-progress website content, even before publish readiness.
+  // Explicit preview query params are still admin-gated.
+  const isPreview = isAdminSession || (isPreviewRequested && isAdminSession);
 
   const [{ data: settings }, { data: publishedPage }, { data: draftPage }, { data: publishedSections }, { data: draftSections }] = await Promise.all([
     supabase

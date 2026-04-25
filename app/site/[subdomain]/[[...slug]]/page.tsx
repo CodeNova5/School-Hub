@@ -213,8 +213,8 @@ async function isAdminPreviewAllowed() {
   const supabase = createServerComponentClient({ cookies });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
-  const { data: isAdmin } = await supabase.rpc("is_admin");
-  return Boolean(isAdmin);
+  const { data: canAccessAdmin } = await supabase.rpc("can_access_admin");
+  return Boolean(canAccessAdmin);
 }
 
 function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], preview: boolean) {
@@ -1018,11 +1018,13 @@ export default async function PublicSchoolWebsite({
   const hasAuthCookie = cookieStore
     .getAll()
     .some((item) => item.name.startsWith("sb-") || item.name.includes("supabase"));
-  const isAdminSession = hasAuthCookie ? await isAdminPreviewAllowed() : false;
 
-  // Admins can always view in-progress website content, even before publish readiness.
-  // Explicit preview query params are still admin-gated.
-  const isPreview = isAdminSession || (isPreviewRequested && isAdminSession);
+  let previewAllowed = false;
+  if (hasAuthCookie) {
+    previewAllowed = await isAdminPreviewAllowed();
+  }
+
+  const isPreview = previewAllowed || (isPreviewRequested && previewAllowed);
 
   const [{ data: settings }, { data: publishedPage }, { data: draftPage }, { data: publishedSections }, { data: draftSections }] = await Promise.all([
     supabase
@@ -1084,7 +1086,7 @@ export default async function PublicSchoolWebsite({
   const isPublishReady =
     sectionsNeedingCustomization.length === 0 && globalSettingsQualification.ready;
 
-  if (!page) {
+  if (!page && !isPreview) {
     return renderWebsiteNotPublished("This school website is not live yet.");
   }
 

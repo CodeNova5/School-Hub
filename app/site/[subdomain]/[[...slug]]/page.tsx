@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import {
   WEBSITE_DEFAULT_SITE_SETTINGS,
   WEBSITE_SECTION_TEMPLATES,
+  type WebsitePageSlug,
   getWebsiteGlobalSettingsQualification,
   isWebsiteSectionCustomized,
 } from "@/lib/website-builder";
@@ -101,6 +102,16 @@ interface PublishPage {
   seo_description: string;
 }
 
+function resolveRequestedPageSlug(slug: string[]): WebsitePageSlug | null {
+  if (slug.length === 0 || slug[0] === "home") {
+    return "home";
+  }
+  if (slug.length === 1 && slug[0] === "hall-of-fame") {
+    return "hall-of-fame";
+  }
+  return null;
+}
+
 const FALLBACK_CONTENT = {
   about: {
     heading: "About Our School",
@@ -159,6 +170,57 @@ const FALLBACK_CONTENT = {
       "Merit List — Selection based on comprehensive evaluation",
       "Admission Confirmation — Fee deposit and official enrollment",
     ],
+  },
+  achievements: {
+    hero: {
+      heading: "Hall of Fame & Achievements",
+      subheading: "Celebrating excellence, impact, and milestone moments",
+      description: "Explore standout achievements from our students, alumni, teams, and staff.",
+      buttonLabel: "Submit an Achievement",
+      buttonLink: "#achievements_cta",
+    },
+    timeline: [
+      { year: "2026", detail: "National STEM Challenge Champions" },
+      { year: "2025", detail: "Regional Debate League Gold Medal" },
+      { year: "2024", detail: "Excellence in Community Impact Award" },
+    ],
+    hallOfFame: [
+      {
+        name: "Ada Chukwu",
+        role: "Best Graduating Student 2025",
+        description: "Graduated with distinction and represented the school nationally in mathematics.",
+      },
+      {
+        name: "Coach Ibrahim Bello",
+        role: "Sports Excellence Mentor",
+        description: "Led the school athletics team to three consecutive state championships.",
+      },
+      {
+        name: "Debate Team",
+        role: "National Finalists",
+        description: "Reached national finals with outstanding public speaking and policy analysis.",
+      },
+    ],
+    awards: [
+      {
+        title: "Academic Excellence Award",
+        description: "Recognized for exceptional performance in external examinations.",
+      },
+      {
+        title: "Innovation in Education",
+        description: "Awarded for introducing student-led project-based learning initiatives.",
+      },
+      {
+        title: "Community Service Recognition",
+        description: "Honored for sustained impact through local outreach and volunteering.",
+      },
+    ],
+    cta: {
+      heading: "Share the Next Great Story",
+      description: "Know someone who deserves to be celebrated? Send us their story and achievement.",
+      buttonLabel: "Nominate an Achiever",
+      buttonLink: "#contact",
+    },
   },
   contact: {
     address: ["Presidency School, Education Avenue", "City Center, State 123456", "India"],
@@ -272,7 +334,16 @@ async function isAdminPreviewAllowed() {
   return Boolean(canAccessAdmin);
 }
 
-function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], preview: boolean) {
+function renderHeader(
+  siteSettings: SiteSettings,
+  sections: WebsiteSection[],
+  preview: boolean,
+  pageSlug: WebsitePageSlug,
+  basePath: string
+) {
+  const homeHref = basePath || "/";
+  const hallOfFameHref = basePath ? `${basePath}/hall-of-fame` : "/hall-of-fame";
+
   return (
     <header className="sticky top-0 z-40 bg-slate-950/95 text-white backdrop-blur border-b border-white/10">
       <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 md:px-6">
@@ -297,6 +368,12 @@ function renderHeader(siteSettings: SiteSettings, sections: WebsiteSection[], pr
         </a>
 
         <nav className="hidden gap-5 text-sm md:flex">
+          <a href={homeHref} className={pageSlug === "home" ? "text-[var(--wb-secondary)]" : "text-white/80 transition hover:text-[var(--wb-secondary)]"}>
+            Home
+          </a>
+          <a href={hallOfFameHref} className={pageSlug === "hall-of-fame" ? "text-[var(--wb-secondary)]" : "text-white/80 transition hover:text-[var(--wb-secondary)]"}>
+            Hall Of Fame
+          </a>
           {sections
             .filter((section) => section.is_visible)
             .map((section) => (
@@ -837,6 +914,193 @@ function renderGallery(section: WebsiteSection | undefined, siteSettings: SiteSe
   );
 }
 
+function getAchievementTimeline(section: WebsiteSection | undefined) {
+  const structured = (section?.content.items || [])
+    .map((entry) => entry.split("|").map((value) => value.trim()))
+    .filter((parts) => parts.length >= 2 && parts[0] && parts[1])
+    .map(([year, detail]) => ({ year, detail }));
+
+  if (structured.length > 0) {
+    return structured;
+  }
+
+  return FALLBACK_CONTENT.achievements.timeline;
+}
+
+function getHallOfFameProfiles(section: WebsiteSection | undefined) {
+  const structured = (section?.content.faculty_items || [])
+    .map((item) => ({
+      name: (item.title || "").trim(),
+      role: (item.position || "").trim(),
+      description: (item.description || "").trim(),
+      image_url: (item.image_url || "").trim(),
+    }))
+    .filter((item) => item.name);
+
+  if (structured.length > 0) {
+    return structured;
+  }
+
+  return FALLBACK_CONTENT.achievements.hallOfFame.map((item) => ({
+    ...item,
+    image_url: "",
+  }));
+}
+
+function getAchievementAwards(section: WebsiteSection | undefined) {
+  const structured = (section?.content.news_items || [])
+    .map((item) => ({
+      title: (item.title || "").trim(),
+      description: (item.description || "").trim(),
+    }))
+    .filter((item) => item.title);
+
+  if (structured.length > 0) {
+    return structured;
+  }
+
+  return FALLBACK_CONTENT.achievements.awards;
+}
+
+function renderHallOfFameHero(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
+  const fallback = FALLBACK_CONTENT.achievements.hero;
+  const heading = section?.content.heading || fallback.heading;
+  const subheading = section?.content.subheading || fallback.subheading;
+  const description = section?.content.description || fallback.description;
+  const buttonLabel = section?.content.button_label || fallback.buttonLabel;
+  const buttonLink = section?.content.button_link || fallback.buttonLink;
+
+  return (
+    <section id="achievements_hero" className="relative overflow-hidden bg-slate-950 px-4 py-24 text-white md:px-6 md:py-32">
+      <div
+        className="absolute inset-0 opacity-60"
+        style={{ background: "radial-gradient(circle at top right, rgba(var(--wb-secondary-rgb),0.28), transparent 35%), linear-gradient(135deg, #0f172a 0%, #111827 55%, #1f2937 100%)" }}
+      />
+      <div className="relative mx-auto max-w-[1100px] text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.92)" }}>
+          {siteSettings.site_title}
+        </p>
+        <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">{heading}</h1>
+        <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-white/80 md:text-lg">{subheading}</p>
+        <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/70">{description}</p>
+        <a
+          href={buttonLink}
+          className="mt-8 inline-flex rounded-full px-7 py-3 text-sm font-bold text-slate-950"
+          style={{ backgroundColor: "var(--wb-secondary)" }}
+        >
+          {buttonLabel}
+        </a>
+      </div>
+    </section>
+  );
+}
+
+function renderAchievementTimeline(section: WebsiteSection | undefined) {
+  const heading = section?.content.heading || "Milestone Timeline";
+  const subheading = section?.content.subheading || "A quick look at our most memorable wins";
+  const entries = getAchievementTimeline(section);
+
+  return (
+    <section id="achievements_timeline" className="bg-white px-4 py-20 md:px-6">
+      <div className="mx-auto max-w-[1100px]">
+        <h2 className="text-center text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{heading}</h2>
+        <p className="mx-auto mt-4 max-w-3xl text-center text-base leading-8 text-slate-600 md:text-lg">{subheading}</p>
+        <div className="mt-12 space-y-4">
+          {entries.map((entry) => (
+            <div key={`${entry.year}-${entry.detail}`} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:grid-cols-[140px_1fr] md:items-center">
+              <div className="text-xl font-black" style={{ color: "var(--wb-primary)" }}>{entry.year}</div>
+              <div className="text-sm leading-7 text-slate-700 md:text-base">{entry.detail}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderHallOfFameCards(section: WebsiteSection | undefined) {
+  const heading = section?.content.heading || "Hall of Fame";
+  const subheading = section?.content.subheading || "Students and staff who raised the bar";
+  const profiles = getHallOfFameProfiles(section);
+
+  return (
+    <section id="hall_of_fame" className="bg-slate-50 px-4 py-20 md:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <h2 className="text-center text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{heading}</h2>
+        <p className="mx-auto mt-4 max-w-3xl text-center text-base leading-8 text-slate-600 md:text-lg">{subheading}</p>
+        <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {profiles.map((profile) => (
+            <article key={profile.name} className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
+              <div className="flex h-52 items-center justify-center text-6xl text-white" style={{ background: "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))" }}>
+                {profile.image_url ? (
+                  <img src={profile.image_url} alt={profile.name} className="h-full w-full object-cover" />
+                ) : (
+                  <span>🏅</span>
+                )}
+              </div>
+              <div className="p-6">
+                <h3 className="text-xl font-bold text-slate-950">{profile.name}</h3>
+                <p className="mt-1 text-sm font-medium" style={{ color: "var(--wb-secondary-deep)" }}>{profile.role}</p>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{profile.description}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderAchievementAwards(section: WebsiteSection | undefined) {
+  const heading = section?.content.heading || "Awards & Recognitions";
+  const subheading = section?.content.subheading || "Notable honors earned by our school community";
+  const awards = getAchievementAwards(section);
+
+  return (
+    <section id="achievements_awards" className="bg-white px-4 py-20 md:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <h2 className="text-center text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{heading}</h2>
+        <p className="mx-auto mt-4 max-w-3xl text-center text-base leading-8 text-slate-600 md:text-lg">{subheading}</p>
+        <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {awards.map((award) => (
+            <article key={award.title} className="rounded-[24px] border border-slate-200 bg-slate-50 p-6">
+              <div className="inline-flex rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.2em]" style={{ backgroundColor: "rgba(var(--wb-secondary-rgb),0.14)", color: "var(--wb-secondary-deep)" }}>
+                Recognition
+              </div>
+              <h3 className="mt-4 text-xl font-bold text-slate-950">{award.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{award.description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderAchievementCta(section: WebsiteSection | undefined) {
+  const fallback = FALLBACK_CONTENT.achievements.cta;
+  const heading = section?.content.heading || fallback.heading;
+  const description = section?.content.description || fallback.description;
+  const buttonLabel = section?.content.button_label || fallback.buttonLabel;
+  const buttonLink = section?.content.button_link || fallback.buttonLink;
+
+  return (
+    <section id="achievements_cta" className="bg-slate-950 px-4 py-20 text-white md:px-6">
+      <div className="mx-auto max-w-[1000px] rounded-[32px] border border-white/15 bg-white/5 p-10 text-center backdrop-blur">
+        <h2 className="text-3xl font-black tracking-tight md:text-5xl">{heading}</h2>
+        <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-white/80 md:text-base">{description}</p>
+        <a
+          href={buttonLink}
+          className="mt-7 inline-flex rounded-full px-7 py-3 text-sm font-bold text-slate-950"
+          style={{ backgroundColor: "var(--wb-secondary)" }}
+        >
+          {buttonLabel}
+        </a>
+      </div>
+    </section>
+  );
+}
+
 function renderAdmissions(section: WebsiteSection | undefined) {
   const title = section?.content.heading || "Admissions";
   const subtitle = section?.content.subheading || "Join our community of learners and leaders";
@@ -1091,9 +1355,10 @@ export default async function PublicSchoolWebsite({
 }) {
   const requestedSubdomain = params.subdomain;
   const slug = params.slug || [];
+  const requestedPageSlug = resolveRequestedPageSlug(slug);
   const isPreviewRequested = resolvePreviewMode(searchParams || {});
 
-  if (slug.length > 0 && slug[0] !== "home") {
+  if (!requestedPageSlug) {
     notFound();
   }
 
@@ -1118,9 +1383,9 @@ export default async function PublicSchoolWebsite({
     previewAllowed = await isAdminPreviewAllowed();
   }
 
-  const isPreview = previewAllowed || (isPreviewRequested && previewAllowed);
+  const isPreview = isPreviewRequested && previewAllowed;
 
-  const [{ data: settings }, { data: publishedPage }, { data: draftPage }, { data: publishedSections }, { data: draftSections }] = await Promise.all([
+  const [{ data: settings }, { data: publishedPage }, { data: draftPage }] = await Promise.all([
     supabase
       .from("website_site_settings")
       .select("*")
@@ -1130,7 +1395,7 @@ export default async function PublicSchoolWebsite({
       .from("website_pages")
       .select("*")
       .eq("school_id", school.id)
-      .eq("slug", "home")
+      .eq("slug", requestedPageSlug)
       .eq("status", "published")
       .maybeSingle(),
     isPreview
@@ -1138,27 +1403,29 @@ export default async function PublicSchoolWebsite({
           .from("website_pages")
           .select("*")
           .eq("school_id", school.id)
-          .eq("slug", "home")
+          .eq("slug", requestedPageSlug)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase
-      .from("website_sections")
-      .select("*")
-      .eq("school_id", school.id)
-      .order("order_sequence", { ascending: true }),
-    isPreview
-      ? supabase
-          .from("website_sections")
-          .select("*")
-          .eq("school_id", school.id)
-          .order("order_sequence", { ascending: true })
-      : Promise.resolve({ data: [] }),
   ]);
 
   const page: PublishPage | null = (isPreview ? (draftPage || publishedPage) : publishedPage) || null;
-  const sections = ((isPreview ? (draftSections || publishedSections) : publishedSections) || []) as WebsiteSection[];
+
+  if (!page && !isPreview) {
+    return renderWebsiteNotPublished("This school website page is not live yet.");
+  }
+
+  const sectionsResult = page
+    ? await supabase
+        .from("website_sections")
+        .select("*")
+        .eq("school_id", school.id)
+        .eq("page_id", page.id)
+        .order("order_sequence", { ascending: true })
+    : { data: [] as WebsiteSection[] };
+
+  const sections = (sectionsResult.data || []) as WebsiteSection[];
 
   const siteSettings: SiteSettings = {
     site_title: settings?.site_title || school.name || WEBSITE_DEFAULT_SITE_SETTINGS.site_title,
@@ -1175,22 +1442,44 @@ export default async function PublicSchoolWebsite({
 
   const themeStyleVariables = buildThemeStyleVariables(siteSettings);
 
-  const sectionsNeedingCustomization = sections.filter(
-    (section) => !isWebsiteSectionCustomized(section.section_key, section.content)
-  );
+  const sectionsNeedingCustomization = requestedPageSlug === "home"
+    ? sections.filter((section) => !isWebsiteSectionCustomized(section.section_key, section.content, "home"))
+    : [];
   const globalSettingsQualification = getWebsiteGlobalSettingsQualification(siteSettings);
-  const isPublishReady =
-    sectionsNeedingCustomization.length === 0 && globalSettingsQualification.ready;
-
-  if (!page && !isPreview) {
-    return renderWebsiteNotPublished("This school website is not live yet.");
-  }
+  const isPublishReady = requestedPageSlug === "home"
+    ? sectionsNeedingCustomization.length === 0 && globalSettingsQualification.ready
+    : true;
 
   if (!isPreview && !isPublishReady) {
-    return renderWebsiteNotPublished("This school website is still being customized by the school admin.");
+    return renderWebsiteNotPublished("This school website page is still being customized by the school admin.");
   }
 
   const visibleSections = sections.filter((section) => section.is_visible).sort((a, b) => a.order_sequence - b.order_sequence);
+  const routeBasePath = hostSubdomain ? "" : `/site/${requestedSubdomain}`;
+
+  if (requestedPageSlug === "hall-of-fame") {
+    const achievementsHeroSection = visibleSections.find((section) => section.section_key === "achievements_hero");
+    const achievementsTimelineSection = visibleSections.find((section) => section.section_key === "achievements_timeline");
+    const hallOfFameSection = visibleSections.find((section) => section.section_key === "hall_of_fame");
+    const awardsSection = visibleSections.find((section) => section.section_key === "achievements_awards");
+    const achievementsCtaSection = visibleSections.find((section) => section.section_key === "achievements_cta");
+
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
+        {renderHeader(siteSettings, visibleSections, isPreview, "hall-of-fame", routeBasePath)}
+        <main>
+          {renderHallOfFameHero(achievementsHeroSection, siteSettings)}
+          {renderAchievementTimeline(achievementsTimelineSection)}
+          {renderHallOfFameCards(hallOfFameSection)}
+          {renderAchievementAwards(awardsSection)}
+          {renderAchievementCta(achievementsCtaSection)}
+          {renderContact(undefined, siteSettings)}
+        </main>
+        {renderFooter(siteSettings)}
+      </div>
+    );
+  }
+
   const homeSection = visibleSections.find((section) => section.section_key === "home");
   const aboutSection = visibleSections.find((section) => section.section_key === "about");
   const programsSection = visibleSections.find((section) => section.section_key === "programs");
@@ -1206,7 +1495,7 @@ export default async function PublicSchoolWebsite({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
-      {renderHeader(siteSettings, visibleSections, isPreview)}
+      {renderHeader(siteSettings, visibleSections, isPreview, "home", routeBasePath)}
       <main>
         {renderHero(siteSettings, visibleSections)}
         {renderAbout(aboutSection || homeSection)}

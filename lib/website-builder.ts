@@ -8,7 +8,14 @@ export type WebsiteSectionKey =
   | "testimonials"
   | "gallery"
   | "admissions"
-  | "contact";
+  | "contact"
+  | "achievements_hero"
+  | "achievements_timeline"
+  | "hall_of_fame"
+  | "achievements_awards"
+  | "achievements_cta";
+
+export type WebsitePageSlug = "home" | "hall-of-fame";
 
 export interface WebsiteProgramItem {
   title: string;
@@ -149,8 +156,8 @@ function normalizeForComparison(value: unknown): unknown {
   return value;
 }
 
-export function isWebsiteSectionCustomized(sectionKey: string, content: unknown): boolean {
-  const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === sectionKey);
+export function isWebsiteSectionCustomized(sectionKey: string, content: unknown, pageSlug: WebsitePageSlug = "home"): boolean {
+  const template = getWebsiteSectionTemplatesForPage(pageSlug).find((item) => item.key === sectionKey);
   if (!template) return true;
 
   const current = JSON.stringify(normalizeForComparison(content || {}));
@@ -450,3 +457,109 @@ export const WEBSITE_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     },
   },
 ];
+
+export const WEBSITE_HALL_OF_FAME_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
+  {
+    key: "achievements_hero",
+    label: "Hall of Fame Hero",
+    order: 1,
+    visible: true,
+    content: {
+      heading: "Hall of Fame & Achievements",
+      subheading: "Celebrating excellence, impact, and remarkable milestones",
+      description: "Explore standout achievements from our students, alumni, teams, and staff.",
+      button_label: "Nominate an Achiever",
+      button_link: "#achievements-cta",
+    },
+  },
+  {
+    key: "achievements_timeline",
+    label: "Achievements Timeline",
+    order: 2,
+    visible: true,
+    content: {
+      heading: "Milestone Timeline",
+      subheading: "A quick look at our most memorable wins",
+      items: [
+        "2026 | National STEM Challenge Champions",
+        "2025 | Regional Debate League Gold Medal",
+        "2024 | Excellence in Community Impact Award",
+      ],
+    },
+  },
+  {
+    key: "hall_of_fame",
+    label: "Hall of Fame",
+    order: 3,
+    visible: true,
+    content: {
+      heading: "Hall of Fame",
+      subheading: "Students and staff who raised the bar",
+      faculty_items: [
+        {
+          title: "Ada Chukwu",
+          position: "Best Graduating Student 2025",
+          description: "Graduated with distinction and represented the school nationally in mathematics.",
+        },
+        {
+          title: "Coach Ibrahim Bello",
+          position: "Sports Excellence Mentor",
+          description: "Led the school athletics team to three consecutive state championships.",
+        },
+        {
+          title: "Debate Team",
+          position: "National Finalists",
+          description: "Reached national finals with outstanding public speaking and policy analysis.",
+        },
+      ],
+    },
+  },
+  {
+    key: "achievements_awards",
+    label: "Awards & Recognition",
+    order: 4,
+    visible: true,
+    content: {
+      heading: "Awards & Recognitions",
+      subheading: "Notable honors earned by our school community",
+      news_items: [
+        {
+          title: "Academic Excellence Award",
+          description: "Recognized for exceptional performance in external examinations.",
+        },
+        {
+          title: "Innovation in Education",
+          description: "Awarded for introducing student-led project-based learning initiatives.",
+        },
+        {
+          title: "Community Service Recognition",
+          description: "Honored for sustained impact through local outreach and volunteering.",
+        },
+      ],
+    },
+  },
+  {
+    key: "achievements_cta",
+    label: "Call To Action",
+    order: 5,
+    visible: true,
+    content: {
+      heading: "Share the Next Great Story",
+      description: "Know someone who deserves to be celebrated? Send us their story and achievement.",
+      button_label: "Submit Achievement",
+      button_link: "#contact",
+    },
+  },
+];
+
+export const WEBSITE_PAGE_SECTION_TEMPLATES: Record<WebsitePageSlug, WebsiteSectionTemplate[]> = {
+  home: WEBSITE_SECTION_TEMPLATES,
+  "hall-of-fame": WEBSITE_HALL_OF_FAME_SECTION_TEMPLATES,
+};
+
+export function getWebsiteSectionTemplatesForPage(pageSlug: string | undefined): WebsiteSectionTemplate[] {
+  if (pageSlug === "hall-of-fame") {
+    return WEBSITE_PAGE_SECTION_TEMPLATES["hall-of-fame"];
+  }
+  return WEBSITE_PAGE_SECTION_TEMPLATES.home;
+}

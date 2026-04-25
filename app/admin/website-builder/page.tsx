@@ -17,10 +17,17 @@ import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateC
 import {
     WEBSITE_COLOR_THEME_PRESETS,
     WEBSITE_DEFAULT_SITE_SETTINGS,
-    WEBSITE_SECTION_TEMPLATES,
+    getWebsiteSectionTemplatesForPage,
     getWebsiteGlobalSettingsQualification,
     isWebsiteSectionCustomized,
 } from "@/lib/website-builder";
+
+type WebsitePageSlug = "home" | "hall-of-fame";
+
+const PAGE_OPTIONS: Array<{ slug: WebsitePageSlug; label: string }> = [
+    { slug: "home", label: "Homepage" },
+    { slug: "hall-of-fame", label: "Hall of Fame" },
+];
 
 interface SiteSettings {
     site_title: string;
@@ -236,12 +243,59 @@ const SECTION_EDITOR_CONFIG: Record<
         showButton: false,
         showItems: false,
     },
+    achievements_hero: {
+        descriptionLabel: "Hero Description",
+        itemsLabel: "Highlights",
+        showSubheading: true,
+        showDescription: true,
+        showImage: true,
+        showButton: true,
+        showItems: false,
+    },
+    achievements_timeline: {
+        descriptionLabel: "Timeline Description",
+        itemsLabel: "Timeline Entries (Year | Achievement)",
+        showSubheading: true,
+        showDescription: false,
+        showImage: false,
+        showButton: false,
+        showItems: true,
+    },
+    hall_of_fame: {
+        descriptionLabel: "Hall Of Fame Intro",
+        itemsLabel: "Hall Of Fame Cards",
+        showSubheading: true,
+        showDescription: false,
+        showImage: false,
+        showButton: false,
+        showItems: false,
+    },
+    achievements_awards: {
+        descriptionLabel: "Awards Intro",
+        itemsLabel: "Awards",
+        showSubheading: true,
+        showDescription: false,
+        showImage: false,
+        showButton: false,
+        showItems: false,
+    },
+    achievements_cta: {
+        descriptionLabel: "CTA Message",
+        itemsLabel: "CTA Notes",
+        showSubheading: true,
+        showDescription: true,
+        showImage: false,
+        showButton: true,
+        showItems: false,
+    },
 };
 
 const DEFAULT_SETTINGS: SiteSettings = WEBSITE_DEFAULT_SITE_SETTINGS;
 
+const HOME_SECTION_TEMPLATES = getWebsiteSectionTemplatesForPage("home");
+
 const DEFAULT_PROGRAM_ITEMS: ProgramItem[] = (
-    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "programs")?.content.program_items || []
+    HOME_SECTION_TEMPLATES.find((section) => section.key === "programs")?.content.program_items || []
 ).map((item) => ({
     title: item.title || "",
     description: item.description || "",
@@ -250,7 +304,7 @@ const DEFAULT_PROGRAM_ITEMS: ProgramItem[] = (
 }));
 
 const DEFAULT_FACILITY_ITEMS: FacilityItem[] = (
-    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "facilities")?.content.facility_items || []
+    HOME_SECTION_TEMPLATES.find((section) => section.key === "facilities")?.content.facility_items || []
 ).map((item) => ({
     title: item.title || "",
     description: item.description || "",
@@ -259,7 +313,7 @@ const DEFAULT_FACILITY_ITEMS: FacilityItem[] = (
 }));
 
 const DEFAULT_FACULTY_ITEMS: FacultyItem[] = (
-    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "faculty")?.content.faculty_items || []
+    HOME_SECTION_TEMPLATES.find((section) => section.key === "faculty")?.content.faculty_items || []
 ).map((item) => ({
     title: item.title || "",
     position: item.position || "",
@@ -268,14 +322,14 @@ const DEFAULT_FACULTY_ITEMS: FacultyItem[] = (
 }));
 
 const DEFAULT_NEWS_ITEMS: NewsItem[] = (
-    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "news")?.content.news_items || []
+    HOME_SECTION_TEMPLATES.find((section) => section.key === "news")?.content.news_items || []
 ).map((item) => ({
     title: item.title || "",
     description: item.description || "",
 }));
 
 const DEFAULT_TESTIMONIAL_ITEMS: TestimonialItem[] = (
-    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "testimonials")?.content.testimonial_items || []
+    HOME_SECTION_TEMPLATES.find((section) => section.key === "testimonials")?.content.testimonial_items || []
 ).map((item) => ({
     text: item.text || "",
     author: item.author || "",
@@ -283,7 +337,7 @@ const DEFAULT_TESTIMONIAL_ITEMS: TestimonialItem[] = (
 }));
 
 const DEFAULT_GALLERY_ITEMS: GalleryItem[] = (
-    WEBSITE_SECTION_TEMPLATES.find((section) => section.key === "gallery")?.content.gallery_items || []
+    HOME_SECTION_TEMPLATES.find((section) => section.key === "gallery")?.content.gallery_items || []
 ).map((item) => ({
     image_url: item.image_url || "",
     caption: item.caption || "",
@@ -331,6 +385,7 @@ export default function WebsiteBuilderPage() {
     const [previewNonce, setPreviewNonce] = useState(0);
     const [uploadDisplayName, setUploadDisplayName] = useState("");
     const [lastSavedSnapshot, setLastSavedSnapshot] = useState("");
+    const [selectedPageSlug, setSelectedPageSlug] = useState<WebsitePageSlug>("home");
 
     const sortedSections = useMemo(
         () => [...sections].sort((a, b) => a.order_sequence - b.order_sequence),
@@ -352,6 +407,11 @@ export default function WebsiteBuilderPage() {
         [settings]
     );
 
+    const pageTemplates = useMemo(
+        () => getWebsiteSectionTemplatesForPage(selectedPageSlug),
+        [selectedPageSlug]
+    );
+
     const selectedThemePresetId = useMemo(() => {
         const matchedPreset = WEBSITE_COLOR_THEME_PRESETS.find(
             (preset) =>
@@ -365,10 +425,10 @@ export default function WebsiteBuilderPage() {
     const sectionCustomizationMap = useMemo(() => {
         const map: Record<string, boolean> = {};
         sortedSections.forEach((section) => {
-            map[section.id] = isWebsiteSectionCustomized(section.section_key, section.content);
+            map[section.id] = isWebsiteSectionCustomized(section.section_key, section.content, selectedPageSlug);
         });
         return map;
-    }, [sortedSections]);
+    }, [selectedPageSlug, sortedSections]);
 
     const sectionsNeedingCustomization = useMemo(
         () => sortedSections.filter((section) => !sectionCustomizationMap[section.id]),
@@ -386,12 +446,14 @@ export default function WebsiteBuilderPage() {
     const canPublishSite =
         sectionsNeedingCustomization.length === 0 && globalSettingsQualification.ready;
 
+    const usesStrictPublishChecklist = selectedPageSlug === "home";
+
     const hasUnsavedChanges = Boolean(lastSavedSnapshot) && currentSnapshot !== lastSavedSnapshot;
 
     async function loadWebsiteBuilder() {
         setLoading(true);
         try {
-            const res = await fetch("/api/admin/website/homepage", { cache: "no-store" });
+            const res = await fetch(`/api/admin/website/pages/${selectedPageSlug}`, { cache: "no-store" });
             const payload = await res.json();
 
             if (!res.ok || !payload.success) {
@@ -419,7 +481,7 @@ export default function WebsiteBuilderPage() {
 
     useEffect(() => {
         loadWebsiteBuilder();
-    }, []);
+    }, [selectedPageSlug]);
 
     useEffect(() => {
         if (activeEditorTab === "settings") return;
@@ -681,6 +743,18 @@ export default function WebsiteBuilderPage() {
             return fromStructured;
         }
 
+        if (section.section_key === "hall_of_fame") {
+            const templateItems = (pageTemplates.find((item) => item.key === "hall_of_fame")?.content.faculty_items || []).map((item) => ({
+                title: item.title || "",
+                position: item.position || "",
+                description: item.description || "",
+                image_url: item.image_url || "",
+            }));
+            if (templateItems.length > 0) {
+                return templateItems;
+            }
+        }
+
         return DEFAULT_FACULTY_ITEMS.map((item) => ({ ...item }));
     }
 
@@ -748,6 +822,16 @@ export default function WebsiteBuilderPage() {
 
         if (fromStructured.length > 0) {
             return fromStructured;
+        }
+
+        if (section.section_key === "achievements_awards") {
+            const templateItems = (pageTemplates.find((item) => item.key === "achievements_awards")?.content.news_items || []).map((item) => ({
+                title: item.title || "",
+                description: item.description || "",
+            }));
+            if (templateItems.length > 0) {
+                return templateItems;
+            }
         }
 
         return DEFAULT_NEWS_ITEMS.map((item) => ({ ...item }));
@@ -903,7 +987,7 @@ export default function WebsiteBuilderPage() {
             return fromLegacy;
         }
 
-        const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === "admissions")?.content;
+        const template = pageTemplates.find((item) => item.key === "admissions")?.content;
         return (template?.admissions_requirements || []).map((item) => item.trim()).filter(Boolean);
     }
 
@@ -935,7 +1019,7 @@ export default function WebsiteBuilderPage() {
             return structured;
         }
 
-        const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === "admissions")?.content;
+        const template = pageTemplates.find((item) => item.key === "admissions")?.content;
         return (template?.admissions_steps || []).map((item) => item.trim()).filter(Boolean);
     }
 
@@ -966,7 +1050,7 @@ export default function WebsiteBuilderPage() {
             return structured;
         }
 
-        const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === "contact")?.content;
+        const template = pageTemplates.find((item) => item.key === "contact")?.content;
         const templateLines = (template?.[field] || []) as string[];
         if (templateLines.length > 0) {
             return templateLines.map((item) => item.trim()).filter(Boolean);
@@ -1067,7 +1151,7 @@ export default function WebsiteBuilderPage() {
     async function saveAll() {
         if (!page) return;
 
-        if (page.status === "published" && !canPublishSite) {
+        if (page.status === "published" && usesStrictPublishChecklist && !canPublishSite) {
             const sectionList = sectionsNeedingCustomization.map((section) => section.section_label || section.section_key).join(", ");
             const settingsList = globalSettingsQualification.missingLabels.join(", ");
             toast.error(
@@ -1092,7 +1176,7 @@ export default function WebsiteBuilderPage() {
                 content: section.content,
             }));
 
-            const res = await fetch("/api/admin/website/homepage", {
+            const res = await fetch(`/api/admin/website/pages/${selectedPageSlug}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1122,7 +1206,7 @@ export default function WebsiteBuilderPage() {
 
         setSavingSectionId(sectionId);
         try {
-            const res = await fetch("/api/admin/website/homepage", {
+            const res = await fetch(`/api/admin/website/pages/${selectedPageSlug}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -1212,7 +1296,7 @@ export default function WebsiteBuilderPage() {
     function resetToTemplateDefaults() {
         setSections((prev) =>
             prev.map((section) => {
-                const template = WEBSITE_SECTION_TEMPLATES.find((item) => item.key === section.section_key);
+                const template = pageTemplates.find((item) => item.key === section.section_key);
                 if (!template) return section;
 
                 return {
@@ -1235,7 +1319,8 @@ export default function WebsiteBuilderPage() {
 
         if (!school?.subdomain) return "#";
 
-        return `${window.location.origin}/site/${school.subdomain}`;
+        const pagePath = selectedPageSlug === "hall-of-fame" ? "/hall-of-fame" : "";
+        return `${window.location.origin}/site/${school.subdomain}${pagePath}`;
     }
 
     function getPreviewUrl() {
@@ -1268,7 +1353,7 @@ export default function WebsiteBuilderPage() {
     }
 
     function handleMarkPublished() {
-        if (!canPublishSite) {
+        if (usesStrictPublishChecklist && !canPublishSite) {
             const sectionList = sectionsNeedingCustomization.map((section) => section.section_label || section.section_key).join(", ");
             const settingsList = globalSettingsQualification.missingLabels.join(", ");
             toast.error(
@@ -1293,8 +1378,29 @@ export default function WebsiteBuilderPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900">Website Builder</h1>
                         <p className="text-sm text-slate-600">
-                            Edit your school homepage, upload media assets, and publish only when fully customized.
+                            Edit your school website pages, upload media assets, and publish with page-specific controls.
                         </p>
+                        <div className="mt-2 max-w-xs">
+                            <Label className="text-xs text-slate-600">Editing Page</Label>
+                            <Select
+                                value={selectedPageSlug}
+                                onValueChange={(value) => {
+                                    setSelectedPageSlug(value as WebsitePageSlug);
+                                    setActiveEditorTab("settings");
+                                }}
+                            >
+                                <SelectTrigger className="mt-1 h-9">
+                                    <SelectValue placeholder="Select a page" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {PAGE_OPTIONS.map((option) => (
+                                        <SelectItem key={option.slug} value={option.slug}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         {school?.subdomain ? (
                             <p className="mt-1 text-xs text-slate-500">Draft preview URL: {getPublicUrl()}</p>
                         ) : null}
@@ -2019,10 +2125,10 @@ export default function WebsiteBuilderPage() {
                                                                 </div>
                                                             ) : null}
 
-                                                            {section.section_key === "faculty" ? (
+                                                            {section.section_key === "faculty" || section.section_key === "hall_of_fame" ? (
                                                                 <div className="space-y-3 md:col-span-2">
                                                                     <div className="flex items-center justify-between gap-2">
-                                                                        <Label>Faculty Cards</Label>
+                                                                        <Label>{section.section_key === "hall_of_fame" ? "Hall Of Fame Cards" : "Faculty Cards"}</Label>
                                                                         <Button
                                                                             type="button"
                                                                             variant="outline"
@@ -2030,7 +2136,7 @@ export default function WebsiteBuilderPage() {
                                                                             onClick={() => addFacultyItem(section.id)}
                                                                         >
                                                                             <Plus className="mr-2 h-4 w-4" />
-                                                                            Add Faculty
+                                                                            {section.section_key === "hall_of_fame" ? "Add Profile" : "Add Faculty"}
                                                                         </Button>
                                                                     </div>
 
@@ -2040,7 +2146,7 @@ export default function WebsiteBuilderPage() {
                                                                             return (
                                                                                 <div key={mediaKey} className="rounded-lg border border-slate-200 p-3">
                                                                                     <div className="mb-3 flex items-center justify-between">
-                                                                                        <p className="text-sm font-semibold text-slate-800">Faculty {index + 1}</p>
+                                                                                        <p className="text-sm font-semibold text-slate-800">{section.section_key === "hall_of_fame" ? `Profile ${index + 1}` : `Faculty ${index + 1}`}</p>
                                                                                         <Button
                                                                                             type="button"
                                                                                             variant="ghost"
@@ -2054,7 +2160,7 @@ export default function WebsiteBuilderPage() {
 
                                                                                     <div className="grid gap-3 md:grid-cols-2">
                                                                                         <div className="space-y-1">
-                                                                                            <Label>Name</Label>
+                                                                                            <Label>{section.section_key === "hall_of_fame" ? "Name / Team" : "Name"}</Label>
                                                                                             <Input
                                                                                                 value={faculty.title}
                                                                                                 onChange={(e) =>
@@ -2074,7 +2180,7 @@ export default function WebsiteBuilderPage() {
                                                                                             />
                                                                                         </div>
                                                                                         <div className="space-y-1 md:col-span-2">
-                                                                                            <Label>Bio/Description</Label>
+                                                                                            <Label>{section.section_key === "hall_of_fame" ? "Achievement Summary" : "Bio/Description"}</Label>
                                                                                             <Textarea
                                                                                                 rows={2}
                                                                                                 value={faculty.description}
@@ -2085,7 +2191,7 @@ export default function WebsiteBuilderPage() {
                                                                                             />
                                                                                         </div>
                                                                                         <div className="space-y-1 md:col-span-2">
-                                                                                            <Label>Faculty Photo URL</Label>
+                                                                                            <Label>{section.section_key === "hall_of_fame" ? "Profile Image URL" : "Faculty Photo URL"}</Label>
                                                                                             <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                                                                                                 <Input
                                                                                                     value={faculty.image_url || ""}
@@ -2154,10 +2260,10 @@ export default function WebsiteBuilderPage() {
                                                                 </div>
                                                             ) : null}
 
-                                                            {section.section_key === "news" ? (
+                                                            {section.section_key === "news" || section.section_key === "achievements_awards" ? (
                                                                 <div className="space-y-3 md:col-span-2">
                                                                     <div className="flex items-center justify-between gap-2">
-                                                                        <Label>News Headlines</Label>
+                                                                        <Label>{section.section_key === "achievements_awards" ? "Awards" : "News Headlines"}</Label>
                                                                         <Button
                                                                             type="button"
                                                                             variant="outline"
@@ -2165,7 +2271,7 @@ export default function WebsiteBuilderPage() {
                                                                             onClick={() => addNewsItem(section.id)}
                                                                         >
                                                                             <Plus className="mr-2 h-4 w-4" />
-                                                                            Add News
+                                                                            {section.section_key === "achievements_awards" ? "Add Award" : "Add News"}
                                                                         </Button>
                                                                     </div>
 
@@ -2174,7 +2280,7 @@ export default function WebsiteBuilderPage() {
                                                                             return (
                                                                                 <div key={`news-${index}`} className="rounded-lg border border-slate-200 p-3">
                                                                                     <div className="mb-3 flex items-center justify-between">
-                                                                                        <p className="text-sm font-semibold text-slate-800">News {index + 1}</p>
+                                                                                        <p className="text-sm font-semibold text-slate-800">{section.section_key === "achievements_awards" ? `Award ${index + 1}` : `News ${index + 1}`}</p>
                                                                                         <Button
                                                                                             type="button"
                                                                                             variant="ghost"
@@ -2188,24 +2294,24 @@ export default function WebsiteBuilderPage() {
 
                                                                                     <div className="space-y-3">
                                                                                         <div className="space-y-1">
-                                                                                            <Label>Headline</Label>
+                                                                                            <Label>{section.section_key === "achievements_awards" ? "Award Title" : "Headline"}</Label>
                                                                                             <Input
                                                                                                 value={newsItem.title}
                                                                                                 onChange={(e) =>
                                                                                                     updateNewsItem(section.id, index, "title", e.target.value)
                                                                                                 }
-                                                                                                placeholder="Latest school news..."
+                                                                                                placeholder={section.section_key === "achievements_awards" ? "Award title..." : "Latest school news..."}
                                                                                             />
                                                                                         </div>
                                                                                         <div className="space-y-1">
-                                                                                            <Label>Description</Label>
+                                                                                            <Label>{section.section_key === "achievements_awards" ? "Award Details" : "Description"}</Label>
                                                                                             <Textarea
                                                                                                 rows={2}
                                                                                                 value={newsItem.description}
                                                                                                 onChange={(e) =>
                                                                                                     updateNewsItem(section.id, index, "description", e.target.value)
                                                                                                 }
-                                                                                                placeholder="News details..."
+                                                                                                placeholder={section.section_key === "achievements_awards" ? "Award details..." : "News details..."}
                                                                                             />
                                                                                         </div>
                                                                                     </div>
@@ -2721,39 +2827,53 @@ export default function WebsiteBuilderPage() {
                                 <div className="rounded-lg border bg-white p-4">
                                     <h2 className="mb-3 text-lg font-semibold text-slate-900">Publishing</h2>
                                     <div className="mb-4 rounded-lg border border-slate-200 bg-gradient-to-r from-slate-50 via-emerald-50 to-sky-50 p-4">
-                                        <div className="mb-2 flex items-center justify-between gap-2">
-                                            <p className="text-sm font-semibold text-slate-900">Publish Readiness</p>
-                                            <Badge variant={canPublishSite ? "default" : "outline"} className={canPublishSite ? "bg-emerald-600" : ""}>
-                                                {completedPublishChecklistItems}/{totalPublishChecklistItems} complete
-                                            </Badge>
-                                        </div>
-                                        <Progress value={publishProgressPercent} className="h-2.5" />
-                                        <p className="mt-2 text-xs text-slate-600">
-                                            {canPublishSite
-                                                ? "Everything is customized. You can publish when ready."
-                                                : `${publishProgressPercent}% complete. Finish all sections and global settings to unlock publishing.`}
-                                        </p>
-                                        {globalSettingsQualification.missingLabels.length > 0 ? (
-                                            <p className="mt-2 text-xs text-amber-700">
-                                                Global settings missing: {globalSettingsQualification.missingLabels.join(", ")}.
-                                            </p>
-                                        ) : null}
-                                        {sectionsNeedingCustomization.length > 0 ? (
-                                            <div className="mt-2 flex flex-wrap gap-2">
-                                                {sectionsNeedingCustomization.map((section) => (
-                                                    <Button
-                                                        key={section.id}
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="h-7 border-amber-300 text-amber-700"
-                                                        onClick={() => setActiveEditorTab(`section-${section.id}`)}
-                                                    >
-                                                        Edit {section.section_label || section.section_key}
-                                                    </Button>
-                                                ))}
-                                            </div>
-                                        ) : null}
+                                        {usesStrictPublishChecklist ? (
+                                            <>
+                                                <div className="mb-2 flex items-center justify-between gap-2">
+                                                    <p className="text-sm font-semibold text-slate-900">Publish Readiness</p>
+                                                    <Badge variant={canPublishSite ? "default" : "outline"} className={canPublishSite ? "bg-emerald-600" : ""}>
+                                                        {completedPublishChecklistItems}/{totalPublishChecklistItems} complete
+                                                    </Badge>
+                                                </div>
+                                                <Progress value={publishProgressPercent} className="h-2.5" />
+                                                <p className="mt-2 text-xs text-slate-600">
+                                                    {canPublishSite
+                                                        ? "Everything is customized. You can publish when ready."
+                                                        : `${publishProgressPercent}% complete. Finish all sections and global settings to unlock publishing.`}
+                                                </p>
+                                                {globalSettingsQualification.missingLabels.length > 0 ? (
+                                                    <p className="mt-2 text-xs text-amber-700">
+                                                        Global settings missing: {globalSettingsQualification.missingLabels.join(", ")}.
+                                                    </p>
+                                                ) : null}
+                                                {sectionsNeedingCustomization.length > 0 ? (
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {sectionsNeedingCustomization.map((section) => (
+                                                            <Button
+                                                                key={section.id}
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 border-amber-300 text-amber-700"
+                                                                onClick={() => setActiveEditorTab(`section-${section.id}`)}
+                                                            >
+                                                                Edit {section.section_label || section.section_key}
+                                                            </Button>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="mb-2 flex items-center justify-between gap-2">
+                                                    <p className="text-sm font-semibold text-slate-900">Independent Publish Mode</p>
+                                                    <Badge className="bg-sky-600">Hall Of Fame</Badge>
+                                                </div>
+                                                <p className="text-xs text-slate-600">
+                                                    This page can publish independently from homepage readiness. Save your sections, then publish when ready.
+                                                </p>
+                                            </>
+                                        )}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-3">
                                         <Button
@@ -2765,20 +2885,22 @@ export default function WebsiteBuilderPage() {
                                         <Button
                                             onClick={handleMarkPublished}
                                             className="bg-emerald-600 hover:bg-emerald-700"
-                                            disabled={!canPublishSite}
+                                            disabled={usesStrictPublishChecklist && !canPublishSite}
                                         >
                                             <Globe className="mr-2 h-4 w-4" />
                                             Mark as Published
                                         </Button>
                                         <span className="text-sm text-slate-500">
-                                            Click Save Changes after selecting status. Publishing unlocks only at 100% readiness.
+                                            {usesStrictPublishChecklist
+                                                ? "Click Save Changes after selecting status. Publishing unlocks only at 100% readiness."
+                                                : "Click Save Changes after selecting status to publish Hall Of Fame independently."}
                                         </span>
                                     </div>
                                 </div>
 
                                 <Separator />
                                 <p className="text-xs text-slate-500">
-                                    Sections scaffolded from your intended layout: {WEBSITE_SECTION_TEMPLATES.map((s) => s.key).join(", ")}.
+                                    Sections scaffolded from your intended layout: {pageTemplates.map((s) => s.key).join(", ")}.
                                 </p>
                             </div>
 

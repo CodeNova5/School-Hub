@@ -206,10 +206,15 @@ function resolvePreviewMode(searchParams: { preview?: string }) {
 
 async function isAdminPreviewAllowed(expectedSchoolId: string) {
   const supabase = createServerComponentClient({ cookies });
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   if (!user) return false;
-  const { data: isAdmin } = await supabase.rpc("is_admin");
-  if (!isAdmin) return false;
+
+  // Keep preview authorization aligned with middleware portal access checks.
+  const { data: canAccessAdmin, error: canAccessAdminError } = await supabase.rpc("can_access_admin");
+  if (canAccessAdminError || !canAccessAdmin) return false;
 
   const { data: schoolId, error } = await supabase.rpc("get_my_school_id");
   if (error || !schoolId) return false;

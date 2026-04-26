@@ -1,9 +1,20 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Loader2, Send, CheckCircle2 } from "lucide-react";
+import Script from "next/script";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: Record<string, any>) => string;
+      remove: (widgetId: string) => void;
+      reset: (widgetId?: string) => void;
+    };
+  }
+}
 
 const SOCIAL_FIELDS = [
   { key: "linkedin_url", label: "LinkedIn URL", placeholder: "https://linkedin.com/in/yourname" },
@@ -16,9 +27,13 @@ const SOCIAL_FIELDS = [
 
 export default function AlumniApplyPage() {
   const params = useParams<{ subdomain: string }>();
+  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
+  const captchaWidgetIdRef = useRef<string | null>(null);
+  const captchaSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
 
   const [form, setForm] = useState({
     full_name: "",
@@ -35,12 +50,32 @@ export default function AlumniApplyPage() {
   });
   const [image, setImage] = useState<File | null>(null);
 
+  useEffect(() => {
+    if (!captchaSiteKey) return;
+    if (!captchaContainerRef.current) return;
+    if (!window.turnstile) return;
+    if (captchaWidgetIdRef.current) return;
+
+    captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, {
+      sitekey: captchaSiteKey,
+      callback: (token: string) => setCaptchaToken(token),
+      "expired-callback": () => setCaptchaToken(""),
+      "error-callback": () => setCaptchaToken(""),
+      theme: "light",
+    });
+  }, [captchaSiteKey]);
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
     if (!image) {
       setError("Please upload your profile image.");
+      return;
+    }
+
+    if (!captchaToken) {
+      setError("Please complete CAPTCHA verification.");
       return;
     }
 
@@ -51,6 +86,7 @@ export default function AlumniApplyPage() {
       Object.entries(form).forEach(([key, value]) => {
         payload.append(key, value);
       });
+      payload.append("captcha_token", captchaToken);
 
       const res = await fetch("/api/alumni/applications/submit", {
         method: "POST",
@@ -65,6 +101,10 @@ export default function AlumniApplyPage() {
       setSubmitted(true);
     } catch (submitError: any) {
       setError(submitError.message || "Unable to submit application");
+      if (captchaWidgetIdRef.current && window.turnstile) {
+        window.turnstile.reset(captchaWidgetIdRef.current);
+      }
+      setCaptchaToken("");
     } finally {
       setSubmitting(false);
     }
@@ -98,6 +138,9 @@ export default function AlumniApplyPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-12">
+      {captchaSiteKey ? (
+        <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" />
+      ) : null}
       <div className="mx-auto max-w-3xl">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-black tracking-tight text-slate-900">Apply as Alumni</h1>
@@ -187,6 +230,17 @@ export default function AlumniApplyPage() {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-slate-700">CAPTCHA Verification</span>
+            {captchaSiteKey ? (
+              <div ref={captchaContainerRef} />
+            ) : (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                CAPTCHA is not configured yet. Add `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`.
+              </div>
+            )}
           </div>
 
           {error ? (

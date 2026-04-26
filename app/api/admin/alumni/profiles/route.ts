@@ -15,7 +15,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const url = new URL(req.url);
-    const status = (url.searchParams.get("status") || "pending").trim().toLowerCase();
     const search = (url.searchParams.get("search") || "").trim();
     const page = Math.max(1, Number(url.searchParams.get("page") || "1"));
     const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") || "10")));
@@ -23,15 +22,11 @@ export async function GET(req: NextRequest) {
     const to = from + pageSize - 1;
 
     let query = supabaseAdmin
-      .from("website_alumni_applications")
+      .from("website_alumni_profiles")
       .select("*", { count: "exact" })
       .eq("school_id", permission.schoolId)
-      .order("submitted_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(from, to);
-
-    if (status !== "all") {
-      query = query.eq("status", status);
-    }
 
     if (search) {
       const escaped = search.replace(/,/g, " ").trim();
@@ -39,7 +34,7 @@ export async function GET(req: NextRequest) {
         [
           `full_name.ilike.%${escaped}%`,
           `occupation.ilike.%${escaped}%`,
-          `email.ilike.%${escaped}%`,
+          `profile_slug.ilike.%${escaped}%`,
         ].join(",")
       );
     }
@@ -48,7 +43,7 @@ export async function GET(req: NextRequest) {
     if (error) throw error;
 
     return successResponse({
-      applications: data || [],
+      profiles: data || [],
       pagination: {
         page,
         pageSize,
@@ -57,6 +52,6 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: any) {
-    return errorResponse(error.message || "Failed to load alumni applications", 500);
+    return errorResponse(error.message || "Failed to load alumni profiles", 500);
   }
 }

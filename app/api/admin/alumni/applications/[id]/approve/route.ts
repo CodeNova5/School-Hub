@@ -3,24 +3,15 @@ import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { checkIsAdminWithSchool, errorResponse, successResponse } from "@/lib/api-helpers";
+import { slugifyAlumniName } from "@/lib/alumni-server";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "alumni";
-}
-
 async function generateUniqueProfileSlug(schoolId: string, fullName: string) {
-  const base = slugify(fullName);
+  const base = slugifyAlumniName(fullName);
   let nextSlug = base;
   let suffix = 2;
 

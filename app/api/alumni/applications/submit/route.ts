@@ -10,6 +10,7 @@ const supabaseAdmin = createClient(
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000;
 const MAX_REQUESTS_PER_HOUR = 5;
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 function getClientIP(req: NextRequest): string {
   return (
@@ -123,6 +124,35 @@ async function resolveSchoolId(req: NextRequest) {
   return school?.id || null;
 }
 
+async function verifyCaptchaToken(token: string, remoteIp: string) {
+  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("CAPTCHA is not configured on the server");
+  }
+
+  const verifyForm = new URLSearchParams();
+  verifyForm.set("secret", secretKey);
+  verifyForm.set("response", token);
+  if (remoteIp && remoteIp !== "unknown") {
+    verifyForm.set("remoteip", remoteIp);
+  }
+
+  const verifyResponse = await fetch(TURNSTILE_VERIFY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: verifyForm,
+  });
+
+  if (!verifyResponse.ok) {
+    throw new Error("CAPTCHA verification failed");
+  }
+
+  const verifyPayload = await verifyResponse.json();
+  if (!verifyPayload?.success) {
+    throw new Error("CAPTCHA verification was not successful");
+  }
+}
+
 setInterval(() => {
   const now = Date.now();
   rateLimitStore.forEach((record, ip) => {
@@ -165,6 +195,7 @@ export async function POST(req: NextRequest) {
     const email = String(formData.get("email") || "").trim().toLowerCase();
     const phone = String(formData.get("phone") || "").trim();
     const story = String(formData.get("story") || "").trim();
+    const captchaToken = String(formData.get("captcha_token") || "").trim();
 
     if (!fullName || !occupation || !email || !story) {
       return NextResponse.json(
@@ -177,6 +208,12 @@ export async function POST(req: NextRequest) {
     if (!emailRegex.test(email)) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
     }
+
+    if (!captchaToken) {
+      return NextResponse.json({ error: "Please complete CAPTCHA verification" }, { status: 400 });
+    }
+
+    await verifyCaptchaToken(captchaToken, clientIP);
 
     const image = formData.get("image");
     if (!(image instanceof File)) {

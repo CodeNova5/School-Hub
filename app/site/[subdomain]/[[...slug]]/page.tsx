@@ -415,7 +415,7 @@ function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
   const heroCardTitle = section?.content.hero_card_title || "Modern learning. Strong values. Real outcomes.";
   const heroCardDescription =
     section?.content.hero_card_description ||
-    "A school website built to communicate trust, clarity, and excellence from the first glance.";
+    "A school built to communicate trust, clarity, and excellence from the first glance.";
   const heroStats =
     section?.content.hero_stats
       ?.map((entry) => entry.split("|").map((value) => value.trim()))
@@ -448,7 +448,7 @@ function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
         <div className="max-w-3xl">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.22em] backdrop-blur" style={{ color: "rgba(var(--wb-secondary-rgb),0.95)" }}>
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--wb-secondary)" }} />
-            Your School Website
+            Official School Website
           </div>
           <h1 className="text-4xl font-black leading-[1.05] tracking-tight md:text-6xl">{heading}</h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/82 md:text-xl">{subheading}</p>

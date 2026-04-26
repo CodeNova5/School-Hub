@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     } = await routeClient.auth.getUser();
 
     const body = await req.json();
-    const ids = Array.isArray(body?.ids) ? body.ids.filter((value) => typeof value === "string") : [];
+    const ids = Array.isArray(body?.ids) ? body.ids.filter((value: any) => typeof value === "string") : [];
     const action = typeof body?.action === "string" ? body.action.toLowerCase() : "";
     const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
 

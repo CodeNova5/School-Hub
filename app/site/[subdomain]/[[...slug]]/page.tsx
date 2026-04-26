@@ -343,6 +343,7 @@ function renderHeader(
 ) {
   const homeHref = basePath || "/";
   const hallOfFameHref = basePath ? `${basePath}/hall-of-fame` : "/hall-of-fame";
+  const alumniHref = basePath ? `${basePath}/alumni` : "/alumni";
 
   return (
     <header className="sticky top-0 z-40 bg-slate-950/95 text-white backdrop-blur border-b border-white/10">
@@ -373,6 +374,9 @@ function renderHeader(
           </a>
           <a href={hallOfFameHref} className={pageSlug === "hall-of-fame" ? "text-[var(--wb-secondary)]" : "text-white/80 transition hover:text-[var(--wb-secondary)]"}>
             Hall Of Fame
+          </a>
+          <a href={alumniHref} className="text-white/80 transition hover:text-[var(--wb-secondary)]">
+            Alumni
           </a>
           {sections
             .filter((section) => section.is_visible)

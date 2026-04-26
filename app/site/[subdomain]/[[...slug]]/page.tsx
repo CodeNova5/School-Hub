@@ -979,7 +979,7 @@ function renderHallOfFameHero(section: WebsiteSection | undefined, siteSettings:
     <section id="achievements_hero" className="relative overflow-hidden bg-slate-950 px-4 py-24 text-white md:px-6 md:py-32">
       <div className="absolute inset-0">
         {heroImage ? (
-          <img src={heroImage} alt="Hall of Fame hero background" className="h-full w-full object-cover object-center opacity-55" />
+          <img src={heroImage} alt="Hall of Fame hero background" className="h-full w-full object-cover object-center opacity-50" />
         ) : (
           <div
             className="h-full w-full"
@@ -989,17 +989,17 @@ function renderHallOfFameHero(section: WebsiteSection | undefined, siteSettings:
             }}
           />
         )}
-        <div className="absolute inset-0 bg-slate-950/22" />
+        <div className="absolute inset-0 bg-slate-950/30" />
         <div
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at center, rgba(2,6,23,0.08) 0%, rgba(2,6,23,0.34) 62%, rgba(2,6,23,0.56) 100%), linear-gradient(180deg, rgba(2,6,23,0.12), rgba(2,6,23,0.58))",
+              "radial-gradient(circle at center, rgba(2,6,23,0.16) 0%, rgba(2,6,23,0.48) 62%, rgba(2,6,23,0.72) 100%), linear-gradient(180deg, rgba(2,6,23,0.2), rgba(2,6,23,0.62))",
           }}
         />
       </div>
       <div className="relative mx-auto max-w-[1100px]">
-        <div className="mx-auto max-w-4xl rounded-[30px] border border-white/20 bg-slate-950/24 px-5 py-8 text-center shadow-[0_24px_56px_rgba(2,6,23,0.35)] backdrop-blur-sm md:px-10 md:py-10">
+        <div className="mx-auto max-w-4xl rounded-[30px] border border-white/20 bg-slate-950/26 px-5 py-8 text-center shadow-[0_24px_64px_rgba(2,6,23,0.42)] backdrop-blur-sm md:px-10 md:py-10">
           <p className="text-xs font-semibold uppercase tracking-[0.28em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.92)" }}>
             {siteSettings.site_title}
           </p>

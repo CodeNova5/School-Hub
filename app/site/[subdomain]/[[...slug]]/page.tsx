@@ -176,6 +176,7 @@ const FALLBACK_CONTENT = {
       heading: "Hall of Fame & Achievements",
       subheading: "Celebrating excellence, impact, and milestone moments",
       description: "Explore standout achievements from our students, alumni, teams, and staff.",
+      imageUrl: "https://tsdsi.in/wp-content/uploads/2024/12/Hall-of-Fame-Awards-Ceremony-Web-Banner2025_v2-1.jpg",
       buttonLabel: "Submit an Achievement",
       buttonLink: "#achievements_cta",
     },
@@ -971,15 +972,26 @@ function renderHallOfFameHero(section: WebsiteSection | undefined, siteSettings:
   const heading = section?.content.heading || fallback.heading;
   const subheading = section?.content.subheading || fallback.subheading;
   const description = section?.content.description || fallback.description;
+  const heroImage = section?.content.image_url || fallback.imageUrl;
   const buttonLabel = section?.content.button_label || fallback.buttonLabel;
   const buttonLink = section?.content.button_link || fallback.buttonLink;
 
   return (
     <section id="achievements_hero" className="relative overflow-hidden bg-slate-950 px-4 py-24 text-white md:px-6 md:py-32">
-      <div
-        className="absolute inset-0 opacity-60"
-        style={{ background: "radial-gradient(circle at top right, rgba(var(--wb-secondary-rgb),0.28), transparent 35%), linear-gradient(135deg, #0f172a 0%, #111827 55%, #1f2937 100%)" }}
-      />
+      <div className="absolute inset-0">
+        {heroImage ? (
+          <img src={heroImage} alt="Hall of Fame hero background" className="h-full w-full object-cover opacity-45" />
+        ) : (
+          <div
+            className="h-full w-full"
+            style={{
+              background:
+                "radial-gradient(circle at top right, rgba(var(--wb-secondary-rgb),0.28), transparent 35%), linear-gradient(135deg, #0f172a 0%, #111827 55%, #1f2937 100%)",
+            }}
+          />
+        )}
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.42),rgba(2,6,23,0.9))]" />
+      </div>
       <div className="relative mx-auto max-w-[1100px] text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.28em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.92)" }}>
           {siteSettings.site_title}

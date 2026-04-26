@@ -980,7 +980,7 @@ function renderHallOfFameHero(section: WebsiteSection | undefined, siteSettings:
     <section id="achievements_hero" className="relative overflow-hidden bg-slate-950 px-4 py-24 text-white md:px-6 md:py-32">
       <div className="absolute inset-0">
         {heroImage ? (
-          <img src={heroImage} alt="Hall of Fame hero background" className="h-full w-full object-cover opacity-45" />
+          <img src={heroImage} alt="Hall of Fame hero background" className="h-full w-full object-cover object-center opacity-30" />
         ) : (
           <div
             className="h-full w-full"
@@ -990,22 +990,31 @@ function renderHallOfFameHero(section: WebsiteSection | undefined, siteSettings:
             }}
           />
         )}
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.42),rgba(2,6,23,0.9))]" />
+        <div className="absolute inset-0 bg-slate-950/55" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at center, rgba(2,6,23,0.35) 0%, rgba(2,6,23,0.78) 62%, rgba(2,6,23,0.92) 100%), linear-gradient(180deg, rgba(2,6,23,0.36), rgba(2,6,23,0.88))",
+          }}
+        />
       </div>
-      <div className="relative mx-auto max-w-[1100px] text-center">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.92)" }}>
-          {siteSettings.site_title}
-        </p>
-        <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">{heading}</h1>
-        <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-white/80 md:text-lg">{subheading}</p>
-        <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/70">{description}</p>
-        <a
-          href={buttonLink}
-          className="mt-8 inline-flex rounded-full px-7 py-3 text-sm font-bold text-slate-950"
-          style={{ backgroundColor: "var(--wb-secondary)" }}
-        >
-          {buttonLabel}
-        </a>
+      <div className="relative mx-auto max-w-[1100px]">
+        <div className="mx-auto max-w-4xl rounded-[30px] border border-white/15 bg-slate-950/45 px-5 py-8 text-center shadow-[0_30px_80px_rgba(2,6,23,0.55)] backdrop-blur-md md:px-10 md:py-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.92)" }}>
+            {siteSettings.site_title}
+          </p>
+          <h1 className="mt-4 text-4xl font-black tracking-tight text-white drop-shadow-[0_8px_24px_rgba(2,6,23,0.7)] md:text-6xl">{heading}</h1>
+          <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-white/88 md:text-lg">{subheading}</p>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/76">{description}</p>
+          <a
+            href={buttonLink}
+            className="mt-8 inline-flex rounded-full px-7 py-3 text-sm font-bold text-slate-950"
+            style={{ backgroundColor: "var(--wb-secondary)" }}
+          >
+            {buttonLabel}
+          </a>
+        </div>
       </div>
     </section>
   );

@@ -176,7 +176,7 @@ const FALLBACK_CONTENT = {
       heading: "Hall of Fame & Achievements",
       subheading: "Celebrating excellence, impact, and milestone moments",
       description: "Explore standout achievements from our students, alumni, teams, and staff.",
-      imageUrl: "https://tsdsi.in/wp-content/uploads/2024/12/Hall-of-Fame-Awards-Ceremony-Web-Banner2025_v2-1.jpg",
+      imageUrl: "https://raw.githubusercontent.com/CodeNova5/School-Deck-Assets/main/websites/00000000-0000-0000-0000-000000000001/7512c5a8-0893-4d47-9afa-512e75bc96ad/1776856809404-ok.png",
       buttonLabel: "Submit an Achievement",
       buttonLink: "#achievements_cta",
     },

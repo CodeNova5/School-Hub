@@ -9,6 +9,7 @@ import {
   getWebsiteGlobalSettingsQualification,
   isWebsiteSectionCustomized,
 } from "@/lib/website-builder";
+import { SchoolDomainHeader } from "@/app/site/components/school-domain-header";
 
 interface WebsiteSection {
   id: string;
@@ -302,10 +303,6 @@ function getSupabaseAnonClient() {
   return createClient(url, key);
 }
 
-function makeSlugLabel(section: WebsiteSection) {
-  return section.section_label || section.content.heading || section.section_key;
-}
-
 function getHostSubdomain(hostname: string) {
   const host = hostname.split(":")[0].toLowerCase();
   const parts = host.split(".");
@@ -332,76 +329,6 @@ async function isAdminPreviewAllowed() {
   if (!user) return false;
   const { data: canAccessAdmin } = await supabase.rpc("can_access_admin");
   return Boolean(canAccessAdmin);
-}
-
-function renderHeader(
-  siteSettings: SiteSettings,
-  sections: WebsiteSection[],
-  preview: boolean,
-  pageSlug: WebsitePageSlug,
-  basePath: string
-) {
-  const homeHref = basePath || "/";
-  const hallOfFameHref = basePath ? `${basePath}/hall-of-fame` : "/hall-of-fame";
-  const alumniHref = basePath ? `${basePath}/alumni` : "/alumni";
-
-  return (
-    <header className="sticky top-0 z-40 bg-slate-950/95 text-white backdrop-blur border-b border-white/10">
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between px-4 py-3 md:px-6">
-        <a href="#home" className="flex items-center gap-3">
-          {siteSettings.logo_url ? (
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 ring-1 ring-white/30 shadow-[0_6px_18px_rgba(2,6,23,0.45)]">
-              <img
-                src={siteSettings.logo_url}
-                alt={siteSettings.site_title}
-                className="h-full w-full origin-center scale-[1.55] transform-gpu object-contain"
-              />
-            </div>
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-black text-slate-950 shadow-lg" style={{ backgroundColor: "var(--wb-secondary)" }}>
-              {siteSettings.site_title.slice(0, 2).toUpperCase()}
-            </div>
-          )}
-          <div>
-            <p className="font-semibold tracking-wide text-white">{siteSettings.site_title}</p>
-            <p className="text-xs text-white/70">{siteSettings.site_tagline}</p>
-          </div>
-        </a>
-
-        <nav className="hidden gap-5 text-sm md:flex">
-          <a href={homeHref} className={pageSlug === "home" ? "text-[var(--wb-secondary)]" : "text-white/80 transition hover:text-[var(--wb-secondary)]"}>
-            Home
-          </a>
-          <a href={hallOfFameHref} className={pageSlug === "hall-of-fame" ? "text-[var(--wb-secondary)]" : "text-white/80 transition hover:text-[var(--wb-secondary)]"}>
-            Hall Of Fame
-          </a>
-          <a href={alumniHref} className="text-white/80 transition hover:text-[var(--wb-secondary)]">
-            Alumni
-          </a>
-          {sections
-            .filter((section) => section.is_visible)
-            .map((section) => (
-              <a key={section.id} href={`#${section.section_key}`} className="text-white/80 transition hover:text-[var(--wb-secondary)]">
-                {makeSlugLabel(section)}
-              </a>
-            ))}
-        </nav>
-      </div>
-
-      {preview ? (
-        <div
-          className="border-t px-4 py-2 text-center text-xs font-medium"
-          style={{
-            borderColor: "rgba(var(--wb-secondary-rgb),0.35)",
-            backgroundColor: "rgba(var(--wb-secondary-rgb),0.12)",
-            color: "rgba(var(--wb-secondary-rgb),0.92)",
-          }}
-        >
-          Preview mode. Draft content is visible to authenticated admins only.
-        </div>
-      ) : null}
-    </header>
-  );
 }
 
 function renderHero(siteSettings: SiteSettings, sections: WebsiteSection[]) {
@@ -1351,14 +1278,6 @@ function renderFooter(siteSettings: SiteSettings) {
   );
 }
 
-function MobileMenu() {
-  return (
-    <button className="md:hidden rounded-full border border-white/20 bg-white/5 px-3 py-2 text-sm text-white/80">
-      Menu
-    </button>
-  );
-}
-
 function renderWebsiteNotPublished(message: string) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
@@ -1481,6 +1400,13 @@ export default async function PublicSchoolWebsite({
   const visibleSections = sections.filter((section) => section.is_visible).sort((a, b) => a.order_sequence - b.order_sequence);
   const routeBasePath = hostSubdomain ? "" : `/site/${requestedSubdomain}`;
 
+  const hallOfFameContextLinks = visibleSections
+    .map((section) => ({
+      label: section.section_label || section.content.heading || section.section_key,
+      href: `#${section.section_key}`,
+    }))
+    .filter((section) => section.label.trim());
+
   if (requestedPageSlug === "hall-of-fame") {
     const achievementsHeroSection = visibleSections.find((section) => section.section_key === "achievements_hero");
     const achievementsTimelineSection = visibleSections.find((section) => section.section_key === "achievements_timeline");
@@ -1490,7 +1416,13 @@ export default async function PublicSchoolWebsite({
 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
-        {renderHeader(siteSettings, visibleSections, isPreview, "hall-of-fame", routeBasePath)}
+        <SchoolDomainHeader
+          siteSettings={siteSettings}
+          basePath={routeBasePath}
+          currentPage="hall-of-fame"
+          preview={isPreview}
+          contextLinks={hallOfFameContextLinks}
+        />
         <main>
           {renderHallOfFameHero(achievementsHeroSection, siteSettings)}
           {renderAchievementTimeline(achievementsTimelineSection)}
@@ -1519,7 +1451,12 @@ export default async function PublicSchoolWebsite({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
-      {renderHeader(siteSettings, visibleSections, isPreview, "home", routeBasePath)}
+      <SchoolDomainHeader
+        siteSettings={siteSettings}
+        basePath={routeBasePath}
+        currentPage="home"
+        preview={isPreview}
+      />
       <main>
         {renderHero(siteSettings, visibleSections)}
         {renderAbout(aboutSection || homeSection)}
@@ -1533,11 +1470,6 @@ export default async function PublicSchoolWebsite({
         {renderContact(contactSection, siteSettings)}
       </main>
       {renderFooter(siteSettings)}
-      <script dangerouslySetInnerHTML={{ __html: `
-        (function() {
-          var menu = document.querySelector('[data-website-menu]');
-        })();
-      `}} />
     </div>
   );
 }

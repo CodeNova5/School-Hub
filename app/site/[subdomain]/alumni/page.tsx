@@ -3,10 +3,12 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import {
   extractSubdomainFromHost,
+  getPublicBasePath,
   getPublicSiteSettings,
   getPublicSupabaseAnonClient,
   resolveSchoolBySubdomain,
 } from "@/lib/public-school-site";
+import { SchoolDomainHeader } from "@/app/site/components/school-domain-header";
 
 interface AlumniProfile {
   id: string;
@@ -14,10 +16,6 @@ interface AlumniProfile {
   occupation: string;
   image_url: string;
   profile_slug: string;
-}
-
-function getBasePath(requestedSubdomain: string, hostSubdomain: string | null) {
-  return hostSubdomain ? "" : `/site/${requestedSubdomain}`;
 }
 
 export default async function AlumniDirectoryPage({
@@ -47,26 +45,11 @@ export default async function AlumniDirectoryPage({
   ]);
 
   const profiles = (profilesResult.data || []) as AlumniProfile[];
-  const basePath = getBasePath(requestedSubdomain, hostSubdomain);
+  const basePath = getPublicBasePath(requestedSubdomain, hostSubdomain);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-slate-500">{siteSettings.site_tagline}</p>
-            <h1 className="text-xl font-bold text-slate-900">{siteSettings.site_title}</h1>
-          </div>
-          <nav className="flex items-center gap-4 text-sm font-medium text-slate-600">
-            <Link href={basePath || "/"} className="hover:text-slate-900">Home</Link>
-            <Link href={`${basePath}/hall-of-fame`} className="hover:text-slate-900">Hall of Fame</Link>
-            <Link href={`${basePath}/alumni`} className="text-slate-900">Alumni</Link>
-            <Link href={`${basePath}/alumni/apply`} className="rounded-full px-4 py-2 text-white" style={{ backgroundColor: siteSettings.secondary_color }}>
-              Apply as Alumni
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <SchoolDomainHeader siteSettings={siteSettings} basePath={basePath} currentPage="alumni" />
 
       <main className="mx-auto max-w-6xl px-4 py-12">
         <div className="mb-10 text-center">

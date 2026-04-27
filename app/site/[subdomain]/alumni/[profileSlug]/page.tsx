@@ -3,10 +3,12 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import {
   extractSubdomainFromHost,
+  getPublicBasePath,
   getPublicSiteSettings,
   getPublicSupabaseAnonClient,
   resolveSchoolBySubdomain,
 } from "@/lib/public-school-site";
+import { SchoolDomainHeader } from "@/app/site/components/school-domain-header";
 
 interface AlumniProfile {
   id: string;
@@ -20,10 +22,6 @@ interface AlumniProfile {
   instagram_url: string;
   facebook_url: string;
   website_url: string;
-}
-
-function getBasePath(requestedSubdomain: string, hostSubdomain: string | null) {
-  return hostSubdomain ? "" : `/site/${requestedSubdomain}`;
 }
 
 function buildLinks(profile: AlumniProfile) {
@@ -69,28 +67,12 @@ export default async function AlumniProfilePage({
     notFound();
   }
 
-  const basePath = getBasePath(requestedSubdomain, hostSubdomain);
+  const basePath = getPublicBasePath(requestedSubdomain, hostSubdomain);
   const links = buildLinks(profile);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="border-b bg-white/90 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4">
-          <h1 className="text-lg font-bold text-slate-900">{siteSettings.site_title}</h1>
-          <div className="flex items-center gap-4 text-sm">
-            <Link href={`${basePath}/alumni`} className="font-medium text-slate-700 hover:text-slate-900">
-              Back to Alumni
-            </Link>
-            <Link
-              href={`${basePath}/alumni/apply`}
-              className="rounded-full px-4 py-2 text-white"
-              style={{ backgroundColor: siteSettings.secondary_color }}
-            >
-              Apply as Alumni
-            </Link>
-          </div>
-        </div>
-      </header>
+      <SchoolDomainHeader siteSettings={siteSettings} basePath={basePath} currentPage="alumni-profile" />
 
       <main className="mx-auto grid max-w-5xl gap-8 px-4 py-12 lg:grid-cols-[340px_1fr]">
         <aside>

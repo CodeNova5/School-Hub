@@ -75,3 +75,7 @@ export function extractSubdomainFromHost(hostname: string) {
 
   return parts.length >= 3 ? parts[0] : null;
 }
+
+export function getPublicBasePath(requestedSubdomain: string, hostSubdomain: string | null) {
+  return hostSubdomain ? "" : `/site/${requestedSubdomain}`;
+}

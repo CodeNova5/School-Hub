@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Loader2, Send, CheckCircle2 } from "lucide-react";
 import Script from "next/script";
+import { createClient } from "@supabase/supabase-js";
+import { SchoolDomainHeader } from "@/app/site/components/school-domain-header";
+import { getPublicBasePath } from "@/lib/public-school-site";
 
 declare global {
   interface Window {
@@ -25,6 +28,14 @@ const SOCIAL_FIELDS = [
   { key: "website_url", label: "Website URL", placeholder: "https://yourportfolio.com" },
 ] as const;
 
+interface HeaderSiteSettings {
+  site_title: string;
+  site_tagline: string;
+  logo_url: string;
+  primary_color: string;
+  secondary_color: string;
+}
+
 export default function AlumniApplyPage() {
   const params = useParams<{ subdomain: string }>();
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
@@ -34,6 +45,13 @@ export default function AlumniApplyPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
+  const [headerSiteSettings, setHeaderSiteSettings] = useState<HeaderSiteSettings>({
+    site_title: "School Website",
+    site_tagline: "Alumni Network",
+    logo_url: "",
+    primary_color: "#1e3a8a",
+    secondary_color: "#059669",
+  });
 
   const [form, setForm] = useState({
     full_name: "",
@@ -64,6 +82,46 @@ export default function AlumniApplyPage() {
       theme: "light",
     });
   }, [captchaSiteKey]);
+
+  useEffect(() => {
+    const requestedSubdomain = params.subdomain;
+    if (!requestedSubdomain) return;
+
+    async function loadHeaderSettings() {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!url || !key) return;
+
+      const supabase = createClient(url, key);
+      const { data: schoolData, error: schoolError } = await supabase.rpc("get_school_by_subdomain", {
+        p_subdomain: requestedSubdomain,
+      });
+
+      if (schoolError) return;
+      const school = (Array.isArray(schoolData) ? schoolData[0] : schoolData) as
+        | { id: string; name: string }
+        | null;
+
+      if (!school?.id) return;
+
+      const { data: settings } = await supabase
+        .from("website_site_settings")
+        .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
+        .eq("school_id", school.id)
+        .maybeSingle();
+
+      setHeaderSiteSettings((prev) => ({
+        ...prev,
+        site_title: settings?.site_title || school.name || prev.site_title,
+        site_tagline: settings?.site_tagline || prev.site_tagline,
+        logo_url: settings?.logo_url || prev.logo_url,
+        primary_color: settings?.primary_color || prev.primary_color,
+        secondary_color: settings?.secondary_color || prev.secondary_color,
+      }));
+    }
+
+    void loadHeaderSettings();
+  }, [params.subdomain]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,26 +168,29 @@ export default function AlumniApplyPage() {
     }
   }
 
-  const basePath = `/site/${params.subdomain}`;
+  const basePath = getPublicBasePath(params.subdomain, null);
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-slate-50 px-4 py-12">
-        <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-            <CheckCircle2 className="h-7 w-7" />
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900">Application Submitted</h1>
-          <p className="mt-3 text-sm leading-7 text-slate-600">
-            Thank you for applying to be featured in our alumni directory. Our admin team will review your profile and publish it once approved.
-          </p>
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <Link href={`${basePath}/alumni`} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">
-              View Alumni Directory
-            </Link>
-            <Link href={basePath} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
-              Back Home
-            </Link>
+      <div className="min-h-screen bg-slate-50">
+        <SchoolDomainHeader siteSettings={headerSiteSettings} basePath={basePath} currentPage="alumni-apply" />
+        <div className="px-4 py-12">
+          <div className="mx-auto max-w-2xl rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900">Application Submitted</h1>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              Thank you for applying to be featured in our alumni directory. Our admin team will review your profile and publish it once approved.
+            </p>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <Link href={`${basePath}/alumni`} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700">
+                View Alumni Directory
+              </Link>
+              <Link href={basePath} className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+                Back Home
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -137,11 +198,12 @@ export default function AlumniApplyPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-12">
+    <div className="min-h-screen bg-slate-50">
+      <SchoolDomainHeader siteSettings={headerSiteSettings} basePath={basePath} currentPage="alumni-apply" />
       {captchaSiteKey ? (
         <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" />
       ) : null}
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-3xl px-4 py-12">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-black tracking-tight text-slate-900">Apply as Alumni</h1>
           <p className="mt-3 text-sm leading-7 text-slate-600">

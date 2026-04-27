@@ -71,6 +71,8 @@ interface Application {
   parent_phone: string;
   desired_class: string;
   previous_school: string;
+  religion: string;
+  file_url: string;
   notes: string;
   status: string;
   submitted_at: string;
@@ -651,6 +653,21 @@ export default function AdminAdmissionsPage() {
                       <Label className="text-gray-600">Previous School</Label>
                       <p className="font-medium">{selectedApplication.previous_school || "N/A"}</p>
                     </div>
+                    {selectedApplication.religion && (
+                      <div>
+                        <Label className="text-gray-600">Religion</Label>
+                        <p className="font-medium">{selectedApplication.religion}</p>
+                      </div>
+                    )}
+                    {selectedApplication.file_url && (
+                      <div>
+                        <Label className="text-gray-600">Uploaded Document</Label>
+                        <a href={selectedApplication.file_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1">
+                          <FileText className="h-4 w-4" />
+                          View Document
+                        </a>
+                      </div>
+                    )}
                     {selectedApplication.notes && (
                       <div className="col-span-2">
                         <Label className="text-gray-600">Additional Notes</Label>

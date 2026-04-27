@@ -100,7 +100,7 @@ export function SchoolDomainHeader({
     : "text-white/80 transition hover:text-white";
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/15 bg-slate-950/92 text-white backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950 text-white">
       <div className="mx-auto flex w-full max-w-[1240px] items-center justify-between gap-3 px-4 py-3 md:px-6">
         <a href={homeHref} className="group flex min-w-0 items-center gap-3">
           {siteSettings.logo_url ? (
@@ -196,7 +196,7 @@ export function SchoolDomainHeader({
       </div>
 
       {mobileOpen ? (
-        <div id="school-domain-mobile-menu" className="border-t border-white/10 bg-slate-950/98 px-4 pb-4 pt-3 md:hidden">
+        <div id="school-domain-mobile-menu" className="border-t border-white/10 bg-slate-950 px-4 pb-4 pt-3 md:hidden">
           <div className="grid gap-2">
             <a href={homeHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Home</a>
             <a href={hallOfFameHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Hall of Fame</a>

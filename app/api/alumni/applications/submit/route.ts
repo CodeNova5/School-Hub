@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60 * 60 * 1000;
 const MAX_REQUESTS_PER_HOUR = 5;
-const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
 
 function getClientIP(req: NextRequest): string {
   return (
@@ -125,31 +125,28 @@ async function resolveSchoolId(req: NextRequest) {
 }
 
 async function verifyCaptchaToken(token: string, remoteIp: string) {
-  const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  const secretKey = process.env.RECAPTCHA_SECRET_KEY;
   if (!secretKey) {
-    throw new Error("CAPTCHA is not configured on the server");
+    throw new Error("reCAPTCHA is not configured on the server");
   }
 
   const verifyForm = new URLSearchParams();
   verifyForm.set("secret", secretKey);
   verifyForm.set("response", token);
-  if (remoteIp && remoteIp !== "unknown") {
-    verifyForm.set("remoteip", remoteIp);
-  }
 
-  const verifyResponse = await fetch(TURNSTILE_VERIFY_URL, {
+  const verifyResponse = await fetch(RECAPTCHA_VERIFY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: verifyForm,
   });
 
   if (!verifyResponse.ok) {
-    throw new Error("CAPTCHA verification failed");
+    throw new Error("reCAPTCHA verification failed");
   }
 
   const verifyPayload = await verifyResponse.json();
   if (!verifyPayload?.success) {
-    throw new Error("CAPTCHA verification was not successful");
+    throw new Error("reCAPTCHA verification was not successful. Score: " + (verifyPayload?.score || "N/A"));
   }
 }
 

@@ -11,10 +11,10 @@ import { getPublicBasePath } from "@/lib/public-school-site";
 
 declare global {
   interface Window {
-    turnstile?: {
-      render: (container: HTMLElement, options: Record<string, any>) => string;
-      remove: (widgetId: string) => void;
-      reset: (widgetId?: string) => void;
+    grecaptcha?: {
+      render: (container: string | HTMLElement, options: Record<string, any>) => number;
+      getResponse: (widgetId?: number) => string;
+      reset: (widgetId?: number) => void;
     };
   }
 }
@@ -39,8 +39,8 @@ interface HeaderSiteSettings {
 export default function AlumniApplyPage() {
   const params = useParams<{ subdomain: string }>();
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
-  const captchaWidgetIdRef = useRef<string | null>(null);
-  const captchaSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
+  const captchaWidgetIdRef = useRef<number | null>(null);
+  const captchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
@@ -71,15 +71,13 @@ export default function AlumniApplyPage() {
   useEffect(() => {
     if (!captchaSiteKey) return;
     if (!captchaContainerRef.current) return;
-    if (!window.turnstile) return;
-    if (captchaWidgetIdRef.current) return;
+    if (!window.grecaptcha) return;
+    if (captchaWidgetIdRef.current !== null) return;
 
-    captchaWidgetIdRef.current = window.turnstile.render(captchaContainerRef.current, {
+    captchaWidgetIdRef.current = window.grecaptcha.render(captchaContainerRef.current, {
       sitekey: captchaSiteKey,
       callback: (token: string) => setCaptchaToken(token),
       "expired-callback": () => setCaptchaToken(""),
-      "error-callback": () => setCaptchaToken(""),
-      theme: "light",
     });
   }, [captchaSiteKey]);
 
@@ -159,8 +157,8 @@ export default function AlumniApplyPage() {
       setSubmitted(true);
     } catch (submitError: any) {
       setError(submitError.message || "Unable to submit application");
-      if (captchaWidgetIdRef.current && window.turnstile) {
-        window.turnstile.reset(captchaWidgetIdRef.current);
+      if (captchaWidgetIdRef.current !== null && window.grecaptcha) {
+        window.grecaptcha.reset(captchaWidgetIdRef.current);
       }
       setCaptchaToken("");
     } finally {
@@ -201,7 +199,7 @@ export default function AlumniApplyPage() {
     <div className="min-h-screen bg-slate-50">
       <SchoolDomainHeader siteSettings={headerSiteSettings} basePath={basePath} currentPage="alumni-apply" />
       {captchaSiteKey ? (
-        <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" />
+        <Script src="https://www.google.com/recaptcha/api.js" strategy="afterInteractive" />
       ) : null}
       <div className="mx-auto max-w-3xl px-4 py-12">
         <div className="mb-8 text-center">
@@ -300,7 +298,7 @@ export default function AlumniApplyPage() {
               <div ref={captchaContainerRef} />
             ) : (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                CAPTCHA is not configured yet. Add `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY`.
+                CAPTCHA is not configured yet.
               </div>
             )}
           </div>

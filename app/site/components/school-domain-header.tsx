@@ -20,7 +20,8 @@ type SchoolDomainCurrentPage =
   | "hall-of-fame"
   | "alumni"
   | "alumni-profile"
-  | "alumni-apply";
+  | "alumni-apply"
+  | "admissions";
 
 interface SchoolDomainHeaderProps {
   siteSettings: SchoolDomainSiteSettings;

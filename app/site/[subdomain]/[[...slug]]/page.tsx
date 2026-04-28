@@ -967,9 +967,6 @@ function renderAcademicsShowcase(
 ) {
   const heading = heroSection?.content.heading || `Academics at ${siteSettings.site_title}`;
   const subheading = heroSection?.content.subheading || "Explore the education levels we offer and the subjects that shape each level.";
-  const description =
-    heroSection?.content.description ||
-    "This page is generated from the school database so visitors see the actual academic structure, not a heavy content editor.";
   const buttonLabel = heroSection?.content.button_label || "View Contact Details";
   const buttonLink = heroSection?.content.button_link || "#contact";
 
@@ -984,12 +981,8 @@ function renderAcademicsShowcase(
           <div className="relative overflow-hidden bg-slate-950 px-6 py-14 text-white md:px-10 md:py-16">
             <div className="absolute inset-0 opacity-95" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 45%, rgba(var(--wb-secondary-rgb),0.28) 100%)" }} />
             <div className="relative mx-auto max-w-4xl text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.28em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.92)" }}>
-                School Database Snapshot
-              </p>
               <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">{heading}</h1>
               <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-white/85 md:text-lg">{subheading}</p>
-              <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/72">{description}</p>
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <a
                   href={buttonLink}

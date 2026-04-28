@@ -22,11 +22,15 @@ interface WebsiteSectionRow {
 }
 
 function resolvePageSlug(rawSlug: string | undefined): WebsitePageSlug {
-  return rawSlug === "hall-of-fame" ? "hall-of-fame" : "home";
+  if (rawSlug === "hall-of-fame") return "hall-of-fame";
+  if (rawSlug === "academics") return "academics";
+  return "home";
 }
 
 function getPageTitle(pageSlug: WebsitePageSlug) {
-  return pageSlug === "hall-of-fame" ? "Hall of Fame" : "Home";
+  if (pageSlug === "hall-of-fame") return "Hall of Fame";
+  if (pageSlug === "academics") return "Academics";
+  return "Home";
 }
 
 function normalizeSiteSettings(settings?: Record<string, any>) {

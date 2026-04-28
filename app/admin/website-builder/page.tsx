@@ -485,6 +485,9 @@ export default function WebsiteBuilderPage() {
 
     const usesStrictPublishChecklist = selectedPageSlug === "home";
 
+    const activePageLabel =
+        PAGE_OPTIONS.find((option) => option.slug === selectedPageSlug)?.label || "Homepage";
+
     const hasUnsavedChanges = Boolean(lastSavedSnapshot) && currentSnapshot !== lastSavedSnapshot;
 
     async function loadWebsiteBuilder() {
@@ -1356,7 +1359,7 @@ export default function WebsiteBuilderPage() {
 
         if (!school?.subdomain) return "#";
 
-        const pagePath = selectedPageSlug === "hall-of-fame" ? "/hall-of-fame" : "";
+        const pagePath = selectedPageSlug === "home" ? "" : `/${selectedPageSlug}`;
         return `${window.location.origin}/site/${school.subdomain}${pagePath}`;
     }
 
@@ -1477,7 +1480,7 @@ export default function WebsiteBuilderPage() {
                                 <div className="rounded-lg border bg-white p-4">
                                     <div className="mb-3 flex items-center justify-between gap-2">
                                         <div>
-                                            <h2 className="text-lg font-semibold text-slate-900">Homepage Editor</h2>
+                                            <h2 className="text-lg font-semibold text-slate-900">{activePageLabel} Editor</h2>
                                             <p className="text-xs text-slate-500">Edit one segment at a time to stay focused.</p>
                                         </div>
                                         <div className="text-xs text-slate-500">Reorder with arrows, then save</div>
@@ -2930,7 +2933,7 @@ export default function WebsiteBuilderPage() {
                                         <span className="text-sm text-slate-500">
                                             {usesStrictPublishChecklist
                                                 ? "Click Save Changes after selecting status. Publishing unlocks only at 100% readiness."
-                                                : "Click Save Changes after selecting status to publish Hall Of Fame independently."}
+                                                : `Click Save Changes after selecting status to publish ${activePageLabel} independently.`}
                                         </span>
                                     </div>
                                 </div>

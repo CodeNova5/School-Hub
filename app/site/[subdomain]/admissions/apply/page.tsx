@@ -272,6 +272,10 @@ export default function SchoolAdmissionPage() {
       setError("Please select religion");
       return;
     }
+    if (!document) {
+      setError("Please upload student image");
+      return;
+    }
     if (!captchaToken) {
       setError("Please complete CAPTCHA verification");
       return;
@@ -700,8 +704,8 @@ export default function SchoolAdmissionPage() {
             )}
 
             <label className="space-y-1">
-              <span className="text-sm font-medium text-slate-700">Student Documents (Optional)</span>
-              <p className="text-xs text-slate-500">Upload previous academic records or certificates (PDF, images)</p>
+              <span className="text-sm font-medium text-slate-700">Student Image *</span>
+              <p className="text-xs text-slate-500">Upload a clear passport-style student photo (JPG, PNG, WebP, GIF)</p>
               <div className="flex items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-6">
                 <label className="cursor-pointer text-center w-full">
                   <div className="flex justify-center mb-2">
@@ -713,10 +717,11 @@ export default function SchoolAdmissionPage() {
                     </span>
                     <span className="text-slate-500"> or drag and drop</span>
                   </div>
-                  <p className="text-xs text-slate-500">PDF, JPG, PNG up to 10MB</p>
+                  <p className="text-xs text-slate-500">JPG, PNG, WebP, GIF up to 10MB</p>
                   <input
                     type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
+                    required
+                    accept="image/jpeg,image/png,image/webp,image/gif"
                     onChange={handleFileChange}
                     className="hidden"
                   />

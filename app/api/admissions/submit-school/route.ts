@@ -258,42 +258,46 @@ export async function POST(req: NextRequest) {
     // Verify CAPTCHA
     await verifyCaptchaToken(captchaToken, clientIP);
 
-    // Handle optional file upload
+    // Handle required student image upload
     let fileUrl = "";
     const document = formData.get("document");
-    if (document instanceof File && document.size > 0) {
-      const allowedTypes = [
-        "application/pdf",
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif",
-      ];
-      if (!allowedTypes.includes(document.type)) {
-        return NextResponse.json(
-          { error: "Unsupported document type. Allowed: PDF, JPG, PNG, WebP, GIF" },
-          { status: 400 }
-        );
-      }
-
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (document.size > maxSize) {
-        return NextResponse.json(
-          { error: "Document exceeds 10MB size limit" },
-          { status: 400 }
-        );
-      }
-
-      const fileExtension = document.name.split(".").pop() || "pdf";
-      const safeName = sanitizeFileName(document.name);
-      const assetPath = `admissions/${schoolId}/documents/${Date.now()}-${safeName || `document.${fileExtension}`}`;
-      const documentBase64 = await fileToBase64(document);
-      fileUrl = await uploadFile({
-        path: assetPath,
-        content: documentBase64,
-        commitMessage: `Upload admission document for school ${schoolId} - ${firstName} ${lastName}`,
-      });
+    if (!(document instanceof File) || document.size <= 0) {
+      return NextResponse.json(
+        { error: "Student image is required" },
+        { status: 400 }
+      );
     }
+
+    const allowedTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ];
+    if (!allowedTypes.includes(document.type)) {
+      return NextResponse.json(
+        { error: "Unsupported image type. Allowed: JPG, PNG, WebP, GIF" },
+        { status: 400 }
+      );
+    }
+
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (document.size > maxSize) {
+      return NextResponse.json(
+        { error: "Student image exceeds 10MB size limit" },
+        { status: 400 }
+      );
+    }
+
+    const fileExtension = document.name.split(".").pop() || "jpg";
+    const safeName = sanitizeFileName(document.name);
+    const assetPath = `admissions/${schoolId}/student-images/${Date.now()}-${safeName || `student-image.${fileExtension}`}`;
+    const documentBase64 = await fileToBase64(document);
+    fileUrl = await uploadFile({
+      path: assetPath,
+      content: documentBase64,
+      commitMessage: `Upload admission student image for school ${schoolId} - ${firstName} ${lastName}`,
+    });
 
     // Generate application number
     const applicationNumber = await generateApplicationNumber();

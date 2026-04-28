@@ -922,6 +922,7 @@ function buildAcademicsShowcaseCards(
   media: AcademicsMediaItem[],
   siteSettings: SiteSettings
 ): AcademicsShowcaseCard[] {
+  const allSubjectLabels = subjects.map((subject) => formatAcademicsSubjectLabel(subject)).filter(Boolean);
   const imagePool = media.filter(isPreviewableAcademicsImage).map((item) => item.public_url);
   const fallbackImagePool = [siteSettings.hero_background_url, siteSettings.logo_url].filter(Boolean);
   const resolvedImagePool = imagePool.length > 0 ? imagePool : fallbackImagePool;
@@ -936,6 +937,8 @@ function buildAcademicsShowcaseCards(
       .filter((subject) => subject.education_level_id === level.id)
       .map((subject) => formatAcademicsSubjectLabel(subject))
       .filter(Boolean);
+    const fallbackSubjects = allSubjectLabels.slice(index * 4, index * 4 + 4);
+    const showcaseSubjects = levelSubjects.length > 0 ? levelSubjects.slice(0, 4) : fallbackSubjects.length > 0 ? fallbackSubjects : allSubjectLabels.slice(0, 4);
 
     const image_url = resolvedImagePool.length > 0 ? resolvedImagePool[index % resolvedImagePool.length] : "";
     const description =
@@ -950,7 +953,7 @@ function buildAcademicsShowcaseCards(
       description,
       image_url,
       classLabels,
-      subjects: levelSubjects.slice(0, 4),
+      subjects: showcaseSubjects,
       subjectCount: levelSubjects.length,
     };
   });
@@ -959,7 +962,8 @@ function buildAcademicsShowcaseCards(
 function renderAcademicsShowcase(
   heroSection: WebsiteSection | undefined,
   cards: AcademicsShowcaseCard[],
-  siteSettings: SiteSettings
+  siteSettings: SiteSettings,
+  totalSubjectCount: number
 ) {
   const heading = heroSection?.content.heading || `Academics at ${siteSettings.site_title}`;
   const subheading = heroSection?.content.subheading || "Explore the education levels we offer and the subjects that shape each level.";
@@ -970,7 +974,7 @@ function renderAcademicsShowcase(
   const buttonLink = heroSection?.content.button_link || "#contact";
 
   const levelCount = cards.length;
-  const subjectCount = cards.reduce((total, card) => total + card.subjectCount, 0);
+  const subjectCount = totalSubjectCount;
   const classLevelCount = cards.reduce((total, card) => total + card.classLabels.length, 0);
 
   return (
@@ -1923,7 +1927,7 @@ export default async function PublicSchoolWebsite({
             contextLinks={academicsContextLinks}
         />
         <main>
-            {renderAcademicsShowcase(academicsHeroSection, academicsCards, siteSettings)}
+            {renderAcademicsShowcase(academicsHeroSection, academicsCards, siteSettings, subjects.length)}
           {renderContact(undefined, siteSettings)}
         </main>
         {renderFooter(siteSettings)}

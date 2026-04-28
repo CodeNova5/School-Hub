@@ -9,6 +9,7 @@ import {
   resolveSchoolBySubdomain,
 } from "@/lib/public-school-site";
 import { SchoolDomainHeader } from "@/app/site/components/school-domain-header";
+import { SchoolDomainFooter } from "@/app/site/components/school-domain-footer";
 
 interface AlumniProfile {
   id: string;
@@ -111,6 +112,8 @@ export default async function AlumniProfilePage({
           ) : null}
         </section>
       </main>
+
+      <SchoolDomainFooter siteSettings={siteSettings} />
     </div>
   );
 }

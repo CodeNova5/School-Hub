@@ -7,6 +7,7 @@ import { Loader2, Send, CheckCircle2 } from "lucide-react";
 import Script from "next/script";
 import { createClient } from "@supabase/supabase-js";
 import { SchoolDomainHeader } from "@/app/site/components/school-domain-header";
+import { SchoolDomainFooter } from "@/app/site/components/school-domain-footer";
 import { getPublicBasePath } from "@/lib/public-school-site";
 
 declare global {
@@ -229,6 +230,7 @@ export default function AlumniApplyPage() {
             </div>
           </div>
         </div>
+        <SchoolDomainFooter siteSettings={headerSiteSettings} />
       </div>
     );
   }
@@ -355,6 +357,8 @@ export default function AlumniApplyPage() {
           </button>
         </form>
       </div>
+
+      <SchoolDomainFooter siteSettings={headerSiteSettings} />
     </div>
   );
 }

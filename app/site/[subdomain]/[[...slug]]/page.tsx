@@ -118,6 +118,45 @@ interface PublishPage {
   seo_description: string;
 }
 
+interface AcademicsEducationLevel {
+  id: string;
+  name: string;
+  code: string | null;
+  description: string | null;
+  order_sequence: number | null;
+  school_class_levels?: Array<{
+    id: string;
+    name: string;
+    code: string | null;
+    order_sequence: number | null;
+  }>;
+}
+
+interface AcademicsSubject {
+  id: string;
+  name: string;
+  subject_code: string | null;
+  education_level_id: string | null;
+}
+
+interface AcademicsMediaItem {
+  id: string;
+  file_name: string;
+  public_url: string;
+  mime_type?: string | null;
+  created_at: string;
+}
+
+interface AcademicsShowcaseCard {
+  id: string;
+  title: string;
+  description: string;
+  image_url: string;
+  classLabels: string[];
+  subjects: string[];
+  subjectCount: number;
+}
+
 function resolveRequestedPageSlug(slug: string[]): WebsitePageSlug | null {
   if (slug.length === 0 || slug[0] === "home") {
     return "home";
@@ -858,6 +897,185 @@ function renderGallery(section: WebsiteSection | undefined, siteSettings: SiteSe
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function isPreviewableAcademicsImage(mediaItem: AcademicsMediaItem) {
+  const url = mediaItem.public_url.toLowerCase();
+  const mime = (mediaItem.mime_type || "").toLowerCase();
+  if (mime.startsWith("image/")) return true;
+  return [".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"].some((ext) => url.includes(ext));
+}
+
+function buildAcademicsShowcaseCards(
+  educationLevels: AcademicsEducationLevel[],
+  subjects: AcademicsSubject[],
+  media: AcademicsMediaItem[],
+  siteSettings: SiteSettings
+): AcademicsShowcaseCard[] {
+  const imagePool = media.filter(isPreviewableAcademicsImage).map((item) => item.public_url);
+  const fallbackImagePool = [siteSettings.hero_background_url, siteSettings.logo_url].filter(Boolean);
+  const resolvedImagePool = imagePool.length > 0 ? imagePool : fallbackImagePool;
+
+  return educationLevels.map((level, index) => {
+    const classLabels = (level.school_class_levels || [])
+      .sort((a, b) => (a.order_sequence || 0) - (b.order_sequence || 0))
+      .map((item) => item.name.trim())
+      .filter(Boolean);
+
+    const levelSubjects = subjects
+      .filter((subject) => subject.education_level_id === level.id)
+      .map((subject) => subject.name.trim())
+      .filter(Boolean);
+
+    const image_url = resolvedImagePool.length > 0 ? resolvedImagePool[index % resolvedImagePool.length] : "";
+    const description =
+      (level.description || "").trim() ||
+      (classLabels.length > 0
+        ? `Offered through ${classLabels.slice(0, 2).join(", ")}${classLabels.length > 2 ? " and more" : ""}.`
+        : "Offered as part of our school structure.");
+
+    return {
+      id: level.id,
+      title: level.name.trim(),
+      description,
+      image_url,
+      classLabels,
+      subjects: levelSubjects.slice(0, 4),
+      subjectCount: levelSubjects.length,
+    };
+  });
+}
+
+function renderAcademicsShowcase(
+  heroSection: WebsiteSection | undefined,
+  cards: AcademicsShowcaseCard[],
+  siteSettings: SiteSettings
+) {
+  const heading = heroSection?.content.heading || `Academics at ${siteSettings.site_title}`;
+  const subheading = heroSection?.content.subheading || "Explore the education levels we offer and the subjects that shape each level.";
+  const description =
+    heroSection?.content.description ||
+    "This page is generated from the school database so visitors see the actual academic structure, not a heavy content editor.";
+  const buttonLabel = heroSection?.content.button_label || "View Contact Details";
+  const buttonLink = heroSection?.content.button_link || "#contact";
+
+  const levelCount = cards.length;
+  const subjectCount = cards.reduce((total, card) => total + card.subjectCount, 0);
+  const classLevelCount = cards.reduce((total, card) => total + card.classLabels.length, 0);
+
+  return (
+    <section id="academics_overview" className="px-4 py-16 md:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <div className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+          <div className="relative overflow-hidden bg-slate-950 px-6 py-14 text-white md:px-10 md:py-16">
+            <div className="absolute inset-0 opacity-95" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e293b 45%, rgba(var(--wb-secondary-rgb),0.28) 100%)" }} />
+            <div className="relative mx-auto max-w-4xl text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em]" style={{ color: "rgba(var(--wb-secondary-rgb),0.92)" }}>
+                School Database Snapshot
+              </p>
+              <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">{heading}</h1>
+              <p className="mx-auto mt-5 max-w-3xl text-base leading-8 text-white/85 md:text-lg">{subheading}</p>
+              <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/72">{description}</p>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <a
+                  href={buttonLink}
+                  className="inline-flex rounded-full px-6 py-3 text-sm font-bold text-slate-950 transition hover:opacity-90"
+                  style={{ backgroundColor: "var(--wb-secondary)" }}
+                >
+                  {buttonLabel}
+                </a>
+                <div className="rounded-full border border-white/15 bg-white/10 px-4 py-3 text-xs font-medium text-white/85 backdrop-blur">
+                  {levelCount} education level{levelCount === 1 ? "" : "s"} · {subjectCount} subjects · {classLevelCount} class groups
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 px-6 py-6 md:grid-cols-3 md:px-10">
+            {[
+              { label: "Education Levels", value: levelCount },
+              { label: "Subjects", value: subjectCount },
+              { label: "Class Groups", value: classLevelCount },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{stat.label}</p>
+                <p className="mt-2 text-3xl font-black text-slate-950">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {cards.length === 0 ? (
+          <div className="mt-8 rounded-[28px] border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500">
+            No education levels were found in the school database yet.
+          </div>
+        ) : (
+          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {cards.map((card, index) => (
+              <article
+                key={card.id}
+                id={`academics-level-${card.id}`}
+                className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+              >
+              <div className="relative h-56 overflow-hidden bg-slate-900">
+                {card.image_url ? (
+                  <img src={card.image_url} alt={card.title} className="h-full w-full object-cover transition duration-500 hover:scale-105" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-6xl text-white" style={{ background: "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))" }}>
+                    {card.title.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.08),rgba(2,6,23,0.68))]" />
+                <div className="absolute left-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-900 shadow-sm">
+                  Level {index + 1}
+                </div>
+                <div className="absolute bottom-4 left-4 right-4 space-y-2 text-white">
+                  <h2 className="text-2xl font-black tracking-tight">{card.title}</h2>
+                  <p className="text-sm leading-6 text-white/80">{card.description}</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-6">
+                {card.classLabels.length > 0 ? (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Class groups</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {card.classLabels.slice(0, 4).map((label) => (
+                        <span key={label} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                          {label}
+                        </span>
+                      ))}
+                      {card.classLabels.length > 4 ? (
+                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                          +{card.classLabels.length - 4} more
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Sample subjects</p>
+                  {card.subjects.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {card.subjects.map((subject) => (
+                        <span key={subject} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700">
+                          {subject}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-slate-500">Subjects are configured in the school database.</p>
+                  )}
+                </div>
+              </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1647,10 +1865,46 @@ export default async function PublicSchoolWebsite({
   }
 
   if (requestedPageSlug === "academics") {
-    const academicsHeroSection = visibleSections.find((section) => section.section_key === "academics_hero");
-    const classLevelsSection = visibleSections.find((section) => section.section_key === "academics_class_levels");
-    const curriculumSection = visibleSections.find((section) => section.section_key === "academics_curriculum");
-    const academicsGallerySection = visibleSections.find((section) => section.section_key === "academics_gallery");
+      const academicsHeroSection = visibleSections.find((section) => section.section_key === "academics_hero");
+
+      const [educationLevelsResult, subjectsResult, mediaResult] = await Promise.all([
+        supabase
+          .from("school_education_levels")
+          .select("id, name, code, description, order_sequence, school_class_levels(id, name, code, order_sequence)")
+          .eq("school_id", school.id)
+          .eq("is_active", true)
+          .order("order_sequence", { ascending: true }),
+        supabase
+          .from("subjects")
+          .select("id, name, subject_code, education_level_id")
+          .eq("school_id", school.id)
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
+        supabase
+          .from("website_media")
+          .select("id, file_name, public_url, mime_type, created_at")
+          .eq("school_id", school.id)
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+
+      if (educationLevelsResult.error) throw educationLevelsResult.error;
+      if (subjectsResult.error) throw subjectsResult.error;
+      if (mediaResult.error) throw mediaResult.error;
+
+      const educationLevels = ((educationLevelsResult.data || []) as AcademicsEducationLevel[]).map((level) => ({
+        ...level,
+        school_class_levels: Array.isArray(level.school_class_levels)
+          ? [...level.school_class_levels].sort((a, b) => (a.order_sequence || 0) - (b.order_sequence || 0))
+          : [],
+      }));
+      const subjects = (subjectsResult.data || []) as AcademicsSubject[];
+      const media = (mediaResult.data || []) as AcademicsMediaItem[];
+      const academicsCards = buildAcademicsShowcaseCards(educationLevels, subjects, media, siteSettings);
+      const academicsContextLinks = academicsCards.map((card) => ({
+        label: card.title,
+        href: `#academics-level-${card.id}`,
+      }));
 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
@@ -1659,13 +1913,10 @@ export default async function PublicSchoolWebsite({
           basePath={routeBasePath}
           currentPage="academics"
           preview={isPreview}
-          contextLinks={hallOfFameContextLinks}
+            contextLinks={academicsContextLinks}
         />
         <main>
-          {renderAcademicsHero(academicsHeroSection, siteSettings)}
-          {renderClassLevelCards(classLevelsSection)}
-          {renderCurriculumSubjects(curriculumSection)}
-          {renderAcademicsGallery(academicsGallerySection, siteSettings)}
+            {renderAcademicsShowcase(academicsHeroSection, academicsCards, siteSettings)}
           {renderContact(undefined, siteSettings)}
         </main>
         {renderFooter(siteSettings)}

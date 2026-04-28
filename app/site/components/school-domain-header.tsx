@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 interface SchoolDomainSiteSettings {
   site_title: string;
@@ -33,18 +33,6 @@ interface SchoolDomainHeaderProps {
   ctaLabel?: string;
 }
 
-const HOME_SECTION_LINKS: Array<{ key: string; label: string }> = [
-  { key: "about", label: "About" },
-  { key: "programs", label: "Programs" },
-  { key: "facilities", label: "Facilities" },
-  { key: "faculty", label: "Faculty" },
-  { key: "news", label: "News" },
-  { key: "testimonials", label: "Testimonials" },
-  { key: "gallery", label: "Gallery" },
-  { key: "admissions", label: "Admissions" },
-  { key: "contact", label: "Contact" },
-];
-
 function getPath(basePath: string, suffix = "") {
   if (!suffix) {
     return basePath || "/";
@@ -62,26 +50,16 @@ export function SchoolDomainHeader({
   basePath,
   currentPage,
   preview = false,
-  contextLinks = [],
   ctaHref,
-  ctaLabel = "Apply as Alumni",
+  ctaLabel = "Apply for Admission",
 }: SchoolDomainHeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const homeHref = getPath(basePath);
   const hallOfFameHref = getPath(basePath, "/hall-of-fame");
   const alumniHref = getPath(basePath, "/alumni");
-  const applyHref = ctaHref || getPath(basePath, "/alumni/apply");
-
-  const homeSectionLinks = useMemo(
-    () => HOME_SECTION_LINKS.map((item) => ({ label: item.label, href: `${homeHref}#${item.key}` })),
-    [homeHref]
-  );
-
-  const normalizedContextLinks = useMemo(
-    () => contextLinks.filter((item) => item.label.trim() && item.href.trim()),
-    [contextLinks]
-  );
+  const admissionsHref = getPath(basePath, "/admissions/apply");
+  const applyHref = ctaHref || admissionsHref;
 
   const isAlumniActive =
     currentPage === "alumni" || currentPage === "alumni-profile" || currentPage === "alumni-apply";
@@ -99,6 +77,11 @@ export function SchoolDomainHeader({
   const alumniLinkClass = isAlumniActive
     ? "text-white"
     : "text-white/80 transition hover:text-white";
+
+  const admissionsLinkClass =
+    currentPage === "admissions"
+      ? "text-white"
+      : "text-white/80 transition hover:text-white";
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950 text-white">
@@ -131,49 +114,7 @@ export function SchoolDomainHeader({
           <a href={homeHref} className={homeLinkClass}>Home</a>
           <a href={hallOfFameHref} className={hallLinkClass}>Hall of Fame</a>
           <a href={alumniHref} className={alumniLinkClass}>Alumni</a>
-
-          <div className="group relative">
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-3 py-1.5 text-sm font-medium text-white/90 transition hover:bg-white/10"
-              aria-haspopup="true"
-            >
-              Explore
-              <span className="text-xs">v</span>
-            </button>
-
-            <div className="pointer-events-none absolute right-0 top-[calc(100%+10px)] z-50 w-[340px] rounded-2xl border border-white/15 bg-slate-900/98 p-4 opacity-0 shadow-2xl transition duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">Home Sections</p>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {homeSectionLinks.map((item) => (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    className="rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white/80 transition hover:border-white/25 hover:bg-white/5 hover:text-white"
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </div>
-
-              {normalizedContextLinks.length > 0 ? (
-                <>
-                  <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">This Page</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {normalizedContextLinks.map((item) => (
-                      <a
-                        key={`${item.label}-${item.href}`}
-                        href={item.href}
-                        className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/80 transition hover:border-white/25 hover:bg-white/5 hover:text-white"
-                      >
-                        {item.label}
-                      </a>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-            </div>
-          </div>
+          <a href={admissionsHref} className={admissionsLinkClass}>Admissions</a>
 
           <a
             href={applyHref}
@@ -202,39 +143,8 @@ export function SchoolDomainHeader({
             <a href={homeHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Home</a>
             <a href={hallOfFameHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Hall of Fame</a>
             <a href={alumniHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Alumni</a>
+            <a href={admissionsHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Admissions</a>
           </div>
-
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">Home Sections</p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {homeSectionLinks.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/85"
-              >
-                {item.label}
-              </a>
-            ))}
-          </div>
-
-          {normalizedContextLinks.length > 0 ? (
-            <>
-              <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">This Page</p>
-              <div className="mt-2 grid gap-2">
-                {normalizedContextLinks.map((item) => (
-                  <a
-                    key={`${item.label}-${item.href}`}
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/85"
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </div>
-            </>
-          ) : null}
 
           <a
             href={applyHref}

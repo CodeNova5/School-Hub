@@ -157,6 +157,13 @@ interface AcademicsShowcaseCard {
   subjectCount: number;
 }
 
+function formatAcademicsSubjectLabel(subject: AcademicsSubject) {
+  const name = subject.name.trim();
+  const code = (subject.subject_code || "").trim();
+  if (!name) return "";
+  return code ? `${name} (${code})` : name;
+}
+
 function resolveRequestedPageSlug(slug: string[]): WebsitePageSlug | null {
   if (slug.length === 0 || slug[0] === "home") {
     return "home";
@@ -927,7 +934,7 @@ function buildAcademicsShowcaseCards(
 
     const levelSubjects = subjects
       .filter((subject) => subject.education_level_id === level.id)
-      .map((subject) => subject.name.trim())
+      .map((subject) => formatAcademicsSubjectLabel(subject))
       .filter(Boolean);
 
     const image_url = resolvedImagePool.length > 0 ? resolvedImagePool[index % resolvedImagePool.length] : "";

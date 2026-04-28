@@ -271,7 +271,6 @@ CREATE INDEX IF NOT EXISTS idx_subjects_education_level ON subjects(education_le
 CREATE INDEX IF NOT EXISTS idx_subjects_department ON subjects(department_id);
 CREATE INDEX IF NOT EXISTS idx_subjects_religion ON subjects(religion_id);
 CREATE INDEX IF NOT EXISTS idx_subjects_is_optional ON subjects(is_optional);
-CREATE UNIQUE INDEX IF NOT EXISTS unique_subject_per_level_department ON subjects (school_id, name, education_level_id, COALESCE(department_id, '00000000-0000-0000-0000-000000000000'::uuid), COALESCE(religion_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 -- STUDENTS TABLE
 CREATE TABLE IF NOT EXISTS students (

@@ -667,6 +667,7 @@ export const WEBSITE_ACADEMICS_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
       gallery_items: [],
     },
   },
+];
 
 export const WEBSITE_PAGE_SECTION_TEMPLATES: Record<WebsitePageSlug, WebsiteSectionTemplate[]> = {
   home: WEBSITE_SECTION_TEMPLATES,

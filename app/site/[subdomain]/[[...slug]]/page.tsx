@@ -86,6 +86,10 @@ interface WebsiteSection {
       image_url?: string;
       icon?: string;
     }>;
+    academics_cards?: Array<{
+      image_url: string;
+      sample_subjects: string[];
+    }>;
   };
 }
 
@@ -920,12 +924,20 @@ function buildAcademicsShowcaseCards(
   educationLevels: AcademicsEducationLevel[],
   subjects: AcademicsSubject[],
   media: AcademicsMediaItem[],
-  siteSettings: SiteSettings
+  siteSettings: SiteSettings,
+  cardOverrides?: Array<{
+    image_url: string;
+    sample_subjects: string[];
+  }>
 ): AcademicsShowcaseCard[] {
   const allSubjectLabels = subjects.map((subject) => formatAcademicsSubjectLabel(subject)).filter(Boolean);
   const imagePool = media.filter(isPreviewableAcademicsImage).map((item) => item.public_url);
   const fallbackImagePool = [siteSettings.hero_background_url, siteSettings.logo_url].filter(Boolean);
   const resolvedImagePool = imagePool.length > 0 ? imagePool : fallbackImagePool;
+  const normalizedOverrides = (cardOverrides || []).map((card) => ({
+    image_url: (card.image_url || "").trim(),
+    sample_subjects: (card.sample_subjects || []).map((subject) => subject.trim()).filter(Boolean),
+  }));
 
   return educationLevels.map((level, index) => {
     const classLabels = (level.school_class_levels || [])
@@ -938,9 +950,19 @@ function buildAcademicsShowcaseCards(
       .map((subject) => formatAcademicsSubjectLabel(subject))
       .filter(Boolean);
     const fallbackSubjects = allSubjectLabels.slice(index * 4, index * 4 + 4);
-    const showcaseSubjects = levelSubjects.length > 0 ? levelSubjects.slice(0, 4) : fallbackSubjects.length > 0 ? fallbackSubjects : allSubjectLabels.slice(0, 4);
+    const overrideSubjects = normalizedOverrides[index]?.sample_subjects || [];
+    const showcaseSubjects =
+      overrideSubjects.length > 0
+        ? overrideSubjects.slice(0, 4)
+        : levelSubjects.length > 0
+          ? levelSubjects.slice(0, 4)
+          : fallbackSubjects.length > 0
+            ? fallbackSubjects
+            : allSubjectLabels.slice(0, 4);
 
-    const image_url = resolvedImagePool.length > 0 ? resolvedImagePool[index % resolvedImagePool.length] : "";
+    const image_url =
+      normalizedOverrides[index]?.image_url ||
+      (resolvedImagePool.length > 0 ? resolvedImagePool[index % resolvedImagePool.length] : "");
     const description =
       (level.description || "").trim() ||
       (classLabels.length > 0
@@ -1547,10 +1569,10 @@ function getCurriculumItems(section: WebsiteSection | undefined) {
 
 function renderAcademicsHero(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
   const heading = section?.content.heading || "Our Academic Excellence";
-  const subheading = section?.content.subheading || "Rigorous curriculum designed to inspire critical thinking";
-  const description = section?.content.description || "Comprehensive programs across all grade levels.";
+  const subheading = section?.content.subheading || "Rigorous learning, clear pathways, and subject combinations shaped by each level.";
+  const description = section?.content.description || "The live academics page pulls structure from the school database. Edit only the showcase card imagery and sample subjects here.";
   const buttonLabel = section?.content.button_label || "Explore Programs";
-  const buttonLink = section?.content.button_link || "#academics_curriculum";
+  const buttonLink = section?.content.button_link || "#academics_overview";
   const image = (section?.content.image_url || "").trim();
 
   return (
@@ -1904,7 +1926,8 @@ export default async function PublicSchoolWebsite({
       }));
       const subjects = (subjectsResult.data || []) as AcademicsSubject[];
       const media = (mediaResult.data || []) as AcademicsMediaItem[];
-      const academicsCards = buildAcademicsShowcaseCards(educationLevels, subjects, media, siteSettings);
+      const academicsCardOverrides = academicsHeroSection?.content.academics_cards || [];
+      const academicsCards = buildAcademicsShowcaseCards(educationLevels, subjects, media, siteSettings, academicsCardOverrides);
       const academicsContextLinks = academicsCards.map((card) => ({
         label: card.title,
         href: `#academics-level-${card.id}`,

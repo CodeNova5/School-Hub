@@ -87,6 +87,7 @@ interface SectionData {
         news_items?: NewsItem[];
         testimonial_items?: TestimonialItem[];
         gallery_items?: GalleryItem[];
+        academics_cards?: AcademicsShowcaseCardItem[];
     };
 }
 
@@ -125,6 +126,11 @@ interface TestimonialItem {
 interface GalleryItem {
     image_url: string;
     caption?: string;
+}
+
+interface AcademicsShowcaseCardItem {
+    image_url: string;
+    sample_subjects: string[];
 }
 
 interface MediaData {
@@ -298,33 +304,6 @@ const SECTION_EDITOR_CONFIG: Record<
         showButton: true,
         showItems: false,
     },
-    academics_class_levels: {
-        descriptionLabel: "Class Levels Intro",
-        itemsLabel: "Class Level Items",
-        showSubheading: true,
-        showDescription: false,
-        showImage: false,
-        showButton: false,
-        showItems: true,
-    },
-    academics_curriculum: {
-        descriptionLabel: "Curriculum Intro",
-        itemsLabel: "Curriculum Subjects",
-        showSubheading: true,
-        showDescription: false,
-        showImage: false,
-        showButton: false,
-        showItems: true,
-    },
-    academics_gallery: {
-        descriptionLabel: "Gallery Intro",
-        itemsLabel: "Gallery Images",
-        showSubheading: true,
-        showDescription: false,
-        showImage: false,
-        showButton: false,
-        showItems: true,
-    },
 };
 
 const DEFAULT_SETTINGS: SiteSettings = WEBSITE_DEFAULT_SITE_SETTINGS;
@@ -380,6 +359,28 @@ const DEFAULT_GALLERY_ITEMS: GalleryItem[] = (
     caption: item.caption || "",
 }));
 
+function normalizeAcademicsCardSubjects(value: string[] | string | undefined) {
+    if (Array.isArray(value)) {
+        return value.map((item) => item.trim()).filter(Boolean);
+    }
+
+    if (typeof value === "string") {
+        return value
+            .split("\n")
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+
+    return [];
+}
+
+function sanitizeAcademicsCards(cards: AcademicsShowcaseCardItem[]) {
+    return cards.map((card) => ({
+        image_url: (card.image_url || "").trim(),
+        sample_subjects: normalizeAcademicsCardSubjects(card.sample_subjects),
+    }));
+}
+
 function buildEditorSnapshot(settings: SiteSettings, page: PageData | null, sections: SectionData[]) {
     return JSON.stringify({
         settings,
@@ -429,9 +430,17 @@ export default function WebsiteBuilderPage() {
         [sections]
     );
 
+    const editableSections = useMemo(
+        () =>
+            selectedPageSlug === "academics"
+                ? sortedSections.filter((section) => section.section_key === "academics_hero")
+                : sortedSections,
+        [selectedPageSlug, sortedSections]
+    );
+
     const activeSection = useMemo(
-        () => sortedSections.find((section) => `section-${section.id}` === activeEditorTab) || null,
-        [activeEditorTab, sortedSections]
+        () => editableSections.find((section) => `section-${section.id}` === activeEditorTab) || null,
+        [activeEditorTab, editableSections]
     );
 
     const currentSnapshot = useMemo(
@@ -449,6 +458,14 @@ export default function WebsiteBuilderPage() {
         [selectedPageSlug]
     );
 
+    const academicsTemplateCards = useMemo(
+        () =>
+            sanitizeAcademicsCards(
+                (pageTemplates.find((section) => section.key === "academics_hero")?.content.academics_cards || []) as AcademicsShowcaseCardItem[]
+            ),
+        [pageTemplates]
+    );
+
     const selectedThemePresetId = useMemo(() => {
         const matchedPreset = WEBSITE_COLOR_THEME_PRESETS.find(
             (preset) =>
@@ -461,20 +478,20 @@ export default function WebsiteBuilderPage() {
 
     const sectionCustomizationMap = useMemo(() => {
         const map: Record<string, boolean> = {};
-        sortedSections.forEach((section) => {
+        editableSections.forEach((section) => {
             map[section.id] = isWebsiteSectionCustomized(section.section_key, section.content, selectedPageSlug);
         });
         return map;
-    }, [selectedPageSlug, sortedSections]);
+    }, [editableSections, selectedPageSlug]);
 
     const sectionsNeedingCustomization = useMemo(
-        () => sortedSections.filter((section) => !sectionCustomizationMap[section.id]),
-        [sortedSections, sectionCustomizationMap]
+        () => editableSections.filter((section) => !sectionCustomizationMap[section.id]),
+        [editableSections, sectionCustomizationMap]
     );
 
-    const totalPublishChecklistItems = sortedSections.length + 1;
+    const totalPublishChecklistItems = editableSections.length + 1;
     const completedPublishChecklistItems =
-        sortedSections.filter((section) => sectionCustomizationMap[section.id]).length +
+        editableSections.filter((section) => sectionCustomizationMap[section.id]).length +
         (globalSettingsQualification.ready ? 1 : 0);
     const publishProgressPercent =
         totalPublishChecklistItems === 0
@@ -525,11 +542,11 @@ export default function WebsiteBuilderPage() {
 
     useEffect(() => {
         if (activeEditorTab === "settings") return;
-        const tabExists = sortedSections.some((section) => `section-${section.id}` === activeEditorTab);
+        const tabExists = editableSections.some((section) => `section-${section.id}` === activeEditorTab);
         if (!tabExists) {
             setActiveEditorTab("settings");
         }
-    }, [activeEditorTab, sortedSections]);
+    }, [activeEditorTab, editableSections]);
 
     useEffect(() => {
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -578,7 +595,11 @@ export default function WebsiteBuilderPage() {
         };
     }, [hasUnsavedChanges]);
 
-    function updateSectionContent(sectionId: string, field: string, value: string | string[] | ProgramItem[]) {
+    function updateSectionContent(
+        sectionId: string,
+        field: string,
+        value: string | string[] | ProgramItem[] | AcademicsShowcaseCardItem[]
+    ) {
         setSections((prev) =>
             prev.map((section) =>
                 section.id === sectionId
@@ -1011,6 +1032,64 @@ export default function WebsiteBuilderPage() {
         }
 
         return DEFAULT_GALLERY_ITEMS.map((item) => ({ ...item }));
+    }
+
+    function getAcademicsCards(section: SectionData) {
+        const fromStructured = sanitizeAcademicsCards(section.content.academics_cards || []);
+
+        if (fromStructured.length > 0) {
+            return fromStructured;
+        }
+
+        return academicsTemplateCards.map((card) => ({ ...card }));
+    }
+
+    function setAcademicsCards(sectionId: string, cards: AcademicsShowcaseCardItem[]) {
+        const sanitized = sanitizeAcademicsCards(cards);
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                        ...section,
+                        content: {
+                            ...section.content,
+                            academics_cards: sanitized,
+                        },
+                    }
+                    : section
+            )
+        );
+    }
+
+    function addAcademicsCard(sectionId: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = [...getAcademicsCards(target), { image_url: "", sample_subjects: [] }];
+        setAcademicsCards(sectionId, next);
+    }
+
+    function updateAcademicsCard(sectionId: string, index: number, field: keyof AcademicsShowcaseCardItem, value: string) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+
+        const next = getAcademicsCards(target).map((card, cardIndex) =>
+            cardIndex === index
+                ? {
+                    ...card,
+                    [field]: field === "sample_subjects" ? normalizeAcademicsCardSubjects(value) : value,
+                }
+                : card
+        ) as AcademicsShowcaseCardItem[];
+
+        setAcademicsCards(sectionId, next);
+    }
+
+    function removeAcademicsCard(sectionId: string, index: number) {
+        const target = sections.find((section) => section.id === sectionId);
+        if (!target) return;
+        const next = getAcademicsCards(target).filter((_, cardIndex) => cardIndex !== index);
+        setAcademicsCards(sectionId, next);
     }
 
     function getAdmissionRequirements(section: SectionData) {
@@ -1495,7 +1574,7 @@ export default function WebsiteBuilderPage() {
                                                 >
                                                     Global Settings
                                                 </TabsTrigger>
-                                                {sortedSections.map((section, index) => (
+                                                {editableSections.map((section, index) => (
                                                     <TabsTrigger
                                                         key={section.id}
                                                         value={`section-${section.id}`}
@@ -1645,12 +1724,13 @@ export default function WebsiteBuilderPage() {
                                             </div>
                                         </TabsContent>
 
-                                        {sortedSections.map((section) => {
+                                        {editableSections.map((section) => {
                                             const editorConfig =
                                                 SECTION_EDITOR_CONFIG[section.section_key] || SECTION_EDITOR_CONFIG.contact;
                                             const programItems = section.section_key === "programs" ? getProgramItems(section) : [];
 
                                             const facilityItems = section.section_key === "facilities" ? getFacilityItems(section) : [];
+                                            const academicsCards = section.section_key === "academics_hero" ? getAcademicsCards(section) : [];
 
                                             return (
                                                 <TabsContent key={section.id} value={`section-${section.id}`} className="space-y-3">
@@ -2005,6 +2085,151 @@ export default function WebsiteBuilderPage() {
                                                                         />
                                                                     </div>
                                                                 </>
+                                                            ) : null}
+
+                                                            {section.section_key === "academics_hero" ? (
+                                                                <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                                                        <div>
+                                                                            <Label className="text-base font-semibold text-slate-900">Academic showcase cards</Label>
+                                                                            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
+                                                                                The live academics page uses the school database for structure. Edit the card images and sample subjects here.
+                                                                            </p>
+                                                                        </div>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() => addAcademicsCard(section.id)}
+                                                                        >
+                                                                            <Plus className="mr-2 h-4 w-4" />
+                                                                            Add Card
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                                                                        {academicsCards.map((card, index) => {
+                                                                            const mediaKey = `${section.id}-academics-${index}`;
+                                                                            return (
+                                                                                <div key={mediaKey} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                                                                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
+                                                                                        <div>
+                                                                                            <p className="text-sm font-semibold">Card {index + 1}</p>
+                                                                                            <p className="text-[11px] text-white/70">Card title, class labels, and subject counts stay dynamic from the database.</p>
+                                                                                        </div>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            className="h-8 text-white hover:bg-white/10 hover:text-white"
+                                                                                            onClick={() => removeAcademicsCard(section.id, index)}
+                                                                                        >
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+
+                                                                                    <div className="space-y-4 p-4">
+                                                                                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                                                                                            <div className="flex h-40 items-center justify-center bg-[linear-gradient(135deg,var(--wb-primary),var(--wb-secondary))] text-5xl text-white">
+                                                                                                {card.image_url ? (
+                                                                                                    <img src={card.image_url} alt={`Academics card ${index + 1}`} className="h-full w-full object-cover" />
+                                                                                                ) : (
+                                                                                                    <span>{index + 1}</span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        <div className="space-y-2">
+                                                                                            <Label>Card image URL</Label>
+                                                                                            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                                                                                                <Input
+                                                                                                    value={card.image_url}
+                                                                                                    onChange={(e) =>
+                                                                                                        updateAcademicsCard(section.id, index, "image_url", e.target.value)
+                                                                                                    }
+                                                                                                    placeholder="https://..."
+                                                                                                />
+                                                                                                <select
+                                                                                                    className="h-10 rounded-md border border-slate-200 px-2 text-sm"
+                                                                                                    value={selectedMediaBySection[mediaKey] || ""}
+                                                                                                    onChange={(e) => {
+                                                                                                        const selectedUrl = e.target.value;
+                                                                                                        setSelectedMediaBySection((prev) => ({
+                                                                                                            ...prev,
+                                                                                                            [mediaKey]: selectedUrl,
+                                                                                                        }));
+                                                                                                        if (!selectedUrl) return;
+                                                                                                        updateAcademicsCard(section.id, index, "image_url", selectedUrl);
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <option value="">Pick uploaded media...</option>
+                                                                                                    {media.map((item) => (
+                                                                                                        <option key={item.id} value={item.public_url}>
+                                                                                                            {item.file_name}
+                                                                                                        </option>
+                                                                                                    ))}
+                                                                                                </select>
+                                                                                            </div>
+                                                                                            <div className="mt-2">
+                                                                                                <label className="inline-flex cursor-pointer items-center">
+                                                                                                    <input
+                                                                                                        type="file"
+                                                                                                        className="hidden"
+                                                                                                        accept="image/*"
+                                                                                                        onChange={async (e) => {
+                                                                                                            const file = e.target.files?.[0];
+                                                                                                            if (!file) return;
+                                                                                                            const uploadedUrl = await uploadMedia(file);
+                                                                                                            if (uploadedUrl) {
+                                                                                                                updateAcademicsCard(section.id, index, "image_url", uploadedUrl);
+                                                                                                                setSelectedMediaBySection((prev) => ({
+                                                                                                                    ...prev,
+                                                                                                                    [mediaKey]: uploadedUrl,
+                                                                                                                }));
+                                                                                                            }
+                                                                                                            e.currentTarget.value = "";
+                                                                                                        }}
+                                                                                                    />
+                                                                                                    <span className="inline-flex items-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">
+                                                                                                        {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                                                                                        Upload Image
+                                                                                                    </span>
+                                                                                                </label>
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        <div className="space-y-2">
+                                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                                <Label>Sample subjects</Label>
+                                                                                                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">One per line</span>
+                                                                                            </div>
+                                                                                            <Textarea
+                                                                                                rows={4}
+                                                                                                value={card.sample_subjects.join("\n")}
+                                                                                                onChange={(e) =>
+                                                                                                    updateAcademicsCard(section.id, index, "sample_subjects", e.target.value)
+                                                                                                }
+                                                                                                placeholder="Mathematics\nEnglish\nScience"
+                                                                                            />
+                                                                                            <div className="flex flex-wrap gap-2">
+                                                                                                {card.sample_subjects.length > 0 ? (
+                                                                                                    card.sample_subjects.map((subject) => (
+                                                                                                        <span key={subject} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                                                                                                            {subject}
+                                                                                                        </span>
+                                                                                                    ))
+                                                                                                ) : (
+                                                                                                    <span className="text-sm text-slate-500">Subjects are shown on the live academics card.</span>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
                                                             ) : null}
 
                                                             {editorConfig.showItems ? (

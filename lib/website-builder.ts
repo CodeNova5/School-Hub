@@ -94,6 +94,10 @@ export interface WebsiteSectionContent {
     image_url?: string;
     icon?: string;
   }[];
+  academics_cards?: {
+    image_url: string;
+    sample_subjects: string[];
+  }[];
 }
 
 export interface WebsiteSectionTemplate {
@@ -580,91 +584,25 @@ export const WEBSITE_ACADEMICS_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
     visible: true,
     content: {
       heading: "Our Academic Excellence",
-      subheading: "Rigorous curriculum designed to inspire critical thinking",
-      description: "Comprehensive programs across all grade levels with focus on holistic development.",
+      subheading: "Rigorous learning, clear pathways, and subject combinations shaped by each level.",
+      description: "The live academics page pulls structure from the school database. Edit only the showcase card imagery and sample subjects here.",
       image_url: "",
       button_label: "Explore Programs",
-      button_link: "#academics_curriculum",
-    },
-  },
-  {
-    key: "academics_class_levels",
-    label: "Class Levels",
-    order: 2,
-    visible: true,
-    content: {
-      heading: "Class Levels",
-      subheading: "Programs organized by grade",
-      class_level_items: [
+      button_link: "#academics_overview",
+      academics_cards: [
         {
-          title: "Primary (Classes 1-5)",
-          description: "Foundation in core subjects with play-based learning and active engagement.",
-          grade_range: "6-11 years",
-          icon: "📚",
           image_url: "",
+          sample_subjects: ["Mathematics", "English", "Science"],
         },
         {
-          title: "Secondary (Classes 6-8)",
-          description: "CBSE curriculum with subject specialization and hands-on learning.",
-          grade_range: "11-14 years",
-          icon: "📖",
           image_url: "",
+          sample_subjects: ["Physics", "Chemistry", "Biology"],
         },
         {
-          title: "Senior Secondary (Classes 9-12)",
-          description: "Advanced academics in Science, Commerce, and Arts with career guidance.",
-          grade_range: "14-18 years",
-          icon: "🎓",
           image_url: "",
+          sample_subjects: ["Economics", "Computer Science", "Business Studies"],
         },
       ],
-    },
-  },
-  {
-    key: "academics_curriculum",
-    label: "Curriculum",
-    order: 3,
-    visible: true,
-    content: {
-      heading: "Curriculum Offerings",
-      subheading: "Diverse subjects designed for holistic growth",
-      curriculum_items: [
-        {
-          subject: "Mathematics",
-          description: "Conceptual understanding with practical applications and problem-solving focus.",
-          grade_levels: "All Classes",
-          skills: ["Problem-solving", "Logical thinking", "Analytical reasoning"],
-          icon: "🔢",
-          image_url: "",
-        },
-        {
-          subject: "Science",
-          description: "Physics, Chemistry, Biology with laboratory practice and experimentation.",
-          grade_levels: "Classes 6-12",
-          skills: ["Experimentation", "Observation", "Analysis"],
-          icon: "🔬",
-          image_url: "",
-        },
-        {
-          subject: "Languages",
-          description: "English, Regional Language, Sanskrit with emphasis on communication.",
-          grade_levels: "All Classes",
-          skills: ["Communication", "Comprehension", "Expression"],
-          icon: "📝",
-          image_url: "",
-        },
-      ],
-    },
-  },
-  {
-    key: "academics_gallery",
-    label: "Gallery",
-    order: 4,
-    visible: true,
-    content: {
-      heading: "Academic Moments",
-      subheading: "Classroom activities and learning experiences",
-      gallery_items: [],
     },
   },
 ];

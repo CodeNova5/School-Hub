@@ -70,16 +70,36 @@ export default function AlumniApplyPage() {
   const [image, setImage] = useState<File | null>(null);
 
   useEffect(() => {
-    if (!captchaSiteKey) return;
-    if (!captchaContainerRef.current) return;
-    if (!window.grecaptcha) return;
-    if (captchaWidgetIdRef.current !== null) return;
+    // Attempt to render the reCAPTCHA. The script may load after this effect
+    // runs, so we both try immediately and poll until `grecaptcha` is available.
+    const renderCaptcha = () => {
+      if (!captchaSiteKey) return;
+      if (!captchaContainerRef.current) return;
+      if (!window.grecaptcha) return;
+      if (captchaWidgetIdRef.current !== null) return;
 
-    captchaWidgetIdRef.current = window.grecaptcha.render(captchaContainerRef.current, {
-      sitekey: captchaSiteKey,
-      callback: (token: string) => setCaptchaToken(token),
-      "expired-callback": () => setCaptchaToken(""),
-    });
+      captchaWidgetIdRef.current = window.grecaptcha.render(captchaContainerRef.current, {
+        sitekey: captchaSiteKey,
+        callback: (token: string) => setCaptchaToken(token),
+        "expired-callback": () => setCaptchaToken(""),
+      });
+    };
+
+    renderCaptcha();
+
+    let pollId: number | undefined;
+    if (!captchaWidgetIdRef.current && captchaSiteKey) {
+      pollId = window.setInterval(() => {
+        renderCaptcha();
+        if (captchaWidgetIdRef.current !== null && pollId) {
+          clearInterval(pollId);
+        }
+      }, 500);
+    }
+
+    return () => {
+      if (pollId) clearInterval(pollId);
+    };
   }, [captchaSiteKey]);
 
   useEffect(() => {

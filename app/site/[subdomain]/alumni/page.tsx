@@ -9,6 +9,7 @@ import {
   resolveSchoolBySubdomain,
 } from "@/lib/public-school-site";
 import { SchoolDomainHeader } from "@/app/site/components/school-domain-header";
+import { SchoolDomainFooter } from "@/app/site/components/school-domain-footer";
 
 interface AlumniProfile {
   id: string;
@@ -86,6 +87,25 @@ export default async function AlumniDirectoryPage({
           </div>
         )}
       </main>
+
+      {/* Apply Now Section */}
+      <section className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-16 text-center text-white">
+        <div className="mx-auto max-w-2xl">
+          <h3 className="text-3xl font-black tracking-tight">Join Our Community</h3>
+          <p className="mx-auto mt-3 max-w-xl text-lg text-slate-200">
+            Be part of our thriving alumni network and contribute your success story to inspire future generations.
+          </p>
+          <Link
+            href={`${basePath}/alumni/apply`}
+            className="mt-8 inline-flex items-center rounded-full px-8 py-3 text-lg font-bold text-white transition hover:shadow-lg hover:scale-105"
+            style={{ backgroundColor: siteSettings.primary_color }}
+          >
+            Apply Now
+          </Link>
+        </div>
+      </section>
+
+      <SchoolDomainFooter siteSettings={siteSettings} />
     </div>
   );
 }

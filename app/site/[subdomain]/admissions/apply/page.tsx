@@ -57,6 +57,7 @@ export default function SchoolAdmissionPage() {
   const [error, setError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
   const [schoolId, setSchoolId] = useState("");
+  const [schoolDataLoading, setSchoolDataLoading] = useState(true);
 
   const [headerSiteSettings, setHeaderSiteSettings] = useState<HeaderSiteSettings>({
     site_title: "School Website",
@@ -123,93 +124,100 @@ export default function SchoolAdmissionPage() {
   // Load school settings, class levels, and config
   useEffect(() => {
     const requestedSubdomain = params.subdomain;
-    if (!requestedSubdomain) return;
+    if (!requestedSubdomain) {
+      setSchoolDataLoading(false);
+      return;
+    }
 
     async function loadSchoolData() {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (!url || !key) return;
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!url || !key) return;
 
-      const supabase = createClient(url, key);
+        const supabase = createClient(url, key);
 
-      // Get school by subdomain
-      const { data: schoolData, error: schoolError } = await supabase.rpc("get_school_by_subdomain", {
-        p_subdomain: requestedSubdomain,
-      });
+        // Get school by subdomain
+        const { data: schoolData, error: schoolError } = await supabase.rpc("get_school_by_subdomain", {
+          p_subdomain: requestedSubdomain,
+        });
 
-      if (schoolError || !schoolData) return;
-      const school = (Array.isArray(schoolData) ? schoolData[0] : schoolData) as
-        | { id: string; name: string }
-        | null;
+        if (schoolError || !schoolData) return;
+        const school = (Array.isArray(schoolData) ? schoolData[0] : schoolData) as
+          | { id: string; name: string }
+          | null;
 
-      if (!school?.id) return;
-      setSchoolId(school.id);
+        if (!school?.id) return;
+        setSchoolId(school.id);
 
-      // Get site settings
-      const { data: settings } = await supabase
-        .from("website_site_settings")
-        .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
-        .eq("school_id", school.id)
-        .maybeSingle();
+        // Get site settings
+        const { data: settings } = await supabase
+          .from("website_site_settings")
+          .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
+          .eq("school_id", school.id)
+          .maybeSingle();
 
-      setHeaderSiteSettings((prev) => ({
-        ...prev,
-        site_title: settings?.site_title || school.name || prev.site_title,
-        site_tagline: settings?.site_tagline || "Admissions Portal",
-        logo_url: settings?.logo_url || prev.logo_url,
-        primary_color: settings?.primary_color || prev.primary_color,
-        secondary_color: settings?.secondary_color || prev.secondary_color,
-      }));
+        setHeaderSiteSettings((prev) => ({
+          ...prev,
+          site_title: settings?.site_title || school.name || prev.site_title,
+          site_tagline: settings?.site_tagline || "Admissions Portal",
+          logo_url: settings?.logo_url || prev.logo_url,
+          primary_color: settings?.primary_color || prev.primary_color,
+          secondary_color: settings?.secondary_color || prev.secondary_color,
+        }));
 
-      // Get education levels with their class levels
-      const { data: educLevels } = await supabase
-        .from("school_education_levels")
-        .select("id, name, order_sequence")
-        .eq("school_id", school.id)
-        .eq("is_active", true)
-        .order("order_sequence", { ascending: true });
-
-      if (educLevels && educLevels.length > 0) {
-        setEducationLevels(educLevels);
-
-        // Get class levels for each education level
-        const { data: classLevels } = await supabase
-          .from("school_class_levels")
-          .select("id, education_level_id, name, order_sequence")
+        // Get education levels with their class levels
+        const { data: educLevels } = await supabase
+          .from("school_education_levels")
+          .select("id, name, order_sequence")
           .eq("school_id", school.id)
           .eq("is_active", true)
-          .in(
-            "education_level_id",
-            educLevels.map((el) => el.id)
-          )
           .order("order_sequence", { ascending: true });
 
-        if (classLevels) {
-          const grouped: Record<string, ClassLevel[]> = {};
-          educLevels.forEach((el) => {
-            grouped[el.id] = classLevels.filter((cl) => cl.education_level_id === el.id);
-          });
-          setClassLevelsByEducation(grouped);
+        if (educLevels && educLevels.length > 0) {
+          setEducationLevels(educLevels);
 
-          // Pre-select first education level
-          if (educLevels.length > 0) {
-            setSelectedEducationLevel(educLevels[0].id);
+          // Get class levels for each education level
+          const { data: classLevels } = await supabase
+            .from("school_class_levels")
+            .select("id, education_level_id, name, order_sequence")
+            .eq("school_id", school.id)
+            .eq("is_active", true)
+            .in(
+              "education_level_id",
+              educLevels.map((el) => el.id)
+            )
+            .order("order_sequence", { ascending: true });
+
+          if (classLevels) {
+            const grouped: Record<string, ClassLevel[]> = {};
+            educLevels.forEach((el) => {
+              grouped[el.id] = classLevels.filter((cl) => cl.education_level_id === el.id);
+            });
+            setClassLevelsByEducation(grouped);
+
+            // Pre-select first education level
+            if (educLevels.length > 0) {
+              setSelectedEducationLevel(educLevels[0].id);
+            }
           }
         }
+
+        // Get school religions if enabled
+        const { data: religions } = await supabase
+          .from("school_religions")
+          .select("id, name")
+          .eq("school_id", school.id)
+          .eq("is_active", true)
+          .order("name", { ascending: true });
+
+        setSchoolConfig({
+          has_religion_mode: (religions && religions.length > 0) || false,
+          religions: religions || [],
+        });
+      } finally {
+        setSchoolDataLoading(false);
       }
-
-      // Get school religions if enabled
-      const { data: religions } = await supabase
-        .from("school_religions")
-        .select("id, name")
-        .eq("school_id", school.id)
-        .eq("is_active", true)
-        .order("name", { ascending: true });
-
-      setSchoolConfig({
-        has_religion_mode: (religions && religions.length > 0) || false,
-        religions: religions || [],
-      });
     }
 
     void loadSchoolData();
@@ -342,6 +350,16 @@ export default function SchoolAdmissionPage() {
     "--secondary-color": secondaryColor,
     "--secondary-rgb": hexToRgb(secondaryColor),
   } as React.CSSProperties;
+
+  if (schoolDataLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
+          Loading school details...
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (

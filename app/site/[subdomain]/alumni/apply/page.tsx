@@ -45,6 +45,7 @@ export default function AlumniApplyPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
+  const [headerLoading, setHeaderLoading] = useState(true);
   const [headerSiteSettings, setHeaderSiteSettings] = useState<HeaderSiteSettings>({
     site_title: "School Website",
     site_tagline: "Alumni Network",
@@ -83,39 +84,46 @@ export default function AlumniApplyPage() {
 
   useEffect(() => {
     const requestedSubdomain = params.subdomain;
-    if (!requestedSubdomain) return;
+    if (!requestedSubdomain) {
+      setHeaderLoading(false);
+      return;
+    }
 
     async function loadHeaderSettings() {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (!url || !key) return;
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!url || !key) return;
 
-      const supabase = createClient(url, key);
-      const { data: schoolData, error: schoolError } = await supabase.rpc("get_school_by_subdomain", {
-        p_subdomain: requestedSubdomain,
-      });
+        const supabase = createClient(url, key);
+        const { data: schoolData, error: schoolError } = await supabase.rpc("get_school_by_subdomain", {
+          p_subdomain: requestedSubdomain,
+        });
 
-      if (schoolError) return;
-      const school = (Array.isArray(schoolData) ? schoolData[0] : schoolData) as
-        | { id: string; name: string }
-        | null;
+        if (schoolError) return;
+        const school = (Array.isArray(schoolData) ? schoolData[0] : schoolData) as
+          | { id: string; name: string }
+          | null;
 
-      if (!school?.id) return;
+        if (!school?.id) return;
 
-      const { data: settings } = await supabase
-        .from("website_site_settings")
-        .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
-        .eq("school_id", school.id)
-        .maybeSingle();
+        const { data: settings } = await supabase
+          .from("website_site_settings")
+          .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
+          .eq("school_id", school.id)
+          .maybeSingle();
 
-      setHeaderSiteSettings((prev) => ({
-        ...prev,
-        site_title: settings?.site_title || school.name || prev.site_title,
-        site_tagline: settings?.site_tagline || prev.site_tagline,
-        logo_url: settings?.logo_url || prev.logo_url,
-        primary_color: settings?.primary_color || prev.primary_color,
-        secondary_color: settings?.secondary_color || prev.secondary_color,
-      }));
+        setHeaderSiteSettings((prev) => ({
+          ...prev,
+          site_title: settings?.site_title || school.name || prev.site_title,
+          site_tagline: settings?.site_tagline || prev.site_tagline,
+          logo_url: settings?.logo_url || prev.logo_url,
+          primary_color: settings?.primary_color || prev.primary_color,
+          secondary_color: settings?.secondary_color || prev.secondary_color,
+        }));
+      } finally {
+        setHeaderLoading(false);
+      }
     }
 
     void loadHeaderSettings();
@@ -167,6 +175,16 @@ export default function AlumniApplyPage() {
   }
 
   const basePath = getPublicBasePath(params.subdomain, null);
+
+  if (headerLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
+          Loading school details...
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (

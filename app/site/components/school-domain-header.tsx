@@ -78,11 +78,6 @@ export function SchoolDomainHeader({
     ? "text-white"
     : "text-white/80 transition hover:text-white";
 
-  const admissionsLinkClass =
-    currentPage === "admissions"
-      ? "text-white"
-      : "text-white/80 transition hover:text-white";
-
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950 text-white">
       <div className="mx-auto flex w-full max-w-[1240px] items-center justify-between gap-3 px-4 py-3 md:px-6">
@@ -114,7 +109,6 @@ export function SchoolDomainHeader({
           <a href={homeHref} className={homeLinkClass}>Home</a>
           <a href={hallOfFameHref} className={hallLinkClass}>Hall of Fame</a>
           <a href={alumniHref} className={alumniLinkClass}>Alumni</a>
-          <a href={admissionsHref} className={admissionsLinkClass}>Admissions</a>
 
           <a
             href={applyHref}
@@ -143,7 +137,6 @@ export function SchoolDomainHeader({
             <a href={homeHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Home</a>
             <a href={hallOfFameHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Hall of Fame</a>
             <a href={alumniHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Alumni</a>
-            <a href={admissionsHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Admissions</a>
           </div>
 
           <a

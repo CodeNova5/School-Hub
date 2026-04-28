@@ -50,10 +50,13 @@ export default function SchoolAdmissionPage() {
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<number | null>(null);
   const captchaSiteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || "";
+  const [captchaScriptLoaded, setCaptchaScriptLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [applicationNumber, setApplicationNumber] = useState("");
   const [error, setError] = useState("");
+  const [schoolDataReady, setSchoolDataReady] = useState(false);
+  const [schoolLoadError, setSchoolLoadError] = useState("");
   const [captchaToken, setCaptchaToken] = useState("");
   const [schoolId, setSchoolId] = useState("");
 
@@ -104,101 +107,146 @@ export default function SchoolAdmissionPage() {
       callback: (token: string) => setCaptchaToken(token),
       "expired-callback": () => setCaptchaToken(""),
     });
-  }, [captchaSiteKey]);
+  }, [captchaSiteKey, captchaScriptLoaded]);
 
   // Load school settings, class levels, and config
   useEffect(() => {
     const requestedSubdomain = params.subdomain;
     if (!requestedSubdomain) return;
 
+    let isActive = true;
+
+    setSchoolDataReady(false);
+    setSchoolLoadError("");
+    setSchoolId("");
+    setEducationLevels([]);
+    setClassLevelsByEducation({});
+    setSelectedEducationLevel("");
+    setSchoolConfig({
+      has_religion_mode: false,
+      religions: [],
+    });
+
     async function loadSchoolData() {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (!url || !key) return;
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        if (!url || !key) {
+          throw new Error("School configuration is unavailable.");
+        }
 
-      const supabase = createClient(url, key);
+        const supabase = createClient(url, key);
 
-      // Get school by subdomain
-      const { data: schoolData, error: schoolError } = await supabase.rpc("get_school_by_subdomain", {
-        p_subdomain: requestedSubdomain,
-      });
+        // Get school by subdomain
+        const { data: schoolData, error: schoolError } = await supabase.rpc("get_school_by_subdomain", {
+          p_subdomain: requestedSubdomain,
+        });
 
-      if (schoolError || !schoolData) return;
-      const school = (Array.isArray(schoolData) ? schoolData[0] : schoolData) as
-        | { id: string; name: string }
-        | null;
+        if (schoolError || !schoolData) {
+          throw new Error("Unable to load school details.");
+        }
 
-      if (!school?.id) return;
-      setSchoolId(school.id);
+        const school = (Array.isArray(schoolData) ? schoolData[0] : schoolData) as
+          | { id: string; name: string }
+          | null;
 
-      // Get site settings
-      const { data: settings } = await supabase
-        .from("website_site_settings")
-        .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
-        .eq("school_id", school.id)
-        .maybeSingle();
+        if (!school?.id) {
+          throw new Error("School not found.");
+        }
 
-      setHeaderSiteSettings((prev) => ({
-        ...prev,
-        site_title: settings?.site_title || school.name || prev.site_title,
-        site_tagline: settings?.site_tagline || "Admissions Portal",
-        logo_url: settings?.logo_url || prev.logo_url,
-        primary_color: settings?.primary_color || prev.primary_color,
-        secondary_color: settings?.secondary_color || prev.secondary_color,
-      }));
+        if (!isActive) return;
 
-      // Get education levels with their class levels
-      const { data: educLevels } = await supabase
-        .from("school_education_levels")
-        .select("id, name, order_sequence")
-        .eq("school_id", school.id)
-        .eq("is_active", true)
-        .order("order_sequence", { ascending: true });
+        setSchoolId(school.id);
 
-      if (educLevels && educLevels.length > 0) {
-        setEducationLevels(educLevels);
+        // Get site settings
+        const { data: settings } = await supabase
+          .from("website_site_settings")
+          .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
+          .eq("school_id", school.id)
+          .maybeSingle();
 
-        // Get class levels for each education level
-        const { data: classLevels } = await supabase
-          .from("school_class_levels")
-          .select("id, education_level_id, name, order_sequence")
+        if (!isActive) return;
+
+        setHeaderSiteSettings((prev) => ({
+          ...prev,
+          site_title: settings?.site_title || school.name || prev.site_title,
+          site_tagline: settings?.site_tagline || "Admissions Portal",
+          logo_url: settings?.logo_url || prev.logo_url,
+          primary_color: settings?.primary_color || prev.primary_color,
+          secondary_color: settings?.secondary_color || prev.secondary_color,
+        }));
+
+        // Get education levels with their class levels
+        const { data: educLevels } = await supabase
+          .from("school_education_levels")
+          .select("id, name, order_sequence")
           .eq("school_id", school.id)
           .eq("is_active", true)
-          .in(
-            "education_level_id",
-            educLevels.map((el) => el.id)
-          )
           .order("order_sequence", { ascending: true });
 
-        if (classLevels) {
-          const grouped: Record<string, ClassLevel[]> = {};
-          educLevels.forEach((el) => {
-            grouped[el.id] = classLevels.filter((cl) => cl.education_level_id === el.id);
-          });
-          setClassLevelsByEducation(grouped);
+        if (!isActive) return;
 
-          // Pre-select first education level
-          if (educLevels.length > 0) {
-            setSelectedEducationLevel(educLevels[0].id);
+        if (educLevels && educLevels.length > 0) {
+          setEducationLevels(educLevels);
+
+          // Get class levels for each education level
+          const { data: classLevels } = await supabase
+            .from("school_class_levels")
+            .select("id, education_level_id, name, order_sequence")
+            .eq("school_id", school.id)
+            .eq("is_active", true)
+            .in(
+              "education_level_id",
+              educLevels.map((el) => el.id)
+            )
+            .order("order_sequence", { ascending: true });
+
+          if (!isActive) return;
+
+          if (classLevels) {
+            const grouped: Record<string, ClassLevel[]> = {};
+            educLevels.forEach((el) => {
+              grouped[el.id] = classLevels.filter((cl) => cl.education_level_id === el.id);
+            });
+            setClassLevelsByEducation(grouped);
+
+            // Pre-select first education level
+            if (educLevels.length > 0) {
+              setSelectedEducationLevel(educLevels[0].id);
+            }
           }
         }
+
+        // Get school religions if enabled
+        const { data: religions } = await supabase
+          .from("school_religions")
+          .select("id, name")
+          .eq("school_id", school.id)
+          .eq("is_active", true)
+          .order("name", { ascending: true });
+
+        if (!isActive) return;
+
+        setSchoolConfig({
+          has_religion_mode: (religions && religions.length > 0) || false,
+          religions: religions || [],
+        });
+      } catch (loadError: any) {
+        if (isActive) {
+          setSchoolLoadError(loadError?.message || "Failed to load school details.");
+        }
+      } finally {
+        if (isActive) {
+          setSchoolDataReady(true);
+        }
       }
-
-      // Get school religions if enabled
-      const { data: religions } = await supabase
-        .from("school_religions")
-        .select("id, name")
-        .eq("school_id", school.id)
-        .eq("is_active", true)
-        .order("name", { ascending: true });
-
-      setSchoolConfig({
-        has_religion_mode: (religions && religions.length > 0) || false,
-        religions: religions || [],
-      });
     }
 
     void loadSchoolData();
+
+    return () => {
+      isActive = false;
+    };
   }, [params.subdomain]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -325,6 +373,23 @@ export default function SchoolAdmissionPage() {
     "--secondary-rgb": hexToRgb(secondaryColor),
   } as React.CSSProperties;
 
+  if (!schoolDataReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+          <h1 className="text-xl font-semibold text-slate-900">Loading school details</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            We are fetching the admissions setup before showing the application form.
+          </p>
+          {schoolLoadError ? <p className="mt-4 text-sm text-red-600">{schoolLoadError}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen bg-slate-50">
@@ -426,7 +491,12 @@ export default function SchoolAdmissionPage() {
     <div className="min-h-screen bg-slate-50" style={themeStyle}>
       <SchoolDomainHeader siteSettings={headerSiteSettings} basePath={basePath} currentPage="admissions" />
       {captchaSiteKey ? (
-        <Script src="https://www.google.com/recaptcha/api.js" strategy="afterInteractive" />
+        <Script
+          src="https://www.google.com/recaptcha/api.js"
+          strategy="afterInteractive"
+          onLoad={() => setCaptchaScriptLoaded(true)}
+          onReady={() => setCaptchaScriptLoaded(true)}
+        />
       ) : null}
 
       <div className="mx-auto max-w-4xl px-4 py-12">
@@ -727,7 +797,10 @@ export default function SchoolAdmissionPage() {
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">CAPTCHA Verification *</label>
             {captchaSiteKey ? (
-              <div ref={captchaContainerRef} />
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div ref={captchaContainerRef} />
+                {!captchaScriptLoaded ? <p className="mt-2 text-xs text-slate-500">Loading CAPTCHA...</p> : null}
+              </div>
             ) : (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
                 CAPTCHA is not configured yet.

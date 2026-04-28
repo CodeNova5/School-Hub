@@ -2966,7 +2966,7 @@ export default function WebsiteBuilderPage() {
                                     ) : (
                                         <div className="overflow-hidden rounded-md border bg-slate-950">
                                             <iframe
-                                                key={`${activeSection?.section_key || "page"}-${previewNonce}`}
+                                                key={`${selectedPageSlug}-${activeSection?.section_key || "page"}-${previewNonce}`}
                                                 title="Website Preview"
                                                 src={getSectionPreviewUrl(activeSection?.section_key)}
                                                 className="h-[680px] w-full bg-white"

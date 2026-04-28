@@ -71,6 +71,21 @@ interface WebsiteSection {
       image_url: string;
       caption?: string;
     }>;
+    class_level_items?: Array<{
+      title: string;
+      description: string;
+      grade_range?: string;
+      icon?: string;
+      image_url?: string;
+    }>;
+    curriculum_items?: Array<{
+      subject: string;
+      description: string;
+      grade_levels?: string;
+      skills?: string[];
+      image_url?: string;
+      icon?: string;
+    }>;
   };
 }
 
@@ -109,6 +124,9 @@ function resolveRequestedPageSlug(slug: string[]): WebsitePageSlug | null {
   }
   if (slug.length === 1 && slug[0] === "hall-of-fame") {
     return "hall-of-fame";
+  }
+  if (slug.length === 1 && slug[0] === "academics") {
+    return "academics";
   }
   return null;
 }
@@ -1278,6 +1296,198 @@ function renderFooter(siteSettings: SiteSettings) {
   );
 }
 
+function getClassLevelItems(section: WebsiteSection | undefined) {
+  const items = (section?.content.class_level_items || [])
+    .map((item) => ({
+      title: (item.title || "").trim(),
+      description: (item.description || "").trim(),
+      grade_range: (item.grade_range || "").trim(),
+      icon: (item.icon || "📚").trim(),
+      image_url: (item.image_url || "").trim(),
+    }))
+    .filter((item) => item.title);
+  return items;
+}
+
+function getCurriculumItems(section: WebsiteSection | undefined) {
+  const items = (section?.content.curriculum_items || [])
+    .map((item) => ({
+      subject: (item.subject || "").trim(),
+      description: (item.description || "").trim(),
+      grade_levels: (item.grade_levels || "").trim(),
+      skills: Array.isArray(item.skills) ? item.skills : (item.skills || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+      image_url: (item.image_url || "").trim(),
+      icon: (item.icon || "📖").trim(),
+    }))
+    .filter((item) => item.subject);
+  return items;
+}
+
+function renderAcademicsHero(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
+  const heading = section?.content.heading || "Our Academic Excellence";
+  const subheading = section?.content.subheading || "Rigorous curriculum designed to inspire critical thinking";
+  const description = section?.content.description || "Comprehensive programs across all grade levels.";
+  const buttonLabel = section?.content.button_label || "Explore Programs";
+  const buttonLink = section?.content.button_link || "#academics_curriculum";
+  const image = (section?.content.image_url || "").trim();
+
+  return (
+    <section id="academics_hero" className="relative overflow-hidden bg-slate-950 px-4 py-24 text-white md:px-6 md:py-32">
+      <div className="absolute inset-0">
+        {image ? (
+          <img src={image} alt="Academics hero" className="h-full w-full object-cover opacity-50" />
+        ) : (
+          <div
+            className="h-full w-full"
+            style={{
+              background:
+                "radial-gradient(circle at top right, rgba(var(--wb-secondary-rgb),0.28), transparent 35%), linear-gradient(135deg, #0f172a 0%, #111827 50%, #1f2937 100%)",
+            }}
+          />
+        )}
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.15),rgba(2,6,23,0.88))]" />
+      </div>
+      <div className="relative mx-auto max-w-[1100px]">
+        <div className="mx-auto max-w-4xl rounded-[30px] border border-white/20 bg-slate-950/26 px-5 py-8 text-center shadow-2xl backdrop-blur-sm md:px-10 md:py-10">
+          <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">{heading}</h1>
+          <p className="mt-4 text-base leading-8 text-white/88 md:text-lg">{subheading}</p>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/76">{description}</p>
+          <a
+            href={buttonLink}
+            className="mt-8 inline-flex rounded-full px-7 py-3 text-sm font-bold text-slate-950"
+            style={{ backgroundColor: "var(--wb-secondary)" }}
+          >
+            {buttonLabel}
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderClassLevelCards(section: WebsiteSection | undefined) {
+  const heading = section?.content.heading || "Class Levels";
+  const subheading = section?.content.subheading || "Programs organized by grade";
+  const items = getClassLevelItems(section);
+
+  return (
+    <section id="academics_class_levels" className="bg-white px-4 py-20 md:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <div className="text-center">
+          <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{heading}</h2>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subheading}</p>
+        </div>
+        <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <article key={item.title} className="overflow-hidden rounded-[26px] border border-slate-200 bg-slate-50 p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <div className="mb-4 text-5xl">{item.icon}</div>
+              <h3 className="text-xl font-bold text-slate-950">{item.title}</h3>
+              <p className="mt-2 text-sm font-medium text-slate-500">{item.grade_range}</p>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{item.description}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderCurriculumSubjects(section: WebsiteSection | undefined) {
+  const heading = section?.content.heading || "Curriculum Offerings";
+  const subheading = section?.content.subheading || "Diverse subjects designed for holistic growth";
+  const items = getCurriculumItems(section);
+
+  return (
+    <section id="academics_curriculum" className="bg-slate-50 px-4 py-20 md:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <div className="text-center">
+          <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{heading}</h2>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subheading}</p>
+        </div>
+        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => (
+            <article key={item.subject} className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <div
+                className="flex h-40 items-center justify-center text-6xl"
+                style={{
+                  background: "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))",
+                }}
+              >
+                {item.icon}
+              </div>
+              <div className="p-6">
+                <h3 className="text-lg font-bold text-slate-950">{item.subject}</h3>
+                <p className="mt-2 text-xs font-medium text-slate-500">{item.grade_levels}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{item.description}</p>
+                {item.skills.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {item.skills.slice(0, 2).map((skill) => (
+                      <span key={skill} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderAcademicsGallery(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
+  const heading = section?.content.heading || "Academic Moments";
+  const subheading = section?.content.subheading || "Classroom activities and learning experiences";
+  const galleryItems = getGalleryItems(section);
+
+  return (
+    <section id="academics_gallery" className="bg-white px-4 py-20 md:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <div className="text-center">
+          <h2 className="text-3xl font-black tracking-tight text-slate-950 md:text-5xl">{heading}</h2>
+          <p className="mx-auto mt-4 max-w-3xl text-base leading-8 text-slate-600 md:text-lg">{subheading}</p>
+        </div>
+        <div className="mt-12 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3">
+          {galleryItems.map((item, index) => {
+            const palette = [
+              "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary))",
+              "linear-gradient(135deg, rgba(var(--wb-secondary-rgb),0.95), rgba(var(--wb-primary-rgb),0.85))",
+              "linear-gradient(135deg, var(--wb-secondary-deep), var(--wb-secondary))",
+              "linear-gradient(135deg, var(--wb-primary-deep), var(--wb-primary))",
+              "linear-gradient(135deg, rgba(var(--wb-primary-rgb),0.78), rgba(var(--wb-secondary-rgb),0.78))",
+              "linear-gradient(135deg, var(--wb-secondary), var(--wb-primary-soft))",
+              "linear-gradient(135deg, var(--wb-primary), var(--wb-secondary-soft))",
+              "linear-gradient(135deg, rgba(var(--wb-secondary-rgb),0.88), rgba(var(--wb-primary-rgb),0.62))",
+              "linear-gradient(135deg, var(--wb-primary-soft), var(--wb-secondary-soft))",
+            ];
+            return (
+              <div
+                key={`${item.image_url || item.fallbackIcon}-${index}`}
+                className="group relative flex h-52 items-center justify-center overflow-hidden rounded-[24px] text-5xl text-white shadow-lg"
+                style={{ background: palette[index % palette.length] }}
+              >
+                {item.image_url ? (
+                  <img src={item.image_url} alt={item.caption || `Gallery ${index + 1}`} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="relative z-10">{item.fallbackIcon}</span>
+                )}
+                <div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/20" />
+                {item.caption ? (
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/55 px-3 py-2 text-xs font-medium text-white">
+                    {item.caption}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function renderWebsiteNotPublished(message: string) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
@@ -1429,6 +1639,33 @@ export default async function PublicSchoolWebsite({
           {renderHallOfFameCards(hallOfFameSection)}
           {renderAchievementAwards(awardsSection)}
           {renderAchievementCta(achievementsCtaSection)}
+          {renderContact(undefined, siteSettings)}
+        </main>
+        {renderFooter(siteSettings)}
+      </div>
+    );
+  }
+
+  if (requestedPageSlug === "academics") {
+    const academicsHeroSection = visibleSections.find((section) => section.section_key === "academics_hero");
+    const classLevelsSection = visibleSections.find((section) => section.section_key === "academics_class_levels");
+    const curriculumSection = visibleSections.find((section) => section.section_key === "academics_curriculum");
+    const academicsGallerySection = visibleSections.find((section) => section.section_key === "academics_gallery");
+
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
+        <SchoolDomainHeader
+          siteSettings={siteSettings}
+          basePath={routeBasePath}
+          currentPage="academics"
+          preview={isPreview}
+          contextLinks={hallOfFameContextLinks}
+        />
+        <main>
+          {renderAcademicsHero(academicsHeroSection, siteSettings)}
+          {renderClassLevelCards(classLevelsSection)}
+          {renderCurriculumSubjects(curriculumSection)}
+          {renderAcademicsGallery(academicsGallerySection, siteSettings)}
           {renderContact(undefined, siteSettings)}
         </main>
         {renderFooter(siteSettings)}

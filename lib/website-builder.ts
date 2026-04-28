@@ -13,9 +13,13 @@ export type WebsiteSectionKey =
   | "achievements_timeline"
   | "hall_of_fame"
   | "achievements_awards"
-  | "achievements_cta";
+  | "achievements_cta"
+  | "academics_hero"
+  | "academics_class_levels"
+  | "academics_curriculum"
+  | "academics_gallery";
 
-export type WebsitePageSlug = "home" | "hall-of-fame";
+export type WebsitePageSlug = "home" | "hall-of-fame" | "academics";
 
 export interface WebsiteProgramItem {
   title: string;
@@ -74,6 +78,21 @@ export interface WebsiteSectionContent {
   gallery_items?: {
     image_url: string;
     caption?: string;
+  }[];
+  class_level_items?: {
+    title: string;
+    description: string;
+    grade_range?: string;
+    icon?: string;
+    image_url?: string;
+  }[];
+  curriculum_items?: {
+    subject: string;
+    description: string;
+    grade_levels?: string;
+    skills?: string[];
+    image_url?: string;
+    icon?: string;
   }[];
 }
 
@@ -553,14 +572,114 @@ export const WEBSITE_HALL_OF_FAME_SECTION_TEMPLATES: WebsiteSectionTemplate[] = 
   },
 ];
 
+export const WEBSITE_ACADEMICS_SECTION_TEMPLATES: WebsiteSectionTemplate[] = [
+  {
+    key: "academics_hero",
+    label: "Academics Hero",
+    order: 1,
+    visible: true,
+    content: {
+      heading: "Our Academic Excellence",
+      subheading: "Rigorous curriculum designed to inspire critical thinking",
+      description: "Comprehensive programs across all grade levels with focus on holistic development.",
+      image_url: "",
+      button_label: "Explore Programs",
+      button_link: "#academics_curriculum",
+    },
+  },
+  {
+    key: "academics_class_levels",
+    label: "Class Levels",
+    order: 2,
+    visible: true,
+    content: {
+      heading: "Class Levels",
+      subheading: "Programs organized by grade",
+      class_level_items: [
+        {
+          title: "Primary (Classes 1-5)",
+          description: "Foundation in core subjects with play-based learning and active engagement.",
+          grade_range: "6-11 years",
+          icon: "📚",
+          image_url: "",
+        },
+        {
+          title: "Secondary (Classes 6-8)",
+          description: "CBSE curriculum with subject specialization and hands-on learning.",
+          grade_range: "11-14 years",
+          icon: "📖",
+          image_url: "",
+        },
+        {
+          title: "Senior Secondary (Classes 9-12)",
+          description: "Advanced academics in Science, Commerce, and Arts with career guidance.",
+          grade_range: "14-18 years",
+          icon: "🎓",
+          image_url: "",
+        },
+      ],
+    },
+  },
+  {
+    key: "academics_curriculum",
+    label: "Curriculum",
+    order: 3,
+    visible: true,
+    content: {
+      heading: "Curriculum Offerings",
+      subheading: "Diverse subjects designed for holistic growth",
+      curriculum_items: [
+        {
+          subject: "Mathematics",
+          description: "Conceptual understanding with practical applications and problem-solving focus.",
+          grade_levels: "All Classes",
+          skills: ["Problem-solving", "Logical thinking", "Analytical reasoning"],
+          icon: "🔢",
+          image_url: "",
+        },
+        {
+          subject: "Science",
+          description: "Physics, Chemistry, Biology with laboratory practice and experimentation.",
+          grade_levels: "Classes 6-12",
+          skills: ["Experimentation", "Observation", "Analysis"],
+          icon: "🔬",
+          image_url: "",
+        },
+        {
+          subject: "Languages",
+          description: "English, Regional Language, Sanskrit with emphasis on communication.",
+          grade_levels: "All Classes",
+          skills: ["Communication", "Comprehension", "Expression"],
+          icon: "📝",
+          image_url: "",
+        },
+      ],
+    },
+  },
+  {
+    key: "academics_gallery",
+    label: "Gallery",
+    order: 4,
+    visible: true,
+    content: {
+      heading: "Academic Moments",
+      subheading: "Classroom activities and learning experiences",
+      gallery_items: [],
+    },
+  },
+
 export const WEBSITE_PAGE_SECTION_TEMPLATES: Record<WebsitePageSlug, WebsiteSectionTemplate[]> = {
   home: WEBSITE_SECTION_TEMPLATES,
   "hall-of-fame": WEBSITE_HALL_OF_FAME_SECTION_TEMPLATES,
+  academics: WEBSITE_ACADEMICS_SECTION_TEMPLATES,
 };
 
 export function getWebsiteSectionTemplatesForPage(pageSlug: string | undefined): WebsiteSectionTemplate[] {
   if (pageSlug === "hall-of-fame") {
     return WEBSITE_PAGE_SECTION_TEMPLATES["hall-of-fame"];
+  }
+  if (pageSlug === "academics") {
+    return WEBSITE_PAGE_SECTION_TEMPLATES.academics;
   }
   return WEBSITE_PAGE_SECTION_TEMPLATES.home;
 }

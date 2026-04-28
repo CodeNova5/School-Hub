@@ -18,6 +18,7 @@ interface SchoolDomainNavLink {
 type SchoolDomainCurrentPage =
   | "home"
   | "hall-of-fame"
+  | "academics"
   | "alumni"
   | "alumni-profile"
   | "alumni-apply"
@@ -57,6 +58,7 @@ export function SchoolDomainHeader({
 
   const homeHref = getPath(basePath);
   const hallOfFameHref = getPath(basePath, "/hall-of-fame");
+  const academicsHref = getPath(basePath, "/academics");
   const alumniHref = getPath(basePath, "/alumni");
   const admissionsHref = getPath(basePath, "/admissions/apply");
   const applyHref = ctaHref || admissionsHref;
@@ -71,6 +73,11 @@ export function SchoolDomainHeader({
 
   const hallLinkClass =
     currentPage === "hall-of-fame"
+      ? "text-white"
+      : "text-white/80 transition hover:text-white";
+
+  const academicsLinkClass =
+    currentPage === "academics"
       ? "text-white"
       : "text-white/80 transition hover:text-white";
 
@@ -108,6 +115,7 @@ export function SchoolDomainHeader({
         <nav className="hidden items-center gap-6 md:flex">
           <a href={homeHref} className={homeLinkClass}>Home</a>
           <a href={hallOfFameHref} className={hallLinkClass}>Hall of Fame</a>
+          <a href={academicsHref} className={academicsLinkClass}>Academics</a>
           <a href={alumniHref} className={alumniLinkClass}>Alumni</a>
 
           <a
@@ -136,6 +144,7 @@ export function SchoolDomainHeader({
           <div className="grid gap-2">
             <a href={homeHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Home</a>
             <a href={hallOfFameHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Hall of Fame</a>
+            <a href={academicsHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Academics</a>
             <a href={alumniHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Alumni</a>
           </div>
 

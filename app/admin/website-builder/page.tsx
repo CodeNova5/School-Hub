@@ -22,11 +22,12 @@ import {
     isWebsiteSectionCustomized,
 } from "@/lib/website-builder";
 
-type WebsitePageSlug = "home" | "hall-of-fame";
+type WebsitePageSlug = "home" | "hall-of-fame" | "academics";
 
 const PAGE_OPTIONS: Array<{ slug: WebsitePageSlug; label: string }> = [
     { slug: "home", label: "Homepage" },
     { slug: "hall-of-fame", label: "Hall of Fame" },
+    { slug: "academics", label: "Academics" },
 ];
 
 interface SiteSettings {
@@ -287,6 +288,42 @@ const SECTION_EDITOR_CONFIG: Record<
         showImage: false,
         showButton: true,
         showItems: false,
+    },
+    academics_hero: {
+        descriptionLabel: "Hero Description",
+        itemsLabel: "Highlights",
+        showSubheading: true,
+        showDescription: true,
+        showImage: true,
+        showButton: true,
+        showItems: false,
+    },
+    academics_class_levels: {
+        descriptionLabel: "Class Levels Intro",
+        itemsLabel: "Class Level Items",
+        showSubheading: true,
+        showDescription: false,
+        showImage: false,
+        showButton: false,
+        showItems: true,
+    },
+    academics_curriculum: {
+        descriptionLabel: "Curriculum Intro",
+        itemsLabel: "Curriculum Subjects",
+        showSubheading: true,
+        showDescription: false,
+        showImage: false,
+        showButton: false,
+        showItems: true,
+    },
+    academics_gallery: {
+        descriptionLabel: "Gallery Intro",
+        itemsLabel: "Gallery Images",
+        showSubheading: true,
+        showDescription: false,
+        showImage: false,
+        showButton: false,
+        showItems: true,
     },
 };
 

@@ -366,7 +366,7 @@ function normalizeAcademicsCardSubjects(value: string[] | string | undefined) {
 
     if (typeof value === "string") {
         return value
-            .split("\n")
+            .split(/\r?\n|,/) 
             .map((item) => item.trim())
             .filter(Boolean);
     }
@@ -2088,12 +2088,12 @@ export default function WebsiteBuilderPage() {
                                                             ) : null}
 
                                                             {section.section_key === "academics_hero" ? (
-                                                                <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                                                <div className="space-y-3 md:col-span-2">
+                                                                    <div className="flex items-start justify-between gap-2">
                                                                         <div>
-                                                                            <Label className="text-base font-semibold text-slate-900">Academic showcase cards</Label>
-                                                                            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
-                                                                                The live academics page uses the school database for structure. Edit the card images and sample subjects here.
+                                                                            <Label>Academic Showcase Cards</Label>
+                                                                            <p className="mt-1 text-xs text-slate-500">
+                                                                                Keep cards separated and easy to edit. Card title and class stats still come from the academics database.
                                                                             </p>
                                                                         </div>
                                                                         <Button
@@ -2107,21 +2107,17 @@ export default function WebsiteBuilderPage() {
                                                                         </Button>
                                                                     </div>
 
-                                                                    <div className="mt-4 grid gap-4 xl:grid-cols-3">
+                                                                    <div className="space-y-3">
                                                                         {academicsCards.map((card, index) => {
                                                                             const mediaKey = `${section.id}-academics-${index}`;
                                                                             return (
-                                                                                <div key={mediaKey} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                                                                                    <div className="flex items-center justify-between border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
-                                                                                        <div>
-                                                                                            <p className="text-sm font-semibold">Card {index + 1}</p>
-                                                                                            <p className="text-[11px] text-white/70">Card title, class labels, and subject counts stay dynamic from the database.</p>
-                                                                                        </div>
+                                                                                <div key={mediaKey} className="rounded-lg border border-slate-200 p-3">
+                                                                                    <div className="mb-3 flex items-center justify-between">
+                                                                                        <p className="text-sm font-semibold text-slate-800">Card {index + 1}</p>
                                                                                         <Button
                                                                                             type="button"
                                                                                             variant="ghost"
                                                                                             size="sm"
-                                                                                            className="h-8 text-white hover:bg-white/10 hover:text-white"
                                                                                             onClick={() => removeAcademicsCard(section.id, index)}
                                                                                         >
                                                                                             <Trash2 className="mr-1 h-4 w-4" />
@@ -2129,19 +2125,9 @@ export default function WebsiteBuilderPage() {
                                                                                         </Button>
                                                                                     </div>
 
-                                                                                    <div className="space-y-4 p-4">
-                                                                                        <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                                                                                            <div className="flex h-40 items-center justify-center bg-[linear-gradient(135deg,var(--wb-primary),var(--wb-secondary))] text-5xl text-white">
-                                                                                                {card.image_url ? (
-                                                                                                    <img src={card.image_url} alt={`Academics card ${index + 1}`} className="h-full w-full object-cover" />
-                                                                                                ) : (
-                                                                                                    <span>{index + 1}</span>
-                                                                                                )}
-                                                                                            </div>
-                                                                                        </div>
-
-                                                                                        <div className="space-y-2">
-                                                                                            <Label>Card image URL</Label>
+                                                                                    <div className="grid gap-3 md:grid-cols-2">
+                                                                                        <div className="space-y-1 md:col-span-2">
+                                                                                            <Label>Card Image URL</Label>
                                                                                             <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                                                                                                 <Input
                                                                                                     value={card.image_url}
@@ -2199,18 +2185,18 @@ export default function WebsiteBuilderPage() {
                                                                                             </div>
                                                                                         </div>
 
-                                                                                        <div className="space-y-2">
+                                                                                        <div className="space-y-1 md:col-span-2">
                                                                                             <div className="flex items-center justify-between gap-2">
-                                                                                                <Label>Sample subjects</Label>
-                                                                                                <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">One per line</span>
+                                                                                                <Label>Sample Subjects</Label>
+                                                                                                <span className="text-[11px] text-slate-500">Separate with commas or new lines</span>
                                                                                             </div>
                                                                                             <Textarea
-                                                                                                rows={4}
-                                                                                                value={card.sample_subjects.join("\n")}
+                                                                                                rows={3}
+                                                                                                value={card.sample_subjects.join(", ")}
                                                                                                 onChange={(e) =>
                                                                                                     updateAcademicsCard(section.id, index, "sample_subjects", e.target.value)
                                                                                                 }
-                                                                                                placeholder="Mathematics\nEnglish\nScience"
+                                                                                                placeholder="Mathematics, English, Science"
                                                                                             />
                                                                                             <div className="flex flex-wrap gap-2">
                                                                                                 {card.sample_subjects.length > 0 ? (
@@ -2220,7 +2206,7 @@ export default function WebsiteBuilderPage() {
                                                                                                         </span>
                                                                                                     ))
                                                                                                 ) : (
-                                                                                                    <span className="text-sm text-slate-500">Subjects are shown on the live academics card.</span>
+                                                                                                    <span className="text-sm text-slate-500">No subjects added yet.</span>
                                                                                                 )}
                                                                                             </div>
                                                                                         </div>

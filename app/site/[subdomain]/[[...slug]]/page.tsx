@@ -1880,12 +1880,12 @@ export default async function PublicSchoolWebsite({
           contextLinks={hallOfFameContextLinks}
         />
         <main>
-          {achievementsHeroSection?.is_visible ? renderHallOfFameHero(achievementsHeroSection, siteSettings) : null}
-          {achievementsTimelineSection?.is_visible ? renderAchievementTimeline(achievementsTimelineSection) : null}
-          {hallOfFameSection?.is_visible ? renderHallOfFameCards(hallOfFameSection) : null}
-          {awardsSection?.is_visible ? renderAchievementAwards(awardsSection) : null}
-          {achievementsCtaSection?.is_visible ? renderAchievementCta(achievementsCtaSection) : null}
-          {contactSection?.is_visible ? renderContact(contactSection, siteSettings) : null}
+          {renderHallOfFameHero(achievementsHeroSection, siteSettings)}
+          {renderAchievementTimeline(achievementsTimelineSection)}
+          {renderHallOfFameCards(hallOfFameSection)}
+          {renderAchievementAwards(awardsSection)}
+          {renderAchievementCta(achievementsCtaSection)}
+          {renderContact(contactSection, siteSettings)}
         </main>
         {renderFooter(siteSettings)}
       </div>
@@ -1946,9 +1946,9 @@ export default async function PublicSchoolWebsite({
             contextLinks={academicsContextLinks}
         />
         <main>
-            {academicsHeroSection?.is_visible ? renderAcademicsHero(academicsHeroSection, siteSettings) : null}
+            {renderAcademicsHero(academicsHeroSection, siteSettings)}
             {renderAcademicsShowcase(undefined, academicsCards, siteSettings, subjects.length)}
-          {contactSection?.is_visible ? renderContact(contactSection, siteSettings) : null}
+          {renderContact(contactSection, siteSettings)}
         </main>
         {renderFooter(siteSettings)}
       </div>

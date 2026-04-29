@@ -1852,6 +1852,7 @@ export default async function PublicSchoolWebsite({
   }
 
   const visibleSections = sections.filter((section) => section.is_visible).sort((a, b) => a.order_sequence - b.order_sequence);
+  const allSectionsSorted = [...sections].sort((a, b) => a.order_sequence - b.order_sequence);
   const routeBasePath = hostSubdomain ? "" : `/site/${requestedSubdomain}`;
 
   const hallOfFameContextLinks = visibleSections
@@ -1862,12 +1863,12 @@ export default async function PublicSchoolWebsite({
     .filter((section) => section.label.trim());
 
   if (requestedPageSlug === "hall-of-fame") {
-    const achievementsHeroSection = visibleSections.find((section) => section.section_key === "achievements_hero");
-    const achievementsTimelineSection = visibleSections.find((section) => section.section_key === "achievements_timeline");
-    const hallOfFameSection = visibleSections.find((section) => section.section_key === "hall_of_fame");
-    const awardsSection = visibleSections.find((section) => section.section_key === "achievements_awards");
-    const achievementsCtaSection = visibleSections.find((section) => section.section_key === "achievements_cta");
-    const contactSection = visibleSections.find((section) => section.section_key === "contact");
+    const achievementsHeroSection = allSectionsSorted.find((section) => section.section_key === "achievements_hero");
+    const achievementsTimelineSection = allSectionsSorted.find((section) => section.section_key === "achievements_timeline");
+    const hallOfFameSection = allSectionsSorted.find((section) => section.section_key === "hall_of_fame");
+    const awardsSection = allSectionsSorted.find((section) => section.section_key === "achievements_awards");
+    const achievementsCtaSection = allSectionsSorted.find((section) => section.section_key === "achievements_cta");
+    const contactSection = allSectionsSorted.find((section) => section.section_key === "contact");
 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
@@ -1879,12 +1880,12 @@ export default async function PublicSchoolWebsite({
           contextLinks={hallOfFameContextLinks}
         />
         <main>
-          {renderHallOfFameHero(achievementsHeroSection, siteSettings)}
-          {renderAchievementTimeline(achievementsTimelineSection)}
-          {renderHallOfFameCards(hallOfFameSection)}
-          {renderAchievementAwards(awardsSection)}
-          {renderAchievementCta(achievementsCtaSection)}
-          {renderContact(contactSection, siteSettings)}
+          {achievementsHeroSection?.is_visible ? renderHallOfFameHero(achievementsHeroSection, siteSettings) : null}
+          {achievementsTimelineSection?.is_visible ? renderAchievementTimeline(achievementsTimelineSection) : null}
+          {hallOfFameSection?.is_visible ? renderHallOfFameCards(hallOfFameSection) : null}
+          {awardsSection?.is_visible ? renderAchievementAwards(awardsSection) : null}
+          {achievementsCtaSection?.is_visible ? renderAchievementCta(achievementsCtaSection) : null}
+          {contactSection?.is_visible ? renderContact(contactSection, siteSettings) : null}
         </main>
         {renderFooter(siteSettings)}
       </div>
@@ -1892,8 +1893,8 @@ export default async function PublicSchoolWebsite({
   }
 
   if (requestedPageSlug === "academics") {
-      const academicsHeroSection = visibleSections.find((section) => section.section_key === "academics_hero");
-      const contactSection = visibleSections.find((section) => section.section_key === "contact");
+        const academicsHeroSection = allSectionsSorted.find((section) => section.section_key === "academics_hero");
+        const contactSection = allSectionsSorted.find((section) => section.section_key === "contact");
 
       const [educationLevelsResult, subjectsResult, mediaResult] = await Promise.all([
         supabase
@@ -1945,9 +1946,9 @@ export default async function PublicSchoolWebsite({
             contextLinks={academicsContextLinks}
         />
         <main>
-            {renderAcademicsHero(academicsHeroSection, siteSettings)}
+            {academicsHeroSection?.is_visible ? renderAcademicsHero(academicsHeroSection, siteSettings) : null}
             {renderAcademicsShowcase(undefined, academicsCards, siteSettings, subjects.length)}
-          {renderContact(contactSection, siteSettings)}
+          {contactSection?.is_visible ? renderContact(contactSection, siteSettings) : null}
         </main>
         {renderFooter(siteSettings)}
       </div>

@@ -1943,7 +1943,8 @@ export default async function PublicSchoolWebsite({
             contextLinks={academicsContextLinks}
         />
         <main>
-            {renderAcademicsShowcase(academicsHeroSection, academicsCards, siteSettings, subjects.length)}
+            {renderAcademicsHero(academicsHeroSection, siteSettings)}
+            {renderAcademicsShowcase(undefined, academicsCards, siteSettings, subjects.length)}
           {renderContact(undefined, siteSettings)}
         </main>
         {renderFooter(siteSettings)}

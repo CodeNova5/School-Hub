@@ -431,13 +431,17 @@ export default function WebsiteBuilderPage() {
         [sections]
     );
 
-    const editableSections = useMemo(
-        () =>
-            selectedPageSlug === "academics"
-                ? sortedSections.filter((section) => section.section_key === "academics_hero")
-                : sortedSections,
-        [selectedPageSlug, sortedSections]
-    );
+    const editableSections = useMemo(() => {
+        if (selectedPageSlug === "academics") {
+            return sortedSections.filter((section) => section.section_key === "academics_hero");
+        }
+
+        if (selectedPageSlug === "contact") {
+            return sortedSections.filter((section) => section.section_key === "contact");
+        }
+
+        return sortedSections;
+    }, [selectedPageSlug, sortedSections]);
 
     const activeSection = useMemo(
         () => editableSections.find((section) => `section-${section.id}` === activeEditorTab) || null,

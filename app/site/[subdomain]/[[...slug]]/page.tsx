@@ -40,6 +40,14 @@ interface WebsiteSection {
     contact_phone_lines?: string[];
     contact_email_lines?: string[];
     contact_hours_lines?: string[];
+    social_links?: Array<{
+      platform: string;
+      url: string;
+    }>;
+    map_embed_url?: string;
+    map_lat?: string;
+    map_lng?: string;
+    map_zoom?: string;
     program_items?: Array<{
       title: string;
       description: string;
@@ -1398,6 +1406,9 @@ function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSe
   const phones = (section?.content.contact_phone_lines || []).map((item) => item.trim()).filter(Boolean);
   const emails = (section?.content.contact_email_lines || []).map((item) => item.trim()).filter(Boolean);
   const hours = (section?.content.contact_hours_lines || []).map((item) => item.trim()).filter(Boolean);
+  const socialLinks = (section?.content.social_links || [])
+    .map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() }))
+    .filter((item) => item.platform && item.url);
 
   const resolvedAddress =
     address.length > 0
@@ -1449,6 +1460,25 @@ function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSe
                 <p className="mt-2 whitespace-pre-line leading-7">{resolvedHours.join("\n")}</p>
               </div>
             </div>
+
+            {socialLinks.length > 0 ? (
+              <div className="mt-8">
+                <h4 className="font-bold text-slate-950">Social Media</h4>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {socialLinks.map((link) => (
+                    <a
+                      key={`${link.platform}-${link.url}`}
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
+                    >
+                      {link.platform}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <form className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
@@ -1489,9 +1519,23 @@ function renderContactExtras(section: WebsiteSection | undefined, siteSettings: 
     .map((s) => s.trim())
     .filter(Boolean)
     .join(" ");
+  const socialLinks = (section?.content.social_links || [])
+    .map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() }))
+    .filter((item) => item.platform && item.url);
+  const mapEmbedUrl = (section?.content.map_embed_url || "").trim();
+  const mapLat = (section?.content.map_lat || "").trim();
+  const mapLng = (section?.content.map_lng || "").trim();
+  const mapZoom = (section?.content.map_zoom || "").trim();
 
   const mapsQuery = encodeURIComponent(address || siteSettings.contact_address || "");
   const mapsHref = mapsQuery ? `https://www.google.com/maps/search/?api=1&query=${mapsQuery}` : "#";
+  const fallbackEmbedUrl =
+    mapLat && mapLng
+      ? `https://www.google.com/maps?q=${encodeURIComponent(`${mapLat},${mapLng}`)}&output=embed${mapZoom ? `&z=${encodeURIComponent(mapZoom)}` : ""}`
+      : mapsQuery
+        ? `https://www.google.com/maps?q=${mapsQuery}&output=embed`
+        : "";
+  const resolvedMapEmbedUrl = mapEmbedUrl || fallbackEmbedUrl;
 
   return (
     <section id="contact_extras" className="px-4 py-12 md:px-6">
@@ -1503,23 +1547,39 @@ function renderContactExtras(section: WebsiteSection | undefined, siteSettings: 
             <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold text-slate-900" style={{ backgroundColor: "var(--wb-secondary)" }}>
               Open in Google Maps
             </a>
+            {resolvedMapEmbedUrl ? (
+              <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+                <iframe
+                  src={resolvedMapEmbedUrl}
+                  title="School location map"
+                  className="h-[280px] w-full"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-bold text-slate-900">Connect on Social</h3>
             <p className="mt-3 text-sm text-slate-600">Follow us for updates and highlights from campus.</p>
-            <div className="mt-4 flex gap-3">
-              {[
-                { label: "Facebook", icon: "📘", href: "#" },
-                { label: "X", icon: "🐦", href: "#" },
-                { label: "Instagram", icon: "📷", href: "#" },
-                { label: "YouTube", icon: "🎬", href: "#" },
-              ].map((s) => (
-                <a key={s.label} href={s.href} className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-slate-900 transition hover:opacity-90" style={{ backgroundColor: "var(--wb-secondary)" }}>
-                  <span className="text-xl">{s.icon}</span>
-                </a>
-              ))}
-            </div>
+            {socialLinks.length > 0 ? (
+              <div className="mt-4 flex flex-wrap gap-3">
+                {socialLinks.map((link) => (
+                  <a
+                    key={`${link.platform}-${link.url}`}
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    {link.platform}
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-slate-500">No social links have been added yet.</p>
+            )}
           </div>
         </div>
       </div>

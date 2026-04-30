@@ -82,6 +82,11 @@ interface SectionData {
         contact_phone_lines?: string[];
         contact_email_lines?: string[];
         contact_hours_lines?: string[];
+        social_links?: { platform: string; url: string }[];
+        map_embed_url?: string;
+        map_lat?: string;
+        map_lng?: string;
+        map_zoom?: string;
         program_items?: ProgramItem[];
         facility_items?: FacilityItem[];
         faculty_items?: FacultyItem[];
@@ -1203,6 +1208,60 @@ export default function WebsiteBuilderPage() {
                     : section
             )
         );
+    }
+
+    // Social links helpers
+    function getSocialLinks(section: SectionData) {
+        const structured = (section.content.social_links || [])
+            .map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() }))
+            .filter((item) => item.platform && item.url);
+
+        if (structured.length > 0) return structured;
+
+        const template = pageTemplates.find((item) => item.key === "contact")?.content;
+        const templateLinks = ((template as any)?.social_links || []) as { platform: string; url: string }[];
+        if (templateLinks.length > 0) return templateLinks.map((l) => ({ platform: (l.platform || "").trim(), url: (l.url || "").trim() }));
+
+        return [];
+    }
+
+    function setSocialLinks(sectionId: string, links: { platform: string; url: string }[]) {
+        const sanitized = links.map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() })).filter((i) => i.platform && i.url);
+
+        setSections((prev) =>
+            prev.map((section) =>
+                section.id === sectionId
+                    ? {
+                          ...section,
+                          content: {
+                              ...section.content,
+                              social_links: sanitized,
+                          },
+                      }
+                    : section
+            )
+        );
+    }
+
+    function addSocialLink(sectionId: string) {
+        const target = sections.find((s) => s.id === sectionId);
+        if (!target) return;
+        const next = [...getSocialLinks(target), { platform: "", url: "" }];
+        setSocialLinks(sectionId, next);
+    }
+
+    function updateSocialLink(sectionId: string, index: number, field: "platform" | "url", value: string) {
+        const target = sections.find((s) => s.id === sectionId);
+        if (!target) return;
+        const next = getSocialLinks(target).map((item, i) => (i === index ? { ...item, [field]: value } : item));
+        setSocialLinks(sectionId, next);
+    }
+
+    function removeSocialLink(sectionId: string, index: number) {
+        const target = sections.find((s) => s.id === sectionId);
+        if (!target) return;
+        const next = getSocialLinks(target).filter((_, i) => i !== index);
+        setSocialLinks(sectionId, next);
     }
 
     function setGalleryItems(sectionId: string, galleryItems: GalleryItem[]) {
@@ -2914,6 +2973,81 @@ export default function WebsiteBuilderPage() {
                                                                                 )
                                                                             }
                                                                         />
+                                                                    </div>
+                                                                    <div className="space-y-3 md:col-span-2">
+                                                                        <div className="flex items-center justify-between gap-2">
+                                                                            <Label>Social Links</Label>
+                                                                            <Button type="button" variant="outline" size="sm" onClick={() => addSocialLink(section.id)}>
+                                                                                <Plus className="mr-2 h-4 w-4" />
+                                                                                Add Social Link
+                                                                            </Button>
+                                                                        </div>
+
+                                                                        <div className="space-y-3">
+                                                                            {getSocialLinks(section).map((link, index) => (
+                                                                                <div key={`social-${index}`} className="grid gap-2 md:grid-cols-3 items-center">
+                                                                                    <Input
+                                                                                        value={link.platform}
+                                                                                        onChange={(e) => updateSocialLink(section.id, index, "platform", e.target.value)}
+                                                                                        placeholder="Platform (e.g., Facebook)"
+                                                                                    />
+                                                                                    <Input
+                                                                                        value={link.url}
+                                                                                        onChange={(e) => updateSocialLink(section.id, index, "url", e.target.value)}
+                                                                                        placeholder="https://..."
+                                                                                    />
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Button type="button" variant="ghost" size="sm" onClick={() => removeSocialLink(section.id, index)}>
+                                                                                            <Trash2 className="mr-1 h-4 w-4" />
+                                                                                            Remove
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                            {getSocialLinks(section).length === 0 ? (
+                                                                                <p className="text-xs text-slate-500">No social links added.</p>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="space-y-3 md:col-span-2">
+                                                                        <Label>Map Embed URL (Google Maps embed or other iframe URL)</Label>
+                                                                        <Input
+                                                                            value={section.content.map_embed_url || ""}
+                                                                            onChange={(e) => updateSectionContent(section.id, "map_embed_url", e.target.value)}
+                                                                            placeholder="https://www.google.com/maps/embed?pb=..."
+                                                                        />
+                                                                        <div className="grid gap-2 md:grid-cols-3">
+                                                                            <Input
+                                                                                value={section.content.map_lat || ""}
+                                                                                onChange={(e) => updateSectionContent(section.id, "map_lat", e.target.value)}
+                                                                                placeholder="Latitude (optional)"
+                                                                            />
+                                                                            <Input
+                                                                                value={section.content.map_lng || ""}
+                                                                                onChange={(e) => updateSectionContent(section.id, "map_lng", e.target.value)}
+                                                                                placeholder="Longitude (optional)"
+                                                                            />
+                                                                            <Input
+                                                                                value={section.content.map_zoom || ""}
+                                                                                onChange={(e) => updateSectionContent(section.id, "map_zoom", e.target.value)}
+                                                                                placeholder="Zoom (optional)"
+                                                                            />
+                                                                        </div>
+                                                                        {section.content.map_embed_url ? (
+                                                                            <div className="mt-3 overflow-hidden rounded border">
+                                                                                <iframe src={section.content.map_embed_url} className="h-48 w-full" />
+                                                                            </div>
+                                                                        ) : section.content.map_lat && section.content.map_lng ? (
+                                                                            <div className="mt-3 overflow-hidden rounded border">
+                                                                                <iframe
+                                                                                    src={`https://www.google.com/maps?q=${encodeURIComponent(
+                                                                                        `${section.content.map_lat},${section.content.map_lng}`
+                                                                                    )}&output=embed${section.content.map_zoom ? `&z=${encodeURIComponent(section.content.map_zoom)}` : ""}`}
+                                                                                    className="h-48 w-full"
+                                                                                />
+                                                                            </div>
+                                                                        ) : null}
                                                                     </div>
                                                                 </>
                                                             ) : null}

@@ -256,7 +256,7 @@ const SECTION_EDITOR_CONFIG: Record<
         showSubheading: true,
         showDescription: true,
         showImage: true,
-        showButton: true,
+        showButton: false,
         showItems: false,
     },
     achievements_timeline: {
@@ -299,7 +299,7 @@ const SECTION_EDITOR_CONFIG: Record<
         descriptionLabel: "Hero Description",
         itemsLabel: "Highlights",
         showSubheading: true,
-        showDescription: true,
+        showDescription: false,
         showImage: true,
         showButton: true,
         showItems: false,

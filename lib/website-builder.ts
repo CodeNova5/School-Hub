@@ -491,7 +491,7 @@ export const WEBSITE_HALL_OF_FAME_SECTION_TEMPLATES: WebsiteSectionTemplate[] = 
       heading: "Hall of Fame & Achievements",
       subheading: "Celebrating excellence, impact, and remarkable milestones",
       description: "Explore standout achievements from our students, alumni, teams, and staff.",
-      image_url: "https://tsdsi.in/wp-content/uploads/2024/12/Hall-of-Fame-Awards-Ceremony-Web-Banner2025_v2-1.jpg",
+      image_url: "",
       button_label: "Nominate an Achiever",
       button_link: "#achievements-cta",
     },

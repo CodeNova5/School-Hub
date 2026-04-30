@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw, RefreshCcw, Plus, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Loader2, Upload, ExternalLink, Save, Globe, ArrowUp, ArrowDown, RotateCcw, RefreshCcw, Plus, Trash2, CheckCircle2, AlertTriangle, Facebook, Instagram, Youtube, Linkedin, MessageCircle, Music2, AtSign } from "lucide-react";
 import {
     WEBSITE_COLOR_THEME_PRESETS,
     WEBSITE_DEFAULT_SITE_SETTINGS,
@@ -32,14 +32,24 @@ const PAGE_OPTIONS: Array<{ slug: WebsitePageSlug; label: string }> = [
 ];
 
 const SOCIAL_PLATFORM_OPTIONS = [
-    { value: "facebook", label: "Facebook", icon: "📘", placeholder: "https://facebook.com/your-school" },
-    { value: "instagram", label: "Instagram", icon: "📷", placeholder: "https://instagram.com/your-school" },
-    { value: "x", label: "X", icon: "🐦", placeholder: "https://x.com/your-school" },
-    { value: "youtube", label: "YouTube", icon: "🎬", placeholder: "https://youtube.com/@your-school" },
-    { value: "tiktok", label: "TikTok", icon: "🎵", placeholder: "https://tiktok.com/@your-school" },
-    { value: "linkedin", label: "LinkedIn", icon: "💼", placeholder: "https://linkedin.com/company/your-school" },
-    { value: "whatsapp", label: "WhatsApp", icon: "💬", placeholder: "https://wa.me/2348000000000" },
+    { value: "facebook", label: "Facebook", placeholder: "https://facebook.com/your-school" },
+    { value: "instagram", label: "Instagram", placeholder: "https://instagram.com/your-school" },
+    { value: "x", label: "X", placeholder: "https://x.com/your-school" },
+    { value: "youtube", label: "YouTube", placeholder: "https://youtube.com/@your-school" },
+    { value: "tiktok", label: "TikTok", placeholder: "https://tiktok.com/@your-school" },
+    { value: "linkedin", label: "LinkedIn", placeholder: "https://linkedin.com/company/your-school" },
+    { value: "whatsapp", label: "WhatsApp", placeholder: "https://wa.me/2348000000000" },
 ] as const;
+
+const SOCIAL_PLATFORM_ICONS = {
+    facebook: Facebook,
+    instagram: Instagram,
+    x: AtSign,
+    youtube: Youtube,
+    tiktok: Music2,
+    linkedin: Linkedin,
+    whatsapp: MessageCircle,
+} as const;
 
 interface SiteSettings {
     site_title: string;
@@ -384,13 +394,12 @@ function getSocialPlatformOption(platform: string) {
     return SOCIAL_PLATFORM_OPTIONS.find((item) => {
         const valueMatch = normalizeSocialPlatformKey(item.value) === normalized;
         const labelMatch = normalizeSocialPlatformKey(item.label) === normalized;
-        const iconLabelMatch = normalizeSocialPlatformKey(`${item.icon}${item.label}`) === normalized;
-        return valueMatch || labelMatch || iconLabelMatch;
+        return valueMatch || labelMatch;
     });
 }
 
 function getSocialPlatformDisplay(option: (typeof SOCIAL_PLATFORM_OPTIONS)[number]) {
-    return `${option.icon} ${option.label}`;
+    return option.label;
 }
 
 function getSocialUrlPlaceholder(platform: string) {
@@ -3025,7 +3034,10 @@ export default function WebsiteBuilderPage() {
                                                                                     size="sm"
                                                                                     onClick={() => addSocialLink(section.id, platform.value)}
                                                                                 >
-                                                                                    <span className="mr-2">{platform.icon}</span>
+                                                                                    {(() => {
+                                                                                        const Icon = SOCIAL_PLATFORM_ICONS[platform.value as keyof typeof SOCIAL_PLATFORM_ICONS] || AtSign;
+                                                                                        return <Icon className="mr-2 h-4 w-4" />;
+                                                                                    })()}
                                                                                     Add {platform.label}
                                                                                 </Button>
                                                                             ))}
@@ -3059,7 +3071,7 @@ export default function WebsiteBuilderPage() {
                                                                                             >
                                                                                                 {SOCIAL_PLATFORM_OPTIONS.map((platform) => (
                                                                                                     <option key={platform.value} value={platform.value}>
-                                                                                                        {platform.icon} {platform.label}
+                                                                                                        {platform.label}
                                                                                                     </option>
                                                                                                 ))}
                                                                                                 <option value="custom">Custom Platform</option>

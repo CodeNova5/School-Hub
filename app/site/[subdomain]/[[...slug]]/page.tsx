@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { Facebook, Instagram, Youtube, Linkedin, MessageCircle, Music2, AtSign, Globe } from "lucide-react";
 import {
   WEBSITE_DEFAULT_SITE_SETTINGS,
   WEBSITE_SECTION_TEMPLATES,
@@ -167,6 +168,26 @@ interface AcademicsShowcaseCard {
   classLabels: string[];
   subjects: string[];
   subjectCount: number;
+}
+
+const SOCIAL_ICON_MAP = {
+  facebook: Facebook,
+  instagram: Instagram,
+  youtube: Youtube,
+  linkedin: Linkedin,
+  whatsapp: MessageCircle,
+  tiktok: Music2,
+  x: AtSign,
+  twitter: AtSign,
+} as const;
+
+function normalizeSocialPlatform(value: string) {
+  return (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getSocialIcon(platform: string) {
+  const key = normalizeSocialPlatform(platform) as keyof typeof SOCIAL_ICON_MAP;
+  return SOCIAL_ICON_MAP[key] || Globe;
 }
 
 function formatAcademicsSubjectLabel(subject: AcademicsSubject) {
@@ -1465,17 +1486,21 @@ function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSe
               <div className="mt-8">
                 <h4 className="font-bold text-slate-950">Social Media</h4>
                 <div className="mt-3 flex flex-wrap gap-3">
-                  {socialLinks.map((link) => (
-                    <a
-                      key={`${link.platform}-${link.url}`}
-                      href={link.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
-                    >
-                      {link.platform}
-                    </a>
-                  ))}
+                  {socialLinks.map((link) => {
+                    const Icon = getSocialIcon(link.platform);
+                    return (
+                      <a
+                        key={`${link.platform}-${link.url}`}
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
+                      >
+                        <Icon className="h-4 w-4" />
+                        {link.platform}
+                      </a>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
@@ -1565,17 +1590,21 @@ function renderContactExtras(section: WebsiteSection | undefined, siteSettings: 
             <p className="mt-3 text-sm text-slate-600">Follow us for updates and highlights from campus.</p>
             {socialLinks.length > 0 ? (
               <div className="mt-4 flex flex-wrap gap-3">
-                {socialLinks.map((link) => (
-                  <a
-                    key={`${link.platform}-${link.url}`}
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                  >
-                    {link.platform}
-                  </a>
-                ))}
+                {socialLinks.map((link) => {
+                  const Icon = getSocialIcon(link.platform);
+                  return (
+                    <a
+                      key={`${link.platform}-${link.url}`}
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <Icon className="h-4 w-4" />
+                      {link.platform}
+                    </a>
+                  );
+                })}
               </div>
             ) : (
               <p className="mt-4 text-sm text-slate-500">No social links have been added yet.</p>
@@ -1621,14 +1650,14 @@ function renderFooter(siteSettings: SiteSettings) {
         <div>
           <h4 className="text-lg font-bold" style={{ color: "var(--wb-secondary)" }}>Connect</h4>
           <div className="mt-4 flex gap-3">
-            {["📘", "🐦", "📷", "🎬"].map((icon) => (
+            {[Facebook, AtSign, Instagram, Youtube].map((Icon, index) => (
               <a
-                key={icon}
+                key={`footer-social-${index}`}
                 href="#"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-slate-950 transition hover:opacity-90"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-950 transition hover:opacity-90"
                 style={{ backgroundColor: "var(--wb-secondary)" }}
               >
-                {icon}
+                <Icon className="h-5 w-5" />
               </a>
             ))}
           </div>

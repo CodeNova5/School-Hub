@@ -172,6 +172,25 @@ function resolveRequestedPageSlug(slug: string[]): WebsitePageSlug | null {
   if (slug.length === 0 || slug[0] === "home") {
     return "home";
   }
+
+  if (requestedPageSlug === "contact") {
+    const contactSection = allSectionsSorted.find((section) => section.section_key === "contact");
+
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
+        <SchoolDomainHeader
+          siteSettings={siteSettings}
+          basePath={routeBasePath}
+          currentPage="contact"
+          preview={isPreview}
+        />
+        <main>
+          {renderContact(contactSection, siteSettings)}
+        </main>
+        {renderFooter(siteSettings, routeBasePath)}
+      </div>
+    );
+  }
   if (slug.length === 1 && slug[0] === "hall-of-fame") {
     return "hall-of-fame";
   }
@@ -1481,7 +1500,8 @@ function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSe
   );
 }
 
-function renderFooter(siteSettings: SiteSettings) {
+function renderFooter(siteSettings: SiteSettings, basePath = "") {
+  const contactHref = basePath ? `${basePath}/contact` : "/contact";
   return (
     <footer className="bg-slate-950 px-4 pt-16 text-white md:px-6">
       <div className="mx-auto grid max-w-[1200px] gap-10 md:grid-cols-2 xl:grid-cols-4">
@@ -1500,7 +1520,7 @@ function renderFooter(siteSettings: SiteSettings) {
             <li><a href="#admissions" className="hover:text-white">Admissions</a></li>
             <li><a href="#news" className="hover:text-white">News</a></li>
             <li><a href="#gallery" className="hover:text-white">Gallery</a></li>
-            <li><a href="#contact" className="hover:text-white">Contact</a></li>
+            <li><a href={contactHref} className="hover:text-white">Contact</a></li>
           </ul>
         </div>
         <div>
@@ -1887,7 +1907,7 @@ export default async function PublicSchoolWebsite({
           {renderAchievementCta(achievementsCtaSection)}
           {renderContact(contactSection, siteSettings)}
         </main>
-        {renderFooter(siteSettings)}
+        {renderFooter(siteSettings, routeBasePath)}
       </div>
     );
   }
@@ -1950,7 +1970,7 @@ export default async function PublicSchoolWebsite({
             {renderAcademicsShowcase(undefined, academicsCards, siteSettings, subjects.length)}
           {renderContact(contactSection, siteSettings)}
         </main>
-        {renderFooter(siteSettings)}
+        {renderFooter(siteSettings, routeBasePath)}
       </div>
     );
   }
@@ -1988,7 +2008,7 @@ export default async function PublicSchoolWebsite({
         {renderAdmissions(admissionsSection)}
         {renderContact(contactSection, siteSettings)}
       </main>
-      {renderFooter(siteSettings)}
+      {renderFooter(siteSettings, routeBasePath)}
     </div>
   );
 }

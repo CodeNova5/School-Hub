@@ -19,7 +19,7 @@ export type WebsiteSectionKey =
   | "academics_curriculum"
   | "academics_gallery";
 
-export type WebsitePageSlug = "home" | "hall-of-fame" | "academics";
+export type WebsitePageSlug = "home" | "hall-of-fame" | "academics" | "contact";
 
 export interface WebsiteProgramItem {
   title: string;
@@ -611,6 +611,7 @@ export const WEBSITE_PAGE_SECTION_TEMPLATES: Record<WebsitePageSlug, WebsiteSect
   home: WEBSITE_SECTION_TEMPLATES,
   "hall-of-fame": WEBSITE_HALL_OF_FAME_SECTION_TEMPLATES,
   academics: WEBSITE_ACADEMICS_SECTION_TEMPLATES,
+  contact: WEBSITE_SECTION_TEMPLATES.filter((t) => t.key === "contact"),
 };
 
 export function getWebsiteSectionTemplatesForPage(pageSlug: string | undefined): WebsiteSectionTemplate[] {

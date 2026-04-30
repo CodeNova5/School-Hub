@@ -22,12 +22,13 @@ import {
     isWebsiteSectionCustomized,
 } from "@/lib/website-builder";
 
-type WebsitePageSlug = "home" | "hall-of-fame" | "academics";
+type WebsitePageSlug = "home" | "hall-of-fame" | "academics" | "contact";
 
 const PAGE_OPTIONS: Array<{ slug: WebsitePageSlug; label: string }> = [
     { slug: "home", label: "Homepage" },
     { slug: "hall-of-fame", label: "Hall of Fame" },
     { slug: "academics", label: "Academics" },
+    { slug: "contact", label: "Contact Page" },
 ];
 
 interface SiteSettings {

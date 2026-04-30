@@ -24,12 +24,14 @@ interface WebsiteSectionRow {
 function resolvePageSlug(rawSlug: string | undefined): WebsitePageSlug {
   if (rawSlug === "hall-of-fame") return "hall-of-fame";
   if (rawSlug === "academics") return "academics";
+  if (rawSlug === "contact") return "contact";
   return "home";
 }
 
 function getPageTitle(pageSlug: WebsitePageSlug) {
   if (pageSlug === "hall-of-fame") return "Hall of Fame";
   if (pageSlug === "academics") return "Academics";
+  if (pageSlug === "contact") return "Contact";
   return "Home";
 }
 

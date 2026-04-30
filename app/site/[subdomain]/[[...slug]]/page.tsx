@@ -1570,7 +1570,6 @@ function getCurriculumItems(section: WebsiteSection | undefined) {
 function renderAcademicsHero(section: WebsiteSection | undefined, siteSettings: SiteSettings) {
   const heading = section?.content.heading || "Our Academic Excellence";
   const subheading = section?.content.subheading || "Rigorous learning, clear pathways, and subject combinations shaped by each level.";
-  const description = section?.content.description || "The live academics page pulls structure from the school database. Edit only the showcase card imagery and sample subjects here.";
   const buttonLabel = section?.content.button_label || "Explore Programs";
   const buttonLink = section?.content.button_link || "#academics_overview";
   const image = (section?.content.image_url || "").trim();
@@ -1595,7 +1594,6 @@ function renderAcademicsHero(section: WebsiteSection | undefined, siteSettings: 
         <div className="mx-auto max-w-4xl rounded-[30px] border border-white/20 bg-slate-950/26 px-5 py-8 text-center shadow-2xl backdrop-blur-sm md:px-10 md:py-10">
           <h1 className="text-4xl font-black tracking-tight text-white md:text-6xl">{heading}</h1>
           <p className="mt-4 text-base leading-8 text-white/88 md:text-lg">{subheading}</p>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-white/76">{description}</p>
           <a
             href={buttonLink}
             className="mt-8 inline-flex rounded-full px-7 py-3 text-sm font-bold text-slate-950"

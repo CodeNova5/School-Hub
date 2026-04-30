@@ -31,6 +31,16 @@ const PAGE_OPTIONS: Array<{ slug: WebsitePageSlug; label: string }> = [
     { slug: "contact", label: "Contact Page" },
 ];
 
+const SOCIAL_PLATFORM_OPTIONS = [
+    { value: "facebook", label: "Facebook", icon: "📘", placeholder: "https://facebook.com/your-school" },
+    { value: "instagram", label: "Instagram", icon: "📷", placeholder: "https://instagram.com/your-school" },
+    { value: "x", label: "X", icon: "🐦", placeholder: "https://x.com/your-school" },
+    { value: "youtube", label: "YouTube", icon: "🎬", placeholder: "https://youtube.com/@your-school" },
+    { value: "tiktok", label: "TikTok", icon: "🎵", placeholder: "https://tiktok.com/@your-school" },
+    { value: "linkedin", label: "LinkedIn", icon: "💼", placeholder: "https://linkedin.com/company/your-school" },
+    { value: "whatsapp", label: "WhatsApp", icon: "💬", placeholder: "https://wa.me/2348000000000" },
+] as const;
+
 interface SiteSettings {
     site_title: string;
     site_tagline: string;
@@ -364,6 +374,29 @@ const DEFAULT_GALLERY_ITEMS: GalleryItem[] = (
     image_url: item.image_url || "",
     caption: item.caption || "",
 }));
+
+function normalizeSocialPlatformKey(value: string) {
+    return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getSocialPlatformOption(platform: string) {
+    const normalized = normalizeSocialPlatformKey(platform);
+    return SOCIAL_PLATFORM_OPTIONS.find((item) => {
+        const valueMatch = normalizeSocialPlatformKey(item.value) === normalized;
+        const labelMatch = normalizeSocialPlatformKey(item.label) === normalized;
+        const iconLabelMatch = normalizeSocialPlatformKey(`${item.icon}${item.label}`) === normalized;
+        return valueMatch || labelMatch || iconLabelMatch;
+    });
+}
+
+function getSocialPlatformDisplay(option: (typeof SOCIAL_PLATFORM_OPTIONS)[number]) {
+    return `${option.icon} ${option.label}`;
+}
+
+function getSocialUrlPlaceholder(platform: string) {
+    const option = getSocialPlatformOption(platform);
+    return option?.placeholder || "https://...";
+}
 
 function normalizeAcademicsCardSubjects(value: string[] | string | undefined) {
     if (Array.isArray(value)) {
@@ -1242,10 +1275,11 @@ export default function WebsiteBuilderPage() {
         );
     }
 
-    function addSocialLink(sectionId: string) {
+    function addSocialLink(sectionId: string, presetValue?: (typeof SOCIAL_PLATFORM_OPTIONS)[number]["value"]) {
         const target = sections.find((s) => s.id === sectionId);
         if (!target) return;
-        const next = [...getSocialLinks(target), { platform: "", url: "" }];
+        const preset = SOCIAL_PLATFORM_OPTIONS.find((item) => item.value === presetValue);
+        const next = [...getSocialLinks(target), { platform: preset ? getSocialPlatformDisplay(preset) : "", url: "" }];
         setSocialLinks(sectionId, next);
     }
 
@@ -2978,33 +3012,85 @@ export default function WebsiteBuilderPage() {
                                                                             <Label>Social Links</Label>
                                                                             <Button type="button" variant="outline" size="sm" onClick={() => addSocialLink(section.id)}>
                                                                                 <Plus className="mr-2 h-4 w-4" />
-                                                                                Add Social Link
+                                                                                Add Custom Link
                                                                             </Button>
                                                                         </div>
 
-                                                                        <div className="space-y-3">
-                                                                            {getSocialLinks(section).map((link, index) => (
-                                                                                <div key={`social-${index}`} className="grid gap-2 md:grid-cols-3 items-center">
-                                                                                    <Input
-                                                                                        value={link.platform}
-                                                                                        onChange={(e) => updateSocialLink(section.id, index, "platform", e.target.value)}
-                                                                                        placeholder="Platform (e.g., Facebook)"
-                                                                                    />
-                                                                                    <Input
-                                                                                        value={link.url}
-                                                                                        onChange={(e) => updateSocialLink(section.id, index, "url", e.target.value)}
-                                                                                        placeholder="https://..."
-                                                                                    />
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <Button type="button" variant="ghost" size="sm" onClick={() => removeSocialLink(section.id, index)}>
-                                                                                            <Trash2 className="mr-1 h-4 w-4" />
-                                                                                            Remove
-                                                                                        </Button>
-                                                                                    </div>
-                                                                                </div>
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            {SOCIAL_PLATFORM_OPTIONS.map((platform) => (
+                                                                                <Button
+                                                                                    key={platform.value}
+                                                                                    type="button"
+                                                                                    variant="outline"
+                                                                                    size="sm"
+                                                                                    onClick={() => addSocialLink(section.id, platform.value)}
+                                                                                >
+                                                                                    <span className="mr-2">{platform.icon}</span>
+                                                                                    Add {platform.label}
+                                                                                </Button>
                                                                             ))}
+                                                                        </div>
+
+                                                                        <div className="space-y-3">
+                                                                            {getSocialLinks(section).map((link, index) => {
+                                                                                const selectedOption = getSocialPlatformOption(link.platform);
+                                                                                const selectedValue = selectedOption?.value || "custom";
+
+                                                                                return (
+                                                                                    <div key={`social-${index}`} className="grid gap-2 md:grid-cols-[200px_1fr_auto] items-start">
+                                                                                        <div className="space-y-2">
+                                                                                            <select
+                                                                                                className="h-10 w-full rounded-md border border-slate-200 px-2 text-sm"
+                                                                                                value={selectedValue}
+                                                                                                onChange={(e) => {
+                                                                                                    const value = e.target.value as (typeof SOCIAL_PLATFORM_OPTIONS)[number]["value"] | "custom";
+                                                                                                    if (value === "custom") {
+                                                                                                        updateSocialLink(section.id, index, "platform", "");
+                                                                                                        return;
+                                                                                                    }
+                                                                                                    const preset = SOCIAL_PLATFORM_OPTIONS.find((item) => item.value === value);
+                                                                                                    updateSocialLink(
+                                                                                                        section.id,
+                                                                                                        index,
+                                                                                                        "platform",
+                                                                                                        preset ? getSocialPlatformDisplay(preset) : ""
+                                                                                                    );
+                                                                                                }}
+                                                                                            >
+                                                                                                {SOCIAL_PLATFORM_OPTIONS.map((platform) => (
+                                                                                                    <option key={platform.value} value={platform.value}>
+                                                                                                        {platform.icon} {platform.label}
+                                                                                                    </option>
+                                                                                                ))}
+                                                                                                <option value="custom">Custom Platform</option>
+                                                                                            </select>
+
+                                                                                            {selectedValue === "custom" ? (
+                                                                                                <Input
+                                                                                                    value={link.platform}
+                                                                                                    onChange={(e) => updateSocialLink(section.id, index, "platform", e.target.value)}
+                                                                                                    placeholder="Custom platform name"
+                                                                                                />
+                                                                                            ) : null}
+                                                                                        </div>
+
+                                                                                        <Input
+                                                                                            value={link.url}
+                                                                                            onChange={(e) => updateSocialLink(section.id, index, "url", e.target.value)}
+                                                                                            placeholder={getSocialUrlPlaceholder(link.platform)}
+                                                                                        />
+
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <Button type="button" variant="ghost" size="sm" onClick={() => removeSocialLink(section.id, index)}>
+                                                                                                <Trash2 className="mr-1 h-4 w-4" />
+                                                                                                Remove
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
                                                                             {getSocialLinks(section).length === 0 ? (
-                                                                                <p className="text-xs text-slate-500">No social links added.</p>
+                                                                                <p className="text-xs text-slate-500">Use preset buttons above, then paste each link.</p>
                                                                             ) : null}
                                                                         </div>
                                                                     </div>

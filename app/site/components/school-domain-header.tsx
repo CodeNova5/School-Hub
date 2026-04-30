@@ -19,11 +19,11 @@ type SchoolDomainCurrentPage =
   | "home"
   | "hall-of-fame"
   | "academics"
-  | "contact"
   | "alumni"
   | "alumni-profile"
   | "alumni-apply"
-  | "admissions";
+  | "admissions"
+  | "contact";
 
 interface SchoolDomainHeaderProps {
   siteSettings: SchoolDomainSiteSettings;
@@ -60,8 +60,8 @@ export function SchoolDomainHeader({
   const homeHref = getPath(basePath);
   const hallOfFameHref = getPath(basePath, "/hall-of-fame");
   const academicsHref = getPath(basePath, "/academics");
-  const contactHref = getPath(basePath, "/contact");
   const alumniHref = getPath(basePath, "/alumni");
+  const contactHref = getPath(basePath, "/contact");
   const admissionsHref = getPath(basePath, "/admissions/apply");
   const applyHref = ctaHref || admissionsHref;
 
@@ -83,14 +83,12 @@ export function SchoolDomainHeader({
       ? "text-white"
       : "text-white/80 transition hover:text-white";
 
-  const contactLinkClass =
-    currentPage === "contact"
-      ? "text-white"
-      : "text-white/80 transition hover:text-white";
-
   const alumniLinkClass = isAlumniActive
     ? "text-white"
     : "text-white/80 transition hover:text-white";
+
+  const contactLinkClass =
+    currentPage === "contact" ? "text-white" : "text-white/80 transition hover:text-white";
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950 text-white">
@@ -123,8 +121,8 @@ export function SchoolDomainHeader({
           <a href={homeHref} className={homeLinkClass}>Home</a>
           <a href={hallOfFameHref} className={hallLinkClass}>Hall of Fame</a>
           <a href={academicsHref} className={academicsLinkClass}>Academics</a>
-          <a href={alumniHref} className={alumniLinkClass}>Alumni</a>
           <a href={contactHref} className={contactLinkClass}>Contact</a>
+          <a href={alumniHref} className={alumniLinkClass}>Alumni</a>
 
           <a
             href={applyHref}
@@ -153,8 +151,8 @@ export function SchoolDomainHeader({
             <a href={homeHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Home</a>
             <a href={hallOfFameHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Hall of Fame</a>
             <a href={academicsHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Academics</a>
-            <a href={alumniHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Alumni</a>
             <a href={contactHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Contact</a>
+            <a href={alumniHref} onClick={() => setMobileOpen(false)} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/90">Alumni</a>
           </div>
 
           <a

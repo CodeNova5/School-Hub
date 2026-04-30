@@ -172,19 +172,15 @@ function resolveRequestedPageSlug(slug: string[]): WebsitePageSlug | null {
   if (slug.length === 0 || slug[0] === "home") {
     return "home";
   }
-
-  if (slug.length === 1 && slug[0] === "contact") {
-    return "contact";
-  }
-
   if (slug.length === 1 && slug[0] === "hall-of-fame") {
     return "hall-of-fame";
   }
-
   if (slug.length === 1 && slug[0] === "academics") {
     return "academics";
   }
-
+  if (slug.length === 1 && slug[0] === "contact") {
+    return "contact";
+  }
   return null;
 }
 
@@ -1488,8 +1484,50 @@ function renderContact(section: WebsiteSection | undefined, siteSettings: SiteSe
   );
 }
 
-function renderFooter(siteSettings: SiteSettings, basePath = "") {
-  const contactHref = basePath ? `${basePath}/contact` : "/contact";
+function renderContactExtras(section: WebsiteSection | undefined, siteSettings: SiteSettings, routeBasePath: string) {
+  const address = (section?.content.contact_address_lines || [])
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  const mapsQuery = encodeURIComponent(address || siteSettings.contact_address || "");
+  const mapsHref = mapsQuery ? `https://www.google.com/maps/search/?api=1&query=${mapsQuery}` : "#";
+
+  return (
+    <section id="contact_extras" className="px-4 py-12 md:px-6">
+      <div className="mx-auto max-w-[1200px]">
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900">Find Us on Maps</h3>
+            <p className="mt-3 text-sm text-slate-600">Open our location in Google Maps for directions and driving times.</p>
+            <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold text-slate-900" style={{ backgroundColor: "var(--wb-secondary)" }}>
+              Open in Google Maps
+            </a>
+          </div>
+
+          <div className="rounded-[20px] border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-900">Connect on Social</h3>
+            <p className="mt-3 text-sm text-slate-600">Follow us for updates and highlights from campus.</p>
+            <div className="mt-4 flex gap-3">
+              {[
+                { label: "Facebook", icon: "📘", href: "#" },
+                { label: "X", icon: "🐦", href: "#" },
+                { label: "Instagram", icon: "📷", href: "#" },
+                { label: "YouTube", icon: "🎬", href: "#" },
+              ].map((s) => (
+                <a key={s.label} href={s.href} className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-slate-900 transition hover:opacity-90" style={{ backgroundColor: "var(--wb-secondary)" }}>
+                  <span className="text-xl">{s.icon}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function renderFooter(siteSettings: SiteSettings) {
   return (
     <footer className="bg-slate-950 px-4 pt-16 text-white md:px-6">
       <div className="mx-auto grid max-w-[1200px] gap-10 md:grid-cols-2 xl:grid-cols-4">
@@ -1508,7 +1546,7 @@ function renderFooter(siteSettings: SiteSettings, basePath = "") {
             <li><a href="#admissions" className="hover:text-white">Admissions</a></li>
             <li><a href="#news" className="hover:text-white">News</a></li>
             <li><a href="#gallery" className="hover:text-white">Gallery</a></li>
-            <li><a href={contactHref} className="hover:text-white">Contact</a></li>
+            <li><a href="#contact" className="hover:text-white">Contact</a></li>
           </ul>
         </div>
         <div>
@@ -1895,7 +1933,27 @@ export default async function PublicSchoolWebsite({
           {renderAchievementCta(achievementsCtaSection)}
           {renderContact(contactSection, siteSettings)}
         </main>
-        {renderFooter(siteSettings, routeBasePath)}
+        {renderFooter(siteSettings)}
+      </div>
+    );
+  }
+
+  if (requestedPageSlug === "contact") {
+    const contactSection = allSectionsSorted.find((section) => section.section_key === "contact");
+
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
+        <SchoolDomainHeader
+          siteSettings={siteSettings}
+          basePath={routeBasePath}
+          currentPage="contact"
+          preview={isPreview}
+        />
+        <main>
+          {renderContact(contactSection, siteSettings)}
+          {renderContactExtras(contactSection, siteSettings, routeBasePath)}
+        </main>
+        {renderFooter(siteSettings)}
       </div>
     );
   }
@@ -1958,7 +2016,7 @@ export default async function PublicSchoolWebsite({
             {renderAcademicsShowcase(undefined, academicsCards, siteSettings, subjects.length)}
           {renderContact(contactSection, siteSettings)}
         </main>
-        {renderFooter(siteSettings, routeBasePath)}
+        {renderFooter(siteSettings)}
       </div>
     );
   }
@@ -1996,7 +2054,7 @@ export default async function PublicSchoolWebsite({
         {renderAdmissions(admissionsSection)}
         {renderContact(contactSection, siteSettings)}
       </main>
-      {renderFooter(siteSettings, routeBasePath)}
+      {renderFooter(siteSettings)}
     </div>
   );
 }

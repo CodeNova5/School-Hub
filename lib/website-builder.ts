@@ -611,7 +611,21 @@ export const WEBSITE_PAGE_SECTION_TEMPLATES: Record<WebsitePageSlug, WebsiteSect
   home: WEBSITE_SECTION_TEMPLATES,
   "hall-of-fame": WEBSITE_HALL_OF_FAME_SECTION_TEMPLATES,
   academics: WEBSITE_ACADEMICS_SECTION_TEMPLATES,
-  contact: WEBSITE_SECTION_TEMPLATES.filter((t) => t.key === "contact"),
+  contact: [
+    {
+      key: "contact",
+      label: "Contact",
+      order: 1,
+      visible: true,
+      content: {
+        heading: "Get In Touch",
+        subheading: "We'd love to hear from you",
+        contact_info_title: "Contact Information",
+        contact_form_title: "Send us a Message",
+        contact_form_button_label: "Send Message",
+      },
+    },
+  ],
 };
 
 export function getWebsiteSectionTemplatesForPage(pageSlug: string | undefined): WebsiteSectionTemplate[] {

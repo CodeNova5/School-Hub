@@ -31,7 +31,6 @@ function resolvePageSlug(rawSlug: string | undefined): WebsitePageSlug {
 function getPageTitle(pageSlug: WebsitePageSlug) {
   if (pageSlug === "hall-of-fame") return "Hall of Fame";
   if (pageSlug === "academics") return "Academics";
-  if (pageSlug === "contact") return "Contact";
   return "Home";
 }
 

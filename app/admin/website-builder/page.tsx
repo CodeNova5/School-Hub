@@ -1213,8 +1213,7 @@ export default function WebsiteBuilderPage() {
     // Social links helpers
     function getSocialLinks(section: SectionData) {
         const structured = (section.content.social_links || [])
-            .map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() }))
-            .filter((item) => item.platform && item.url);
+            .map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() }));
 
         if (structured.length > 0) return structured;
 
@@ -1226,7 +1225,7 @@ export default function WebsiteBuilderPage() {
     }
 
     function setSocialLinks(sectionId: string, links: { platform: string; url: string }[]) {
-        const sanitized = links.map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() })).filter((i) => i.platform && i.url);
+        const sanitized = links.map((item) => ({ platform: (item.platform || "").trim(), url: (item.url || "").trim() }));
 
         setSections((prev) =>
             prev.map((section) =>

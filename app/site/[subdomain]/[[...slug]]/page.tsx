@@ -173,30 +173,18 @@ function resolveRequestedPageSlug(slug: string[]): WebsitePageSlug | null {
     return "home";
   }
 
-  if (requestedPageSlug === "contact") {
-    const contactSection = allSectionsSorted.find((section) => section.section_key === "contact");
-
-    return (
-      <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
-        <SchoolDomainHeader
-          siteSettings={siteSettings}
-          basePath={routeBasePath}
-          currentPage="contact"
-          preview={isPreview}
-        />
-        <main>
-          {renderContact(contactSection, siteSettings)}
-        </main>
-        {renderFooter(siteSettings, routeBasePath)}
-      </div>
-    );
+  if (slug.length === 1 && slug[0] === "contact") {
+    return "contact";
   }
+
   if (slug.length === 1 && slug[0] === "hall-of-fame") {
     return "hall-of-fame";
   }
+
   if (slug.length === 1 && slug[0] === "academics") {
     return "academics";
   }
+
   return null;
 }
 

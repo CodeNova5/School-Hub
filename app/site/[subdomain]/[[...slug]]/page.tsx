@@ -1781,14 +1781,16 @@ export default async function PublicSchoolWebsite({
   }
 
   const isPreview = isPreviewRequested && previewAllowed;
+  const previewSupabase = isPreview ? createServerComponentClient({ cookies }) : null;
+  const querySupabase = previewSupabase || supabase;
 
   const [{ data: settings }, { data: publishedPage }, { data: draftPage }] = await Promise.all([
-    supabase
+    querySupabase
       .from("website_site_settings")
       .select("*")
       .eq("school_id", school.id)
       .maybeSingle(),
-    supabase
+    querySupabase
       .from("website_pages")
       .select("*")
       .eq("school_id", school.id)
@@ -1796,7 +1798,7 @@ export default async function PublicSchoolWebsite({
       .eq("status", "published")
       .maybeSingle(),
     isPreview
-      ? supabase
+      ? querySupabase
           .from("website_pages")
           .select("*")
           .eq("school_id", school.id)
@@ -1814,7 +1816,7 @@ export default async function PublicSchoolWebsite({
   }
 
   const sectionsResult = page
-    ? await supabase
+    ? await querySupabase
         .from("website_sections")
         .select("*")
         .eq("school_id", school.id)

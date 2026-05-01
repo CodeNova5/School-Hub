@@ -1071,7 +1071,7 @@ function renderAcademicsShowcase(
             No education levels were found in the school database yet.
           </div>
         ) : (
-          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <div id="academics_curriculum" className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {cards.map((card, index) => (
               <article
                 key={card.id}

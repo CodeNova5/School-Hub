@@ -87,6 +87,11 @@ interface Class {
   department?: string | null;
 }
 
+interface ClassLevel {
+  id: string;
+  name: string;
+}
+
 interface Religion {
   id: string;
   name: string;
@@ -98,6 +103,7 @@ export default function AdminAdmissionsPage() {
   const { toast } = useToast();
   const [applications, setApplications] = useState<Application[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
   const [religions, setReligions] = useState<Religion[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("pending");
@@ -127,6 +133,7 @@ export default function AdminAdmissionsPage() {
     if (schoolId) {
       fetchApplications();
       fetchClasses();
+      fetchClassLevels();
       fetchReligions();
     }
   }, [statusFilter, schoolId]);
@@ -169,6 +176,23 @@ export default function AdminAdmissionsPage() {
       setClasses(data || []);
     } catch (error) {
       console.error("Error fetching classes:", error);
+    }
+  };
+
+  const fetchClassLevels = async () => {
+    if (!schoolId) return;
+    try {
+      const { data, error } = await supabase
+        .from("school_class_levels")
+        .select("id, name")
+        .eq("school_id", schoolId)
+        .eq("is_active", true)
+        .order("order_sequence", { ascending: true });
+
+      if (error) throw error;
+      setClassLevels((data || []) as ClassLevel[]);
+    } catch (error) {
+      console.error("Error fetching class levels:", error);
     }
   };
 
@@ -288,7 +312,7 @@ export default function AdminAdmissionsPage() {
   };
 
   const getClassName = (classId: string) => {
-    return classes.find((cls) => cls.id === classId)?.name || classId;
+    return classLevels.find((classLevel) => classLevel.id === classId)?.name || classId;
   };
 
   const getReligionName = (religionId: string) => {

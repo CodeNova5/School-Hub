@@ -2003,7 +2003,6 @@ export default async function PublicSchoolWebsite({
     const hallOfFameSection = allSectionsSorted.find((section) => section.section_key === "hall_of_fame");
     const awardsSection = allSectionsSorted.find((section) => section.section_key === "achievements_awards");
     const achievementsCtaSection = allSectionsSorted.find((section) => section.section_key === "achievements_cta");
-    const contactSection = allSectionsSorted.find((section) => section.section_key === "contact");
 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900" style={themeStyleVariables}>
@@ -2020,7 +2019,6 @@ export default async function PublicSchoolWebsite({
           {renderHallOfFameCards(hallOfFameSection)}
           {renderAchievementAwards(awardsSection)}
           {renderAchievementCta(achievementsCtaSection)}
-          {renderContact(contactSection, siteSettings)}
         </main>
         {renderFooter(siteSettings)}
       </div>
@@ -2049,7 +2047,6 @@ export default async function PublicSchoolWebsite({
 
   if (requestedPageSlug === "academics") {
         const academicsHeroSection = allSectionsSorted.find((section) => section.section_key === "academics_hero");
-        const contactSection = allSectionsSorted.find((section) => section.section_key === "contact");
 
       const [educationLevelsResult, subjectsResult, mediaResult] = await Promise.all([
         supabase
@@ -2103,7 +2100,6 @@ export default async function PublicSchoolWebsite({
         <main>
             {renderAcademicsHero(academicsHeroSection, siteSettings)}
             {renderAcademicsShowcase(undefined, academicsCards, siteSettings, subjects.length)}
-          {renderContact(contactSection, siteSettings)}
         </main>
         {renderFooter(siteSettings)}
       </div>
@@ -2141,7 +2137,6 @@ export default async function PublicSchoolWebsite({
         {renderTestimonials(testimonialsSection, siteSettings)}
         {renderGallery(gallerySection, siteSettings)}
         {renderAdmissions(admissionsSection)}
-        {renderContact(contactSection, siteSettings)}
       </main>
       {renderFooter(siteSettings)}
     </div>

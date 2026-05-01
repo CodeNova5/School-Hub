@@ -87,12 +87,18 @@ interface Class {
   department?: string | null;
 }
 
+interface Religion {
+  id: string;
+  name: string;
+}
+
 export default function AdminAdmissionsPage() {
   const { schoolId } = useSchoolContext();
   const router = useRouter();
   const { toast } = useToast();
   const [applications, setApplications] = useState<Application[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [religions, setReligions] = useState<Religion[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,6 +127,7 @@ export default function AdminAdmissionsPage() {
     if (schoolId) {
       fetchApplications();
       fetchClasses();
+      fetchReligions();
     }
   }, [statusFilter, schoolId]);
 
@@ -162,6 +169,23 @@ export default function AdminAdmissionsPage() {
       setClasses(data || []);
     } catch (error) {
       console.error("Error fetching classes:", error);
+    }
+  };
+
+  const fetchReligions = async () => {
+    if (!schoolId) return;
+    try {
+      const { data, error } = await supabase
+        .from("school_religions")
+        .select("id, name")
+        .eq("school_id", schoolId)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setReligions((data || []) as Religion[]);
+    } catch (error) {
+      console.error("Error fetching religions:", error);
     }
   };
 
@@ -261,6 +285,14 @@ export default function AdminAdmissionsPage() {
       default:
         return <Badge>{status}</Badge>;
     }
+  };
+
+  const getClassName = (classId: string) => {
+    return classes.find((cls) => cls.id === classId)?.name || classId;
+  };
+
+  const getReligionName = (religionId: string) => {
+    return religions.find((religion) => religion.id === religionId)?.name || religionId;
   };
 
   const filteredApplications = applications.filter((app) => {
@@ -414,13 +446,11 @@ export default function AdminAdmissionsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Classes</SelectItem>
-                      {Array.from(new Set(applications.map((app) => app.desired_class))).map(
-                        (desiredClass) => (
-                          <SelectItem key={desiredClass} value={desiredClass}>
-                            {desiredClass}
-                          </SelectItem>
-                        )
-                      )}
+                      {Array.from(new Set(applications.map((app) => app.desired_class))).map((desiredClass) => (
+                        <SelectItem key={desiredClass} value={desiredClass}>
+                          {getClassName(desiredClass)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -518,7 +548,7 @@ export default function AdminAdmissionsPage() {
                             <div className="text-gray-500">{app.parent_phone}</div>
                           </div>
                         </TableCell>
-                        <TableCell>{app.desired_class}</TableCell>
+                        <TableCell>{getClassName(app.desired_class)}</TableCell>
                         <TableCell>{getStatusBadge(app.status)}</TableCell>
                         <TableCell className="text-sm text-gray-600">
                           {new Date(app.submitted_at).toLocaleDateString()}
@@ -647,7 +677,7 @@ export default function AdminAdmissionsPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-gray-600">Desired Class</Label>
-                      <p className="font-medium">{selectedApplication.desired_class}</p>
+                      <p className="font-medium">{getClassName(selectedApplication.desired_class)}</p>
                     </div>
                     <div>
                       <Label className="text-gray-600">Previous School</Label>
@@ -656,7 +686,7 @@ export default function AdminAdmissionsPage() {
                     {selectedApplication.religion && (
                       <div>
                         <Label className="text-gray-600">Religion</Label>
-                        <p className="font-medium">{selectedApplication.religion}</p>
+                        <p className="font-medium">{getReligionName(selectedApplication.religion)}</p>
                       </div>
                     )}
                     {selectedApplication.file_url && (

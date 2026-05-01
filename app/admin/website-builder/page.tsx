@@ -326,7 +326,7 @@ const SECTION_EDITOR_CONFIG: Record<
         itemsLabel: "Highlights",
         showSubheading: true,
         showDescription: false,
-        showImage: true,
+        showImage: false,
         showButton: true,
         showItems: false,
     },

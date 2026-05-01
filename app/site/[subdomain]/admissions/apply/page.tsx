@@ -150,12 +150,30 @@ export default function SchoolAdmissionPage() {
         if (!school?.id) return;
         setSchoolId(school.id);
 
-        // Get site settings
-        const { data: settings } = await supabase
-          .from("website_site_settings")
-          .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
-          .eq("school_id", school.id)
-          .maybeSingle();
+        // Fetch site settings, education levels, and religions in parallel
+        const [settingsResult, educLevelsResult, religionsResult] = await Promise.all([
+          supabase
+            .from("website_site_settings")
+            .select("site_title, site_tagline, logo_url, primary_color, secondary_color")
+            .eq("school_id", school.id)
+            .maybeSingle(),
+          supabase
+            .from("school_education_levels")
+            .select("id, name, order_sequence")
+            .eq("school_id", school.id)
+            .eq("is_active", true)
+            .order("order_sequence", { ascending: true }),
+          supabase
+            .from("school_religions")
+            .select("id, name")
+            .eq("school_id", school.id)
+            .eq("is_active", true)
+            .order("name", { ascending: true }),
+        ]);
+
+        const settings = settingsResult.data;
+        const educLevels = educLevelsResult.data || [];
+        const religions = religionsResult.data || [];
 
         setHeaderSiteSettings((prev) => ({
           ...prev,
@@ -166,18 +184,15 @@ export default function SchoolAdmissionPage() {
           secondary_color: settings?.secondary_color || prev.secondary_color,
         }));
 
-        // Get education levels with their class levels
-        const { data: educLevels } = await supabase
-          .from("school_education_levels")
-          .select("id, name, order_sequence")
-          .eq("school_id", school.id)
-          .eq("is_active", true)
-          .order("order_sequence", { ascending: true });
+        setSchoolConfig({
+          has_religion_mode: (religions && religions.length > 0) || false,
+          religions: religions || [],
+        });
 
-        if (educLevels && educLevels.length > 0) {
+        if (educLevels.length > 0) {
           setEducationLevels(educLevels);
 
-          // Get class levels for each education level
+          // Get class levels for education levels
           const { data: classLevels } = await supabase
             .from("school_class_levels")
             .select("id, education_level_id, name, order_sequence")
@@ -202,19 +217,6 @@ export default function SchoolAdmissionPage() {
             }
           }
         }
-
-        // Get school religions if enabled
-        const { data: religions } = await supabase
-          .from("school_religions")
-          .select("id, name")
-          .eq("school_id", school.id)
-          .eq("is_active", true)
-          .order("name", { ascending: true });
-
-        setSchoolConfig({
-          has_religion_mode: (religions && religions.length > 0) || false,
-          religions: religions || [],
-        });
       } finally {
         setSchoolDataLoading(false);
       }
@@ -353,9 +355,40 @@ export default function SchoolAdmissionPage() {
 
   if (schoolDataLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="rounded-xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-600 shadow-sm">
-          Loading school details...
+      <div className="min-h-screen bg-slate-50">
+        <div className="h-16 bg-white border-b border-slate-200 animate-pulse" />
+        <div className="mx-auto max-w-4xl px-4 py-12">
+          <div className="mb-8 text-center space-y-3">
+            <div className="h-12 w-32 bg-slate-200 rounded-lg mx-auto animate-pulse" />
+            <div className="h-4 w-64 bg-slate-200 rounded mx-auto animate-pulse" />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-8">
+            {/* Section 1 */}
+            <div className="space-y-4">
+              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-11 w-full bg-slate-100 rounded-xl animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Section 2 */}
+            <div className="space-y-4">
+              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
+                <div className="h-11 w-full bg-slate-100 rounded-xl animate-pulse" />
+              </div>
+            </div>
+            {/* Section 3 */}
+            <div className="space-y-4">
+              <div className="h-5 w-40 bg-slate-200 rounded animate-pulse" />
+              <div className="h-32 w-full bg-slate-100 rounded-xl animate-pulse" />
+            </div>
+          </div>
         </div>
       </div>
     );

@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import {
@@ -127,6 +128,12 @@ export default function AdminAdmissionsPage() {
   const [endDate, setEndDate] = useState("");
   const [desiredClassFilter, setDesiredClassFilter] = useState("all");
 
+  // Bulk operations
+  const [selectedApplicationIds, setSelectedApplicationIds] = useState<Set<string>>(new Set());
+  const [bulkApproveDialogOpen, setBulkApproveDialogOpen] = useState(false);
+  const [bulkRejectDialogOpen, setBulkRejectDialogOpen] = useState(false);
+  const [bulkRejectionReason, setBulkRejectionReason] = useState("");
+
   const supabase = createClientComponentClient();
 
   useEffect(() => {
@@ -148,6 +155,7 @@ export default function AdminAdmissionsPage() {
 
       const fetchedApps = data.applications || [];
       setApplications(fetchedApps);
+      setSelectedApplicationIds(new Set());
 
       // Auto-fallback to "all" if pending is selected but empty
       if (statusFilter === "pending" && fetchedApps.length === 0) {
@@ -298,6 +306,186 @@ export default function AdminAdmissionsPage() {
     }
   };
 
+  const handleSelectApplication = (id: string) => {
+    setSelectedApplicationIds((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+
+      return next;
+    });
+  };
+
+  const handleSelectAll = (allApps: Application[]) => {
+    setSelectedApplicationIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = allApps.length > 0 && allApps.every((app) => next.has(app.id));
+
+      if (allSelected) {
+        allApps.forEach((app) => next.delete(app.id));
+      } else {
+        allApps.forEach((app) => next.add(app.id));
+      }
+
+      return next;
+    });
+  };
+
+  const handleBulkApprove = async () => {
+    const pendingApplications = applications.filter(
+      (app) => app.status === "pending" && selectedApplicationIds.has(app.id)
+    );
+
+    if (pendingApplications.length === 0) {
+      toast({
+        title: "Error",
+        description: "Select at least one pending application",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedClassId) {
+      toast({
+        title: "Error",
+        description: "Please select a class",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      let approvedCount = 0;
+      const errors: string[] = [];
+
+      for (const application of pendingApplications) {
+        const response = await fetch("/api/admissions/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicationId: application.id,
+            classId: selectedClassId,
+            department: selectedDepartment === "none" ? null : selectedDepartment,
+            religion: selectedReligion === "none" ? null : selectedReligion,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          errors.push(data.error || `Failed to approve ${application.application_number}`);
+          continue;
+        }
+
+        approvedCount += 1;
+      }
+
+      if (approvedCount > 0) {
+        toast({
+          title: "Success",
+          description: `${approvedCount} application(s) approved successfully`,
+        });
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: approvedCount > 0 ? "Partial success" : "Error",
+          description: errors[0],
+          variant: "destructive",
+        });
+      }
+
+      setBulkApproveDialogOpen(false);
+      setSelectedApplicationIds(new Set());
+      setSelectedClassId("");
+      setSelectedDepartment("");
+      setSelectedReligion("");
+      fetchApplications();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleBulkReject = async () => {
+    const pendingApplications = applications.filter(
+      (app) => app.status === "pending" && selectedApplicationIds.has(app.id)
+    );
+
+    if (pendingApplications.length === 0) {
+      toast({
+        title: "Error",
+        description: "Select at least one pending application",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      let rejectedCount = 0;
+      const errors: string[] = [];
+
+      for (const application of pendingApplications) {
+        const response = await fetch("/api/admissions/reject", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            applicationId: application.id,
+            reason: bulkRejectionReason.trim(),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          errors.push(data.error || `Failed to reject ${application.application_number}`);
+          continue;
+        }
+
+        rejectedCount += 1;
+      }
+
+      if (rejectedCount > 0) {
+        toast({
+          title: "Success",
+          description: `${rejectedCount} application(s) rejected successfully`,
+        });
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: rejectedCount > 0 ? "Partial success" : "Error",
+          description: errors[0],
+          variant: "destructive",
+        });
+      }
+
+      setBulkRejectDialogOpen(false);
+      setSelectedApplicationIds(new Set());
+      setBulkRejectionReason("");
+      fetchApplications();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -362,6 +550,19 @@ export default function AdminAdmissionsPage() {
     rejected: applications.filter((a) => a.status === "rejected").length,
   };
 
+  const selectedCount = selectedApplicationIds.size;
+  const selectedApplications = applications.filter((app) => selectedApplicationIds.has(app.id));
+  const selectedPendingCount = selectedApplications.filter((app) => app.status === "pending").length;
+  const canBulkApprove = selectedPendingCount > 0;
+  const canBulkReject = selectedPendingCount > 0;
+  const allVisibleSelected =
+    filteredApplications.length > 0 &&
+    filteredApplications.every((app) => selectedApplicationIds.has(app.id));
+  const someVisibleSelected =
+    filteredApplications.length > 0 &&
+    filteredApplications.some((app) => selectedApplicationIds.has(app.id)) &&
+    !allVisibleSelected;
+
   if (loading) {
     return (
       <DashboardLayout role="admin">
@@ -378,6 +579,38 @@ export default function AdminAdmissionsPage() {
           <h1 className="text-3xl font-bold text-gray-900">Admissions Management</h1>
           <p className="text-gray-600 mt-1">Review and manage student applications</p>
         </div>
+
+        {selectedCount > 0 && (
+          <Card className="border-blue-200 bg-blue-50/60">
+            <CardContent className="py-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-medium text-blue-900">{selectedCount} application(s) selected</p>
+                <p className="text-sm text-blue-700">
+                  {selectedPendingCount} pending application(s) can be processed
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setSelectedApplicationIds(new Set())}>
+                  Clear Selection
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={!canBulkReject}
+                  onClick={() => setBulkRejectDialogOpen(true)}
+                >
+                  Bulk Reject
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700"
+                  disabled={!canBulkApprove}
+                  onClick={() => setBulkApproveDialogOpen(true)}
+                >
+                  Bulk Approve
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -548,6 +781,14 @@ export default function AdminAdmissionsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                          onCheckedChange={() => handleSelectAll(filteredApplications)}
+                          aria-label="Select all applications"
+                          disabled={filteredApplications.length === 0}
+                        />
+                      </TableHead>
                       <TableHead>App Number</TableHead>
                       <TableHead>Student Name</TableHead>
                       <TableHead>Parent Name</TableHead>
@@ -561,6 +802,13 @@ export default function AdminAdmissionsPage() {
                   <TableBody>
                     {filteredApplications.map((app) => (
                       <TableRow key={app.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedApplicationIds.has(app.id)}
+                            onCheckedChange={() => handleSelectApplication(app.id)}
+                            aria-label={`Select application ${app.application_number}`}
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-sm">{app.application_number}</TableCell>
                         <TableCell className="font-medium">
                           {app.first_name} {app.last_name}
@@ -889,6 +1137,139 @@ export default function AdminAdmissionsPage() {
                   <>
                     <XCircle className="mr-2 h-4 w-4" />
                     Reject Application
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Approve Dialog */}
+        <Dialog open={bulkApproveDialogOpen} onOpenChange={setBulkApproveDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Bulk Approve Applications</DialogTitle>
+              <DialogDescription>
+                Approve {selectedPendingCount} pending application(s) and create student records for each one.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label>Selected Applications</Label>
+                <p className="font-medium">{selectedPendingCount} pending application(s)</p>
+              </div>
+
+              <div>
+                <Label htmlFor="bulk_class_id">Assign to Class *</Label>
+                <Select value={selectedClassId} onValueChange={setSelectedClassId} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.id} value={cls.id}>
+                        {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="bulk_department">Department (Optional)</Label>
+                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="Science">Science</SelectItem>
+                    <SelectItem value="Arts">Arts</SelectItem>
+                    <SelectItem value="Commercial">Commercial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="bulk_religion">Religion (Optional)</Label>
+                <Select value={selectedReligion} onValueChange={setSelectedReligion}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select religion" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="Christian">Christian</SelectItem>
+                    <SelectItem value="Muslim">Muslim</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkApproveDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleBulkApprove} disabled={processing || !selectedClassId || !canBulkApprove}>
+                {processing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Approve Selected Applications
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Reject Dialog */}
+        <Dialog open={bulkRejectDialogOpen} onOpenChange={setBulkRejectDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Bulk Reject Applications</DialogTitle>
+              <DialogDescription>
+                Reject {selectedPendingCount} pending application(s).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div>
+                <Label>Selected Applications</Label>
+                <p className="font-medium">{selectedPendingCount} pending application(s)</p>
+              </div>
+
+              <div>
+                <Label htmlFor="bulk_reason">Reason for Rejection (Optional)</Label>
+                <Textarea
+                  id="bulk_reason"
+                  value={bulkRejectionReason}
+                  onChange={(e) => setBulkRejectionReason(e.target.value)}
+                  placeholder="Enter reason for rejection..."
+                  rows={4}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkRejectDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleBulkReject} disabled={processing || !canBulkReject}>
+                {processing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Reject Selected Applications
                   </>
                 )}
               </Button>

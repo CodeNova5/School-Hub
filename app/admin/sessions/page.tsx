@@ -190,60 +190,29 @@ export default function SessionsPage() {
         }
       }
 
-      // Validate session doesn't overlap with existing sessions
-      const sessionOverlap = await isSessionOverlapping(t1Start, t3End);
-      if (sessionOverlap) {
-        setError('This session overlaps with an existing session. Please adjust the dates.');
-        return;
-      }
-
-      const { data: sessionResult, error: sessionError } = await supabase
-        .from('sessions')
-        .insert({
-          school_id: schoolId,
-          name,
-          start_date: t1Start,
-          end_date: t3End,
-          is_current: false,
-        })
-        .select();
-
-
-      if (sessionError || !sessionResult || sessionResult.length === 0) {
-        setError('Failed to create session');
-        return;
-      }
-      const session = sessionResult[0];
-
-      // Create 3 terms
-      const terms = [
-        {
-          school_id: schoolId,
-          session_id: session.id,
-          name: "First Term",
-          start_date: t1Start,
-          end_date: t1End,
-        },
-        {
-          school_id: schoolId,
-          session_id: session.id,
-          name: "Second Term",
-          start_date: t2Start,
-          end_date: t2End,
-        },
-        {
-          school_id: schoolId,
-          session_id: session.id,
-          name: "Third Term",
-          start_date: t3Start,
-          end_date: t3End,
-        },
+      // Use server-side RPC to create session + terms atomically
+      const termsPayload = [
+        { name: 'First Term', start: t1Start, end: t1End },
+        { name: 'Second Term', start: t2Start, end: t2End },
+        { name: 'Third Term', start: t3Start, end: t3End },
       ];
 
-      const { error: insertError } = await supabase.from('terms').insert(terms);
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_session_with_terms', {
+        p_school: schoolId,
+        p_name: name,
+        p_start: t1Start,
+        p_end: t3End,
+        p_terms: termsPayload,
+      });
 
-      if (insertError) {
-        setError('Failed to create terms');
+      if (rpcError) {
+        // Map known RPC errors to friendly messages
+        const msg = rpcError.message || '';
+        if (msg.includes('session_overlap')) setError('This session overlaps with an existing session.');
+        else if (msg.includes('term_overlap')) setError('One or more terms overlap.');
+        else if (msg.includes('term_invalid_dates')) setError('A term has invalid dates.');
+        else if (msg.includes('invalid_session_dates')) setError('Session start must be before session end.');
+        else setError('Failed to create session: ' + rpcError.message);
         return;
       }
 
@@ -284,6 +253,10 @@ export default function SessionsPage() {
         return;
       }
 
+
+      // Use RPC to insert term safely (validate overlaps). We'll call create_session_with_terms for simplicity when
+      // creating a session + terms; for single term insertion we can use a small transaction via RPC. For now call
+      // a lightweight insert and rely on DB exclusion constraint to prevent overlap (client will show error if it fails).
       const { error } = await supabase.from('terms').insert({
         school_id: schoolId,
         session_id: selectedSession,
@@ -294,7 +267,12 @@ export default function SessionsPage() {
       });
 
       if (error) {
-        setError('Failed to create term: ' + error.message);
+        // Try to map common errors
+        if (error.message && error.message.includes('terms_no_overlap')) {
+          setError('This term overlaps with an existing term in the selected session.');
+        } else {
+          setError('Failed to create term: ' + error.message);
+        }
         return;
       }
 

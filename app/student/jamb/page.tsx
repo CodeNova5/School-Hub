@@ -43,6 +43,9 @@ export default function StudentJambPage() {
   const [studentName, setStudentName] = useState("");
   const [hasAccess, setHasAccess] = useState(false);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [subjectPage, setSubjectPage] = useState(1);
+  const [subjectTotalPages, setSubjectTotalPages] = useState(1);
+  const [subjectLoading, setSubjectLoading] = useState(false);
   const [years, setYears] = useState<number[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -60,6 +63,8 @@ export default function StudentJambPage() {
       loadJambData();
     }
   }, [schoolId, schoolLoading]);
+
+  const currentQuestion = questions[currentQuestionIndex];
 
   async function loadJambData() {
     if (!schoolId) return;
@@ -107,34 +112,46 @@ export default function StudentJambPage() {
 
       setHasAccess(true);
 
-      const response = await fetch("/api/scrape/subjects", {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to load subject list");
-      }
-
-      const result = await response.json();
-      const loadedSubjects = Array.isArray(result.subjects)
-        ? result.subjects
-          .map((subject: any) => ({
-            slug: String(subject.slug || ""),
-            name: String(subject.name || ""),
-          }))
-          .filter((subject: SubjectOption) => subject.slug && subject.name)
-        : [];
-      console.log(loadedSubjects);
-      setSubjects(loadedSubjects);
+      // load first page of subjects
+      await fetchSubjects(1);
     } catch (error: any) {
       console.error("Failed to load JAMB data:", error);
-      toast.error(error.message || "Failed to load JAMB practice data");
+      toast.error(error.message || "Failed to load JAMB data");
     } finally {
       setLoading(false);
     }
   }
 
-  const currentQuestion = questions[currentQuestionIndex] || null;
+  async function fetchSubjects(page = 1) {
+    try {
+      setSubjectLoading(true);
+      const response = await fetch(`/api/scrape/subjects?page=${page}`, { cache: "no-store" });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to load subject list");
+      }
+
+      const result = await response.json();
+      const loadedSubjects = Array.isArray(result.subjects)
+        ? result.subjects
+            .map((subject: any) => ({
+              slug: String(subject.slug || ""),
+              name: String(subject.name || ""),
+            }))
+            .filter((subject: SubjectOption) => subject.slug && subject.name)
+        : [];
+
+      setSubjects(loadedSubjects);
+      setSubjectPage(Number(result.page) || page);
+      setSubjectTotalPages(Number(result.totalPages) || 1);
+    } catch (error: any) {
+      console.error("Failed to fetch subjects:", error);
+      toast.error(error.message || "Failed to load subjects");
+    } finally {
+      setSubjectLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!selectedSubject) {
@@ -356,18 +373,51 @@ export default function StudentJambPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Subject</p>
-                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.slug} value={subject.slug}>
-                          {subject.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (subjectPage > 1 && !subjectLoading) fetchSubjects(subjectPage - 1);
+                        }}
+                        disabled={subjectPage <= 1 || subjectLoading}
+                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage <= 1 || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        aria-label="Previous subjects page"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (subjectPage < subjectTotalPages && !subjectLoading) fetchSubjects(subjectPage + 1);
+                        }}
+                        disabled={subjectPage >= subjectTotalPages || subjectLoading}
+                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage >= subjectTotalPages || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        aria-label="Next subjects page"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1">
+                      <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subjects.map((subject) => (
+                            <SelectItem key={subject.slug} value={subject.slug}>
+                              {subject.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {subjectLoading ? 'Loading subjects…' : `Page ${subjectPage} of ${subjectTotalPages}`}
+                  </div>
                 </div>
 
                 <div className="space-y-2">

@@ -54,6 +54,7 @@ export default function StudentJambPage() {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [questionPage, setQuestionPage] = useState(1);
   const [questionTotalPages, setQuestionTotalPages] = useState(1);
+  const [hasMoreQuestions, setHasMoreQuestions] = useState(false);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -250,8 +251,9 @@ export default function StudentJambPage() {
           }))
         : [];
 
+
       const pageNum = Number(result.page) || page;
-      const totalPages = Number(result.totalPages) || 1;
+      const totalPages = result.totalPages !== undefined ? Number(result.totalPages) : undefined;
 
       if (loadedQuestions.length === 0 && page === 1) {
         toast.info("No questions matched the selected filters");
@@ -267,7 +269,16 @@ export default function StudentJambPage() {
       }
 
       setQuestionPage(pageNum);
-      setQuestionTotalPages(totalPages);
+      setQuestionTotalPages(totalPages || 1);
+
+      // Determine whether there are more pages. Prefer explicit totalPages from API,
+      // otherwise infer from returned question count (if we received a full page of results).
+      if (typeof totalPages === "number") {
+        setHasMoreQuestions(pageNum < totalPages);
+      } else {
+        // If we got exactly the page size (5), assume there may be more.
+        setHasMoreQuestions(loadedQuestions.length === 5);
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to load questions");
     } finally {

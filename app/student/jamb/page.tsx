@@ -107,40 +107,25 @@ export default function StudentJambPage() {
 
       setHasAccess(true);
 
-      const { data: questionMeta, error: questionMetaError } = await supabase
-        .from("jamb_questions")
-        .select("subject_slug, subject_name, exam_year, topic")
-        .eq("school_id", schoolId)
-        .order("subject_name", { ascending: true });
-
-      if (questionMetaError) {
-        throw questionMetaError;
-      }
-
-      const subjectMap = new Map<string, SubjectOption>();
-      const yearSet = new Set<number>();
-      const topicSet = new Set<string>();
-
-      (questionMeta || []).forEach((row: any) => {
-        if (row.subject_slug && !subjectMap.has(row.subject_slug)) {
-          subjectMap.set(row.subject_slug, {
-            slug: row.subject_slug,
-            name: row.subject_name,
-          });
-        }
-
-        if (row.exam_year) {
-          yearSet.add(Number(row.exam_year));
-        }
-
-        if (row.topic) {
-          topicSet.add(String(row.topic));
-        }
+      const response = await fetch("/api/scrape/subjects", {
+        cache: "no-store",
       });
 
-      setSubjects(Array.from(subjectMap.values()));
-      setYears(Array.from(yearSet).sort((a, b) => b - a));
-      setTopics(Array.from(topicSet).sort((a, b) => a.localeCompare(b)));
+      if (!response.ok) {
+        throw new Error("Failed to load subject list");
+      }
+
+      const result = await response.json();
+      const loadedSubjects = Array.isArray(result.subjects)
+        ? result.subjects
+            .map((subject: any) => ({
+              slug: String(subject.slug || ""),
+              name: String(subject.name || ""),
+            }))
+            .filter((subject: SubjectOption) => subject.slug && subject.name)
+        : [];
+
+      setSubjects(loadedSubjects);
     } catch (error: any) {
       console.error("Failed to load JAMB data:", error);
       toast.error(error.message || "Failed to load JAMB practice data");
@@ -151,9 +136,61 @@ export default function StudentJambPage() {
 
   const currentQuestion = questions[currentQuestionIndex] || null;
 
+  useEffect(() => {
+    if (!selectedSubject) {
+      setYears([]);
+      setTopics([]);
+      setSelectedYear("");
+      setSelectedTopic(ALL_TOPICS);
+      setQuestions([]);
+      setCurrentQuestionIndex(0);
+      setAnswers({});
+      setAttemptResult(null);
+      return;
+    }
+
+    setSelectedYear("");
+    setSelectedTopic(ALL_TOPICS);
+    setQuestions([]);
+    setCurrentQuestionIndex(0);
+    setAnswers({});
+    setAttemptResult(null);
+
+    void loadAvailableFilters(selectedSubject).catch((error: any) => {
+      console.error("Failed to load subject filters:", error);
+      toast.error(error.message || "Failed to load available years and topics");
+    });
+  }, [selectedSubject]);
+
   const filteredSubjectLabel = useMemo(() => {
     return subjects.find((subject) => subject.slug === selectedSubject)?.name || "JAMB";
   }, [selectedSubject, subjects]);
+
+  async function loadAvailableFilters(subjectSlug: string) {
+    const response = await fetch(`/api/scrape/available?subject=${encodeURIComponent(subjectSlug)}`, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to load available years and topics");
+    }
+
+    const result = await response.json();
+    const loadedYears = Array.isArray(result.years)
+      ? result.years
+          .map((year: any) => Number(year))
+          .filter((year: number) => Number.isFinite(year))
+          .sort((a: number, b: number) => b - a)
+      : [];
+    const loadedTopics = Array.isArray(result.topics)
+      ? result.topics
+          .map((topic: any) => String(topic.topic || topic.value || topic || ""))
+          .filter(Boolean)
+      : [];
+
+    setYears(loadedYears);
+    setTopics(Array.from(new Set(loadedTopics)).sort((a, b) => a.localeCompare(b)));
+  }
 
   async function loadQuestions() {
     if (!selectedSubject || !selectedYear) {
@@ -163,32 +200,35 @@ export default function StudentJambPage() {
 
     try {
       setLoadingQuestions(true);
-      const query = supabase
-        .from("jamb_questions")
-        .select("id, question_text, options, subject_slug, subject_name, exam_year, topic")
-        .eq("school_id", schoolId)
-        .eq("subject_slug", selectedSubject)
-        .eq("exam_year", Number(selectedYear));
+      const params = new URLSearchParams({
+        subject: selectedSubject,
+        subjectName: filteredSubjectLabel,
+        year: selectedYear,
+        topic: selectedTopic,
+        limit: "20",
+      });
 
-      if (selectedTopic !== ALL_TOPICS) {
-        query.eq("topic", selectedTopic);
+      const response = await fetch(`/api/student/jamb/questions?${params.toString()}`, {
+        cache: "no-store",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to load questions");
       }
 
-      const { data, error } = await query.order("created_at", { ascending: true }).limit(20);
-
-      if (error) {
-        throw error;
-      }
-
-      const loadedQuestions = (data || []).map((row: any) => ({
-        id: row.id,
-        question_text: row.question_text,
-        options: Array.isArray(row.options) ? row.options : [],
-        subject_slug: row.subject_slug,
-        subject_name: row.subject_name,
-        exam_year: row.exam_year,
-        topic: row.topic,
-      }));
+      const loadedQuestions = Array.isArray(result.data?.questions)
+        ? result.data.questions.map((row: any) => ({
+            id: row.id,
+            question_text: row.question_text,
+            options: Array.isArray(row.options) ? row.options : [],
+            subject_slug: row.subject_slug,
+            subject_name: row.subject_name,
+            exam_year: row.exam_year,
+            topic: row.topic,
+          }))
+        : [];
 
       if (loadedQuestions.length === 0) {
         toast.info("No questions matched the selected filters");
@@ -364,7 +404,7 @@ export default function StudentJambPage() {
                 </div>
               </div>
 
-              <Button onClick={loadQuestions} disabled={loadingQuestions} className="gap-2">
+              <Button onClick={loadQuestions} disabled={loadingQuestions || !selectedSubject || !selectedYear} className="gap-2">
                 {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
                 Load Questions
               </Button>

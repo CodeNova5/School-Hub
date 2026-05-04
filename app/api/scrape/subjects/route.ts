@@ -15,6 +15,8 @@ interface ErrorResponse {
 interface SuccessResponse {
     count: number;
     subjects: Subject[];
+    page?: number;
+    totalPages?: number;
 }
 
 const JAMB_SUBJECTS: Subject[] = [
@@ -49,17 +51,19 @@ const JAMB_SUBJECTS: Subject[] = [
 
 export async function GET(request: Request): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
     try {
-        const { searchParams } = new URL(request.url);
-        const page = Math.max(1, Number(searchParams.get('page') || '1'));
-        const perPage = Math.max(1, Number(searchParams.get('per_page') || searchParams.get('perPage') || '10'));
+        const url = new URL(request.url);
+        const pageParam = url.searchParams.get('page');
+        const parsedPage = Number(pageParam);
+        const page = Number.isFinite(parsedPage) && parsedPage >= 1 ? Math.floor(parsedPage) : 1;
+        const PAGE_SIZE = 10;
 
         const total = JAMB_SUBJECTS.length;
-        const total_pages = Math.max(1, Math.ceil(total / perPage));
-        const start = (page - 1) * perPage;
-        const end = start + perPage;
+        const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const start = (page - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
         const subjects = JAMB_SUBJECTS.slice(start, end);
 
-        return NextResponse.json({ count: total, subjects, page, per_page: perPage, total_pages, total });
+        return NextResponse.json({ count: total, subjects, page, totalPages });
     } catch (err) {
         const error = err as Error & { code?: string };
         console.error('[/api/scrape/subjects] Error:', {

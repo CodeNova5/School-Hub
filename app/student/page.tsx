@@ -70,6 +70,7 @@ export default function StudentDashboardPage() {
   const [studentName, setStudentName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [hasJambAccess, setHasJambAccess] = useState(false);
   const [termId, setTermId] = useState("");
   const [todaysClasses, setTodaysClasses] = useState<TodaysClass[]>([]);
   const [stats, setStats] = useState<StudentStats>({
@@ -188,6 +189,20 @@ export default function StudentDashboardPage() {
       setStudentName(`${studentData.first_name} ${studentData.last_name}`);
       const classData = studentData.classes as any;
       setStudentClass(classData?.name || "No class assigned");
+
+      const { data: jambAccess, error: jambAccessError } = await supabase
+        .from("jamb_student_access")
+        .select("id")
+        .eq("student_id", studentData.id)
+        .eq("school_id", schoolId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (jambAccessError) {
+        console.error("Failed to load JAMB access:", jambAccessError);
+      }
+
+      setHasJambAccess(Boolean(jambAccess));
       
       // Set termId for state
       if (termData && termData.id) {
@@ -600,6 +615,36 @@ export default function StudentDashboardPage() {
             </CardContent>
           </Card>
 
+          {hasJambAccess && (
+            <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-2xl transition-all duration-300">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 to-teal-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="absolute top-0 right-0 h-24 w-24 bg-emerald-100 rounded-full -mr-12 -mt-12 opacity-50 group-hover:scale-110 transition-transform" />
+              <CardContent className="relative pt-8 pb-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="bg-gradient-to-br from-emerald-100 to-teal-100 p-3 rounded-xl group-hover:scale-110 transition-transform">
+                    <Target className="h-6 w-6 text-emerald-600" />
+                  </div>
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">
+                    Unlocked
+                  </span>
+                </div>
+                <p className="text-gray-600 font-medium mb-1">JAMB CBT Practice</p>
+                <p className="text-4xl font-bold text-gray-900 mb-4">Past Questions</p>
+                <div className="mt-4 flex gap-2">
+                  <Link href="/student/jamb" className="flex-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-emerald-50 hover:bg-emerald-100 border-emerald-200"
+                    >
+                      Start Practice
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Average Score Card */}
           <Card className="group relative overflow-hidden border-0 shadow-lg hover:shadow-2xl transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-pink-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -876,6 +921,17 @@ export default function StudentDashboardPage() {
                     Timetable
                   </Button>
                 </Link>
+                {hasJambAccess && (
+                  <Link href="/student/jamb">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-left hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                    >
+                      <Target className="h-5 w-5 mr-3" />
+                      JAMB CBT
+                    </Button>
+                  </Link>
+                )}
                 <Link href="/parent/login">
                   <Button
                     variant="ghost"

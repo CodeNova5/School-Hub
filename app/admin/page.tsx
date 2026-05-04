@@ -530,11 +530,12 @@ export default function AdminDashboard() {
         </div>
 
         {/* Quick Access & Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
           {[
             { title: 'Manage Students', icon: GraduationCap, color: 'bg-blue-50', textColor: 'text-blue-600', borderColor: 'border-blue-200', path: '/admin/students' },
             { title: 'Manage Teachers', icon: Users, color: 'bg-purple-50', textColor: 'text-purple-600', borderColor: 'border-purple-200', path: '/admin/teachers' },
             { title: 'Manage Classes', icon: BookOpen, color: 'bg-green-50', textColor: 'text-green-600', borderColor: 'border-green-200', path: '/admin/classes' },
+            { title: 'JAMB CBT Access', icon: FileText, color: 'bg-cyan-50', textColor: 'text-cyan-600', borderColor: 'border-cyan-200', path: '/admin/jamb' },
             { title: 'Notifications', icon: Bell, color: 'bg-amber-50', textColor: 'text-amber-600', borderColor: 'border-amber-200', path: '/admin/notifications' },
             { title: 'Settings', icon: Settings, color: 'bg-orange-50', textColor: 'text-orange-600', borderColor: 'border-orange-200', path: '/admin/settings' },
           ].map((action, index) => {

@@ -1,19 +1,46 @@
+import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import cheerio from 'cheerio';
+import { load } from 'cheerio';
 
 const BASE_URL = 'https://myschool.ng';
 
-function clean(text) {
+interface AnswerDetail {
+  correct?: string;
+  explanation: string;
+}
+
+interface Question {
+  id?: string;
+  question: string;
+  options: string[];
+  answerLink: string | null;
+  correct?: string;
+  explanation?: string;
+}
+
+interface QuestionsResponse {
+  url: string;
+  count: number;
+  questions: Question[];
+}
+
+interface ErrorResponse {
+  error: string;
+  code?: string;
+  type?: string;
+}
+
+function clean(text: string | undefined): string {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
 
-function getText($el) {
+function getText($el: any): string {
   return clean($el.text() || '');
 }
 
-async function fetchAnswerDetail(url) {
+async function fetchAnswerDetail(url: string): Promise<AnswerDetail> {
   try {
-    const { data } = await axios.get(url, {
+    const { data } = await axios.get<string>(url, {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -22,10 +49,12 @@ async function fetchAnswerDetail(url) {
       timeout: 30000
     });
 
-    const $ = cheerio.load(data);
+    const $ = load(data);
     const text = $('body').text() || '';
-    let correct;
-    const m = text.match(/Correct Answer[:\s]*Option\s*([A-D])/i) || text.match(/Correct Answer[:\s]*([A-D])/i) || text.match(/Answer[:\s]*([A-D])/i);
+    let correct: string | undefined;
+    const m = text.match(/Correct Answer[:\s]*Option\s*([A-D])/i) || 
+              text.match(/Correct Answer[:\s]*([A-D])/i) || 
+              text.match(/Answer[:\s]*([A-D])/i);
     if (m) correct = m[1].toUpperCase();
 
     let explanation = '';
@@ -35,8 +64,8 @@ async function fetchAnswerDetail(url) {
     }).first();
 
     if (explHeading && explHeading.length) {
-      const parts = [];
-      let node = explHeading[0].nextSibling;
+      const parts: string[] = [];
+      let node: any = explHeading[0].nextSibling;
       while (node) {
         if (node.type === 'tag') {
           const tag = node.tagName.toLowerCase();
@@ -67,17 +96,23 @@ async function fetchAnswerDetail(url) {
 
     return { correct, explanation };
   } catch (err) {
+    console.error('[/api/scrape/questions] Error fetching answer detail:', err);
     return { correct: undefined, explanation: '' };
   }
 }
 
-export async function GET(req) {
+export async function GET(req: NextRequest): Promise<NextResponse<QuestionsResponse | ErrorResponse>> {
   try {
     const urlObj = new URL(req.url);
     const subject = urlObj.searchParams.get('subject');
+    
     if (!subject) {
-      return new Response(JSON.stringify({ error: 'subject query param is required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+      return NextResponse.json(
+        { error: 'subject query param is required' },
+        { status: 400 }
+      );
     }
+
     const year = urlObj.searchParams.get('year') || '';
     const topic = urlObj.searchParams.get('topic') || '';
     const page = urlObj.searchParams.get('page') || '1';
@@ -85,7 +120,7 @@ export async function GET(req) {
 
     const target = `${BASE_URL}/classroom/${encodeURIComponent(subject)}?exam_type=jamb&exam_year=${encodeURIComponent(year)}&topic=${encodeURIComponent(topic)}&page=${encodeURIComponent(page)}`;
 
-    const { data } = await axios.get(target, {
+    const { data } = await axios.get<string>(target, {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -95,22 +130,27 @@ export async function GET(req) {
       timeout: 30000
     });
 
-    const $ = cheerio.load(data);
-    const questions = [];
+    const $ = load(data);
+    const questions: Question[] = [];
 
-    $('.question-item').each((i, el) => {
+    $('.question-item').each((_i: number, el: any) => {
       const $el = $(el);
       const questionText = getText($el.find('.question-desc p')) || getText($el.find('.question-desc')) || '';
       const options = $el
         .find('ul.list-unstyled li, ul.options li')
-        .map((_, opt) => clean($(opt).text()))
+        .map((_: number, opt: any) => clean($(opt).text()))
         .get()
         .filter(Boolean);
 
       const answerLink = $el.find('a.btn-outline-danger, a[href*="/answers"], a[href*="/answer"]').attr('href') || null;
       const answerId = answerLink ? (answerLink.match(/\/(\d+)\b/) || [])[1] : undefined;
 
-      questions.push({ id: answerId, question: questionText, options, answerLink });
+      questions.push({ 
+        id: answerId, 
+        question: questionText, 
+        options, 
+        answerLink 
+      });
     });
 
     if (detail) {
@@ -124,22 +164,27 @@ export async function GET(req) {
       }
     }
 
-    return new Response(JSON.stringify({ url: target, count: questions.length, questions }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return NextResponse.json({
+      url: target,
+      count: questions.length,
+      questions
+    });
   } catch (err) {
+    const error = err as Error & { code?: string };
     console.error('[/api/scrape/questions] Error:', {
-      message: err?.message,
-      code: err?.code,
-      type: err?.constructor?.name,
-      stack: err?.stack
+      message: error?.message,
+      code: error?.code,
+      type: error?.constructor?.name,
+      stack: error?.stack
     });
 
-    return new Response(JSON.stringify({ 
-      error: err?.message || String(err),
-      code: err?.code,
-      type: err?.constructor?.name
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json(
+      {
+        error: error?.message || String(err),
+        code: error?.code,
+        type: error?.constructor?.name
+      },
+      { status: 500 }
+    );
   }
 }

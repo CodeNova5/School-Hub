@@ -1,13 +1,52 @@
-import axios from 'axios';
-import cheerio from 'cheerio';
+import { NextRequest, NextResponse } from 'next/server';
+import axios, { AxiosError } from 'axios';
+import { load } from 'cheerio';
 
 const BASE_URL = 'https://myschool.ng';
 
-function clean(text) {
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface SelectData {
+  label: string;
+  id: string;
+  name: string;
+  options: SelectOption[];
+}
+
+interface Topic {
+  value: string;
+  topic: string;
+}
+
+interface AvailableResponse {
+  url: string;
+  years: string[];
+  topics: Topic[];
+  topicCount: number;
+  debug: {
+    foundSelects: Array<{
+      label: string;
+      id: string;
+      name: string;
+      optionCount: number;
+    }>;
+  };
+}
+
+interface ErrorResponse {
+  error: string;
+  code?: string;
+  type?: string;
+}
+
+function clean(text: string | undefined): string {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
 
-function getLabelForSelect($, selectEl) {
+function getLabelForSelect($: any, selectEl: any): string {
   const id = $(selectEl).attr('id');
   const name = $(selectEl).attr('name');
 
@@ -23,31 +62,31 @@ function getLabelForSelect($, selectEl) {
   return id || 'unknown';
 }
 
-function parseSelectOptions($, selectEl) {
+function parseSelectOptions($: any, selectEl: any): SelectOption[] {
   return $(selectEl)
     .find('option')
-    .map((_, opt) => {
+    .map((_: number, opt: any) => {
       const value = clean($(opt).attr('value') || '');
       const label = clean($(opt).text());
       return { value, label };
     })
     .get()
-    .filter((item) => item.label);
+    .filter((item: SelectOption) => item.label);
 }
 
-function looksLikeYear(value, label) {
+function looksLikeYear(value: string, label: string): boolean {
   const text = `${value} ${label}`;
   return /\b(19|20)\d{2}\b/.test(text);
 }
 
-export async function GET(req) {
+export async function GET(req: NextRequest): Promise<NextResponse<AvailableResponse | ErrorResponse>> {
   try {
     const urlObj = new URL(req.url);
     const subject = urlObj.searchParams.get('subject') || 'commerce';
 
     const target = `${BASE_URL}/classroom/${encodeURIComponent(subject)}?exam_type=jamb&exam_year=&topic=`;
 
-    const { data } = await axios.get(target, {
+    const { data } = await axios.get<string>(target, {
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
@@ -57,10 +96,10 @@ export async function GET(req) {
       timeout: 30000
     });
 
-    const $ = cheerio.load(data);
+    const $ = load(data);
 
-    const selects = $('select')
-      .map((_, selectEl) => {
+    const selects: SelectData[] = $('select')
+      .map((_: number, selectEl: any) => {
         const label = getLabelForSelect($, selectEl);
         const id = clean($(selectEl).attr('id') || '');
         const name = clean($(selectEl).attr('name') || '');
@@ -84,31 +123,42 @@ export async function GET(req) {
       .map((opt) => opt.label.match(/(19|20)\d{2}/)?.[0] || opt.label)
       .filter(Boolean);
 
-    const uniqueYears = [...new Set(years)].sort((a, b) => Number(b) - Number(a));
+    const uniqueYears = [...new Set(years)].sort((a: string, b: string) => Number(b) - Number(a));
 
     const topics = (topicSelect?.options || [])
       .filter((opt) => opt.label && !/^all$/i.test(opt.label))
       .map((opt) => ({ value: opt.value, topic: opt.label }));
 
-    return new Response(
-      JSON.stringify({ url: target, years: uniqueYears, topics, topicCount: topics.length, debug: { foundSelects: selects.map((s) => ({ label: s.label, id: s.id, name: s.name, optionCount: s.options.length })) } }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    );
+    return NextResponse.json({
+      url: target,
+      years: uniqueYears,
+      topics,
+      topicCount: topics.length,
+      debug: {
+        foundSelects: selects.map((s) => ({
+          label: s.label,
+          id: s.id,
+          name: s.name,
+          optionCount: s.options.length
+        }))
+      }
+    });
   } catch (err) {
+    const error = err as Error & { code?: string };
     console.error('[/api/scrape/available] Error:', {
-      message: err?.message,
-      code: err?.code,
-      type: err?.constructor?.name,
-      stack: err?.stack
+      message: error?.message,
+      code: error?.code,
+      type: error?.constructor?.name,
+      stack: error?.stack
     });
 
-    return new Response(JSON.stringify({ 
-      error: err?.message || String(err),
-      code: err?.code,
-      type: err?.constructor?.name
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json(
+      {
+        error: error?.message || String(err),
+        code: error?.code,
+        type: error?.constructor?.name
+      },
+      { status: 500 }
+    );
   }
 }

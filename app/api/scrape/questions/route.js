@@ -126,7 +126,18 @@ export async function GET(req) {
 
     return new Response(JSON.stringify({ url: target, count: questions.length, questions }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err && err.message) || String(err) }), {
+    console.error('[/api/scrape/questions] Error:', {
+      message: err?.message,
+      code: err?.code,
+      type: err?.constructor?.name,
+      stack: err?.stack
+    });
+
+    return new Response(JSON.stringify({ 
+      error: err?.message || String(err),
+      code: err?.code,
+      type: err?.constructor?.name
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

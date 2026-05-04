@@ -43,6 +43,8 @@ export default function StudentJambPage() {
   const [studentName, setStudentName] = useState("");
   const [hasAccess, setHasAccess] = useState(false);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
+  const [subjectPage, setSubjectPage] = useState(1);
+  const [subjectTotalPages, setSubjectTotalPages] = useState<number | null>(null);
   const [years, setYears] = useState<number[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
@@ -57,11 +59,18 @@ export default function StudentJambPage() {
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
-      loadJambData();
+      loadJambData(subjectPage);
     }
   }, [schoolId, schoolLoading]);
 
-  async function loadJambData() {
+  useEffect(() => {
+    // reload subjects when page changes (after initial load)
+    if (!schoolLoading && schoolId) {
+      void loadJambData(subjectPage);
+    }
+  }, [subjectPage, schoolLoading, schoolId]);
+
+  async function loadJambData(page: number = 1) {
     if (!schoolId) return;
 
     try {
@@ -107,7 +116,7 @@ export default function StudentJambPage() {
 
       setHasAccess(true);
 
-      const response = await fetch("/api/scrape/subjects", {
+      const response = await fetch(`/api/scrape/subjects?page=${encodeURIComponent(String(page))}`, {
         cache: "no-store",
       });
 
@@ -126,6 +135,19 @@ export default function StudentJambPage() {
         : [];
       console.log(loadedSubjects);
       setSubjects(loadedSubjects);
+      // Try to read pagination info from the API response if provided
+      // Accept common shapes: total_pages, totalPages, total, per_page
+      if (result?.total_pages) {
+        setSubjectTotalPages(Number(result.total_pages) || null);
+      } else if (result?.totalPages) {
+        setSubjectTotalPages(Number(result.totalPages) || null);
+      } else if (result?.total && result?.per_page) {
+        const total = Number(result.total) || 0;
+        const perPage = Number(result.per_page) || loadedSubjects.length || 20;
+        setSubjectTotalPages(Math.max(1, Math.ceil(total / perPage)));
+      } else {
+        setSubjectTotalPages(null);
+      }
     } catch (error: any) {
       console.error("Failed to load JAMB data:", error);
       toast.error(error.message || "Failed to load JAMB practice data");
@@ -368,6 +390,41 @@ export default function StudentJambPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        if (subjectPage > 1) {
+                          const newPage = subjectPage - 1;
+                          setSubjectPage(newPage);
+                        }
+                      }}
+                      disabled={subjectPage <= 1}
+                      className="gap-2"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Prev
+                    </Button>
+
+                    <div className="text-sm text-gray-600">Page {subjectPage}{subjectTotalPages ? ` of ${subjectTotalPages}` : ""}</div>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const newPage = subjectPage + 1;
+                        // if we know total pages, don't go past it
+                        if (subjectTotalPages && newPage > subjectTotalPages) return;
+                        setSubjectPage(newPage);
+                      }}
+                      disabled={subjectTotalPages ? subjectPage >= subjectTotalPages : false}
+                      className="gap-2"
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

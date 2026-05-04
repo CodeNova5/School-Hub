@@ -47,10 +47,19 @@ const JAMB_SUBJECTS: Subject[] = [
     { slug: 'yoruba', name: 'Yoruba', url: 'https://myschool.ng/classroom/yoruba' }
 ];
 
-export async function GET(): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
+export async function GET(request: Request): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
     try {
-        const subjects = JAMB_SUBJECTS;
-        return NextResponse.json({ count: subjects.length, subjects });
+        const { searchParams } = new URL(request.url);
+        const page = Math.max(1, Number(searchParams.get('page') || '1'));
+        const perPage = Math.max(1, Number(searchParams.get('per_page') || searchParams.get('perPage') || '10'));
+
+        const total = JAMB_SUBJECTS.length;
+        const total_pages = Math.max(1, Math.ceil(total / perPage));
+        const start = (page - 1) * perPage;
+        const end = start + perPage;
+        const subjects = JAMB_SUBJECTS.slice(start, end);
+
+        return NextResponse.json({ count: total, subjects, page, per_page: perPage, total_pages, total });
     } catch (err) {
         const error = err as Error & { code?: string };
         console.error('[/api/scrape/subjects] Error:', {

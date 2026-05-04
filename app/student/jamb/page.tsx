@@ -124,7 +124,7 @@ export default function StudentJambPage() {
           }))
           .filter((subject: SubjectOption) => subject.slug && subject.name)
         : [];
-      console.log(subjects)
+      console.log(loadedSubjects);
       setSubjects(loadedSubjects);
     } catch (error: any) {
       console.error("Failed to load JAMB data:", error);

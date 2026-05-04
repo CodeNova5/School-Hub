@@ -63,64 +63,16 @@ async function fetchAnswerDetail(url) {
         const correctEl = $('*:contains("Correct Answer")').first();
         let correct = undefined;
         if (correctEl && correctEl.length) {
-            const txt = (correctEl.text ? (correctEl.text() || '') : '').replace(/\n+/g, ' ').trim();
+            const txt = correctEl.text().replace(/\n+/g, ' ').trim();
             const m = txt.match(/Correct Answer[:\s]*Option\s*([A-D])/i) || txt.match(/Correct Answer[:\s]*([A-D])/i);
             if (m) correct = m[1].toUpperCase();
         }
 
-        // Try to grab the explanation section (look for a heading containing "Explanation")
-        let explanation = '';
-        const explHeading = $('*:contains("Explanation")').filter(function() {
-            return $(this).children().length === 0 || /^Explanation/i.test($(this).text().trim().split('\n')[0]);
-        }).first();
-
-        if (explHeading && explHeading.length) {
-            const parts = [];
-            let node = explHeading[0].nextSibling;
-            while (node) {
-                // stop when we hit another major section or known footer blocks
-                if (node.nodeType === 1) {
-                    const tag = node.tagName.toLowerCase();
-                    const $node = $(node);
-                    const nodeText = ($node.text ? ($node.text() || '') : '').replace(/\s+/g, ' ').trim();
-                    if (nodeText && !/^(Contributions|Quick Questions|Post your Contribution|Next|Go back to|Report an Error)/i.test(nodeText)) {
-                        // prefer MathJax data if available
-                        const mathjaxEls = $node.find('.MathJax').addBack('.MathJax');
-                        if (mathjaxEls.length) {
-                            mathjaxEls.each((_, m) => {
-                                const dm = $(m).attr('data-mathml') || ($(m).text ? $(m).text() : '');
-                                if (dm) parts.push((dm || '').replace(/\s+/g, ' ').trim());
-                            });
-                        }
-                        // include normal text content as fallback
-                        if (nodeText) parts.push(nodeText);
-                    } else {
-                        break;
-                    }
-                    // stop if we hit a heading element
-                    if (/^h[1-6]$/.test(tag)) break;
-                } else if (node.nodeType === 3) {
-                    const t = (node.textContent || '').replace(/\s+/g, ' ').trim();
-                    if (t) parts.push(t);
-                }
-                node = node.nextSibling;
-            }
-
-            explanation = parts.join(' ').replace(/\s+/g, ' ').trim();
-        } else {
-            // fallback: look for any block labelled Explanation deeper in the page
-            const expl = $('h1,h2,h3,h4,h5,h6,strong').filter(function() {
-                return /Explanation/i.test($(this).text ? $(this).text() : '');
-            }).first();
-            if (expl && expl.length) {
-                explanation = (expl.parent().text ? expl.parent().text() : '').replace(/Explanation/i, '').replace(/\s+/g, ' ').trim();
-            }
-        }
-
-        return { correct, explanation };
+    
+        return { correct };
     } catch (err) {
         console.error('Failed to fetch answer detail', url, err.message || err);
-        return { correct: undefined, explanation: '' };
+        return { correct: undefined };
     }
 }
 
@@ -130,7 +82,6 @@ async function run(pageNumber = 1) {
         if (q.answerLink) {
             const detail = await fetchAnswerDetail(q.answerLink);
             q.correct = detail.correct;
-            q.explanation = detail.explanation;
         }
     }
 

@@ -118,13 +118,13 @@ export default function StudentJambPage() {
       const result = await response.json();
       const loadedSubjects = Array.isArray(result.subjects)
         ? result.subjects
-            .map((subject: any) => ({
-              slug: String(subject.slug || ""),
-              name: String(subject.name || ""),
-            }))
-            .filter((subject: SubjectOption) => subject.slug && subject.name)
+          .map((subject: any) => ({
+            slug: String(subject.slug || ""),
+            name: String(subject.name || ""),
+          }))
+          .filter((subject: SubjectOption) => subject.slug && subject.name)
         : [];
-
+      console.log(subjects)
       setSubjects(loadedSubjects);
     } catch (error: any) {
       console.error("Failed to load JAMB data:", error);
@@ -178,14 +178,14 @@ export default function StudentJambPage() {
     const result = await response.json();
     const loadedYears = Array.isArray(result.years)
       ? result.years
-          .map((year: any) => Number(year))
-          .filter((year: number) => Number.isFinite(year))
-          .sort((a: number, b: number) => b - a)
+        .map((year: any) => Number(year))
+        .filter((year: number) => Number.isFinite(year))
+        .sort((a: number, b: number) => b - a)
       : [];
     const loadedTopics = Array.isArray(result.topics)
       ? result.topics
-          .map((topic: any) => String(topic.topic || topic.value || topic || ""))
-          .filter((topic: string) => Boolean(topic))
+        .map((topic: any) => String(topic.topic || topic.value || topic || ""))
+        .filter((topic: string) => Boolean(topic))
       : [];
 
     setYears(loadedYears);
@@ -220,14 +220,14 @@ export default function StudentJambPage() {
 
       const loadedQuestions = Array.isArray(result.data?.questions)
         ? result.data.questions.map((row: any) => ({
-            id: row.id,
-            question_text: row.question_text,
-            options: Array.isArray(row.options) ? row.options : [],
-            subject_slug: row.subject_slug,
-            subject_name: row.subject_name,
-            exam_year: row.exam_year,
-            topic: row.topic,
-          }))
+          id: row.id,
+          question_text: row.question_text,
+          options: Array.isArray(row.options) ? row.options : [],
+          subject_slug: row.subject_slug,
+          subject_name: row.subject_name,
+          exam_year: row.exam_year,
+          topic: row.topic,
+        }))
         : [];
 
       if (loadedQuestions.length === 0) {

@@ -1,10 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
-import axios, { AxiosError } from 'axios';
-import { load, CheerioAPI } from 'cheerio';
-
-const BASE_URL = 'https://myschool.ng';
-const CLASSROOM_URL = `${BASE_URL}/classroom`;
-const MAX_RETRIES = 2;
+import { NextResponse } from 'next/server';
 
 interface Subject {
     name: string;
@@ -23,113 +17,39 @@ interface SuccessResponse {
     subjects: Subject[];
 }
 
-function normalizeText(text: string | undefined): string {
-    return (text || '').replace(/\s+/g, ' ').trim();
-}
+const JAMB_SUBJECTS: Subject[] = [
+    { slug: 'english-language', name: 'Use of English', url: 'https://myschool.ng/classroom/english-language' },
+    { slug: 'mathematics', name: 'Mathematics', url: 'https://myschool.ng/classroom/mathematics' },
+    { slug: 'physics', name: 'Physics', url: 'https://myschool.ng/classroom/physics' },
+    { slug: 'chemistry', name: 'Chemistry', url: 'https://myschool.ng/classroom/chemistry' },
+    { slug: 'biology', name: 'Biology', url: 'https://myschool.ng/classroom/biology' },
+    { slug: 'agricultural-science', name: 'Agricultural Science', url: 'https://myschool.ng/classroom/agricultural-science' },
+    { slug: 'further-mathematics', name: 'Further Mathematics', url: 'https://myschool.ng/classroom/further-mathematics' },
+    { slug: 'physical-education', name: 'Physical & Health Education (PHE)', url: 'https://myschool.ng/classroom/physical-education' },
+    { slug: 'computer-studies', name: 'Computer Studies', url: 'https://myschool.ng/classroom/computer-studies' },
+    { slug: 'home-economics', name: 'Home Economics', url: 'https://myschool.ng/classroom/home-economics' },
+    { slug: 'economics', name: 'Economics', url: 'https://myschool.ng/classroom/economics' },
+    { slug: 'geography', name: 'Geography', url: 'https://myschool.ng/classroom/geography' },
+    { slug: 'government', name: 'Government', url: 'https://myschool.ng/classroom/government' },
+    { slug: 'commerce', name: 'Commerce', url: 'https://myschool.ng/classroom/commerce' },
+    { slug: 'accounts-principles-of-accounts', name: 'Principles of Accounts', url: 'https://myschool.ng/classroom/accounts-principles-of-accounts' },
+    { slug: 'civic-education', name: 'Civic Education', url: 'https://myschool.ng/classroom/civic-education' },
+    { slug: 'literature-in-english', name: 'Literature-in-English', url: 'https://myschool.ng/classroom/literature-in-english' },
+    { slug: 'christian-religious-knowledge-crk', name: 'Christian Religious Studies (CRS)', url: 'https://myschool.ng/classroom/christian-religious-knowledge-crk' },
+    { slug: 'islamic-religious-knowledge-irk', name: 'Islamic Religious Studies (IRS)', url: 'https://myschool.ng/classroom/islamic-religious-knowledge-irk' },
+    { slug: 'history', name: 'History', url: 'https://myschool.ng/classroom/history' },
+    { slug: 'fine-arts', name: 'Fine Arts', url: 'https://myschool.ng/classroom/fine-arts' },
+    { slug: 'music', name: 'Music', url: 'https://myschool.ng/classroom/music' },
+    { slug: 'arabic', name: 'Arabic', url: 'https://myschool.ng/classroom/arabic' },
+    { slug: 'french', name: 'French', url: 'https://myschool.ng/classroom/french' },
+    { slug: 'hausa', name: 'Hausa', url: 'https://myschool.ng/classroom/hausa' },
+    { slug: 'igbo', name: 'Igbo', url: 'https://myschool.ng/classroom/igbo' },
+    { slug: 'yoruba', name: 'Yoruba', url: 'https://myschool.ng/classroom/yoruba' }
+];
 
-function isSubjectPath(pathname: string | undefined): boolean {
-    return /^\/classroom\/[^/?#]+\/?$/.test(pathname || '');
-}
-
-const EXCLUDED_SLUGS = new Set([
-    'exam',
-    'jamb-brochure',
-    'jamb-novel',
-    'jamb-syllabus',
-    'video-lessons',
-    'topic-videos',
-    'novels',
-    'exam-ranking'
-]);
-
-async function fetchClassroomPage(retryCount = 0): Promise<string> {
+export async function GET(): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
     try {
-        const { data, status, headers } = await axios.get<string>(CLASSROOM_URL, {
-            headers: {
-                'User-Agent':
-                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-                Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9'
-            },
-            timeout: 30000,
-            validateStatus: (s) => s === 200
-        });
-
-        // Validate response is HTML
-        const contentType = String(headers['content-type'] || '');
-        if (!contentType.includes('text/html')) {
-            throw new Error(`Invalid content-type: ${contentType}`);
-        }
-
-        if (!data || data.length < 1000) {
-            throw new Error('Response too small, likely not the full page');
-        }
-
-        return data;
-    } catch (err) {
-        const axiosErr = err as AxiosError;
-        if (retryCount < MAX_RETRIES && (axiosErr?.code === 'ECONNRESET' || axiosErr?.code === 'ETIMEDOUT')) {
-            console.warn(`[/api/scrape/subjects] Retry ${retryCount + 1}/${MAX_RETRIES} after ${axiosErr?.code}`);
-            await new Promise(r => setTimeout(r, 1000 * (retryCount + 1))); // backoff
-            return fetchClassroomPage(retryCount + 1);
-        }
-        throw err;
-    }
-}
-
-export async function GET(req: NextRequest): Promise<NextResponse<SuccessResponse | ErrorResponse>> {
-    try {
-        const htmlData = await fetchClassroomPage();
-        const $ = load(htmlData);
-        const subjectsMap = new Map<string, Subject>();
-
-        $('h3 a[href], h4 a[href], h5 a[href], h6 a[href]').each((_, el) => {
-            try {
-                const href = $(el).attr('href');
-                if (!href) return;
-
-                let urlObj: URL;
-                try {
-                    urlObj = new URL(href, BASE_URL);
-                } catch (e) {
-                    return;
-                }
-
-                if (urlObj.hostname !== 'myschool.ng') return;
-                if (!isSubjectPath(urlObj.pathname)) return;
-
-                const parts = urlObj.pathname.split('/').filter(Boolean);
-                const slug = parts.pop();
-                if (!slug) return;
-                if (EXCLUDED_SLUGS.has(slug)) return;
-
-                const anchorText = normalizeText($(el).text());
-                if (!anchorText) return;
-                if (/^study past questions$/i.test(anchorText)) return;
-                if (/^watch video lessons$/i.test(anchorText)) return;
-                if (/^check syllabus$/i.test(anchorText)) return;
-
-                const fallbackName = slug
-                    .replace(/-/g, ' ')
-                    .replace(/\b\w/g, (ch) => ch.toUpperCase());
-
-                subjectsMap.set(slug, {
-                    name: anchorText || fallbackName,
-                    slug,
-                    url: `${BASE_URL}/classroom/${slug}`
-                });
-            } catch (itemErr) {
-                console.warn('[/api/scrape/subjects] Error processing item:', itemErr);
-            }
-        });
-
-        const subjects = Array.from(subjectsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-
-        if (subjects.length === 0) {
-            console.warn('[/api/scrape/subjects] No subjects found - page structure may have changed');
-        }
-        
-        console.log(subjects);
+        const subjects = JAMB_SUBJECTS;
         return NextResponse.json({ count: subjects.length, subjects });
     } catch (err) {
         const error = err as Error & { code?: string };

@@ -52,6 +52,8 @@ export default function StudentJambPage() {
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedTopic, setSelectedTopic] = useState(ALL_TOPICS);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [questionPage, setQuestionPage] = useState(1);
+  const [questionTotalPages, setQuestionTotalPages] = useState(1);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -209,7 +211,7 @@ export default function StudentJambPage() {
     setTopics(Array.from(new Set<string>(loadedTopics)).sort((a, b) => a.localeCompare(b)));
   }
 
-  async function loadQuestions() {
+  async function loadQuestions(page = 1) {
     if (!selectedSubject || !selectedYear) {
       toast.error("Please select a subject and year");
       return;
@@ -222,7 +224,8 @@ export default function StudentJambPage() {
         subjectName: filteredSubjectLabel,
         year: selectedYear,
         topic: selectedTopic,
-        limit: "20",
+        limit: "5",
+        page: String(page),
       });
 
       const response = await fetch(`/api/student/jamb/questions?${params.toString()}`, {
@@ -237,24 +240,34 @@ export default function StudentJambPage() {
 
       const loadedQuestions = Array.isArray(result.data?.questions)
         ? result.data.questions.map((row: any) => ({
-          id: row.id,
-          question_text: row.question_text,
-          options: Array.isArray(row.options) ? row.options : [],
-          subject_slug: row.subject_slug,
-          subject_name: row.subject_name,
-          exam_year: row.exam_year,
-          topic: row.topic,
-        }))
+            id: row.id,
+            question_text: row.question_text,
+            options: Array.isArray(row.options) ? row.options : [],
+            subject_slug: row.subject_slug,
+            subject_name: row.subject_name,
+            exam_year: row.exam_year,
+            topic: row.topic,
+          }))
         : [];
 
-      if (loadedQuestions.length === 0) {
+      const pageNum = Number(result.page) || page;
+      const totalPages = Number(result.totalPages) || 1;
+
+      if (loadedQuestions.length === 0 && page === 1) {
         toast.info("No questions matched the selected filters");
       }
 
-      setQuestions(loadedQuestions);
-      setCurrentQuestionIndex(0);
-      setAnswers({});
-      setAttemptResult(null);
+      if (page === 1) {
+        setQuestions(loadedQuestions);
+        setCurrentQuestionIndex(0);
+        setAnswers({});
+        setAttemptResult(null);
+      } else {
+        setQuestions((prev) => [...prev, ...loadedQuestions]);
+      }
+
+      setQuestionPage(pageNum);
+      setQuestionTotalPages(totalPages);
     } catch (error: any) {
       toast.error(error.message || "Failed to load questions");
     } finally {
@@ -454,10 +467,24 @@ export default function StudentJambPage() {
                 </div>
               </div>
 
-              <Button onClick={loadQuestions} disabled={loadingQuestions || !selectedSubject || !selectedYear} className="gap-2">
-                {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                Load Questions
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => loadQuestions(1)} disabled={loadingQuestions || !selectedSubject || !selectedYear} className="gap-2">
+                  {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
+                  Load Questions
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => loadQuestions(questionPage + 1)}
+                  disabled={
+                    loadingQuestions || !questions.length || questionPage >= questionTotalPages
+                  }
+                  className="gap-2"
+                >
+                  {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                  Load next 5
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -473,6 +500,7 @@ export default function StudentJambPage() {
               <div className="rounded-xl border bg-white p-4">
                 <p className="text-sm text-gray-500">Questions loaded</p>
                 <p className="mt-1 font-semibold text-gray-900">{questions.length}</p>
+                <p className="mt-1 text-xs text-gray-500">Page {questionPage} of {questionTotalPages}</p>
               </div>
               <div className="rounded-xl border bg-white p-4">
                 <p className="text-sm text-gray-500">Attempt status</p>

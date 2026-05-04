@@ -185,11 +185,11 @@ export default function StudentJambPage() {
     const loadedTopics = Array.isArray(result.topics)
       ? result.topics
           .map((topic: any) => String(topic.topic || topic.value || topic || ""))
-          .filter(Boolean)
+          .filter((topic: string) => Boolean(topic))
       : [];
 
     setYears(loadedYears);
-    setTopics(Array.from(new Set(loadedTopics)).sort((a, b) => a.localeCompare(b)));
+    setTopics(Array.from(new Set<string>(loadedTopics)).sort((a, b) => a.localeCompare(b)));
   }
 
   async function loadQuestions() {

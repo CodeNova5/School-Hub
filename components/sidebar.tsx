@@ -27,7 +27,8 @@ import {
   QrCode,
   Globe,
   ChevronLeft,
-  UserCheck
+  UserCheck,
+  Target
 
 } from "lucide-react";
 
@@ -59,10 +60,14 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const [hasAssignedClasses, setHasAssignedClasses] = useState(false);
+  const [hasJambAccess, setHasJambAccess] = useState(false);
 
   useEffect(() => {
     if (role === "teacher") {
       checkTeacherClasses();
+    }
+    if (role === "student") {
+      checkStudentJambAccess();
     }
   }, [role]);
 
@@ -93,6 +98,33 @@ export function Sidebar({
     }
   }
 
+  async function checkStudentJambAccess() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: student } = await supabase
+        .from("students")
+        .select("id, school_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!student?.id || !student.school_id) return;
+
+      const { data: jambAccess } = await supabase
+        .from("jamb_student_access")
+        .select("id")
+        .eq("student_id", student.id)
+        .eq("school_id", student.school_id)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      setHasJambAccess(Boolean(jambAccess));
+    } catch (error) {
+      console.error("Error checking JAMB access:", error);
+    }
+  }
+
   /* ---------------- NAV CONFIG ---------------- */
 
   const adminNav: NavItem[] = [
@@ -114,6 +146,7 @@ export function Sidebar({
     { href: "/admin/promotions", label: "Promotions", icon: <TrendingUp className="h-5 w-5" /> },
     { href: "/admin/admissions", label: "Admissions", icon: <ClipboardList className="h-5 w-5" /> },
     { href: "/admin/alumni", label: "Alumni", icon: <UserCheck className="h-5 w-5" /> },
+    { href: "/admin/jamb", label: "JAMB CBT Access", icon: <Target className="h-5 w-5" /> },
     { href: "/admin/website-builder", label: "Website Builder", icon: <Globe className="h-5 w-5" /> },
     { href: "/admin/school-config", label: "School Structure", icon: <Layers className="h-5 w-5" /> },
     { href: "/admin/notifications", label: "Notifications", icon: <Bell className="h-5 w-5" /> },
@@ -140,6 +173,9 @@ export function Sidebar({
   const studentNav: NavItem[] = [
     { href: "/student", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/student/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
+    ...(hasJambAccess
+      ? [{ href: "/student/jamb", label: "JAMB CBT", icon: <Target className="h-5 w-5" /> }]
+      : []),
     { href: "/student/finance", label: "Finance", icon: <Wallet className="h-5 w-5" /> },
     { href: "/student/timetable", label: "Timetable", icon: <Calendar className="h-5 w-5" /> },
     { href: "/student/live-classes", label: "Live Classes", icon: <Radio className="h-5 w-5" /> },

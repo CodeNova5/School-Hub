@@ -415,6 +415,48 @@ export default function StudentJambPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Subject</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (subjectPage > 1 && !subjectLoading) fetchSubjects(subjectPage - 1);
+                        }}
+                        disabled={subjectPage <= 1 || subjectLoading}
+                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage <= 1 || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        aria-label="Previous subjects page"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (subjectPage < subjectTotalPages && !subjectLoading) fetchSubjects(subjectPage + 1);
+                        }}
+                        disabled={subjectPage >= subjectTotalPages || subjectLoading}
+                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage >= subjectTotalPages || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        aria-label="Next subjects page"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1">
+                      <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subjects.map((subject) => (
+                            <SelectItem key={subject.slug} value={subject.slug}>
+                              {subject.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   <div className="mt-1 text-xs text-gray-500">
                     {subjectLoading ? 'Loading subjects…' : `Page ${subjectPage} of ${subjectTotalPages}`}
                   </div>

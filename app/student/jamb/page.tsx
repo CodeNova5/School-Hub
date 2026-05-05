@@ -248,22 +248,8 @@ export default function StudentJambPage() {
   }, [questionTotalPages]);
 
   const totalAnsweredCount = useMemo(() => {
-    let count = 0;
-    for (let page = 1; page <= questionTotalPages; page++) {
-      const draftKey = getDraftKey(selectedSubject, selectedYear, selectedTopic);
-      try {
-        const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const pageAnswers = parsed.answers || {};
-          count += Object.keys(pageAnswers).length;
-        }
-      } catch (e) {
-        console.error("Failed to count answers", e);
-      }
-    }
-    return count;
-  }, [questionTotalPages, selectedSubject, selectedYear, selectedTopic, answers]);
+    return Object.keys(answers).length;
+  }, [answers]);
 
   const progressPercent = useMemo(() => {
     if (!totalQuestions) return 0;

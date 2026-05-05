@@ -76,8 +76,58 @@ async function fetchAnswerDetail(url) {
     }
 }
 
+async function getPaginationInfo(pageNumber = 1) {
+    const url = `https://myschool.ng/classroom/mathematics?exam_type=jamb&exam_year=2022&page=${pageNumber}`;
+    
+    try {
+        const { data } = await axios.get(url, {
+            headers: {
+                'User-Agent': getRandomUserAgent(),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+        const $ = cheerio.load(data);
+        
+        // Get all pagination tab numbers
+        const paginationLinks = $('nav ul.pagination li a, nav ul.pagination li button, .pagination a, .pagination button');
+        const pageNumbers = [];
+        
+        paginationLinks.each((i, el) => {
+            const text = $(el).text().trim();
+            const num = parseInt(text);
+            if (!isNaN(num) && num > 0) {
+                pageNumbers.push(num);
+            }
+        });
+
+        // Get unique, sorted page numbers
+        const uniquePages = [...new Set(pageNumbers)].sort((a, b) => a - b);
+        const totalPages = uniquePages.length > 0 ? Math.max(...uniquePages) : 1;
+        
+        return { totalPages, uniquePages };
+    } catch (error) {
+        console.error("Failed to get pagination info:", error);
+        return { totalPages: 1, uniquePages: [1] };
+    }
+}
+
 async function run(pageNumber = 1) {
+    // First, detect total pages
+    const { totalPages, uniquePages } = await getPaginationInfo();
+    console.log(`\n📊 PAGINATION INFO`);
+    console.log(`Total pages found: ${totalPages}`);
+    console.log(`Page numbers: ${uniquePages.join(', ')}`);
+    
+    // Scrape first page as example
     const questions = await scrapeJamb(pageNumber);
+    const questionsPerPage = questions.length;
+    
+    console.log(`\n📝 QUESTIONS INFO`);
+    console.log(`Questions on page ${pageNumber}: ${questionsPerPage}`);
+    console.log(`Estimated total questions: ${questionsPerPage * totalPages}`);
+    
+    // Fetch details for questions on first page
     for (const q of questions) {
         if (q.answerLink) {
             const detail = await fetchAnswerDetail(q.answerLink);
@@ -85,6 +135,7 @@ async function run(pageNumber = 1) {
         }
     }
 
+    console.log(`\n✅ Questions from page ${pageNumber}:`);
     console.log(questions);
 }
 

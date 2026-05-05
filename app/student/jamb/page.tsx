@@ -272,13 +272,11 @@ export default function StudentJambPage() {
         toast.info("No questions matched the selected filters");
       }
 
-      if (page === 1) {
-        setQuestions(loadedQuestions);
-        setAnswers({});
-        setAttemptResult(null);
-      } else {
-        setQuestions((prev) => [...prev, ...loadedQuestions]);
-      }
+      // Always replace questions when loading a new page (not append)
+      setQuestions(loadedQuestions);
+      setAnswers({});
+      setAttemptResult(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
 
       setQuestionPage(pageNum);
       setQuestionTotalPages(totalPages || 1);
@@ -417,48 +415,6 @@ export default function StudentJambPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Subject</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (subjectPage > 1 && !subjectLoading) fetchSubjects(subjectPage - 1);
-                        }}
-                        disabled={subjectPage <= 1 || subjectLoading}
-                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage <= 1 || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        aria-label="Previous subjects page"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (subjectPage < subjectTotalPages && !subjectLoading) fetchSubjects(subjectPage + 1);
-                        }}
-                        disabled={subjectPage >= subjectTotalPages || subjectLoading}
-                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage >= subjectTotalPages || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        aria-label="Next subjects page"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="flex-1">
-                      <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose subject" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subjects.map((subject) => (
-                            <SelectItem key={subject.slug} value={subject.slug}>
-                              {subject.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
                   <div className="mt-1 text-xs text-gray-500">
                     {subjectLoading ? 'Loading subjects…' : `Page ${subjectPage} of ${subjectTotalPages}`}
                   </div>
@@ -503,18 +459,6 @@ export default function StudentJambPage() {
                   {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
                   Load Questions
                 </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => loadQuestions(questionPage + 1)}
-                  disabled={
-                    loadingQuestions || !questions.length || !hasMoreQuestions
-                  }
-                  className="gap-2"
-                >
-                  {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-                  Load next 5
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -554,17 +498,56 @@ export default function StudentJambPage() {
 
         {questions.length > 0 ? (
           <div className="space-y-6">
-            <div className="flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
-              <div>
-                <p className="text-sm text-gray-500">Loaded questions</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  Showing {questions.length} question{questions.length === 1 ? "" : "s"}
-                </p>
+            {/* Top Pagination */}
+            <div className="flex flex-col gap-3 rounded-2xl border bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Loaded questions</p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    Showing page {questionPage} of {questionTotalPages} • {questions.length} question{questions.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                  Submit Attempt
+                </Button>
               </div>
-              <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-                Submit Attempt
-              </Button>
+              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadQuestions(Math.max(1, questionPage - 1))}
+                  disabled={loadingQuestions || questionPage <= 1}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <div className="flex flex-wrap items-center gap-1">
+                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <Button
+                      key={pageNum}
+                      variant={pageNum === questionPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => loadQuestions(pageNum)}
+                      disabled={loadingQuestions}
+                      className="min-w-10"
+                    >
+                      {pageNum}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadQuestions(Math.min(questionTotalPages, questionPage + 1))}
+                  disabled={loadingQuestions || questionPage >= questionTotalPages}
+                  className="gap-1"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-5">
@@ -620,14 +603,49 @@ export default function StudentJambPage() {
               ))}
             </div>
 
-            <div className="flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
-              <div className="text-sm text-gray-600">
-                {hasMoreQuestions ? "More questions are available from the source page sequence." : "You are on the last available page."}
+            {/* Bottom Pagination */}
+            <div className="flex flex-col gap-3 rounded-2xl border bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div className="text-sm text-gray-600">
+                  Page {questionPage} of {questionTotalPages}
+                </div>
               </div>
-              <Button type="button" variant="outline" onClick={() => loadQuestions(questionPage + 1)} disabled={loadingQuestions || !hasMoreQuestions} className="gap-2">
-                {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-                Load next 5
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadQuestions(Math.max(1, questionPage - 1))}
+                  disabled={loadingQuestions || questionPage <= 1}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <div className="flex flex-wrap items-center gap-1">
+                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <Button
+                      key={pageNum}
+                      variant={pageNum === questionPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => loadQuestions(pageNum)}
+                      disabled={loadingQuestions}
+                      className="min-w-10"
+                    >
+                      {pageNum}
+                    </Button>
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadQuestions(Math.min(questionTotalPages, questionPage + 1))}
+                  disabled={loadingQuestions || questionPage >= questionTotalPages}
+                  className="gap-1"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         ) : null}

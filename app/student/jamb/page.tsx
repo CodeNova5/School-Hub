@@ -230,6 +230,17 @@ export default function StudentJambPage() {
     return subjects.find((subject) => subject.slug === selectedSubject)?.name || "JAMB";
   }, [selectedSubject, subjects]);
 
+  const answeredCount = useMemo(() => {
+    return questions.reduce((count, question) => {
+      return answers[question.id] ? count + 1 : count;
+    }, 0);
+  }, [answers, questions]);
+
+  const progressPercent = useMemo(() => {
+    if (!questions.length) return 0;
+    return Math.round((answeredCount / questions.length) * 100);
+  }, [answeredCount, questions.length]);
+
   async function loadAvailableFilters(subjectSlug: string) {
     const response = await fetch(`/api/scrape/available?subject=${encodeURIComponent(subjectSlug)}`, {
       cache: "no-store",
@@ -588,6 +599,21 @@ export default function StudentJambPage() {
                 <p className="mt-1 text-xs text-gray-500">Page {questionPage} of {questionTotalPages}</p>
               </div>
               <div className="rounded-xl border bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-gray-500">Progress</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {answeredCount}/{questions.length || 0} answered
+                  </p>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-gray-500">{progressPercent}% complete</p>
+              </div>
+              <div className="rounded-xl border bg-white p-4">
                 <p className="text-sm text-gray-500">Attempt status</p>
                 <p className="mt-1 font-semibold text-gray-900">
                   {attemptResult ? "Saved" : "Not submitted"}
@@ -615,6 +641,9 @@ export default function StudentJambPage() {
                   <p className="text-sm text-gray-500">Loaded questions</p>
                   <p className="text-lg font-semibold text-gray-900">
                     Showing page {questionPage} of {questionTotalPages}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {answeredCount}/{questions.length} answered · {progressPercent}% complete
                   </p>
                 </div>
                 <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">

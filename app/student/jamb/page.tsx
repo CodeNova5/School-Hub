@@ -36,6 +36,7 @@ type AttemptResult = {
 };
 
 const ALL_TOPICS = "__all_topics__";
+const QUESTIONS_PER_PAGE = 5;
 
 export default function StudentJambPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
@@ -229,7 +230,7 @@ export default function StudentJambPage() {
         subjectName: filteredSubjectLabel,
         year: selectedYear,
         topic: selectedTopic,
-        limit: "5",
+        limit: String(QUESTIONS_PER_PAGE),
         page: String(page),
       });
 
@@ -416,31 +417,6 @@ export default function StudentJambPage() {
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-700">Subject</p>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (subjectPage > 1 && !subjectLoading) fetchSubjects(subjectPage - 1);
-                        }}
-                        disabled={subjectPage <= 1 || subjectLoading}
-                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage <= 1 || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        aria-label="Previous subjects page"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (subjectPage < subjectTotalPages && !subjectLoading) fetchSubjects(subjectPage + 1);
-                        }}
-                        disabled={subjectPage >= subjectTotalPages || subjectLoading}
-                        className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-sm ${subjectPage >= subjectTotalPages || subjectLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        aria-label="Next subjects page"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
 
                     <div className="flex-1">
                       <Select value={selectedSubject} onValueChange={setSelectedSubject}>
@@ -594,12 +570,16 @@ export default function StudentJambPage() {
 
             <div className="space-y-5">
               {questions.map((question, questionIndex) => (
+                (() => {
+                  const displayQuestionNumber = (questionPage - 1) * QUESTIONS_PER_PAGE + questionIndex + 1;
+
+                  return (
                 <Card key={question.id} className="overflow-hidden shadow-lg">
                   <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <CardTitle>
-                          Question {questionIndex + 1}
+                          Question {displayQuestionNumber}
                         </CardTitle>
                         <p className="mt-1 text-sm text-gray-500">
                           {question.subject_name} · {question.exam_year}
@@ -638,10 +618,12 @@ export default function StudentJambPage() {
                           ? `Selected answer: ${answers[question.id]}`
                           : "No answer selected yet"}
                       </span>
-                      <span>Question {questionIndex + 1} of {questions.length}</span>
+                      <span>Question {displayQuestionNumber} of {questions.length}</span>
                     </div>
                   </CardContent>
                 </Card>
+                  );
+                })()
               ))}
             </div>
 

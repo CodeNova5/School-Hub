@@ -3,6 +3,7 @@ import axios from 'axios';
 import { load } from 'cheerio';
 
 const BASE_URL = 'https://myschool.ng';
+const DEFAULT_PAGE_SIZE = 5;
 
 interface AnswerDetail {
   correct?: string;
@@ -20,6 +21,8 @@ interface Question {
 
 interface QuestionsResponse {
   url: string;
+  page: number;
+  totalPages: number;
   count: number;
   questions: Question[];
 }
@@ -36,6 +39,37 @@ function clean(text: string | undefined): string {
 
 function getText($el: any): string {
   return clean($el.text() || '');
+}
+
+function parsePageNumber(value: string | undefined): number | null {
+  if (!value) return null;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseTotalPages($: ReturnType<typeof load>): number {
+  const pageNumbers = new Set<number>();
+
+  $('a[href*="page="]')
+    .map((_i: number, element: any) => {
+      const href = $(element).attr('href') || '';
+
+      try {
+        const parsed = new URL(href, BASE_URL);
+        const pageNumber = parsePageNumber(parsed.searchParams.get('page') || undefined);
+        if (pageNumber) {
+          pageNumbers.add(pageNumber);
+        }
+      } catch {
+        // Ignore malformed pagination links.
+      }
+
+      return null;
+    })
+    .get();
+
+  return pageNumbers.size ? Math.max(...Array.from(pageNumbers)) : 1;
 }
 
 async function fetchAnswerDetail(url: string): Promise<AnswerDetail> {
@@ -115,10 +149,21 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
 
     const year = urlObj.searchParams.get('year') || '';
     const topic = urlObj.searchParams.get('topic') || '';
-    const page = urlObj.searchParams.get('page') || '1';
+    const page = parsePageNumber(urlObj.searchParams.get('page') || undefined) || 1;
     const detail = urlObj.searchParams.get('detail') === 'true';
+    const pageSize = parsePageNumber(urlObj.searchParams.get('limit') || undefined) || DEFAULT_PAGE_SIZE;
 
-    const target = `${BASE_URL}/classroom/${encodeURIComponent(subject)}?exam_type=jamb&exam_year=${encodeURIComponent(year)}&topic=${encodeURIComponent(topic)}&page=${encodeURIComponent(page)}`;
+    const target = `${BASE_URL}/classroom/${encodeURIComponent(subject)}?exam_type=jamb&exam_year=${encodeURIComponent(year)}&topic=${encodeURIComponent(topic)}&page=${encodeURIComponent(String(page))}`;
+
+    console.info('[scrape/questions] request', {
+      subject,
+      year,
+      topic,
+      page,
+      pageSize,
+      detail,
+      target,
+    });
 
     const { data } = await axios.get<string>(target, {
       headers: {
@@ -132,6 +177,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
 
     const $ = load(data);
     const questions: Question[] = [];
+    const totalPages = parseTotalPages($);
 
     $('.question-item').each((_i: number, el: any) => {
       const $el = $(el);
@@ -166,6 +212,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
 
     return NextResponse.json({
       url: target,
+      page,
+      totalPages,
       count: questions.length,
       questions
     });

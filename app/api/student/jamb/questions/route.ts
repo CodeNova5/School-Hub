@@ -8,8 +8,22 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+type ScrapedQuestion = {
+  id?: string;
+  question: string;
+  options: string[];
+  answerLink: string | null;
+  correct?: string;
+  explanation?: string;
+};
+
 function clean(text: string) {
   return (text || "").replace(/\s+/g, " ").trim();
+}
+
+function parsePageNumber(value: string | null, fallback: number) {
+  const parsed = Number(value || fallback);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 async function getCurrentStudent() {
@@ -35,16 +49,34 @@ async function getCurrentStudent() {
   return { student, userId: user.id };
 }
 
-async function scrapeQuestions(origin: string, subject: string, year: string, topic: string) {
+async function scrapeQuestions(
+  origin: string,
+  subject: string,
+  year: string,
+  topic: string,
+  page: number,
+  limit: number
+) {
   const url = new URL("/api/scrape/questions", origin);
   url.searchParams.set("subject", subject);
   url.searchParams.set("year", year);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("limit", String(limit));
 
   if (topic) {
     url.searchParams.set("topic", topic);
   }
 
   url.searchParams.set("detail", "true");
+
+  console.info("[student/jamb/questions] scrape request", {
+    subject,
+    year,
+    topic,
+    page,
+    limit,
+    url: url.toString(),
+  });
 
   const response = await fetch(url.toString(), {
     headers: {
@@ -58,7 +90,13 @@ async function scrapeQuestions(origin: string, subject: string, year: string, to
   }
 
   const payload = await response.json();
-  return Array.isArray(payload.questions) ? payload.questions : [];
+  return {
+    questions: Array.isArray(payload.questions) ? (payload.questions as ScrapedQuestion[]) : [],
+    page: Number(payload.page) || page,
+    totalPages: Number(payload.totalPages) || page,
+    count: Number(payload.count) || 0,
+    url: String(payload.url || url.toString()),
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -77,7 +115,8 @@ export async function GET(req: NextRequest) {
     const subjectName = url.searchParams.get("subjectName") || "";
     const year = url.searchParams.get("year") || "";
     const topic = url.searchParams.get("topic") || "";
-    const limit = Number(url.searchParams.get("limit") || "20");
+    const limit = Number(url.searchParams.get("limit") || "5");
+    const page = parsePageNumber(url.searchParams.get("page"), 1);
 
     if (!subject || !year) {
       return NextResponse.json(
@@ -89,114 +128,157 @@ export async function GET(req: NextRequest) {
     const normalizedTopic = topic === "__all_topics__" ? "" : topic;
     const origin = url.origin;
 
-    const query = supabaseAdmin
+    const scraped = await scrapeQuestions(
+      origin,
+      subject,
+      year,
+      normalizedTopic,
+      page,
+      limit
+    );
+
+    const rows = scraped.questions
+      .map((question: ScrapedQuestion, index: number) => {
+        if (!clean(question.question)) {
+          return null;
+        }
+
+        return {
+          school_id: student.school_id,
+          exam_type: "jamb",
+          subject_slug: subject,
+          subject_name: subjectName || subject,
+          exam_year: Number(year),
+          topic: normalizedTopic || null,
+          question_text: clean(question.question || ""),
+          options: Array.isArray(question.options) ? question.options : [],
+          correct_option: clean(question.correct || "") || null,
+          explanation: clean(question.explanation || "") || null,
+          source_url: question.answerLink || null,
+          external_question_id:
+            question.id || `${subject}-${year}-${normalizedTopic || "all"}-${page}-${index + 1}`,
+        };
+      })
+      .filter(Boolean) as Array<{
+      school_id: string;
+      exam_type: string;
+      subject_slug: string;
+      subject_name: string;
+      exam_year: number;
+      topic: string | null;
+      question_text: string;
+      options: string[];
+      correct_option: string | null;
+      explanation: string | null;
+      source_url: string | null;
+      external_question_id: string;
+    }>;
+
+    const externalIds = rows.map((row) => row.external_question_id);
+    const { data: existingRows, error: existingError } = externalIds.length
+      ? await supabaseAdmin
+          .from("jamb_questions")
+          .select("id, external_question_id")
+          .eq("school_id", student.school_id)
+          .eq("subject_slug", subject)
+          .eq("exam_year", Number(year))
+          .in("external_question_id", externalIds)
+      : { data: [], error: null };
+
+    if (existingError) {
+      return NextResponse.json({ error: existingError.message }, { status: 500 });
+    }
+
+    const existingExternalIds = new Set(
+      (existingRows || []).map((row: any) => String(row.external_question_id))
+    );
+    const missingRows = rows.filter((row) => !existingExternalIds.has(row.external_question_id));
+
+    if (missingRows.length > 0) {
+      const { error: insertError } = await supabaseAdmin.from("jamb_questions").insert(missingRows);
+
+      if (insertError) {
+        console.error("[student/jamb/questions] insert failed", {
+          message: insertError.message,
+          page,
+          subject,
+          year,
+          topic: normalizedTopic,
+          inserted: missingRows.length,
+        });
+        return NextResponse.json({ error: insertError.message }, { status: 500 });
+      }
+    }
+
+    const { data: storedQuestions, error: storedError } = await supabaseAdmin
       .from("jamb_questions")
       .select(
-        "id, question_text, options, subject_slug, subject_name, exam_year, topic, correct_option, explanation"
+        "id, external_question_id, question_text, options, subject_slug, subject_name, exam_year, topic, correct_option, explanation"
       )
       .eq("school_id", student.school_id)
       .eq("subject_slug", subject)
-      .eq("exam_year", Number(year));
+      .eq("exam_year", Number(year))
+      .in("external_question_id", externalIds);
 
-    if (normalizedTopic) {
-      query.eq("topic", normalizedTopic);
+    if (storedError) {
+      return NextResponse.json({ error: storedError.message }, { status: 500 });
     }
 
-    let { data: existingQuestions, error: existingError } = await query
-      .order("created_at", { ascending: true })
-      .limit(limit);
+    const storedByExternalId = new Map(
+      (storedQuestions || []).map((row: any) => [String(row.external_question_id), row])
+    );
 
-    if (existingError) {
-      return NextResponse.json(
-        { error: existingError.message },
-        { status: 500 }
-      );
-    }
+    const questions = rows
+      .map((row) => {
+        const stored = storedByExternalId.get(row.external_question_id);
 
-    if (!existingQuestions || existingQuestions.length === 0) {
-      const scrapedQuestions = await scrapeQuestions(
-        origin,
-        subject,
-        year,
-        normalizedTopic
-      );
-
-      const rows = scrapedQuestions
-        .map((question: any, index: number) => {
-          const correctOption = clean(question.correct || "");
-          if (!correctOption) {
-            return null;
-          }
-
-          return {
-            school_id: student.school_id,
-            exam_type: "jamb",
-            subject_slug: subject,
-            subject_name: subjectName || question.subject_name || subject,
-            exam_year: Number(year),
-            topic: normalizedTopic || null,
-            question_text: clean(question.question || ""),
-            options: Array.isArray(question.options) ? question.options : [],
-            correct_option: correctOption,
-            explanation: clean(question.explanation || "") || null,
-            source_url: question.answerLink || null,
-            external_question_id:
-              question.id || `${subject}-${year}-${normalizedTopic || "all"}-${index + 1}`,
-          };
-        })
-        .filter(Boolean);
-
-      if (rows.length > 0) {
-        const { error: insertError } = await supabaseAdmin.from("jamb_questions").insert(rows);
-
-        if (insertError) {
-          return NextResponse.json(
-            { error: insertError.message },
-            { status: 500 }
-          );
+        if (!stored) {
+          return null;
         }
-      }
 
-      const { data: refreshedQuestions, error: refreshError } = await supabaseAdmin
-        .from("jamb_questions")
-        .select(
-          "id, question_text, options, subject_slug, subject_name, exam_year, topic, correct_option, explanation"
-        )
-        .eq("school_id", student.school_id)
-        .eq("subject_slug", subject)
-        .eq("exam_year", Number(year));
+        return {
+          id: stored.id,
+          question_text: stored.question_text,
+          options: Array.isArray(stored.options) ? stored.options : [],
+          subject_slug: stored.subject_slug,
+          subject_name: stored.subject_name,
+          exam_year: stored.exam_year,
+          topic: stored.topic,
+          correct_option: stored.correct_option,
+          explanation: stored.explanation,
+        };
+      })
+      .filter(Boolean);
 
-      if (refreshError) {
-        return NextResponse.json(
-          { error: refreshError.message },
-          { status: 500 }
-        );
-      }
+    const totalPages = Number(scraped.totalPages) || page;
 
-      existingQuestions = normalizedTopic
-        ? (refreshedQuestions || []).filter((row: any) => row.topic === normalizedTopic)
-        : refreshedQuestions || [];
-    }
-
-    const questions = (existingQuestions || []).slice(0, limit).map((row: any) => ({
-      id: row.id,
-      question_text: row.question_text,
-      options: Array.isArray(row.options) ? row.options : [],
-      subject_slug: row.subject_slug,
-      subject_name: row.subject_name,
-      exam_year: row.exam_year,
-      topic: row.topic,
-      correct_option: row.correct_option,
-      explanation: row.explanation,
-    }));
+    console.info("[student/jamb/questions] response", {
+      subject,
+      year,
+      topic: normalizedTopic,
+      page,
+      pageSize: limit,
+      scrapedCount: scraped.count,
+      returnedCount: questions.length,
+      totalPages,
+      insertedCount: missingRows.length,
+    });
 
     return NextResponse.json({
       data: {
         questions,
         count: questions.length,
+        page,
+        totalPages,
+        pageSize: limit,
+        hasMore: page < totalPages,
       },
     });
   } catch (error: any) {
+    console.error("[student/jamb/questions] error", {
+      message: error?.message,
+      stack: error?.stack,
+    });
     return NextResponse.json(
       { error: error?.message || "Failed to load JAMB questions" },
       { status: 500 }

@@ -56,18 +56,22 @@ export default function StudentJambPage() {
   const [questionTotalPages, setQuestionTotalPages] = useState(1);
   const [hasMoreQuestions, setHasMoreQuestions] = useState(false);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [attemptResult, setAttemptResult] = useState<AttemptResult | null>(null);
+  const [questionDebug, setQuestionDebug] = useState<{
+    page: number;
+    totalPages: number;
+    count: number;
+    hasMore: boolean;
+    sourceUrl?: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
       loadJambData();
     }
   }, [schoolId, schoolLoading]);
-
-  const currentQuestion = questions[currentQuestionIndex];
 
   async function loadJambData() {
     if (!schoolId) return;
@@ -163,18 +167,18 @@ export default function StudentJambPage() {
       setSelectedYear("");
       setSelectedTopic(ALL_TOPICS);
       setQuestions([]);
-      setCurrentQuestionIndex(0);
       setAnswers({});
       setAttemptResult(null);
+      setQuestionDebug(null);
       return;
     }
 
     setSelectedYear("");
     setSelectedTopic(ALL_TOPICS);
     setQuestions([]);
-    setCurrentQuestionIndex(0);
     setAnswers({});
     setAttemptResult(null);
+    setQuestionDebug(null);
 
     void loadAvailableFilters(selectedSubject).catch((error: any) => {
       console.error("Failed to load subject filters:", error);
@@ -229,6 +233,14 @@ export default function StudentJambPage() {
         page: String(page),
       });
 
+      console.info("[student/jamb/page] loading questions", {
+        subject: selectedSubject,
+        year: selectedYear,
+        topic: selectedTopic,
+        page,
+        url: `/api/student/jamb/questions?${params.toString()}`,
+      });
+
       const response = await fetch(`/api/student/jamb/questions?${params.toString()}`, {
         cache: "no-store",
       });
@@ -239,8 +251,9 @@ export default function StudentJambPage() {
         throw new Error(result.error || "Failed to load questions");
       }
 
-      const loadedQuestions = Array.isArray(result.data?.questions)
-        ? result.data.questions.map((row: any) => ({
+      const payload = result.data || {};
+      const loadedQuestions = Array.isArray(payload.questions)
+        ? payload.questions.map((row: any) => ({
             id: row.id,
             question_text: row.question_text,
             options: Array.isArray(row.options) ? row.options : [],
@@ -251,9 +264,9 @@ export default function StudentJambPage() {
           }))
         : [];
 
-
-      const pageNum = Number(result.page) || page;
-      const totalPages = result.totalPages !== undefined ? Number(result.totalPages) : undefined;
+      const pageNum = Number(payload.page) || page;
+      const totalPages = payload.totalPages !== undefined ? Number(payload.totalPages) : pageNum;
+      const hasMore = Boolean(payload.hasMore ?? pageNum < totalPages);
 
       if (loadedQuestions.length === 0 && page === 1) {
         toast.info("No questions matched the selected filters");
@@ -261,7 +274,6 @@ export default function StudentJambPage() {
 
       if (page === 1) {
         setQuestions(loadedQuestions);
-        setCurrentQuestionIndex(0);
         setAnswers({});
         setAttemptResult(null);
       } else {
@@ -270,16 +282,24 @@ export default function StudentJambPage() {
 
       setQuestionPage(pageNum);
       setQuestionTotalPages(totalPages || 1);
+      setHasMoreQuestions(hasMore);
+      setQuestionDebug({
+        page: pageNum,
+        totalPages: totalPages || 1,
+        count: loadedQuestions.length,
+        hasMore,
+        sourceUrl: payload.url,
+      });
 
-      // Determine whether there are more pages. Prefer explicit totalPages from API,
-      // otherwise infer from returned question count (if we received a full page of results).
-      if (typeof totalPages === "number") {
-        setHasMoreQuestions(pageNum < totalPages);
-      } else {
-        // If we got exactly the page size (5), assume there may be more.
-        setHasMoreQuestions(loadedQuestions.length === 5);
-      }
+      console.info("[student/jamb/page] loaded questions", {
+        page: pageNum,
+        totalPages,
+        count: loadedQuestions.length,
+        hasMore,
+        sourceUrl: payload.url,
+      });
     } catch (error: any) {
+      console.error("[student/jamb/page] question load failed", error);
       toast.error(error.message || "Failed to load questions");
     } finally {
       setLoadingQuestions(false);
@@ -488,7 +508,7 @@ export default function StudentJambPage() {
                   variant="outline"
                   onClick={() => loadQuestions(questionPage + 1)}
                   disabled={
-                    loadingQuestions || !questions.length || questionPage >= questionTotalPages
+                    loadingQuestions || !questions.length || !hasMoreQuestions
                   }
                   className="gap-2"
                 >
@@ -519,79 +539,97 @@ export default function StudentJambPage() {
                   {attemptResult ? "Saved" : "Not submitted"}
                 </p>
               </div>
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                <p className="text-sm text-gray-500">Debug</p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {questionDebug ? `${questionDebug.count} returned, ${questionDebug.hasMore ? "more pages available" : "last page reached"}` : "No fetch yet"}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {questionDebug ? `Page ${questionDebug.page} of ${questionDebug.totalPages}` : "Load a page to see request details"}
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        {questions.length > 0 && currentQuestion ? (
-          <Card className="shadow-lg">
-            <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <CardTitle>
-                    Question {currentQuestionIndex + 1} of {questions.length}
-                  </CardTitle>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {currentQuestion.subject_name} · {currentQuestion.exam_year}
-                    {currentQuestion.topic ? ` · ${currentQuestion.topic}` : ""}
-                  </p>
-                </div>
-                <Badge variant="outline">JAMB CBT</Badge>
+        {questions.length > 0 ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
+              <div>
+                <p className="text-sm text-gray-500">Loaded questions</p>
+                <p className="text-lg font-semibold text-gray-900">
+                  Showing {questions.length} question{questions.length === 1 ? "" : "s"}
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-6 p-6">
-              <p className="text-lg font-medium text-gray-900">{currentQuestion.question_text}</p>
+              <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                Submit Attempt
+              </Button>
+            </div>
 
-              <div className="grid gap-3">
-                {currentQuestion.options.map((option, index) => {
-                  const selected = answers[currentQuestion.id] === option;
-                  return (
-                    <Button
-                      key={`${currentQuestion.id}-${index}`}
-                      type="button"
-                      variant={selected ? "default" : "outline"}
-                      className={`justify-start py-6 text-left ${selected ? "border-blue-600" : ""}`}
-                      onClick={() => recordAnswer(currentQuestion.id, option)}
-                    >
-                      <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
-                        {String.fromCharCode(65 + index)}
+            <div className="space-y-5">
+              {questions.map((question, questionIndex) => (
+                <Card key={question.id} className="overflow-hidden shadow-lg">
+                  <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <CardTitle>
+                          Question {questionIndex + 1}
+                        </CardTitle>
+                        <p className="mt-1 text-sm text-gray-500">
+                          {question.subject_name} · {question.exam_year}
+                          {question.topic ? ` · ${question.topic}` : ""}
+                        </p>
+                      </div>
+                      <Badge variant="outline">JAMB CBT</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-5 p-6">
+                    <p className="text-lg font-medium text-gray-900">{question.question_text}</p>
+
+                    <div className="grid gap-3">
+                      {question.options.map((option, optionIndex) => {
+                        const selected = answers[question.id] === option;
+                        return (
+                          <Button
+                            key={`${question.id}-${optionIndex}`}
+                            type="button"
+                            variant={selected ? "default" : "outline"}
+                            className={`justify-start py-6 text-left ${selected ? "border-blue-600" : ""}`}
+                            onClick={() => recordAnswer(question.id, option)}
+                          >
+                            <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
+                              {String.fromCharCode(65 + optionIndex)}
+                            </span>
+                            <span className="text-base">{option}</span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
+                      <span>
+                        {answers[question.id]
+                          ? `Selected answer: ${answers[question.id]}`
+                          : "No answer selected yet"}
                       </span>
-                      <span className="text-base">{option}</span>
-                    </Button>
-                  );
-                })}
-              </div>
+                      <span>Question {questionIndex + 1} of {questions.length}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCurrentQuestionIndex((current) => Math.max(0, current - 1))}
-                  disabled={currentQuestionIndex === 0}
-                  className="gap-2"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-
-                {currentQuestionIndex < questions.length - 1 ? (
-                  <Button
-                    type="button"
-                    onClick={() => setCurrentQuestionIndex((current) => Math.min(questions.length - 1, current + 1))}
-                    className="gap-2"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-                    Submit Attempt
-                  </Button>
-                )}
+            <div className="flex items-center justify-between gap-3 rounded-2xl border bg-white px-5 py-4 shadow-sm">
+              <div className="text-sm text-gray-600">
+                {hasMoreQuestions ? "More questions are available from the source page sequence." : "You are on the last available page."}
               </div>
-            </CardContent>
-          </Card>
+              <Button type="button" variant="outline" onClick={() => loadQuestions(questionPage + 1)} disabled={loadingQuestions || !hasMoreQuestions} className="gap-2">
+                {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
+                Load next 5
+              </Button>
+            </div>
+          </div>
         ) : null}
 
         {attemptResult ? (

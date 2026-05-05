@@ -65,6 +65,7 @@ export default function StudentJambPage() {
     count: number;
     hasMore: boolean;
     sourceUrl?: string;
+    samples?: string[];
   } | null>(null);
 
   useEffect(() => {
@@ -252,6 +253,7 @@ export default function StudentJambPage() {
       }
 
       const payload = result.data || {};
+      console.debug("[student/jamb/page] questions payload:", payload);
       const loadedQuestions = Array.isArray(payload.questions)
         ? payload.questions.map((row: any) => ({
             id: row.id,
@@ -287,6 +289,7 @@ export default function StudentJambPage() {
         count: loadedQuestions.length,
         hasMore,
         sourceUrl: payload.url,
+        samples: loadedQuestions.slice(0, 3).map((q: any) => q.question_text),
       });
 
       console.info("[student/jamb/page] loaded questions", {
@@ -533,6 +536,20 @@ export default function StudentJambPage() {
                 <p className="mt-1 text-xs text-gray-500">
                   {questionDebug ? `Page ${questionDebug.page} of ${questionDebug.totalPages}` : "Load a page to see request details"}
                 </p>
+                {questionDebug ? (
+                  <div className="mt-2 text-xs text-slate-600">
+                    <div className="font-medium text-slate-700">Sample questions (first 3):</div>
+                    <ol className="list-decimal list-inside">
+                      {questionDebug.samples && questionDebug.samples.length ? (
+                        questionDebug.samples.map((s, i) => (
+                          <li key={i} className="truncate">{s}</li>
+                        ))
+                      ) : (
+                        <li>No sample available</li>
+                      )}
+                    </ol>
+                  </div>
+                ) : null}
               </div>
             </CardContent>
           </Card>

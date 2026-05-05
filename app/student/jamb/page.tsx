@@ -236,10 +236,68 @@ export default function StudentJambPage() {
     }, 0);
   }, [answers, questions]);
 
+  const totalQuestions = useMemo(() => {
+    return questionTotalPages * QUESTIONS_PER_PAGE;
+  }, [questionTotalPages]);
+
+  const totalAnsweredCount = useMemo(() => {
+    let count = 0;
+    for (let page = 1; page <= questionTotalPages; page++) {
+      const draftKey = getDraftKey(selectedSubject, selectedYear, selectedTopic);
+      try {
+        const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const pageAnswers = parsed.answers || {};
+          count += Object.keys(pageAnswers).length;
+        }
+      } catch (e) {
+        console.error("Failed to count answers", e);
+      }
+    }
+    return count;
+  }, [questionTotalPages, selectedSubject, selectedYear, selectedTopic, answers]);
+
   const progressPercent = useMemo(() => {
-    if (!questions.length) return 0;
-    return Math.round((answeredCount / questions.length) * 100);
-  }, [answeredCount, questions.length]);
+    if (!totalQuestions) return 0;
+    return Math.round((totalAnsweredCount / totalQuestions) * 100);
+  }, [totalAnsweredCount, totalQuestions]);
+
+  const isPageComplete = (pageNum: number): boolean => {
+    if (pageNum === questionPage) {
+      return answeredCount === QUESTIONS_PER_PAGE;
+    }
+    const draftKey = getDraftKey(selectedSubject, selectedYear, selectedTopic);
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const pageAnswers = parsed.answers || {};
+        return Object.keys(pageAnswers).length >= QUESTIONS_PER_PAGE;
+      }
+    } catch (e) {
+      console.error("Failed to check page completion", e);
+    }
+    return false;
+  };
+
+  const getPageAnsweredCount = (pageNum: number): number => {
+    if (pageNum === questionPage) {
+      return answeredCount;
+    }
+    const draftKey = getDraftKey(selectedSubject, selectedYear, selectedTopic);
+    try {
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const pageAnswers = parsed.answers || {};
+        return Object.keys(pageAnswers).length;
+      }
+    } catch (e) {
+      console.error("Failed to count page answers", e);
+    }
+    return 0;
+  };
 
   async function loadAvailableFilters(subjectSlug: string) {
     const response = await fetch(`/api/scrape/available?subject=${encodeURIComponent(subjectSlug)}`, {
@@ -594,20 +652,20 @@ export default function StudentJambPage() {
                 <p className="mt-1 font-semibold text-gray-900">{filteredSubjectLabel}</p>
               </div>
               <div className="rounded-xl border bg-white p-4">
-                <p className="text-sm text-gray-500">Questions loaded</p>
-                <p className="mt-1 font-semibold text-gray-900">{questions.length}</p>
-                <p className="mt-1 text-xs text-gray-500">Page {questionPage} of {questionTotalPages}</p>
+                <p className="text-sm text-gray-500">Total questions</p>
+                <p className="mt-1 font-semibold text-gray-900">{totalQuestions}</p>
+                <p className="mt-1 text-xs text-gray-500">{questionTotalPages} tabs × {QUESTIONS_PER_PAGE} questions</p>
               </div>
               <div className="rounded-xl border bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-gray-500">Progress</p>
+                  <p className="text-sm text-gray-500">Overall Progress</p>
                   <p className="text-sm font-semibold text-gray-900">
-                    {answeredCount}/{questions.length || 0} answered
+                    {totalAnsweredCount}/{totalQuestions} answered
                   </p>
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 transition-all"
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -638,12 +696,12 @@ export default function StudentJambPage() {
             <div className="flex flex-col gap-3 rounded-2xl border bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Loaded questions</p>
+                  <p className="text-sm text-gray-500">Overall Progress</p>
                   <p className="text-lg font-semibold text-gray-900">
-                    Showing page {questionPage} of {questionTotalPages}
+                    {totalAnsweredCount} / {totalQuestions} questions answered
                   </p>
                   <p className="mt-1 text-sm text-gray-600">
-                    {answeredCount}/{questions.length} answered · {progressPercent}% complete
+                    Page {questionPage}: {answeredCount}/{QUESTIONS_PER_PAGE} answered · {progressPercent}% total
                   </p>
                 </div>
                 <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
@@ -663,18 +721,32 @@ export default function StudentJambPage() {
                   Previous
                 </Button>
                 <div className="flex flex-wrap items-center gap-1">
-                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === questionPage ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => loadQuestions(pageNum)}
-                      disabled={loadingQuestions}
-                      className="min-w-10"
-                    >
-                      {pageNum}
-                    </Button>
-                  ))}
+                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => {
+                    const isComplete = isPageComplete(pageNum);
+                    const isCurrent = pageNum === questionPage;
+                    const pageAnswered = getPageAnsweredCount(pageNum);
+                    const hasAnswers = pageAnswered > 0;
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={isCurrent ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadQuestions(pageNum)}
+                        disabled={loadingQuestions}
+                        className={`min-w-10 transition-all ${
+                          isComplete && !isCurrent
+                            ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
+                            : hasAnswers && !isCurrent
+                            ? "border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200"
+                            : ""
+                        }`}
+                        title={isComplete ? "Complete! 5/5 answered" : hasAnswers ? `${pageAnswered}/5 answered` : ""}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
                 </div>
                 <Button
                   variant="outline"
@@ -752,7 +824,7 @@ export default function StudentJambPage() {
             <div className="flex flex-col gap-3 rounded-2xl border bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between border-b pb-3">
                 <div className="text-sm text-gray-600">
-                  Page {questionPage} of {questionTotalPages}
+                  Page {questionPage} of {questionTotalPages} · {answeredCount}/{QUESTIONS_PER_PAGE} answered on this tab
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -767,18 +839,32 @@ export default function StudentJambPage() {
                   Previous
                 </Button>
                 <div className="flex flex-wrap items-center gap-1">
-                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === questionPage ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => loadQuestions(pageNum)}
-                      disabled={loadingQuestions}
-                      className="min-w-10"
-                    >
-                      {pageNum}
-                    </Button>
-                  ))}
+                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => {
+                    const isComplete = isPageComplete(pageNum);
+                    const isCurrent = pageNum === questionPage;
+                    const pageAnswered = getPageAnsweredCount(pageNum);
+                    const hasAnswers = pageAnswered > 0;
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={isCurrent ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadQuestions(pageNum)}
+                        disabled={loadingQuestions}
+                        className={`min-w-10 transition-all ${
+                          isComplete && !isCurrent
+                            ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
+                            : hasAnswers && !isCurrent
+                            ? "border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200"
+                            : ""
+                        }`}
+                        title={isComplete ? "Complete! 5/5 answered" : hasAnswers ? `${pageAnswered}/5 answered` : ""}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
                 </div>
                 <Button
                   variant="outline"

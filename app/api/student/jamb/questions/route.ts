@@ -143,6 +143,9 @@ export async function GET(req: NextRequest) {
           return null;
         }
 
+        const pageScopedId = `${subject}-${year}-${normalizedTopic || "all"}-${page}-${index + 1}`;
+        const sourceId = clean(question.id || "");
+
         return {
           school_id: student.school_id,
           exam_type: "jamb",
@@ -155,8 +158,7 @@ export async function GET(req: NextRequest) {
           correct_option: clean(question.correct || "") || null,
           explanation: clean(question.explanation || "") || null,
           source_url: question.answerLink || null,
-          external_question_id:
-            question.id || `${subject}-${year}-${normalizedTopic || "all"}-${page}-${index + 1}`,
+          external_question_id: sourceId ? `${pageScopedId}-${sourceId}` : pageScopedId,
         };
       })
       .filter(Boolean) as Array<{

@@ -94,18 +94,25 @@ export default function StudentJambPage() {
   function saveDraftToLocalStorage(data?: Record<string, string>, key?: string) {
     try {
       const k = key || getDraftKey();
+      const currentAnswers = data || answers;
+      const isCurrentPageComplete = questions.length === QUESTIONS_PER_PAGE &&
+        questions.every(q => currentAnswers[q.id]);
+
       const payload = {
         subject: selectedSubject,
         year: selectedYear,
         topic: selectedTopic,
         updatedAt: Date.now(),
-        answers: data || answers,
+        answers: currentAnswers,
+        pageCompletion: pageCompletion,
       };
       if (typeof window !== "undefined") window.localStorage.setItem(k, JSON.stringify(payload));
     } catch (e) {
       console.error("Failed to save draft to localStorage", e);
     }
   }
+
+  const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
@@ -264,39 +271,16 @@ export default function StudentJambPage() {
   }, [totalAnsweredCount, totalQuestions]);
 
   const isPageComplete = (pageNum: number): boolean => {
-    if (pageNum === questionPage) {
-      return answeredCount === QUESTIONS_PER_PAGE;
-    }
-    const draftKey = getDraftKey(selectedSubject, selectedYear, selectedTopic);
-    try {
-      const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const pageAnswers = parsed.answers || {};
-        return Object.keys(pageAnswers).length >= QUESTIONS_PER_PAGE;
-      }
-    } catch (e) {
-      console.error("Failed to check page completion", e);
-    }
-    return false;
+    return pageCompletion[pageNum] === true;
   };
 
   const getPageAnsweredCount = (pageNum: number): number => {
     if (pageNum === questionPage) {
       return answeredCount;
     }
-    const draftKey = getDraftKey(selectedSubject, selectedYear, selectedTopic);
-    try {
-      const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const pageAnswers = parsed.answers || {};
-        return Object.keys(pageAnswers).length;
-      }
-    } catch (e) {
-      console.error("Failed to count page answers", e);
-    }
-    return 0;
+    // For other pages, we can't reliably calculate without knowing their question IDs
+    // So we just check if the page is marked complete
+    return pageCompletion[pageNum] ? QUESTIONS_PER_PAGE : 0;
   };
 
   async function loadAvailableFilters(subjectSlug: string) {
@@ -389,6 +373,15 @@ export default function StudentJambPage() {
         if (saved && Object.keys(saved).length) {
           setAnswers((current) => ({ ...current, ...saved }));
         }
+        // Restore page completion status
+        const draftKey = getDraftKey();
+        const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.pageCompletion) {
+            setPageCompletion(parsed.pageCompletion);
+          }
+        }
       } catch (e) {
         console.error("Failed to restore saved answers", e);
       }
@@ -427,6 +420,19 @@ export default function StudentJambPage() {
       [questionId]: selectedOption,
     }));
   }
+
+  // Track page completion when answers change
+  useEffect(() => {
+    if (questions.length === QUESTIONS_PER_PAGE && questionPage) {
+      const allAnswered = questions.every(q => answers[q.id]);
+      if (allAnswered !== pageCompletion[questionPage]) {
+        setPageCompletion(prev => ({
+          ...prev,
+          [questionPage]: allAnswered
+        }));
+      }
+    }
+  }, [answers, questions, questionPage, pageCompletion]);
 
   // Persist answers to localStorage (debounced)
   useEffect(() => {

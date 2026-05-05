@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +67,45 @@ export default function StudentJambPage() {
     hasMore: boolean;
     sourceUrl?: string;
   } | null>(null);
+
+  const saveTimerRef = useRef<number | null>(null);
+
+  function getDraftKey(subject?: string, year?: string, topic?: string) {
+    const s = subject || selectedSubject || "";
+    const y = year || selectedYear || "";
+    const t = topic || selectedTopic || ALL_TOPICS;
+    const sid = schoolId || "global";
+    return `jamb_draft:${sid}:${s}:${y}:${t}`;
+  }
+
+  function loadDraftFromLocalStorage(key?: string) {
+    try {
+      const k = key || getDraftKey();
+      const raw = typeof window !== "undefined" ? window.localStorage.getItem(k) : null;
+      if (!raw) return {} as Record<string, string>;
+      const parsed = JSON.parse(raw || "{}");
+      return parsed.answers || {};
+    } catch (e) {
+      console.error("Failed to load draft from localStorage", e);
+      return {} as Record<string, string>;
+    }
+  }
+
+  function saveDraftToLocalStorage(data?: Record<string, string>, key?: string) {
+    try {
+      const k = key || getDraftKey();
+      const payload = {
+        subject: selectedSubject,
+        year: selectedYear,
+        topic: selectedTopic,
+        updatedAt: Date.now(),
+        answers: data || answers,
+      };
+      if (typeof window !== "undefined") window.localStorage.setItem(k, JSON.stringify(payload));
+    } catch (e) {
+      console.error("Failed to save draft to localStorage", e);
+    }
+  }
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
@@ -275,7 +314,15 @@ export default function StudentJambPage() {
 
       // Always replace questions when loading a new page (not append)
       setQuestions(loadedQuestions);
-      setAnswers({});
+      // Restore any saved answers for this subject/year/topic
+      try {
+        const saved = loadDraftFromLocalStorage();
+        if (saved && Object.keys(saved).length) {
+          setAnswers((current) => ({ ...current, ...saved }));
+        }
+      } catch (e) {
+        console.error("Failed to restore saved answers", e);
+      }
       setAttemptResult(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -311,6 +358,54 @@ export default function StudentJambPage() {
       [questionId]: selectedOption,
     }));
   }
+
+  // Persist answers to localStorage (debounced)
+  useEffect(() => {
+    // don't save if no subject/year selected
+    if (!selectedSubject || !selectedYear) return;
+
+    if (saveTimerRef.current) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    // debounce 800ms
+    // @ts-ignore
+    saveTimerRef.current = window.setTimeout(() => {
+      saveDraftToLocalStorage();
+      saveTimerRef.current = null;
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [answers, selectedSubject, selectedYear, selectedTopic]);
+
+  // save on unload
+  useEffect(() => {
+    function handleBeforeUnload() {
+      saveDraftToLocalStorage();
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("beforeunload", handleBeforeUnload);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+      }
+    };
+  }, [answers, selectedSubject, selectedYear, selectedTopic]);
+
+  // Auto-load questions when subject + year are selected
+  useEffect(() => {
+    if (selectedSubject && selectedYear) {
+      void loadQuestions(1);
+    }
+  // intentionally exclude loadQuestions from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSubject, selectedYear, selectedTopic]);
 
   async function submitAttempt() {
     if (!questions.length) return;
@@ -433,9 +528,6 @@ export default function StudentJambPage() {
                       </Select>
                     </div>
                   </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    {subjectLoading ? 'Loading subjects…' : `Page ${subjectPage} of ${subjectTotalPages}`}
-                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -522,7 +614,7 @@ export default function StudentJambPage() {
                 <div>
                   <p className="text-sm text-gray-500">Loaded questions</p>
                   <p className="text-lg font-semibold text-gray-900">
-                    Showing page {questionPage} of {questionTotalPages} • {questions.length} question{questions.length === 1 ? "" : "s"}
+                    Showing page {questionPage} of {questionTotalPages}
                   </p>
                 </div>
                 <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">

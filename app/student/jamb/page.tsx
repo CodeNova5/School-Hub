@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
@@ -67,6 +75,12 @@ export default function StudentJambPage() {
     hasMore: boolean;
     sourceUrl?: string;
   } | null>(null);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [pendingSession, setPendingSession] = useState<{
+    subject: string;
+    year: string;
+    topic: string;
+  } | null>(null);
 
   const saveTimerRef = useRef<number | null>(null);
 
@@ -76,6 +90,65 @@ export default function StudentJambPage() {
     const t = topic || selectedTopic || ALL_TOPICS;
     const sid = schoolId || "global";
     return `jamb_draft:${sid}:${s}:${y}:${t}`;
+  }
+
+  function getSessionKey() {
+    const sid = schoolId || "global";
+    return `jamb_session:${sid}`;
+  }
+
+  function saveSessionState(subject: string, year: string, topic: string) {
+    try {
+      if (typeof window === "undefined") return;
+      const key = getSessionKey();
+      const session = { subject, year, topic, timestamp: Date.now() };
+      window.localStorage.setItem(key, JSON.stringify(session));
+    } catch (e) {
+      console.error("Failed to save session state", e);
+    }
+  }
+
+  function loadSessionState() {
+    try {
+      if (typeof window === "undefined") return null;
+      const key = getSessionKey();
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error("Failed to load session state", e);
+      return null;
+    }
+  }
+
+  function clearSessionState() {
+    try {
+      if (typeof window === "undefined") return;
+      const key = getSessionKey();
+      window.localStorage.removeItem(key);
+    } catch (e) {
+      console.error("Failed to clear session state", e);
+    }
+  }
+
+  function handleRestoreSession() {
+    if (pendingSession) {
+      setSelectedSubject(pendingSession.subject);
+      setSelectedYear(pendingSession.year);
+      setSelectedTopic(pendingSession.topic);
+      setShowRestoreDialog(false);
+    }
+  }
+
+  function handleStartFresh() {
+    clearSessionState();
+    setSelectedSubject("");
+    setSelectedYear("");
+    setSelectedTopic(ALL_TOPICS);
+    setAnswers({});
+    setQuestions([]);
+    setShowRestoreDialog(false);
+    toast.success("Started fresh session");
   }
 
   function loadDraftFromLocalStorage(key?: string) {
@@ -165,6 +238,13 @@ export default function StudentJambPage() {
       }
 
       setHasAccess(true);
+
+      // Check for existing session to restore
+      const savedSession = loadSessionState();
+      if (savedSession && savedSession.subject && savedSession.year) {
+        setPendingSession(savedSession);
+        setShowRestoreDialog(true);
+      }
 
       // load first page of subjects
       await fetchSubjects(1);
@@ -462,6 +542,7 @@ export default function StudentJambPage() {
   // Auto-load questions when subject + year are selected
   useEffect(() => {
     if (selectedSubject && selectedYear) {
+      saveSessionState(selectedSubject, selectedYear, selectedTopic);
       void loadQuestions(1);
     }
   // intentionally exclude loadQuestions from deps
@@ -543,6 +624,26 @@ export default function StudentJambPage() {
 
   return (
     <DashboardLayout role="student">
+      <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Continue Previous Session?</AlertDialogTitle>
+          <AlertDialogDescription>
+            We found your previous practice session. Would you like to resume where you left off?
+            {pendingSession && (
+              <div className="mt-3 space-y-2 rounded-lg bg-slate-100 p-3">
+                <div className="text-sm"><span className="font-semibold text-gray-700">Subject:</span> {subjects.find(s => s.slug === pendingSession.subject)?.name || pendingSession.subject}</div>
+                <div className="text-sm"><span className="font-semibold text-gray-700">Year:</span> {pendingSession.year}</div>
+                {pendingSession.topic !== ALL_TOPICS && <div className="text-sm"><span className="font-semibold text-gray-700">Topic:</span> {pendingSession.topic}</div>}
+              </div>
+            )}
+          </AlertDialogDescription>
+          <div className="flex gap-3 justify-end">
+            <AlertDialogCancel onClick={handleStartFresh}>Start Fresh</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreSession}>Resume Session</AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="space-y-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -566,14 +667,16 @@ export default function StudentJambPage() {
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <Card className="shadow-lg">
             <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-              <CardTitle>Select Practice Filters</CardTitle>
+              <CardTitle>Practice Filters</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5 p-6">
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Subject</p>
                   <div className="flex items-center gap-2">
-
+                    <Badge variant="outline" className="bg-blue-50">Step 1</Badge>
+                    <p className="text-sm font-medium text-gray-700">Subject</p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <div className="flex-1">
                       <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                         <SelectTrigger>
@@ -592,10 +695,13 @@ export default function StudentJambPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Year</p>
-                  <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose year" />
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={selectedSubject ? "bg-blue-50" : "bg-gray-50"}>Step 2</Badge>
+                    <p className="text-sm font-medium text-gray-700">Year</p>
+                  </div>
+                  <Select value={selectedYear} onValueChange={setSelectedYear} disabled={!selectedSubject}>
+                    <SelectTrigger className={!selectedSubject ? "opacity-50 cursor-not-allowed" : ""}>
+                      <SelectValue placeholder={selectedSubject ? "Choose year" : "Select subject first"} />
                     </SelectTrigger>
                     <SelectContent>
                       {years.map((year) => (
@@ -608,10 +714,13 @@ export default function StudentJambPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Topic</p>
-                  <Select value={selectedTopic} onValueChange={setSelectedTopic}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All topics" />
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={selectedYear ? "bg-blue-50" : "bg-gray-50"}>Step 3</Badge>
+                    <p className="text-sm font-medium text-gray-700">Topic</p>
+                  </div>
+                  <Select value={selectedTopic} onValueChange={setSelectedTopic} disabled={!selectedYear}>
+                    <SelectTrigger className={!selectedYear ? "opacity-50 cursor-not-allowed" : ""}>
+                      <SelectValue placeholder={selectedYear ? "All topics" : "Select year first"} />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={ALL_TOPICS}>All topics</SelectItem>
@@ -624,6 +733,12 @@ export default function StudentJambPage() {
                   </Select>
                 </div>
               </div>
+
+              {selectedSubject && selectedYear && (
+                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-center gap-2 text-sm text-blue-900">
+                  <span>📚 {subjects.find(s => s.slug === selectedSubject)?.name} • 📅 {selectedYear} {selectedTopic !== ALL_TOPICS && `• 📖 ${selectedTopic}`}</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-2">
                 <Button onClick={() => loadQuestions(1)} disabled={loadingQuestions || !selectedSubject || !selectedYear} className="gap-2">
@@ -641,18 +756,18 @@ export default function StudentJambPage() {
             <CardContent className="space-y-4 p-6">
               <div className="rounded-xl border bg-white p-4">
                 <p className="text-sm text-gray-500">Selected subject</p>
-                <p className="mt-1 font-semibold text-gray-900">{filteredSubjectLabel}</p>
+                <p className="mt-1 font-semibold text-gray-900">{filteredSubjectLabel || "—"}</p>
               </div>
               <div className="rounded-xl border bg-white p-4">
-                <p className="text-sm text-gray-500">Total questions</p>
-                <p className="mt-1 font-semibold text-gray-900">{totalQuestions}</p>
-                <p className="mt-1 text-xs text-gray-500">{questionTotalPages} tabs × {QUESTIONS_PER_PAGE} questions</p>
+                <p className="text-sm text-gray-500">Total questions available</p>
+                <p className="mt-1 font-semibold text-gray-900">{totalQuestions || "—"}</p>
+                {totalQuestions > 0 && <p className="mt-1 text-xs text-gray-500">{questionTotalPages} pages × {QUESTIONS_PER_PAGE} questions</p>}
               </div>
               <div className="rounded-xl border bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm text-gray-500">Overall Progress</p>
                   <p className="text-sm font-semibold text-gray-900">
-                    {totalAnsweredCount}/{totalQuestions} answered
+                    {totalAnsweredCount}/{totalQuestions}
                   </p>
                 </div>
                 <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
@@ -662,6 +777,13 @@ export default function StudentJambPage() {
                   />
                 </div>
                 <p className="mt-2 text-xs text-gray-500">{progressPercent}% complete</p>
+              </div>
+              <div className="rounded-xl border bg-white p-4">
+                <p className="text-sm text-gray-500">Pages completed</p>
+                <p className="mt-1 font-semibold text-gray-900">
+                  {Object.values(pageCompletion).filter(Boolean).length}/{questionTotalPages}
+                </p>
+                {questionTotalPages > 0 && <p className="mt-1 text-xs text-gray-500">{QUESTIONS_PER_PAGE} questions per page</p>}
               </div>
               <div className="rounded-xl border bg-white p-4">
                 <p className="text-sm text-gray-500">Attempt status</p>
@@ -803,7 +925,7 @@ export default function StudentJambPage() {
                           ? `Selected answer: ${answers[question.id]}`
                           : "No answer selected yet"}
                       </span>
-                      <span>Question {displayQuestionNumber} of {questions.length}</span>
+                      <span>Question {displayQuestionNumber}</span>
                     </div>
                   </CardContent>
                 </Card>

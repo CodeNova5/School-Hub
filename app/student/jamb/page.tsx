@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { formatJambText } from "@/lib/format-jamb-text";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -1011,7 +1012,7 @@ export default function StudentJambPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-5 p-6">
-                    <p className="text-lg font-medium text-gray-900">{question.question_text}</p>
+                    <p className="text-lg font-medium text-gray-900">{formatJambText(question.question_text)}</p>
 
                     <div className="grid gap-3">
                       {question.options.map((option, optionIndex) => {
@@ -1027,7 +1028,7 @@ export default function StudentJambPage() {
                             <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                               {String.fromCharCode(65 + optionIndex)}
                             </span>
-                            <span className="text-base">{option}</span>
+                            <span className="text-base">{formatJambText(option)}</span>
                           </Button>
                         );
                       })}
@@ -1411,21 +1412,21 @@ export default function StudentJambPage() {
                           {item.questionText && (
                             <div>
                               <p className="text-gray-600 mb-1">Question:</p>
-                              <p className="text-gray-900">{item.questionText}</p>
+                              <p className="text-gray-900">{formatJambText(item.questionText)}</p>
                             </div>
                           )}
                           <div className="rounded bg-red-50 p-2 border border-red-200">
                             <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900">{item.userAnswer}</p>
+                            <p className="text-red-900">{formatJambText(item.userAnswer)}</p>
                           </div>
                           <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
                             <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900">{item.correctAnswer}</p>
+                            <p className="text-emerald-900">{formatJambText(item.correctAnswer)}</p>
                           </div>
                           {item.explanation && (
                             <div className="rounded bg-blue-50 p-2 border border-blue-200">
                               <p className="text-blue-700 font-medium">Explanation:</p>
-                              <p className="text-blue-900 text-xs">{item.explanation}</p>
+                              <p className="text-blue-900 text-xs">{formatJambText(item.explanation)}</p>
                             </div>
                           )}
                         </div>

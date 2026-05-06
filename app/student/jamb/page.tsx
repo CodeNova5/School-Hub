@@ -20,7 +20,7 @@ import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Loader2, Lock, PlayCircle, ShieldCheck, Trophy, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Lock, ShieldCheck, Trophy, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -76,18 +76,25 @@ export default function StudentJambPage() {
   const [studentName, setStudentName] = useState("");
   const [hasAccess, setHasAccess] = useState(false);
   const [subjects, setSubjects] = useState<SubjectOption[]>([]);
-  const [subjectPage, setSubjectPage] = useState(1);
-  const [subjectTotalPages, setSubjectTotalPages] = useState(1);
-  const [subjectLoading, setSubjectLoading] = useState(false);
+  const [, setSubjectLoading] = useState(false);
+  const [, setSubjectPage] = useState(1);
+  const [, setSubjectTotalPages] = useState(1);
   const [years, setYears] = useState<number[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedTopic, setSelectedTopic] = useState(ALL_TOPICS);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [, setHasMoreQuestions] = useState(false);
+  const [, setQuestionDebug] = useState<{
+    page: number;
+    totalPages: number;
+    count: number;
+    hasMore: boolean;
+    sourceUrl?: string;
+  } | null>(null);
   const [questionPage, setQuestionPage] = useState(1);
   const [questionTotalPages, setQuestionTotalPages] = useState(1);
-  const [hasMoreQuestions, setHasMoreQuestions] = useState(false);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -100,22 +107,37 @@ export default function StudentJambPage() {
   } | null>(null);
   const [showResultWizard, setShowResultWizard] = useState(false);
   const [resultWizardStep, setResultWizardStep] = useState(1);
-  const [questionDebug, setQuestionDebug] = useState<{
-    page: number;
-    totalPages: number;
-    count: number;
-    hasMore: boolean;
-    sourceUrl?: string;
-  } | null>(null);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [showPreSubmitReview, setShowPreSubmitReview] = useState(false);
   const [pendingSession, setPendingSession] = useState<{
     subject: string;
     year: string;
     topic: string;
   } | null>(null);
 
-  const saveTimerRef = useRef<number | null>(null);
+  // Track all question IDs across all pages for accurate submission
+  const [allQuestionIds, setAllQuestionIds] = useState<{id: string; pageNum: number}[]>([]);
+
+  // When questions load for a page, register their IDs
+  useEffect(() => {
+    if (questions.length > 0 && questionPage) {
+      setAllQuestionIds(prev => {
+        // Remove any existing entries for this page
+        const filtered = prev.filter(q => q.pageNum !== questionPage);
+        const newEntries = questions.map(q => ({ id: q.id, pageNum: questionPage }));
+        return [...filtered, ...newEntries];
+      });
+    }
+  }, [questions, questionPage]);
+
+  // Reset allQuestionIds when session resets
+  useEffect(() => {
+    if (!selectedSubject || !selectedYear) {
+      setAllQuestionIds([]);
+    }
+  }, [selectedSubject, selectedYear]);
   const isRestoringDraftRef = useRef(false);
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   function getDraftKey(subject?: string, year?: string, topic?: string) {
     const s = subject || selectedSubject || "";
@@ -182,6 +204,7 @@ export default function StudentJambPage() {
     setSelectedTopic(ALL_TOPICS);
     setAnswers({});
     setQuestions([]);
+    setAllQuestionIds([]);
     setShowRestoreDialog(false);
     toast.success("Started fresh session");
   }
@@ -553,6 +576,7 @@ export default function StudentJambPage() {
     if (pendingFilterChange) {
       setAnswers({});
       setQuestions([]);
+      setAllQuestionIds([]);
       setAttemptResult(null);
       setIsSessionActive(false);
       clearSessionState();
@@ -634,10 +658,22 @@ export default function StudentJambPage() {
   }, [selectedSubject, selectedYear, selectedTopic]);
 
   async function submitAttempt() {
-    if (!questions.length) return;
+    if (!allQuestionIds.length && !questions.length) return;
 
     try {
       setSubmitting(true);
+      setShowPreSubmitReview(false);
+
+      // Use all tracked question IDs across all pages
+      const questionIdsToSubmit = allQuestionIds.length > 0
+        ? allQuestionIds.map(q => q.id)
+        : questions.map(q => q.id);
+
+      const answersPayload = questionIdsToSubmit.map((questionId) => ({
+        questionId,
+        selectedOption: answers[questionId] || null,
+      }));
+
       const response = await fetch("/api/student/jamb/attempts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -646,10 +682,7 @@ export default function StudentJambPage() {
           subjectName: filteredSubjectLabel,
           examYear: Number(selectedYear),
           topic: selectedTopic === ALL_TOPICS ? null : selectedTopic,
-          answers: questions.map((question) => ({
-            questionId: question.id,
-            selectedOption: answers[question.id] || null,
-          })),
+          answers: answersPayload,
         }),
       });
 
@@ -889,28 +922,35 @@ export default function StudentJambPage() {
                 </div>
                 <p className="mt-2 text-xs text-gray-500">{progressPercent}% complete</p>
               </div>
-              <div className="rounded-xl border bg-white p-4">
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
                 <p className="text-sm text-gray-500">Pages completed</p>
                 <p className="mt-1 font-semibold text-gray-900">
                   {Object.values(pageCompletion).filter(Boolean).length}/{questionTotalPages}
                 </p>
                 {questionTotalPages > 0 && <p className="mt-1 text-xs text-gray-500">{QUESTIONS_PER_PAGE} questions per page</p>}
               </div>
-              <div className="rounded-xl border bg-white p-4">
-                <p className="text-sm text-gray-500">Attempt status</p>
-                <p className="mt-1 font-semibold text-gray-900">
-                  {attemptResult ? "Saved" : "Not submitted"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                <p className="text-sm text-gray-500">Debug</p>
-                <p className="mt-1 font-semibold text-gray-900">
-                  {questionDebug ? `${questionDebug.count} returned, ${questionDebug.hasMore ? "more pages available" : "last page reached"}` : "No fetch yet"}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {questionDebug ? `Page ${questionDebug.page} of ${questionDebug.totalPages}` : "Load a page to see request details"}
-                </p>
-              </div>
+
+              {questions.length > 0 && !attemptResult && (
+                <div className="space-y-2 pt-2">
+                  <Button
+                    type="button"
+                    onClick={() => setShowPreSubmitReview(true)}
+                    disabled={submitting}
+                    className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                    Submit Attempt
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleSaveAndExit}
+                    className="w-full gap-2"
+                  >
+                    Save & Exit
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -933,7 +973,7 @@ export default function StudentJambPage() {
                   <Button variant="outline" onClick={handleSaveAndExit} className="gap-2">
                     Save & Exit
                   </Button>
-                  <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
+                  <Button type="button" onClick={() => setShowPreSubmitReview(true)} disabled={submitting} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
                     Submit Attempt
                   </Button>
@@ -1128,6 +1168,140 @@ export default function StudentJambPage() {
           </Card>
         ) : null}
       </div>
+
+      <Dialog open={showPreSubmitReview} onOpenChange={setShowPreSubmitReview}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <ShieldCheck className="h-5 w-5 text-emerald-600" />
+              Review Before Submitting
+            </DialogTitle>
+            <DialogDescription>
+              Check your progress across all pages before submitting. Unanswered questions will be marked incorrect.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-2">
+            {/* Summary stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-xl border bg-emerald-50 p-4 text-center">
+                <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">Answered</p>
+                <p className="mt-1 text-3xl font-bold text-emerald-800">{totalAnsweredCount}</p>
+              </div>
+              <div className="rounded-xl border bg-amber-50 p-4 text-center">
+                <p className="text-xs text-amber-700 font-medium uppercase tracking-wide">Unanswered</p>
+                <p className="mt-1 text-3xl font-bold text-amber-800">
+                  {(allQuestionIds.length || totalQuestions) - totalAnsweredCount}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-blue-50 p-4 text-center">
+                <p className="text-xs text-blue-700 font-medium uppercase tracking-wide">Total</p>
+                <p className="mt-1 text-3xl font-bold text-blue-800">{allQuestionIds.length || totalQuestions}</p>
+              </div>
+            </div>
+
+            {/* Overall progress bar */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-gray-700">Overall Completion</p>
+                <p className="text-sm font-semibold text-gray-900">{progressPercent}%</p>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Per-page breakdown */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-3">Page-by-page Breakdown</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => {
+                  const isComplete = isPageComplete(pageNum);
+                  const pageAnswered = getPageAnsweredCount(pageNum);
+                  const isCurrent = pageNum === questionPage;
+
+                  return (
+                    <div
+                      key={pageNum}
+                      className={`flex items-center justify-between rounded-lg border p-3 ${
+                        isComplete
+                          ? "border-emerald-200 bg-emerald-50"
+                          : pageAnswered > 0
+                          ? "border-amber-200 bg-amber-50"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {isComplete ? (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                        ) : pageAnswered > 0 ? (
+                          <HelpCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                        )}
+                        <span className="text-sm font-medium text-gray-800">
+                          Page {pageNum}
+                          {isCurrent && <span className="ml-2 text-xs text-blue-600 font-normal">(current)</span>}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
+                          <div
+                            className={`h-full rounded-full ${isComplete ? "bg-emerald-500" : "bg-amber-400"}`}
+                            style={{ width: `${(pageAnswered / QUESTIONS_PER_PAGE) * 100}%` }}
+                          />
+                        </div>
+                        <span className={`text-sm font-semibold ${isComplete ? "text-emerald-700" : pageAnswered > 0 ? "text-amber-700" : "text-slate-500"}`}>
+                          {pageAnswered}/{QUESTIONS_PER_PAGE}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Warning if unanswered */}
+            {totalAnsweredCount < (allQuestionIds.length || totalQuestions) && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
+                  <HelpCircle className="h-4 w-4" />
+                  You have {(allQuestionIds.length || totalQuestions) - totalAnsweredCount} unanswered question(s).
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  You can still submit — unanswered questions will count as incorrect.
+                </p>
+              </div>
+            )}
+
+            {totalAnsweredCount === (allQuestionIds.length || totalQuestions) && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  All questions answered! You&apos;re ready to submit.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 justify-end border-t pt-4">
+            <Button variant="outline" onClick={() => setShowPreSubmitReview(false)}>
+              Go Back & Review
+            </Button>
+            <Button
+              onClick={submitAttempt}
+              disabled={submitting}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+              Confirm & Submit
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showResultWizard} onOpenChange={setShowResultWizard}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

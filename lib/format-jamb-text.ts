@@ -52,12 +52,12 @@ function convertSubscripts(text: string): string {
   
   // Handle _{...} pattern (curly braces)
   result = result.replace(/_\{([^}]+)\}/g, (match, content) => {
-    return content.split('').map(char => subscripts[char.toLowerCase()] || char).join('');
+    return content.split('').map((char: string) => subscripts[char.toLowerCase()] || char).join('');
   });
   
   // Handle _X pattern (single character)
   result = result.replace(/_([a-zA-Z0-9+\-=()]+)/g, (match, content) => {
-    return content.split('').map(char => subscripts[char.toLowerCase()] || char).join('');
+    return content.split('').map((char: string) => subscripts[char.toLowerCase()] || char).join('');
   });
   
   return result;
@@ -81,12 +81,12 @@ function convertSuperscripts(text: string): string {
   
   // Handle ^{...} pattern (curly braces)
   result = result.replace(/\^\{([^}]+)\}/g, (match, content) => {
-    return content.split('').map(char => superscripts[char.toLowerCase()] || char).join('');
+    return content.split('').map((char: string) => superscripts[char.toLowerCase()] || char).join('');
   });
   
   // Handle ^X pattern (single character)
   result = result.replace(/\^([a-zA-Z0-9+\-=()]+)/g, (match, content) => {
-    return content.split('').map(char => superscripts[char.toLowerCase()] || char).join('');
+    return content.split('').map((char: string) => superscripts[char.toLowerCase()] || char).join('');
   });
   
   return result;
@@ -96,13 +96,18 @@ function convertSuperscripts(text: string): string {
 function cleanEscapedCharacters(text: string): string {
   let result = text;
   
+  // Normalize duplicated escape slashes that often come back from the API
+  result = result.replace(/\\{2,}/g, '\\');
+
+  // Convert wrapped math fragments like \({23}\) into superscript notation
+  result = result.replace(/\\\(\s*\{([^}]+)\}\s*\\?\)/g, '^{$1}');
+
+  // Handle JAMB-style \L_2\) / \R_2\) artifacts before generic cleanup
+  result = result.replace(/\\[LR]\s*_\s*(\d+)\s*\\?\)/g, '_$1');
+
   // Remove unnecessary backslashes before common characters
-  result = result.replace(/\\([({)\-_])/g, '$1');
-  
-  // Handle escaped opening/closing patterns like \L and \)
-  result = result.replace(/\\[LR](?=[\d_])/g, '');
-  result = result.replace(/\\\)/g, '');
-  result = result.replace(/\\L\s*_\s*(\d+)\s*\)/g, (match, num) => `_${num}`);
+  result = result.replace(/\\([(){}\[\]_^\-])/g, '$1');
+  result = result.replace(/\\[LR]/g, '');
   
   return result;
 }

@@ -55,9 +55,19 @@ function convertSubscripts(text: string): string {
     return content.split('').map((char: string) => subscripts[char.toLowerCase()] || char).join('');
   });
   
-  // Handle _X pattern (single character)
-  result = result.replace(/_([a-zA-Z0-9+\-=()]+)/g, (match, content) => {
-    return content.split('').map((char: string) => subscripts[char.toLowerCase()] || char).join('');
+  // Handle _X pattern (single character), but do it iteratively to handle consecutive subscripts
+  // This keeps replacing one at a time to avoid regex conflicts
+  let lastResult = '';
+  while (lastResult !== result) {
+    lastResult = result;
+    result = result.replace(/_([a-zA-Z0-9+\-=()]\b)/, (match, char) => {
+      return subscripts[char.toLowerCase()] || char;
+    });
+  }
+  
+  // Also handle cases like _23 or _123 (multiple digits in sequence)
+  result = result.replace(/_(\d+)(?=[A-Za-z]|$|\s)/g, (match, digits) => {
+    return digits.split('').map((d: string) => subscripts[d] || d).join('');
   });
   
   return result;
@@ -84,8 +94,12 @@ function convertSuperscripts(text: string): string {
     return content.split('').map((char: string) => superscripts[char.toLowerCase()] || char).join('');
   });
   
-  // Handle ^X pattern (single character)
-  result = result.replace(/\^([a-zA-Z0-9+\-=()]+)/g, (match, content) => {
+  // Handle ^X pattern (single character or multiple digits)
+  result = result.replace(/\^(\d+)(?=[A-Za-z]|$|\s)/g, (match, digits) => {
+    return digits.split('').map((d: string) => superscripts[d] || d).join('');
+  });
+  
+  result = result.replace(/\^([a-zA-Z+\-=()]+)/g, (match, content) => {
     return content.split('').map((char: string) => superscripts[char.toLowerCase()] || char).join('');
   });
   

@@ -20,7 +20,14 @@ import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Loader2, Lock, PlayCircle, ShieldCheck, Trophy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Lock, PlayCircle, ShieldCheck, Trophy, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type SubjectOption = {
   slug: string;
@@ -41,13 +48,23 @@ type AttemptResult = {
   correctCount: number;
   totalQuestions: number;
   score: number;
-  perQuestion?: Array<{
+  answeredCount?: number;
+  unansweredCount?: number;
+  missedCount?: number;
+  unansweredQuestions?: number[];
+  missedQuestions?: Array<{
     questionId: string;
-    selectedOption: string | null;
-    correctOption?: string | null;
-    isCorrect?: boolean;
-    question_text?: string | null;
+    questionNumber: number;
+    questionText: string;
+    userAnswer: string;
+    correctAnswer: string;
+    explanation?: string;
   }>;
+  previousAttempt?: {
+    score: number;
+    correctCount: number;
+    totalQuestions: number;
+  };
 };
 
 const ALL_TOPICS = "__all_topics__";
@@ -75,6 +92,14 @@ export default function StudentJambPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [attemptResult, setAttemptResult] = useState<AttemptResult | null>(null);
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [showTerminationDialog, setShowTerminationDialog] = useState(false);
+  const [pendingFilterChange, setPendingFilterChange] = useState<{
+    type: "subject" | "year" | "topic";
+    value: string;
+  } | null>(null);
+  const [showResultWizard, setShowResultWizard] = useState(false);
+  const [resultWizardStep, setResultWizardStep] = useState(1);
   const [questionDebug, setQuestionDebug] = useState<{
     page: number;
     totalPages: number;
@@ -161,79 +186,6 @@ export default function StudentJambPage() {
     toast.success("Started fresh session");
   }
 
-  function clearDraftKey(key?: string) {
-    try {
-      const k = key || getDraftKey();
-      if (typeof window !== "undefined") window.localStorage.removeItem(k);
-    } catch (e) {
-      console.error("Failed to clear draft key", e);
-    }
-  }
-
-  function terminateSession() {
-    try {
-      clearSessionState();
-      clearDraftKey();
-      setQuestions([]);
-      setAnswers({});
-      setPageCompletion({});
-      setAttemptResult(null);
-      setPendingSession(null);
-      toast.success("Session terminated");
-    } catch (e) {
-      console.error("Failed to terminate session", e);
-      toast.error("Unable to terminate session");
-    }
-  }
-
-  function applyPendingFilterChange() {
-    if (!pendingFilterChange) return;
-    const { field, value } = pendingFilterChange;
-    if (field === "subject") setSelectedSubject(value);
-    if (field === "year") setSelectedYear(value);
-    if (field === "topic") setSelectedTopic(value);
-    setPendingFilterChange(null);
-  }
-
-  function handleConfirmTerminate() {
-    setShowTerminateDialog(false);
-    terminateSession();
-    // apply change after terminating
-    setTimeout(() => applyPendingFilterChange(), 50);
-  }
-
-  function handleCancelTerminate() {
-    setPendingFilterChange(null);
-    setShowTerminateDialog(false);
-  }
-
-  function handleSubjectChange(value: string) {
-    if (isPracticing && value !== selectedSubject) {
-      setPendingFilterChange({ field: "subject", value });
-      setShowTerminateDialog(true);
-      return;
-    }
-    setSelectedSubject(value);
-  }
-
-  function handleYearChange(value: string) {
-    if (isPracticing && value !== selectedYear) {
-      setPendingFilterChange({ field: "year", value });
-      setShowTerminateDialog(true);
-      return;
-    }
-    setSelectedYear(value);
-  }
-
-  function handleTopicChange(value: string) {
-    if (isPracticing && value !== selectedTopic) {
-      setPendingFilterChange({ field: "topic", value });
-      setShowTerminateDialog(true);
-      return;
-    }
-    setSelectedTopic(value);
-  }
-
   function loadDraftFromLocalStorage(key?: string) {
     try {
       const k = key || getDraftKey();
@@ -269,10 +221,6 @@ export default function StudentJambPage() {
   }
 
   const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
-  const [showTerminateDialog, setShowTerminateDialog] = useState(false);
-  const [pendingFilterChange, setPendingFilterChange] = useState<{ field: "subject" | "year" | "topic"; value: string } | null>(null);
-  const [showSubmitWizard, setShowSubmitWizard] = useState(false);
-  const [wizardStep, setWizardStep] = useState<number>(1);
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
@@ -404,10 +352,6 @@ export default function StudentJambPage() {
       toast.error(error.message || "Failed to load available years and topics");
     });
   }, [selectedSubject, pendingSession]);
-
-  const isPracticing = useMemo(() => {
-    return questions.length > 0 && !attemptResult && Object.keys(answers).length > 0;
-  }, [questions, attemptResult, answers]);
 
   const filteredSubjectLabel = useMemo(() => {
     return subjects.find((subject) => subject.slug === selectedSubject)?.name || "JAMB";
@@ -562,6 +506,12 @@ export default function StudentJambPage() {
         sourceUrl: payload.url,
       });
 
+      // Mark session as active now that questions are loaded
+      if (loadedQuestions.length > 0) {
+        setIsSessionActive(true);
+        setResultWizardStep(1);
+      }
+
       console.info("[student/jamb/page] loaded questions", {
         page: pageNum,
         totalPages,
@@ -582,6 +532,41 @@ export default function StudentJambPage() {
       ...current,
       [questionId]: selectedOption,
     }));
+  }
+
+  function handleFilterChange(type: "subject" | "year" | "topic", value: string) {
+    if (isSessionActive && !attemptResult) {
+      setPendingFilterChange({ type, value });
+      setShowTerminationDialog(true);
+    } else {
+      applyFilterChange(type, value);
+    }
+  }
+
+  function applyFilterChange(type: "subject" | "year" | "topic", value: string) {
+    if (type === "subject") setSelectedSubject(value);
+    else if (type === "year") setSelectedYear(value);
+    else if (type === "topic") setSelectedTopic(value);
+  }
+
+  function handleConfirmTermination() {
+    if (pendingFilterChange) {
+      setAnswers({});
+      setQuestions([]);
+      setAttemptResult(null);
+      setIsSessionActive(false);
+      clearSessionState();
+      applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
+      setPendingFilterChange(null);
+      setShowTerminationDialog(false);
+      toast.success("Session terminated. You can start a new practice session.");
+    }
+  }
+
+  function handleSaveAndExit() {
+    clearSessionState();
+    toast.success("Progress saved. You can resume this session later.");
+    window.location.href = "/student";
   }
 
   // Track page completion when answers change
@@ -674,8 +659,22 @@ export default function StudentJambPage() {
         throw new Error(result.error || "Failed to submit attempt");
       }
 
-      setAttemptResult(result.data);
-      toast.success("Attempt saved successfully");
+      // Fetch previous attempt for comparison
+      const prevResponse = await fetch(
+        `/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${selectedYear}&topic=${selectedTopic === ALL_TOPICS ? "" : selectedTopic}`,
+        { cache: "no-store" }
+      );
+      const prevResult = prevResponse.ok ? await prevResponse.json() : null;
+
+      setAttemptResult({
+        ...result.data,
+        previousAttempt: prevResult?.data,
+      });
+      setShowResultWizard(true);
+      setResultWizardStep(1);
+      setIsSessionActive(false);
+      clearSessionState();
+      toast.success("Attempt submitted successfully");
     } catch (error: any) {
       toast.error(error.message || "Unable to save attempt");
     } finally {
@@ -743,80 +742,22 @@ export default function StudentJambPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showTerminateDialog} onOpenChange={setShowTerminateDialog}>
+      <AlertDialog open={showTerminationDialog} onOpenChange={setShowTerminationDialog}>
         <AlertDialogContent>
-          <AlertDialogTitle>Terminate current session?</AlertDialogTitle>
+          <AlertDialogTitle>Terminate Current Session?</AlertDialogTitle>
           <AlertDialogDescription>
-            You have an active practice session. Terminating will clear your current answers and draft. Do you want to end the session and apply your requested change?
+            You have an active practice session with unanswered questions. Changing the subject, year, or topic will clear your current progress and start a new session.
+            {pendingFilterChange && (
+              <div className="mt-3 space-y-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
+                <div className="text-sm text-amber-900">Your answers will be lost. This action cannot be undone.</div>
+              </div>
+            )}
           </AlertDialogDescription>
           <div className="flex gap-3 justify-end">
-            <AlertDialogCancel onClick={handleCancelTerminate}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmTerminate}>Terminate Session</AlertDialogAction>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showSubmitWizard} onOpenChange={(open) => { if (!open) { setWizardStep(1); } setShowSubmitWizard(open); }}>
-        <AlertDialogContent>
-          <AlertDialogTitle>Submit Attempt</AlertDialogTitle>
-          {wizardStep === 1 ? (
-            <AlertDialogDescription>
-              <p className="mb-3">Review your attempt before submission.</p>
-              <div className="space-y-2">
-                <p className="text-sm">Answered: {questions.filter(q => answers[q.id]).length}</p>
-                <p className="text-sm">Unanswered: {questions.filter(q => !answers[q.id]).length}</p>
-                {questions.filter(q => !answers[q.id]).length > 0 && (
-                  <div className="mt-2 max-h-40 overflow-auto rounded border bg-slate-50 p-2 text-sm">
-                    {questions.filter(q => !answers[q.id]).map((q, i) => (
-                      <div key={q.id} className="py-1">Question {(questionPage - 1) * QUESTIONS_PER_PAGE + questions.indexOf(q) + 1}: {q.question_text.slice(0, 120)}{q.question_text.length > 120 ? '…' : ''}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </AlertDialogDescription>
-          ) : (
-            <AlertDialogDescription>
-              {attemptResult ? (
-                <div>
-                  <p className="text-lg font-semibold">Score: {attemptResult.score}%</p>
-                  <p className="mt-2">Correct: {attemptResult.correctCount} / {attemptResult.totalQuestions}</p>
-                  {attemptResult.perQuestion && (
-                    <div className="mt-3 space-y-2 max-h-64 overflow-auto">
-                      {attemptResult.perQuestion.filter(p => !p.isCorrect).map((p) => {
-                        const q = questions.find(q => q.id === p.questionId);
-                        return (
-                          <div key={p.questionId} className="rounded border bg-white p-3">
-                            <div className="font-medium">{q ? q.question_text : p.question_text}</div>
-                            <div className="mt-1 text-sm text-amber-700">Your answer: {p.selectedOption ?? '—'}</div>
-                            <div className="text-sm text-emerald-700">Correct answer: {p.correctOption ?? '—'}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p>Submitting...</p>
-              )}
-            </AlertDialogDescription>
-          )}
-
-          <div className="flex gap-3 justify-end">
-            {wizardStep === 1 ? (
-              <>
-                <AlertDialogCancel onClick={() => setShowSubmitWizard(false)}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={async () => {
-                  try {
-                    await submitAttempt();
-                    setWizardStep(2);
-                  } catch (e) {
-                    setShowSubmitWizard(false);
-                  }
-                }}>Submit</AlertDialogAction>
-              </>
-            ) : (
-              <AlertDialogAction onClick={() => setShowSubmitWizard(false)}>Close</AlertDialogAction>
-            )}
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmTermination} className="bg-red-600 hover:bg-red-700">
+              Terminate & Change
+            </AlertDialogAction>
           </div>
         </AlertDialogContent>
       </AlertDialog>
@@ -855,7 +796,7 @@ export default function StudentJambPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
-                      <Select value={selectedSubject} onValueChange={handleSubjectChange}>
+                      <Select value={selectedSubject} onValueChange={(value) => handleFilterChange("subject", value)}>
                         <SelectTrigger>
                           <SelectValue placeholder="Choose subject" />
                         </SelectTrigger>
@@ -876,7 +817,7 @@ export default function StudentJambPage() {
                     <Badge variant="outline" className={selectedSubject ? "bg-blue-50" : "bg-gray-50"}>Step 2</Badge>
                     <p className="text-sm font-medium text-gray-700">Year</p>
                   </div>
-                  <Select value={selectedYear} onValueChange={handleYearChange} disabled={!selectedSubject}>
+                  <Select value={selectedYear} onValueChange={(value) => handleFilterChange("year", value)} disabled={!selectedSubject}>
                     <SelectTrigger className={!selectedSubject ? "opacity-50 cursor-not-allowed" : ""}>
                       <SelectValue placeholder={selectedSubject ? "Choose year" : "Select subject first"} />
                     </SelectTrigger>
@@ -895,7 +836,7 @@ export default function StudentJambPage() {
                     <Badge variant="outline" className={selectedYear ? "bg-blue-50" : "bg-gray-50"}>Step 3</Badge>
                     <p className="text-sm font-medium text-gray-700">Topic</p>
                   </div>
-                  <Select value={selectedTopic} onValueChange={handleTopicChange} disabled={!selectedYear}>
+                  <Select value={selectedTopic} onValueChange={(value) => handleFilterChange("topic", value)} disabled={!selectedYear}>
                     <SelectTrigger className={!selectedYear ? "opacity-50 cursor-not-allowed" : ""}>
                       <SelectValue placeholder={selectedYear ? "All topics" : "Select year first"} />
                     </SelectTrigger>
@@ -916,10 +857,6 @@ export default function StudentJambPage() {
                   <span>📚 {subjects.find(s => s.slug === selectedSubject)?.name} • 📅 {selectedYear} {selectedTopic !== ALL_TOPICS && `• 📖 ${selectedTopic}`}</span>
                 </div>
               )}
-
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-gray-600">Questions load automatically after selecting a subject and year.</p>
-              </div>
             </CardContent>
           </Card>
 
@@ -974,9 +911,6 @@ export default function StudentJambPage() {
                   {questionDebug ? `Page ${questionDebug.page} of ${questionDebug.totalPages}` : "Load a page to see request details"}
                 </p>
               </div>
-              <div className="mt-3">
-                <Button variant="outline" onClick={() => terminateSession()} disabled={!isPracticing}>End Session</Button>
-              </div>
             </CardContent>
           </Card>
         </div>
@@ -995,10 +929,15 @@ export default function StudentJambPage() {
                     Page {questionPage}: {answeredCount}/{QUESTIONS_PER_PAGE} answered · {progressPercent}% total
                   </p>
                 </div>
-                <Button type="button" onClick={() => { setWizardStep(1); setShowSubmitWizard(true); }} disabled={submitting} className="gap-2">
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-                  Submit Attempt
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleSaveAndExit} className="gap-2">
+                    Save & Exit
+                  </Button>
+                  <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                    Submit Attempt
+                  </Button>
+                </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                 <Button
@@ -1189,6 +1128,189 @@ export default function StudentJambPage() {
           </Card>
         ) : null}
       </div>
+
+      <Dialog open={showResultWizard} onOpenChange={setShowResultWizard}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {resultWizardStep === 1 ? "Practice Session Summary" : "Your Results"}
+            </DialogTitle>
+            <DialogDescription>
+              {resultWizardStep === 1
+                ? "Review your answers before viewing your score"
+                : "See your score and review missed questions"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {resultWizardStep === 1 && attemptResult && (
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-gray-500">Total Questions</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900">
+                      {attemptResult.totalQuestions}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-gray-500">Answered</p>
+                    <p className="mt-2 text-3xl font-bold text-emerald-600">
+                      {attemptResult.answeredCount || 0}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-gray-500">Unanswered</p>
+                    <p className="mt-2 text-3xl font-bold text-amber-600">
+                      {(attemptResult.totalQuestions || 0) - (attemptResult.answeredCount || 0)}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-3">Progress</p>
+                <div className="space-y-2">
+                  <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
+                      style={{
+                        width: `${((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {Math.round(((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100)}% complete
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                <p className="text-sm text-blue-900">
+                  ✓ Ready to view your score and detailed feedback?
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end border-t pt-6">
+                <Button variant="outline" onClick={() => setShowResultWizard(false)}>
+                  Close
+                </Button>
+                <Button onClick={() => setResultWizardStep(2)} className="gap-2">
+                  <Trophy className="h-4 w-4" />
+                  View Score
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {resultWizardStep === 2 && attemptResult && (
+            <div className="space-y-6">
+              <Card className="border-emerald-200 bg-emerald-50">
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-emerald-700">Your Score</p>
+                    <h2 className="mt-2 text-4xl font-bold text-emerald-900">
+                      {attemptResult.score}%
+                    </h2>
+                    <p className="mt-2 text-sm text-emerald-700">
+                      {attemptResult.correctCount} out of {attemptResult.totalQuestions} questions correct
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {attemptResult.previousAttempt && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardContent className="pt-6">
+                    <p className="text-sm font-medium text-blue-700 mb-3">Comparison with Previous Attempt</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-blue-600">Previous score</p>
+                        <p className="mt-1 text-2xl font-bold text-blue-900">
+                          {attemptResult.previousAttempt.score}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-blue-600">Improvement</p>
+                        <p className={`mt-1 text-2xl font-bold ${attemptResult.score >= attemptResult.previousAttempt.score ? "text-emerald-600" : "text-red-600"}`}>
+                          {attemptResult.score > attemptResult.previousAttempt.score ? "+" : ""}{(attemptResult.score - attemptResult.previousAttempt.score).toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {(attemptResult.unansweredCount ?? 0) > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-amber-600" />
+                    Unanswered Questions ({attemptResult.unansweredCount ?? 0})
+                  </p>
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+                    <p className="text-sm text-amber-900">
+                      {attemptResult.unansweredQuestions?.join(", ") || `${attemptResult.unansweredCount ?? 0} questions`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {(attemptResult.missedCount ?? 0) > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <XCircle className="h-4 w-4 text-red-600" />
+                    Incorrect Answers ({attemptResult.missedCount ?? 0})
+                  </p>
+                  <div className="space-y-4">
+                    {attemptResult.missedQuestions?.map((item: any, idx: number) => (
+                      <div key={idx} className="rounded-lg border bg-white p-4">
+                        <p className="text-sm font-medium text-gray-900 mb-3">
+                          Question {item.questionNumber || idx + 1}
+                        </p>
+                        <div className="space-y-2 text-sm">
+                          {item.questionText && (
+                            <div>
+                              <p className="text-gray-600 mb-1">Question:</p>
+                              <p className="text-gray-900">{item.questionText}</p>
+                            </div>
+                          )}
+                          <div className="rounded bg-red-50 p-2 border border-red-200">
+                            <p className="text-red-700 font-medium">Your answer:</p>
+                            <p className="text-red-900">{item.userAnswer}</p>
+                          </div>
+                          <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
+                            <p className="text-emerald-700 font-medium">Correct answer:</p>
+                            <p className="text-emerald-900">{item.correctAnswer}</p>
+                          </div>
+                          {item.explanation && (
+                            <div className="rounded bg-blue-50 p-2 border border-blue-200">
+                              <p className="text-blue-700 font-medium">Explanation:</p>
+                              <p className="text-blue-900 text-xs">{item.explanation}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end border-t pt-6">
+                <Button variant="outline" onClick={() => setResultWizardStep(1)} className="gap-1">
+                  <ChevronLeft className="h-4 w-4" />
+                  Back
+                </Button>
+                <Button asChild>
+                  <Link href="/student">Back to dashboard</Link>
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

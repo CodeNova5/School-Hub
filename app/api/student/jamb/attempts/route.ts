@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
   const { data: questions, error: questionError } = await supabaseAdmin
     .from("jamb_questions")
-    .select("id, correct_option")
+    .select("id, correct_option, question_text, options, explanation")
     .eq("school_id", student.school_id)
     .in("id", questionIds);
 
@@ -80,14 +80,38 @@ export async function POST(req: NextRequest) {
 
   const questionMap = new Map((questions || []).map((question: any) => [question.id, question.correct_option]));
   let correctCount = 0;
+  const missedQuestions: any[] = [];
+  const unansweredQuestions: any[] = [];
+  let answeredCount = 0;
 
-  const normalizedAnswers = answers.map((answer: any) => {
+  const normalizedAnswers = answers.map((answer: any, index: number) => {
     const questionId = answer.questionId;
     const selectedOption = answer.selectedOption || null;
-    const correctOption = questionMap.get(questionId) || null;
+    const question = (questions || []).find((q: any) => q.id === questionId);
+    const correctOption = question?.correct_option || null;
+    const isCorrect = correctOption && selectedOption && String(selectedOption).toUpperCase() === String(correctOption).toUpperCase();
 
-    if (correctOption && selectedOption && String(selectedOption).toUpperCase() === String(correctOption).toUpperCase()) {
+    if (isCorrect) {
       correctCount += 1;
+    }
+
+    if (selectedOption) {
+      answeredCount += 1;
+      if (!isCorrect && question) {
+        missedQuestions.push({
+          questionId,
+          questionNumber: index + 1,
+          questionText: question.question_text,
+          userAnswer: selectedOption,
+          correctAnswer: correctOption,
+          explanation: question.explanation,
+        });
+      }
+    } else {
+      unansweredQuestions.push({
+        questionId,
+        questionNumber: index + 1,
+      });
     }
 
     return {
@@ -128,6 +152,11 @@ export async function POST(req: NextRequest) {
       correctCount,
       totalQuestions,
       score,
+      answeredCount,
+      unansweredCount: totalQuestions - answeredCount,
+      missedCount: missedQuestions.length,
+      unansweredQuestions: unansweredQuestions.map((q) => q.questionNumber),
+      missedQuestions,
       userId,
     },
   });

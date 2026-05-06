@@ -41,7 +41,6 @@ type QuestionRow = {
   subject_slug: string;
   subject_name: string;
   exam_year: number;
-  topic: string | null;
 };
 
 type AttemptResult = {
@@ -67,7 +66,6 @@ type AttemptResult = {
   };
 };
 
-const ALL_TOPICS = "__all_topics__";
 const QUESTIONS_PER_PAGE = 5;
 
 export default function StudentJambPage() {
@@ -80,10 +78,8 @@ export default function StudentJambPage() {
   const [, setSubjectPage] = useState(1);
   const [, setSubjectTotalPages] = useState(1);
   const [years, setYears] = useState<number[]>([]);
-  const [topics, setTopics] = useState<string[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
-  const [selectedTopic, setSelectedTopic] = useState(ALL_TOPICS);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [, setHasMoreQuestions] = useState(false);
   const [, setQuestionDebug] = useState<{
@@ -102,7 +98,7 @@ export default function StudentJambPage() {
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [showTerminationDialog, setShowTerminationDialog] = useState(false);
   const [pendingFilterChange, setPendingFilterChange] = useState<{
-    type: "subject" | "year" | "topic";
+    type: "subject" | "year";
     value: string;
   } | null>(null);
   const [showResultWizard, setShowResultWizard] = useState(false);
@@ -112,7 +108,6 @@ export default function StudentJambPage() {
   const [pendingSession, setPendingSession] = useState<{
     subject: string;
     year: string;
-    topic: string;
   } | null>(null);
 
   // Track all question IDs across all pages for accurate submission
@@ -139,12 +134,11 @@ export default function StudentJambPage() {
   const isRestoringDraftRef = useRef(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  function getDraftKey(subject?: string, year?: string, topic?: string) {
+  function getDraftKey(subject?: string, year?: string) {
     const s = subject || selectedSubject || "";
     const y = year || selectedYear || "";
-    const t = topic || selectedTopic || ALL_TOPICS;
     const sid = schoolId || "global";
-    return `jamb_draft:${sid}:${s}:${y}:${t}`;
+    return `jamb_draft:${sid}:${s}:${y}`;
   }
 
   function getSessionKey() {
@@ -152,11 +146,11 @@ export default function StudentJambPage() {
     return `jamb_session:${sid}`;
   }
 
-  function saveSessionState(subject: string, year: string, topic: string) {
+  function saveSessionState(subject: string, year: string) {
     try {
       if (typeof window === "undefined") return;
       const key = getSessionKey();
-      const session = { subject, year, topic, timestamp: Date.now() };
+      const session = { subject, year, timestamp: Date.now() };
       window.localStorage.setItem(key, JSON.stringify(session));
     } catch (e) {
       console.error("Failed to save session state", e);
@@ -191,7 +185,6 @@ export default function StudentJambPage() {
       isRestoringDraftRef.current = true;
       setSelectedSubject(pendingSession.subject);
       setSelectedYear(pendingSession.year);
-      setSelectedTopic(pendingSession.topic);
       setShowRestoreDialog(false);
     }
   }
@@ -201,7 +194,6 @@ export default function StudentJambPage() {
     clearSessionState();
     setSelectedSubject("");
     setSelectedYear("");
-    setSelectedTopic(ALL_TOPICS);
     setAnswers({});
     setQuestions([]);
     setAllQuestionIds([]);
@@ -232,7 +224,6 @@ export default function StudentJambPage() {
       const payload = {
         subject: selectedSubject,
         year: selectedYear,
-        topic: selectedTopic,
         updatedAt: Date.now(),
         answers: currentAnswers,
         pageCompletion: pageCompletion,
@@ -348,9 +339,7 @@ export default function StudentJambPage() {
   useEffect(() => {
     if (!selectedSubject) {
       setYears([]);
-      setTopics([]);
       setSelectedYear("");
-      setSelectedTopic(ALL_TOPICS);
       setQuestions([]);
       setAnswers({});
       setAttemptResult(null);
@@ -358,11 +347,10 @@ export default function StudentJambPage() {
       return;
     }
 
-    // If there's a pending session for this subject, don't wipe the year/topic
-    // because the restore flow will apply them. Otherwise, reset year/topic.
+    // If there's a pending session for this subject, don't wipe the year
+    // because the restore flow will apply it. Otherwise, reset year.
     if (!(pendingSession && pendingSession.subject === selectedSubject)) {
       setSelectedYear("");
-      setSelectedTopic(ALL_TOPICS);
     }
 
     setQuestions([]);
@@ -372,7 +360,7 @@ export default function StudentJambPage() {
 
     void loadAvailableFilters(selectedSubject).catch((error: any) => {
       console.error("Failed to load subject filters:", error);
-      toast.error(error.message || "Failed to load available years and topics");
+      toast.error(error.message || "Failed to load available years");
     });
   }, [selectedSubject, pendingSession]);
 
@@ -418,7 +406,7 @@ export default function StudentJambPage() {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to load available years and topics");
+      throw new Error("Failed to load available years");
     }
 
     const result = await response.json();
@@ -428,14 +416,8 @@ export default function StudentJambPage() {
         .filter((year: number) => Number.isFinite(year))
         .sort((a: number, b: number) => b - a)
       : [];
-    const loadedTopics = Array.isArray(result.topics)
-      ? result.topics
-        .map((topic: any) => String(topic.topic || topic.value || topic || ""))
-        .filter((topic: string) => Boolean(topic))
-      : [];
 
     setYears(loadedYears);
-    setTopics(Array.from(new Set<string>(loadedTopics)).sort((a, b) => a.localeCompare(b)));
   }
 
   async function loadQuestions(page = 1) {
@@ -450,7 +432,6 @@ export default function StudentJambPage() {
         subject: selectedSubject,
         subjectName: filteredSubjectLabel,
         year: selectedYear,
-        topic: selectedTopic,
         limit: String(QUESTIONS_PER_PAGE),
         page: String(page),
       });
@@ -458,7 +439,6 @@ export default function StudentJambPage() {
       console.info("[student/jamb/page] loading questions", {
         subject: selectedSubject,
         year: selectedYear,
-        topic: selectedTopic,
         page,
         url: `/api/student/jamb/questions?${params.toString()}`,
       });
@@ -482,7 +462,6 @@ export default function StudentJambPage() {
             subject_slug: row.subject_slug,
             subject_name: row.subject_name,
             exam_year: row.exam_year,
-            topic: row.topic,
           }))
         : [];
 
@@ -496,7 +475,7 @@ export default function StudentJambPage() {
 
       // Always replace questions when loading a new page (not append)
       setQuestions(loadedQuestions);
-      // Restore any saved answers for this subject/year/topic
+      // Restore any saved answers for this subject/year
       try {
         const saved = loadDraftFromLocalStorage();
         if (saved && Object.keys(saved).length) {
@@ -557,7 +536,7 @@ export default function StudentJambPage() {
     }));
   }
 
-  function handleFilterChange(type: "subject" | "year" | "topic", value: string) {
+  function handleFilterChange(type: "subject" | "year", value: string) {
     if (isSessionActive && !attemptResult) {
       setPendingFilterChange({ type, value });
       setShowTerminationDialog(true);
@@ -566,10 +545,9 @@ export default function StudentJambPage() {
     }
   }
 
-  function applyFilterChange(type: "subject" | "year" | "topic", value: string) {
+  function applyFilterChange(type: "subject" | "year", value: string) {
     if (type === "subject") setSelectedSubject(value);
     else if (type === "year") setSelectedYear(value);
-    else if (type === "topic") setSelectedTopic(value);
   }
 
   function handleConfirmTermination() {
@@ -629,7 +607,7 @@ export default function StudentJambPage() {
         saveTimerRef.current = null;
       }
     };
-  }, [answers, selectedSubject, selectedYear, selectedTopic]);
+  }, [answers, selectedSubject, selectedYear]);
 
   // save on unload
   useEffect(() => {
@@ -645,17 +623,17 @@ export default function StudentJambPage() {
         window.removeEventListener("beforeunload", handleBeforeUnload);
       }
     };
-  }, [answers, selectedSubject, selectedYear, selectedTopic]);
+  }, [answers, selectedSubject, selectedYear]);
 
   // Auto-load questions when subject + year are selected
   useEffect(() => {
     if (selectedSubject && selectedYear) {
-      saveSessionState(selectedSubject, selectedYear, selectedTopic);
+      saveSessionState(selectedSubject, selectedYear);
       void loadQuestions(1);
     }
   // intentionally exclude loadQuestions from deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSubject, selectedYear, selectedTopic]);
+  }, [selectedSubject, selectedYear]);
 
   async function submitAttempt() {
     if (!allQuestionIds.length && !questions.length) return;
@@ -681,7 +659,6 @@ export default function StudentJambPage() {
           subjectSlug: selectedSubject,
           subjectName: filteredSubjectLabel,
           examYear: Number(selectedYear),
-          topic: selectedTopic === ALL_TOPICS ? null : selectedTopic,
           answers: answersPayload,
           totalQuestions,
           totalPages: questionTotalPages,
@@ -697,7 +674,7 @@ export default function StudentJambPage() {
 
       // Fetch previous attempt for comparison
       const prevResponse = await fetch(
-        `/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${selectedYear}&topic=${selectedTopic === ALL_TOPICS ? "" : selectedTopic}`,
+        `/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${selectedYear}`,
         { cache: "no-store" }
       );
       const prevResult = prevResponse.ok ? await prevResponse.json() : null;
@@ -767,7 +744,6 @@ export default function StudentJambPage() {
               <div className="mt-3 space-y-2 rounded-lg bg-slate-100 p-3">
                 <div className="text-sm"><span className="font-semibold text-gray-700">Subject:</span> {subjects.find(s => s.slug === pendingSession.subject)?.name || pendingSession.subject}</div>
                 <div className="text-sm"><span className="font-semibold text-gray-700">Year:</span> {pendingSession.year}</div>
-                {pendingSession.topic !== ALL_TOPICS && <div className="text-sm"><span className="font-semibold text-gray-700">Topic:</span> {pendingSession.topic}</div>}
               </div>
             )}
           </AlertDialogDescription>
@@ -782,7 +758,7 @@ export default function StudentJambPage() {
         <AlertDialogContent>
           <AlertDialogTitle>Terminate Current Session?</AlertDialogTitle>
           <AlertDialogDescription>
-            You have an active practice session with unanswered questions. Changing the subject, year, or topic will clear your current progress and start a new session.
+            You have an active practice session with unanswered questions. Changing the subject or year will clear your current progress and start a new session.
             {pendingFilterChange && (
               <div className="mt-3 space-y-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
                 <div className="text-sm text-amber-900">Your answers will be lost. This action cannot be undone.</div>
@@ -809,7 +785,7 @@ export default function StudentJambPage() {
             </div>
             <h1 className="text-3xl font-bold text-gray-900">JAMB CBT Practice</h1>
             <p className="text-gray-600 mt-2">
-              Welcome {studentName}. Pick a subject, year, and topic, then practice past questions.
+              Welcome {studentName}. Pick a subject and year, then practice past questions.
             </p>
           </div>
           <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-4 text-white shadow-lg">
@@ -824,7 +800,7 @@ export default function StudentJambPage() {
               <CardTitle>Practice Filters</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5 p-6">
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="bg-blue-50">Step 1</Badge>
@@ -866,31 +842,11 @@ export default function StudentJambPage() {
                     </SelectContent>
                   </Select>
                 </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={selectedYear ? "bg-blue-50" : "bg-gray-50"}>Step 3</Badge>
-                    <p className="text-sm font-medium text-gray-700">Topic</p>
-                  </div>
-                  <Select value={selectedTopic} onValueChange={(value) => handleFilterChange("topic", value)} disabled={!selectedYear}>
-                    <SelectTrigger className={!selectedYear ? "opacity-50 cursor-not-allowed" : ""}>
-                      <SelectValue placeholder={selectedYear ? "All topics" : "Select year first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={ALL_TOPICS}>All topics</SelectItem>
-                      {topics.map((topic) => (
-                        <SelectItem key={topic} value={topic}>
-                          {topic}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
 
               {selectedSubject && selectedYear && (
                 <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-center gap-2 text-sm text-blue-900">
-                  <span>📚 {subjects.find(s => s.slug === selectedSubject)?.name} • 📅 {selectedYear} {selectedTopic !== ALL_TOPICS && `• 📖 ${selectedTopic}`}</span>
+                  <span>📚 {subjects.find(s => s.slug === selectedSubject)?.name} • 📅 {selectedYear}</span>
                 </div>
               )}
             </CardContent>
@@ -1049,7 +1005,6 @@ export default function StudentJambPage() {
                         </CardTitle>
                         <p className="mt-1 text-sm text-gray-500">
                           {question.subject_name} · {question.exam_year}
-                          {question.topic ? ` · ${question.topic}` : ""}
                         </p>
                       </div>
                       <Badge variant="outline">JAMB CBT</Badge>

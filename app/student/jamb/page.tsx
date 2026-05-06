@@ -83,6 +83,7 @@ export default function StudentJambPage() {
   } | null>(null);
 
   const saveTimerRef = useRef<number | null>(null);
+  const isRestoringDraftRef = useRef(false);
 
   function getDraftKey(subject?: string, year?: string, topic?: string) {
     const s = subject || selectedSubject || "";
@@ -133,6 +134,7 @@ export default function StudentJambPage() {
 
   function handleRestoreSession() {
     if (pendingSession) {
+      isRestoringDraftRef.current = true;
       setSelectedSubject(pendingSession.subject);
       setSelectedYear(pendingSession.year);
       setSelectedTopic(pendingSession.topic);
@@ -141,6 +143,7 @@ export default function StudentJambPage() {
   }
 
   function handleStartFresh() {
+    isRestoringDraftRef.current = false;
     clearSessionState();
     setSelectedSubject("");
     setSelectedYear("");
@@ -458,6 +461,7 @@ export default function StudentJambPage() {
       }
       setAttemptResult(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
+      isRestoringDraftRef.current = false;
 
       setQuestionPage(pageNum);
       setQuestionTotalPages(totalPages || 1);
@@ -509,6 +513,7 @@ export default function StudentJambPage() {
   useEffect(() => {
     // don't save if no subject/year selected
     if (!selectedSubject || !selectedYear) return;
+    if (isRestoringDraftRef.current) return;
 
     if (saveTimerRef.current) {
       window.clearTimeout(saveTimerRef.current);
@@ -532,6 +537,7 @@ export default function StudentJambPage() {
   // save on unload
   useEffect(() => {
     function handleBeforeUnload() {
+      if (isRestoringDraftRef.current) return;
       saveDraftToLocalStorage();
     }
     if (typeof window !== "undefined") {

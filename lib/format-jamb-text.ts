@@ -112,6 +112,35 @@ function cleanEscapedCharacters(text: string): string {
   return result;
 }
 
+// Remove parentheses that wrap only subscript or superscript characters
+function unwrapNumericParentheses(text: string): string {
+  let result = text;
+
+  // Remove parentheses around Unicode subscript digits: (₂) -> ₂
+  result = result.replace(/\(([₀₁₂₃₄₅₆₇₈₉]+)\)/g, (_, digits) => digits);
+
+  // Remove parentheses around Unicode superscript digits: (²) -> ²
+  result = result.replace(/\(([⁰¹²³⁴⁵⁶⁷⁸⁹]+)\)/g, (_, digits) => digits);
+
+  // Convert simple patterns like H(2) or O(4) to H₂ or O₄
+  result = result.replace(/([A-Za-z])\((\d+)\)/g, (_m, letter, nums) => {
+    const subs: Record<string, string> = {
+      '0': '₀','1': '₁','2': '₂','3': '₃','4': '₄','5': '₅','6': '₆','7': '₇','8': '₈','9': '₉'
+    };
+    return letter + nums.split('').map((d: string) => subs[d] || d).join('');
+  });
+
+  // Convert simple superscript patterns like x(2) where preceded by ^ or standalone pattern 10(23)
+  result = result.replace(/(\d+)\((\d+)\)/g, (_m, base, exp) => {
+    const supers: Record<string, string> = {
+      '0': '⁰','1': '¹','2': '²','3': '³','4': '⁴','5': '⁵','6': '⁶','7': '⁷','8': '⁸','9': '⁹'
+    };
+    return base + exp.split('').map((d: string) => supers[d] || d).join('');
+  });
+
+  return result;
+}
+
 /**
  * Format JAMB question text or options for proper display
  * @param text - The raw text from the API
@@ -133,6 +162,9 @@ export function formatJambText(text: string): string {
   
   // 4. Convert superscripts
   formatted = convertSuperscripts(formatted);
+
+  // 4.5 unwrap numeric parentheses that remain
+  formatted = unwrapNumericParentheses(formatted);
   
   // 5. Final cleanup: remove multiple spaces
   formatted = formatted.replace(/\s+/g, ' ').trim();

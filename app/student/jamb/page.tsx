@@ -300,8 +300,13 @@ export default function StudentJambPage() {
       return;
     }
 
-    setSelectedYear("");
-    setSelectedTopic(ALL_TOPICS);
+    // If there's a pending session for this subject, don't wipe the year/topic
+    // because the restore flow will apply them. Otherwise, reset year/topic.
+    if (!(pendingSession && pendingSession.subject === selectedSubject)) {
+      setSelectedYear("");
+      setSelectedTopic(ALL_TOPICS);
+    }
+
     setQuestions([]);
     setAnswers({});
     setAttemptResult(null);
@@ -311,7 +316,7 @@ export default function StudentJambPage() {
       console.error("Failed to load subject filters:", error);
       toast.error(error.message || "Failed to load available years and topics");
     });
-  }, [selectedSubject]);
+  }, [selectedSubject, pendingSession]);
 
   const filteredSubjectLabel = useMemo(() => {
     return subjects.find((subject) => subject.slug === selectedSubject)?.name || "JAMB";

@@ -41,6 +41,13 @@ type AttemptResult = {
   correctCount: number;
   totalQuestions: number;
   score: number;
+  perQuestion?: Array<{
+    questionId: string;
+    selectedOption: string | null;
+    correctOption?: string | null;
+    isCorrect?: boolean;
+    question_text?: string | null;
+  }>;
 };
 
 const ALL_TOPICS = "__all_topics__";
@@ -154,6 +161,79 @@ export default function StudentJambPage() {
     toast.success("Started fresh session");
   }
 
+  function clearDraftKey(key?: string) {
+    try {
+      const k = key || getDraftKey();
+      if (typeof window !== "undefined") window.localStorage.removeItem(k);
+    } catch (e) {
+      console.error("Failed to clear draft key", e);
+    }
+  }
+
+  function terminateSession() {
+    try {
+      clearSessionState();
+      clearDraftKey();
+      setQuestions([]);
+      setAnswers({});
+      setPageCompletion({});
+      setAttemptResult(null);
+      setPendingSession(null);
+      toast.success("Session terminated");
+    } catch (e) {
+      console.error("Failed to terminate session", e);
+      toast.error("Unable to terminate session");
+    }
+  }
+
+  function applyPendingFilterChange() {
+    if (!pendingFilterChange) return;
+    const { field, value } = pendingFilterChange;
+    if (field === "subject") setSelectedSubject(value);
+    if (field === "year") setSelectedYear(value);
+    if (field === "topic") setSelectedTopic(value);
+    setPendingFilterChange(null);
+  }
+
+  function handleConfirmTerminate() {
+    setShowTerminateDialog(false);
+    terminateSession();
+    // apply change after terminating
+    setTimeout(() => applyPendingFilterChange(), 50);
+  }
+
+  function handleCancelTerminate() {
+    setPendingFilterChange(null);
+    setShowTerminateDialog(false);
+  }
+
+  function handleSubjectChange(value: string) {
+    if (isPracticing && value !== selectedSubject) {
+      setPendingFilterChange({ field: "subject", value });
+      setShowTerminateDialog(true);
+      return;
+    }
+    setSelectedSubject(value);
+  }
+
+  function handleYearChange(value: string) {
+    if (isPracticing && value !== selectedYear) {
+      setPendingFilterChange({ field: "year", value });
+      setShowTerminateDialog(true);
+      return;
+    }
+    setSelectedYear(value);
+  }
+
+  function handleTopicChange(value: string) {
+    if (isPracticing && value !== selectedTopic) {
+      setPendingFilterChange({ field: "topic", value });
+      setShowTerminateDialog(true);
+      return;
+    }
+    setSelectedTopic(value);
+  }
+
   function loadDraftFromLocalStorage(key?: string) {
     try {
       const k = key || getDraftKey();
@@ -189,6 +269,10 @@ export default function StudentJambPage() {
   }
 
   const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
+  const [showTerminateDialog, setShowTerminateDialog] = useState(false);
+  const [pendingFilterChange, setPendingFilterChange] = useState<{ field: "subject" | "year" | "topic"; value: string } | null>(null);
+  const [showSubmitWizard, setShowSubmitWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState<number>(1);
 
   useEffect(() => {
     if (!schoolLoading && schoolId) {
@@ -320,6 +404,10 @@ export default function StudentJambPage() {
       toast.error(error.message || "Failed to load available years and topics");
     });
   }, [selectedSubject, pendingSession]);
+
+  const isPracticing = useMemo(() => {
+    return questions.length > 0 && !attemptResult && Object.keys(answers).length > 0;
+  }, [questions, attemptResult, answers]);
 
   const filteredSubjectLabel = useMemo(() => {
     return subjects.find((subject) => subject.slug === selectedSubject)?.name || "JAMB";
@@ -655,6 +743,84 @@ export default function StudentJambPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={showTerminateDialog} onOpenChange={setShowTerminateDialog}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Terminate current session?</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have an active practice session. Terminating will clear your current answers and draft. Do you want to end the session and apply your requested change?
+          </AlertDialogDescription>
+          <div className="flex gap-3 justify-end">
+            <AlertDialogCancel onClick={handleCancelTerminate}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmTerminate}>Terminate Session</AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showSubmitWizard} onOpenChange={(open) => { if (!open) { setWizardStep(1); } setShowSubmitWizard(open); }}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Submit Attempt</AlertDialogTitle>
+          {wizardStep === 1 ? (
+            <AlertDialogDescription>
+              <p className="mb-3">Review your attempt before submission.</p>
+              <div className="space-y-2">
+                <p className="text-sm">Answered: {questions.filter(q => answers[q.id]).length}</p>
+                <p className="text-sm">Unanswered: {questions.filter(q => !answers[q.id]).length}</p>
+                {questions.filter(q => !answers[q.id]).length > 0 && (
+                  <div className="mt-2 max-h-40 overflow-auto rounded border bg-slate-50 p-2 text-sm">
+                    {questions.filter(q => !answers[q.id]).map((q, i) => (
+                      <div key={q.id} className="py-1">Question {(questionPage - 1) * QUESTIONS_PER_PAGE + questions.indexOf(q) + 1}: {q.question_text.slice(0, 120)}{q.question_text.length > 120 ? '…' : ''}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          ) : (
+            <AlertDialogDescription>
+              {attemptResult ? (
+                <div>
+                  <p className="text-lg font-semibold">Score: {attemptResult.score}%</p>
+                  <p className="mt-2">Correct: {attemptResult.correctCount} / {attemptResult.totalQuestions}</p>
+                  {attemptResult.perQuestion && (
+                    <div className="mt-3 space-y-2 max-h-64 overflow-auto">
+                      {attemptResult.perQuestion.filter(p => !p.isCorrect).map((p) => {
+                        const q = questions.find(q => q.id === p.questionId);
+                        return (
+                          <div key={p.questionId} className="rounded border bg-white p-3">
+                            <div className="font-medium">{q ? q.question_text : p.question_text}</div>
+                            <div className="mt-1 text-sm text-amber-700">Your answer: {p.selectedOption ?? '—'}</div>
+                            <div className="text-sm text-emerald-700">Correct answer: {p.correctOption ?? '—'}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p>Submitting...</p>
+              )}
+            </AlertDialogDescription>
+          )}
+
+          <div className="flex gap-3 justify-end">
+            {wizardStep === 1 ? (
+              <>
+                <AlertDialogCancel onClick={() => setShowSubmitWizard(false)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={async () => {
+                  try {
+                    await submitAttempt();
+                    setWizardStep(2);
+                  } catch (e) {
+                    setShowSubmitWizard(false);
+                  }
+                }}>Submit</AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onClick={() => setShowSubmitWizard(false)}>Close</AlertDialogAction>
+            )}
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="space-y-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -689,7 +855,7 @@ export default function StudentJambPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
-                      <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                      <Select value={selectedSubject} onValueChange={handleSubjectChange}>
                         <SelectTrigger>
                           <SelectValue placeholder="Choose subject" />
                         </SelectTrigger>
@@ -710,7 +876,7 @@ export default function StudentJambPage() {
                     <Badge variant="outline" className={selectedSubject ? "bg-blue-50" : "bg-gray-50"}>Step 2</Badge>
                     <p className="text-sm font-medium text-gray-700">Year</p>
                   </div>
-                  <Select value={selectedYear} onValueChange={setSelectedYear} disabled={!selectedSubject}>
+                  <Select value={selectedYear} onValueChange={handleYearChange} disabled={!selectedSubject}>
                     <SelectTrigger className={!selectedSubject ? "opacity-50 cursor-not-allowed" : ""}>
                       <SelectValue placeholder={selectedSubject ? "Choose year" : "Select subject first"} />
                     </SelectTrigger>
@@ -729,7 +895,7 @@ export default function StudentJambPage() {
                     <Badge variant="outline" className={selectedYear ? "bg-blue-50" : "bg-gray-50"}>Step 3</Badge>
                     <p className="text-sm font-medium text-gray-700">Topic</p>
                   </div>
-                  <Select value={selectedTopic} onValueChange={setSelectedTopic} disabled={!selectedYear}>
+                  <Select value={selectedTopic} onValueChange={handleTopicChange} disabled={!selectedYear}>
                     <SelectTrigger className={!selectedYear ? "opacity-50 cursor-not-allowed" : ""}>
                       <SelectValue placeholder={selectedYear ? "All topics" : "Select year first"} />
                     </SelectTrigger>
@@ -752,10 +918,7 @@ export default function StudentJambPage() {
               )}
 
               <div className="flex items-center gap-2">
-                <Button onClick={() => loadQuestions(1)} disabled={loadingQuestions || !selectedSubject || !selectedYear} className="gap-2">
-                  {loadingQuestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-                  Load Questions
-                </Button>
+                <p className="text-sm text-gray-600">Questions load automatically after selecting a subject and year.</p>
               </div>
             </CardContent>
           </Card>
@@ -811,6 +974,9 @@ export default function StudentJambPage() {
                   {questionDebug ? `Page ${questionDebug.page} of ${questionDebug.totalPages}` : "Load a page to see request details"}
                 </p>
               </div>
+              <div className="mt-3">
+                <Button variant="outline" onClick={() => terminateSession()} disabled={!isPracticing}>End Session</Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -829,7 +995,7 @@ export default function StudentJambPage() {
                     Page {questionPage}: {answeredCount}/{QUESTIONS_PER_PAGE} answered · {progressPercent}% total
                   </p>
                 </div>
-                <Button type="button" onClick={submitAttempt} disabled={submitting} className="gap-2">
+                <Button type="button" onClick={() => { setWizardStep(1); setShowSubmitWizard(true); }} disabled={submitting} className="gap-2">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
                   Submit Attempt
                 </Button>

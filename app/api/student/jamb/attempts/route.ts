@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const { student, userId } = currentStudent;
   const body = await req.json();
-  const { subjectSlug, subjectName, examYear, topic, answers } = body;
+  const { subjectSlug, subjectName, examYear, topic, answers, totalQuestions } = body;
 
   if (!subjectSlug || !subjectName || !examYear || !Array.isArray(answers)) {
     return NextResponse.json(
@@ -121,8 +121,12 @@ export async function POST(req: NextRequest) {
     };
   });
 
-  const totalQuestions = questionIds.length;
-  const score = totalQuestions > 0 ? Number(((correctCount / totalQuestions) * 100).toFixed(2)) : 0;
+  const submittedTotal = questionIds.length;
+  const providedTotal = Number(totalQuestions || 0);
+  const normalizedTotal = Number.isFinite(providedTotal) && providedTotal >= submittedTotal
+    ? providedTotal
+    : submittedTotal;
+  const score = normalizedTotal > 0 ? Number(((correctCount / normalizedTotal) * 100).toFixed(2)) : 0;
 
   const { data: attempt, error: attemptError } = await supabaseAdmin
     .from("jamb_attempts")
@@ -134,7 +138,7 @@ export async function POST(req: NextRequest) {
       exam_type: "jamb",
       exam_year: Number(examYear),
       topic: topic || null,
-      total_questions: totalQuestions,
+      total_questions: normalizedTotal,
       correct_count: correctCount,
       score,
       answers: normalizedAnswers,
@@ -150,10 +154,10 @@ export async function POST(req: NextRequest) {
     data: {
       attempt,
       correctCount,
-      totalQuestions,
+      totalQuestions: normalizedTotal,
       score,
       answeredCount,
-      unansweredCount: totalQuestions - answeredCount,
+      unansweredCount: Math.max(normalizedTotal - answeredCount, 0),
       missedCount: missedQuestions.length,
       unansweredQuestions: unansweredQuestions.map((q) => q.questionNumber),
       missedQuestions,

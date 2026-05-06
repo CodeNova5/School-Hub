@@ -683,6 +683,9 @@ export default function StudentJambPage() {
           examYear: Number(selectedYear),
           topic: selectedTopic === ALL_TOPICS ? null : selectedTopic,
           answers: answersPayload,
+          totalQuestions,
+          totalPages: questionTotalPages,
+          questionsPerPage: QUESTIONS_PER_PAGE,
         }),
       });
 
@@ -1191,12 +1194,12 @@ export default function StudentJambPage() {
               <div className="rounded-xl border bg-amber-50 p-4 text-center">
                 <p className="text-xs text-amber-700 font-medium uppercase tracking-wide">Unanswered</p>
                 <p className="mt-1 text-3xl font-bold text-amber-800">
-                  {(allQuestionIds.length || totalQuestions) - totalAnsweredCount}
+                  {Math.max(totalQuestions - totalAnsweredCount, 0)}
                 </p>
               </div>
               <div className="rounded-xl border bg-blue-50 p-4 text-center">
                 <p className="text-xs text-blue-700 font-medium uppercase tracking-wide">Total</p>
-                <p className="mt-1 text-3xl font-bold text-blue-800">{allQuestionIds.length || totalQuestions}</p>
+                <p className="mt-1 text-3xl font-bold text-blue-800">{totalQuestions}</p>
               </div>
             </div>
 
@@ -1265,11 +1268,11 @@ export default function StudentJambPage() {
             </div>
 
             {/* Warning if unanswered */}
-            {totalAnsweredCount < (allQuestionIds.length || totalQuestions) && (
+            {totalAnsweredCount < totalQuestions && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
                   <HelpCircle className="h-4 w-4" />
-                  You have {(allQuestionIds.length || totalQuestions) - totalAnsweredCount} unanswered question(s).
+                  You have {Math.max(totalQuestions - totalAnsweredCount, 0)} unanswered question(s).
                 </p>
                 <p className="text-xs text-amber-700 mt-1">
                   You can still submit — unanswered questions will count as incorrect.
@@ -1277,7 +1280,7 @@ export default function StudentJambPage() {
               </div>
             )}
 
-            {totalAnsweredCount === (allQuestionIds.length || totalQuestions) && (
+            {totalAnsweredCount === totalQuestions && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4" />
@@ -1285,6 +1288,11 @@ export default function StudentJambPage() {
                 </p>
               </div>
             )}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs text-slate-600">
+                Total questions are estimated as {questionTotalPages} pages × {QUESTIONS_PER_PAGE} questions. The final page may contain fewer questions.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3 justify-end border-t pt-4">

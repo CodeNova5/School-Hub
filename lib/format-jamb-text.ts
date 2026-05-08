@@ -192,15 +192,6 @@ function formatJambTextSegment(text: string): string {
 
 function convertLatexMatrices(text: string): string {
   const matrixRegex = /\\begin\{(pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|matrix)\}([\s\S]*?)\\end\{\1\}/g;
-  // Helper to escape HTML inside cells
-  function escapeHtml(s: string) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
 
   return text.replace(matrixRegex, (_match, environment, body) => {
     const wrappers: Record<string, [string, string]> = {
@@ -213,7 +204,6 @@ function convertLatexMatrices(text: string): string {
     };
 
     const [open, close] = wrappers[environment] || ['(', ')'];
-
     const rows = body
       .split(/\\\\/)
       .map((row: string) => row.trim())
@@ -222,19 +212,13 @@ function convertLatexMatrices(text: string): string {
         const cells = row
           .split('&')
           .map((cell: string) => formatJambTextSegment(cell))
-          .filter(Boolean)
-          .map((cell: string) => `<span class="jamb-matrix-cell">${escapeHtml(cell)}</span>`);
+          .filter(Boolean);
 
-        return `<div class="jamb-matrix-row">${cells.join('<span class="jamb-matrix-sep"> </span>')}</div>`;
+        return cells.join(' ');
       })
       .filter(Boolean);
 
-    // Wrap matrix in a container. Use inline-block + pre for spacing preservation.
-    return `<span class="jamb-matrix" style="display:inline-block; vertical-align:middle; font-family:inherit;">
-      <span class="jamb-matrix-open">${escapeHtml(open)}</span>
-      <span class="jamb-matrix-body" style="display:inline-block; white-space:pre; margin:0 6px;">${rows.join('')}</span>
-      <span class="jamb-matrix-close">${escapeHtml(close)}</span>
-    </span>`;
+    return `${open}${rows.map((r: any) => `(${r})`).join('\n')}${close}`;
   });
 }
 
@@ -290,23 +274,26 @@ export function formatJambText(text: string): string {
   // 1.3 Normalize common latex math commands before generic backslash cleanup
   formatted = normalizeCommonLatexMath(formatted);
 
-  // 1.5 Run generic cleanups that should affect matrix cells too
-  formatted = cleanEscapedCharacters(formatted);
-  formatted = convertSubscripts(formatted);
-  formatted = convertSuperscripts(formatted);
-  formatted = unwrapNumericParentheses(formatted);
-
-  // 2. Convert matrix environments into HTML markup (rows & cells)
+  // 1.5 Normalize matrix environments before generic backslash cleanup
   formatted = convertLatexMatrices(formatted);
+  
+  // 2. Clean up escaped characters
+  formatted = cleanEscapedCharacters(formatted);
+  
+  // 3. Convert subscripts
+  formatted = convertSubscripts(formatted);
+  
+  // 4. Convert superscripts
+  formatted = convertSuperscripts(formatted);
 
-  // 3. If the result contains matrix HTML, return without collapsing all whitespace
-  if (formatted.includes('class="jamb-matrix"')) {
-    return formatted.trim();
-  }
-
-  // 4. Final cleanup: remove multiple spaces for plain text results
-  formatted = formatted.replace(/\s+/g, ' ').trim();
-
+  // 4.5 unwrap numeric parentheses that remain
+  formatted = unwrapNumericParentheses(formatted);
+  
+  // 5. Final cleanup: remove multiple spaces but preserve newlines
+  // Replace sequences of spaces/tabs with a single space, then
+  // normalize newline spacing so matrix rows remain on separate lines.
+  formatted = formatted.replace(/[ \t]+/g, ' ').replace(/\r?\n\s*/g, '\n').replace(/\n{2,}/g, '\n').trim();
+  
   return formatted;
 }
 

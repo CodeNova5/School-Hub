@@ -80,12 +80,24 @@ type FractionChunk = {
   denominator: string;
 };
 
+type SuperscriptChunk = {
+  type: "superscript";
+  base: string;
+  exponent: string;
+};
+
+type SubscriptChunk = {
+  type: "subscript";
+  base: string;
+  index: string;
+};
+
 type TextChunk = {
   type: "text";
   value: string;
 };
 
-type RenderChunk = MatrixChunk | FractionChunk | TextChunk;
+type RenderChunk = MatrixChunk | FractionChunk | SuperscriptChunk | SubscriptChunk | TextChunk;
 
 function isNumericToken(token: string): boolean {
   return /^-?\d+(?:\.\d+)?$/.test(token);
@@ -187,8 +199,15 @@ function parseComplexMathExpressions(text: string): RenderChunk[] {
   const allChunks: RenderChunk[] = [];
   for (const chunk of fractionChunks) {
     if (chunk.type === "text") {
-      const matrixChunks = parseTextWithMatrices(chunk.value);
-      allChunks.push(...matrixChunks);
+      const superSubChunks = parseSupscriptsAndSubscripts(chunk.value);
+      for (const subChunk of superSubChunks) {
+        if (subChunk.type === "text") {
+          const matrixChunks = parseTextWithMatrices(subChunk.value);
+          allChunks.push(...matrixChunks);
+        } else {
+          allChunks.push(subChunk);
+        }
+      }
     } else {
       allChunks.push(chunk);
     }
@@ -196,10 +215,45 @@ function parseComplexMathExpressions(text: string): RenderChunk[] {
   return allChunks;
 }
 
+function parseSupscriptsAndSubscripts(text: string): RenderChunk[] {
+  const chunks: RenderChunk[] = [];
+  // Match patterns like: letter followed by digit (e.g., y2, x3) or underscore followed by letter/digit (e.g., x_i, a_1)
+  const superSubRegex = /([a-zA-Z×])(_)([a-zA-Z0-9])|([a-zA-Z×])([0-9]+)(?![a-zA-Z0-9])/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = superSubRegex.exec(text)) !== null) {
+    const [fullMatch, subBase, underscore, subIndex, supBase, supExp] = match;
+    const matchStart = match.index;
+
+    if (matchStart > lastIndex) {
+      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
+    }
+
+    if (underscore) {
+      // Subscript pattern
+      chunks.push({ type: "subscript", base: subBase, index: subIndex });
+    } else if (supExp) {
+      // Superscript pattern
+      chunks.push({ type: "superscript", base: supBase, exponent: supExp });
+    }
+
+    lastIndex = matchStart + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    chunks.push({ type: "text", value: text.slice(lastIndex) });
+  }
+
+  return chunks.length > 1 ? chunks : [{ type: "text", value: text }];
+}
+
 function renderQuestionWithMathML(rawText: string): ReactNode {
   const formatted = formatJambText(rawText);
   const chunks = parseComplexMathExpressions(formatted);
-  const hasMath = chunks.some((chunk) => chunk.type === "matrix" || chunk.type === "fraction");
+  const hasMath = chunks.some(
+    (chunk) => chunk.type === "matrix" || chunk.type === "fraction" || chunk.type === "superscript" || chunk.type === "subscript"
+  );
 
   if (!hasMath) {
     return formatted;
@@ -211,6 +265,32 @@ function renderQuestionWithMathML(rawText: string): ReactNode {
         <span key={`text-${chunkIndex}`} className="preserve-whitespace">
           {chunk.value}
         </span>
+      );
+    }
+
+    if (chunk.type === "superscript") {
+      const supMathMl = `<math display="inline"><msup><mi>${escapeHtml(chunk.base)}</mi><mn>${escapeHtml(chunk.exponent)}</mn></msup></math>`;
+      return (
+        <span
+          key={`sup-${chunkIndex}`}
+          aria-label="superscript"
+          className="inline-block align-middle"
+          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.1rem" }}
+          dangerouslySetInnerHTML={{ __html: supMathMl }}
+        />
+      );
+    }
+
+    if (chunk.type === "subscript") {
+      const subMathMl = `<math display="inline"><msub><mi>${escapeHtml(chunk.base)}</mi><mi>${escapeHtml(chunk.index)}</mi></msub></math>`;
+      return (
+        <span
+          key={`sub-${chunkIndex}`}
+          aria-label="subscript"
+          className="inline-block align-middle"
+          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.1rem" }}
+          dangerouslySetInnerHTML={{ __html: subMathMl }}
+        />
       );
     }
 

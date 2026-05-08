@@ -35,57 +35,6 @@ function decodeHtmlEntities(text: string): string {
   return decoded;
 }
 
-// Escape HTML special characters for safe insertion into HTML
-function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-// Wrap detected LaTeX/math fragments in a code tag so a math renderer can process them.
-// Matches common LaTeX patterns: $...$, $$...$$, \(...\), \[...\], \frac{..}{..}, \sqrt{..}, \begin{...}...\end{...},
-// and general \command{...} sequences.
-function wrapMathSegments(text: string): string {
-  if (!text) return text;
-
-  // Helper to replace matches with an escaped code wrapper
-  const wrap = (m: string) => `<code class="math">\\(${escapeHtml(m)}\\)</code>`;
-
-  // 1. Protect \begin...\end blocks (multi-line matrix/equation blocks)
-  text = text.replace(/\\begin\{[a-zA-Z]+\}[\s\S]*?\\end\{[a-zA-Z]+\}/g, (m) => wrap(m));
-
-  // 2. $$...$$ block math
-  text = text.replace(/\$\$[\s\S]+?\$\$/g, (m) => wrap(m));
-
-  // 3. $...$ inline math
-  text = text.replace(/\$(?:[^$\\]|\\.)+?\$/g, (m) => wrap(m));
-
-  // 4. \(...\) and \[...\]
-  text = text.replace(/\\\([\s\S]*?\\\)/g, (m) => wrap(m));
-  text = text.replace(/\\\[[\s\S]*?\\\]/g, (m) => wrap(m));
-
-  // 5. \frac{...}{...}
-  text = text.replace(/\\frac\s*\{[^}]+\}\s*\{[^}]+\}/g, (m) => wrap(m));
-
-  // 6. \sqrt[...]?{...}
-  text = text.replace(/\\sqrt(?:\s*\[[^\]]+\])?\s*\{[^}]+\}/g, (m) => wrap(m));
-
-  // 7. General backslash-command with braced args: \command{...}{...}
-  text = text.replace(/\\[a-zA-Z]+(?:\s*\{[^}]*\})+/g, (m) => wrap(m));
-
-  return text;
-}
-
-// Apply a transform only to text outside of math code tags
-function applyToNonMath(text: string, fn: (s: string) => string): string {
-  if (!text) return text;
-  const parts = text.split(/(<code class="math">[\s\S]*?<\/code>)/g);
-  for (let i = 0; i < parts.length; i++) {
-    if (!parts[i]) continue;
-    if (parts[i].startsWith('<code class="math">')) continue;
-    parts[i] = fn(parts[i]);
-  }
-  return parts.join('');
-}
-
 // Convert subscript notation to Unicode subscripts
 // Handles patterns like: H_2SO_4, H_{2}SO_{4}, H_2_O, etc.
 function convertSubscripts(text: string): string {
@@ -319,26 +268,31 @@ export function formatJambText(text: string): string {
   // 1. Decode HTML entities first
   formatted = decodeHtmlEntities(formatted);
 
-  // Wrap LaTeX/math segments in a code tag so a math renderer can format them.
-  formatted = wrapMathSegments(formatted);
+  // 1.25 Normalize square-root notation before generic backslash cleanup
+  formatted = convertSquareRoots(formatted);
 
-  // Apply the remaining normalizations only outside of math code tags so
-  // the original LaTeX inside the math wrapper remains intact for rendering.
-  formatted = applyToNonMath(formatted, (s) => {
-    s = convertSquareRoots(s);
-    s = normalizeCommonLatexMath(s);
-    s = convertLatexMatrices(s);
-    s = cleanEscapedCharacters(s);
-    s = convertSubscripts(s);
-    s = convertSuperscripts(s);
-    s = unwrapNumericParentheses(s);
-    return s;
-  });
+  // 1.3 Normalize common latex math commands before generic backslash cleanup
+  formatted = normalizeCommonLatexMath(formatted);
+
+  // 1.5 Normalize matrix environments before generic backslash cleanup
+  formatted = convertLatexMatrices(formatted);
+  
+  // 2. Clean up escaped characters
+  formatted = cleanEscapedCharacters(formatted);
+  
+  // 3. Convert subscripts
+  formatted = convertSubscripts(formatted);
+  
+  // 4. Convert superscripts
+  formatted = convertSuperscripts(formatted);
+
+  // 4.5 unwrap numeric parentheses that remain
+  formatted = unwrapNumericParentheses(formatted);
   
   // 5. Final cleanup: remove multiple spaces but preserve newlines
   // Replace sequences of spaces/tabs with a single space, then
   // normalize newline spacing so matrix rows remain on separate lines.
-  formatted = applyToNonMath(formatted, (s) => s.replace(/[ \t]+/g, ' ').replace(/\r?\n\s*/g, '\n').replace(/\n{2,}/g, '\n').trim());
+  formatted = formatted.replace(/[ \t]+/g, ' ').replace(/\r?\n\s*/g, '\n').replace(/\n{2,}/g, '\n').trim();
   
   return formatted;
 }

@@ -30,6 +30,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+import useKatexRender from "@/lib/use-katex";
+
 type SubjectOption = {
   slug: string;
   name: string;
@@ -380,6 +382,9 @@ export default function StudentJambPage() {
       });
     }
   }, [questions, questionPage]);
+
+  // Render KaTeX for wrapped math segments whenever questions change
+  useKatexRender(questions);
 
   // Reset allQuestionIds when session resets
   useEffect(() => {

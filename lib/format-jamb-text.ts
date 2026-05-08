@@ -126,10 +126,62 @@ function cleanEscapedCharacters(text: string): string {
   return result;
 }
 
+function convertSquareRoots(text: string): string {
+  return text.replace(/\\+sqrt(?:\s*\{([^}]+)\}|\s*\(([^)]+)\)|\s+([A-Za-z0-9]+))/g, (_match, braceContent, parenContent, bareContent) => {
+    const content = (braceContent || parenContent || bareContent || '').trim();
+    if (!content) return '√';
+
+    if (/^[A-Za-z0-9]+$/.test(content)) {
+      return `√${content}`;
+    }
+
+    return `√(${content})`;
+  });
+}
+
+function normalizeCommonLatexMath(text: string): string {
+  let result = text;
+
+  const symbolReplacements: Array<[RegExp, string]> = [
+    [/\\leq/g, '≤'],
+    [/\\geq/g, '≥'],
+    [/\\le/g, '≤'],
+    [/\\ge/g, '≥'],
+    [/\\neq/g, '≠'],
+    [/\\pm/g, '±'],
+    [/\\times/g, '×'],
+    [/\\div/g, '÷'],
+    [/\\cdot/g, '·'],
+    [/\\left/g, ''],
+    [/\\right/g, ''],
+    [/\\,/g, ' '],
+    [/\\;/g, ' '],
+    [/\\!/g, ''],
+  ];
+
+  for (const [pattern, replacement] of symbolReplacements) {
+    result = result.replace(pattern, replacement);
+  }
+
+  let previous = '';
+  while (previous !== result) {
+    previous = result;
+    result = result.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, (_match, numerator: string, denominator: string) => {
+      const cleanNumerator = numerator.trim();
+      const cleanDenominator = denominator.trim();
+      return `(${cleanNumerator}/${cleanDenominator})`;
+    });
+  }
+
+  return result;
+}
+
 function formatJambTextSegment(text: string): string {
   if (!text || typeof text !== 'string') return '';
 
   let formatted = text.trim();
+  formatted = convertSquareRoots(formatted);
+  formatted = normalizeCommonLatexMath(formatted);
   formatted = cleanEscapedCharacters(formatted);
   formatted = convertSubscripts(formatted);
   formatted = convertSuperscripts(formatted);
@@ -215,6 +267,12 @@ export function formatJambText(text: string): string {
   
   // 1. Decode HTML entities first
   formatted = decodeHtmlEntities(formatted);
+
+  // 1.25 Normalize square-root notation before generic backslash cleanup
+  formatted = convertSquareRoots(formatted);
+
+  // 1.3 Normalize common latex math commands before generic backslash cleanup
+  formatted = normalizeCommonLatexMath(formatted);
 
   // 1.5 Normalize matrix environments before generic backslash cleanup
   formatted = convertLatexMatrices(formatted);

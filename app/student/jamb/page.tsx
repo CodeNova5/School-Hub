@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { formatJambText } from "@/lib/format-jamb-text";
+import { formatJambOptionText, formatJambText } from "@/lib/format-jamb-text";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -1028,7 +1028,7 @@ export default function StudentJambPage() {
                             <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                               {String.fromCharCode(65 + optionIndex)}
                             </span>
-                            <span className="text-base">{formatJambText(option)}</span>
+                            <span className="text-base">{formatJambOptionText(option)}</span>
                           </Button>
                         );
                       })}
@@ -1037,7 +1037,7 @@ export default function StudentJambPage() {
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
                       <span>
                         {answers[question.id]
-                          ? `Selected answer: ${answers[question.id]}`
+                          ? `Selected answer: ${formatJambOptionText(answers[question.id])}`
                           : "No answer selected yet"}
                       </span>
                       <span>Question {displayQuestionNumber}</span>
@@ -1417,11 +1417,11 @@ export default function StudentJambPage() {
                           )}
                           <div className="rounded bg-red-50 p-2 border border-red-200">
                             <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900">{formatJambText(item.userAnswer)}</p>
+                            <p className="text-red-900">{formatJambOptionText(item.userAnswer)}</p>
                           </div>
                           <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
                             <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900">{formatJambText(item.correctAnswer)}</p>
+                            <p className="text-emerald-900">{formatJambOptionText(item.correctAnswer)}</p>
                           </div>
                           {item.explanation && (
                             <div className="rounded bg-blue-50 p-2 border border-blue-200">

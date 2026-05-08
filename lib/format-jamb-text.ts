@@ -112,6 +112,54 @@ function cleanEscapedCharacters(text: string): string {
   return result;
 }
 
+function formatJambTextSegment(text: string): string {
+  if (!text || typeof text !== 'string') return '';
+
+  let formatted = text.trim();
+  formatted = cleanEscapedCharacters(formatted);
+  formatted = convertSubscripts(formatted);
+  formatted = convertSuperscripts(formatted);
+  formatted = unwrapNumericParentheses(formatted);
+
+  return formatted.replace(/\s+/g, ' ').trim();
+}
+
+function convertLatexMatrices(text: string): string {
+  const matrixRegex = /\\begin\{(pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|matrix)\}([\s\S]*?)\\end\{\1\}/g;
+
+  return text.replace(matrixRegex, (_match, environment, body) => {
+    const wrappers: Record<string, [string, string]> = {
+      matrix: ['(', ')'],
+      pmatrix: ['(', ')'],
+      bmatrix: ['[', ']'],
+      Bmatrix: ['{', '}'],
+      vmatrix: ['|', '|'],
+      Vmatrix: ['‖', '‖'],
+    };
+
+    const [open, close] = wrappers[environment] || ['(', ')'];
+    const rows = body
+      .split(/\\\\/)
+      .map((row: string) => row.trim())
+      .filter(Boolean)
+      .map((row: string) => {
+        const cells = row
+          .split('&')
+          .map((cell: string) => formatJambTextSegment(cell))
+          .filter(Boolean);
+
+        return cells.join(', ');
+      })
+      .filter(Boolean);
+
+    return `${open}${rows.join('; ')}${close}`;
+  });
+}
+
+function stripOptionPrefix(text: string): string {
+  return text.replace(/^\s*(?:option\s*)?[A-D](?:[\.:\-\)])\s*/i, '');
+}
+
 // Remove parentheses that wrap only subscript or superscript characters
 function unwrapNumericParentheses(text: string): string {
   let result = text;
@@ -153,6 +201,9 @@ export function formatJambText(text: string): string {
   
   // 1. Decode HTML entities first
   formatted = decodeHtmlEntities(formatted);
+
+  // 1.5 Normalize matrix environments before generic backslash cleanup
+  formatted = convertLatexMatrices(formatted);
   
   // 2. Clean up escaped characters
   formatted = cleanEscapedCharacters(formatted);
@@ -176,5 +227,12 @@ export function formatJambText(text: string): string {
  * Format an array of JAMB options
  */
 export function formatJambOptions(options: string[]): string[] {
-  return options.map(opt => formatJambText(opt));
+  return options.map((opt) => formatJambOptionText(opt));
+}
+
+/**
+ * Format a single JAMB option for display, removing any scraped A./B./C./D. prefix.
+ */
+export function formatJambOptionText(text: string): string {
+  return stripOptionPrefix(formatJambText(text));
 }

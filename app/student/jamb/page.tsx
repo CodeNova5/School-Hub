@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { formatJambOptionText, formatJambText } from "@/lib/format-jamb-text";
@@ -68,6 +68,123 @@ type AttemptResult = {
 };
 
 const QUESTIONS_PER_PAGE = 5;
+
+type MatrixChunk = {
+  type: "matrix";
+  rows: string[][];
+};
+
+type TextChunk = {
+  type: "text";
+  value: string;
+};
+
+type RenderChunk = MatrixChunk | TextChunk;
+
+function isNumericToken(token: string): boolean {
+  return /^-?\d+(?:\.\d+)?$/.test(token);
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderMathToken(token: string): string {
+  const trimmed = token.trim();
+  if (!trimmed) return "<mtext></mtext>";
+
+  if (isNumericToken(trimmed) && trimmed.startsWith("-")) {
+    return `<mrow><mo>-</mo><mn>${escapeHtml(trimmed.slice(1))}</mn></mrow>`;
+  }
+
+  if (isNumericToken(trimmed)) {
+    return `<mn>${escapeHtml(trimmed)}</mn>`;
+  }
+
+  if (/^[A-Za-z]+$/.test(trimmed)) {
+    return `<mi>${escapeHtml(trimmed)}</mi>`;
+  }
+
+  return `<mtext>${escapeHtml(trimmed)}</mtext>`;
+}
+
+function parseTextWithMatrices(text: string): RenderChunk[] {
+  const chunks: RenderChunk[] = [];
+  const matrixRegex = /\(\(([^()]+)\)\s*\(([^()]+)\)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = matrixRegex.exec(text)) !== null) {
+    const [fullMatch, row1Raw, row2Raw] = match;
+    const matchStart = match.index;
+
+    if (matchStart > lastIndex) {
+      chunks.push({
+        type: "text",
+        value: text.slice(lastIndex, matchStart),
+      });
+    }
+
+    const row1 = row1Raw.trim().split(/\s+/).filter(Boolean);
+    const row2 = row2Raw.trim().split(/\s+/).filter(Boolean);
+
+    chunks.push({
+      type: "matrix",
+      rows: [row1, row2],
+    });
+
+    lastIndex = matchStart + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    chunks.push({
+      type: "text",
+      value: text.slice(lastIndex),
+    });
+  }
+
+  return chunks;
+}
+
+function renderQuestionWithMathML(rawText: string): ReactNode {
+  const formatted = formatJambText(rawText);
+  const chunks = parseTextWithMatrices(formatted);
+  const hasMatrix = chunks.some((chunk) => chunk.type === "matrix");
+
+  if (!hasMatrix) {
+    return formatted;
+  }
+
+  return chunks.map((chunk, chunkIndex) => {
+    if (chunk.type === "text") {
+      return (
+        <span key={`text-${chunkIndex}`} className="preserve-whitespace">
+          {chunk.value}
+        </span>
+      );
+    }
+
+    const matrixRows = chunk.rows
+      .map((row) => `<mtr>${row.map((cell) => `<mtd>${renderMathToken(cell)}</mtd>`).join("")}</mtr>`)
+      .join("");
+    const matrixMathMl = `<math display="inline"><mrow><mo>(</mo><mtable>${matrixRows}</mtable><mo>)</mo></mrow></math>`;
+
+    return (
+      <span
+        key={`matrix-${chunkIndex}`}
+        aria-label="matrix"
+        className="inline-block align-middle"
+        style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
+        dangerouslySetInnerHTML={{ __html: matrixMathMl }}
+      />
+    );
+  });
+}
 
 export default function StudentJambPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
@@ -1012,7 +1129,7 @@ export default function StudentJambPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-5 p-6">
-                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{formatJambText(question.question_text)}</p>
+                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{renderQuestionWithMathML(question.question_text)}</p>
 
                     <div className="grid gap-3">
                       {question.options.map((option, optionIndex) => {

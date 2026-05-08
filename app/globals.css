@@ -153,3 +153,9 @@ body.export-mode .export-hide {
 body.export-mode .export-show {
   display: block !important;
 }
+
+/* Preserve newlines and wrapping for preformatted math/text (matrices, etc.) */
+.preserve-whitespace {
+  white-space: pre-wrap;
+  word-break: break-word;
+}

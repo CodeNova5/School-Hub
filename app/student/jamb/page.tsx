@@ -1012,7 +1012,7 @@ export default function StudentJambPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-5 p-6">
-                    <p className="text-lg font-medium text-gray-900">{formatJambText(question.question_text)}</p>
+                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{formatJambText(question.question_text)}</p>
 
                     <div className="grid gap-3">
                       {question.options.map((option, optionIndex) => {

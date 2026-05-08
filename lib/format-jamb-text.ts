@@ -191,35 +191,9 @@ function formatJambTextSegment(text: string): string {
 }
 
 function convertLatexMatrices(text: string): string {
-  const matrixRegex = /\\begin\{(pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|matrix)\}([\s\S]*?)\\end\{\1\}/g;
-
-  return text.replace(matrixRegex, (_match, environment, body) => {
-    const wrappers: Record<string, [string, string]> = {
-      matrix: ['(', ')'],
-      pmatrix: ['(', ')'],
-      bmatrix: ['[', ']'],
-      Bmatrix: ['{', '}'],
-      vmatrix: ['|', '|'],
-      Vmatrix: ['‖', '‖'],
-    };
-
-    const [open, close] = wrappers[environment] || ['(', ')'];
-    const rows = body
-      .split(/\\\\/)
-      .map((row: string) => row.trim())
-      .filter(Boolean)
-      .map((row: string) => {
-        const cells = row
-          .split('&')
-          .map((cell: string) => formatJambTextSegment(cell))
-          .filter(Boolean);
-
-        return cells.join(', ');
-      })
-      .filter(Boolean);
-
-    return `${open}${rows.join('; ')}${close}`;
-  });
+  // Preserve LaTeX matrix notation as-is for proper rendering by KaTeX/MathJax
+  // Do not convert to text representation as it loses mathematical formatting
+  return text;
 }
 
 function stripOptionPrefix(text: string): string {

@@ -74,12 +74,18 @@ type MatrixChunk = {
   rows: string[][];
 };
 
+type FractionChunk = {
+  type: "fraction";
+  numerator: string;
+  denominator: string;
+};
+
 type TextChunk = {
   type: "text";
   value: string;
 };
 
-type RenderChunk = MatrixChunk | TextChunk;
+type RenderChunk = MatrixChunk | FractionChunk | TextChunk;
 
 function isNumericToken(token: string): boolean {
   return /^-?\d+(?:\.\d+)?$/.test(token);
@@ -151,12 +157,51 @@ function parseTextWithMatrices(text: string): RenderChunk[] {
   return chunks;
 }
 
+function parseFractionsInText(text: string): RenderChunk[] {
+  const chunks: RenderChunk[] = [];
+  const fractionRegex = /\(([^()]+)\)\/\(([^()]+)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = fractionRegex.exec(text)) !== null) {
+    const [fullMatch, numeratorRaw, denominatorRaw] = match;
+    const matchStart = match.index;
+
+    if (matchStart > lastIndex) {
+      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
+    }
+
+    chunks.push({ type: "fraction", numerator: numeratorRaw.trim(), denominator: denominatorRaw.trim() });
+    lastIndex = matchStart + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    chunks.push({ type: "text", value: text.slice(lastIndex) });
+  }
+
+  return chunks.length > 1 ? chunks : [{ type: "text", value: text }];
+}
+
+function parseComplexMathExpressions(text: string): RenderChunk[] {
+  const fractionChunks = parseFractionsInText(text);
+  const allChunks: RenderChunk[] = [];
+  for (const chunk of fractionChunks) {
+    if (chunk.type === "text") {
+      const matrixChunks = parseTextWithMatrices(chunk.value);
+      allChunks.push(...matrixChunks);
+    } else {
+      allChunks.push(chunk);
+    }
+  }
+  return allChunks;
+}
+
 function renderQuestionWithMathML(rawText: string): ReactNode {
   const formatted = formatJambText(rawText);
-  const chunks = parseTextWithMatrices(formatted);
-  const hasMatrix = chunks.some((chunk) => chunk.type === "matrix");
+  const chunks = parseComplexMathExpressions(formatted);
+  const hasMath = chunks.some((chunk) => chunk.type === "matrix" || chunk.type === "fraction");
 
-  if (!hasMatrix) {
+  if (!hasMath) {
     return formatted;
   }
 
@@ -166,6 +211,19 @@ function renderQuestionWithMathML(rawText: string): ReactNode {
         <span key={`text-${chunkIndex}`} className="preserve-whitespace">
           {chunk.value}
         </span>
+      );
+    }
+
+    if (chunk.type === "fraction") {
+      const fractionMathMl = `<math display="inline"><mrow><mfrac><mrow>${escapeHtml(chunk.numerator)}</mrow><mrow>${escapeHtml(chunk.denominator)}</mrow></mfrac></mrow></math>`;
+      return (
+        <span
+          key={`fraction-${chunkIndex}`}
+          aria-label="fraction"
+          className="inline-block align-middle"
+          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
+          dangerouslySetInnerHTML={{ __html: fractionMathMl }}
+        />
       );
     }
 

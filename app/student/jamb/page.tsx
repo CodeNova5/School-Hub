@@ -250,80 +250,8 @@ function parseSupscriptsAndSubscripts(text: string): RenderChunk[] {
   return chunks.length > 1 ? chunks : [{ type: "text", value: text }];
 }
 
-function renderQuestionWithMathML(rawText: string): ReactNode {
-  const formatted = formatJambText(rawText);
-  const chunks = parseComplexMathExpressions(formatted);
-  const hasMath = chunks.some(
-    (chunk) => chunk.type === "matrix" || chunk.type === "fraction" || chunk.type === "superscript" || chunk.type === "subscript"
-  );
-
-  if (!hasMath) {
-    return formatted;
-  }
-
-  return chunks.map((chunk, chunkIndex) => {
-    if (chunk.type === "text") {
-      return (
-        <span key={`text-${chunkIndex}`} className="preserve-whitespace">
-          {chunk.value}
-        </span>
-      );
-    }
-
-    if (chunk.type === "superscript") {
-      const supMathMl = `<math display="inline"><msup><mi>${escapeHtml(chunk.base)}</mi><mn>${escapeHtml(chunk.exponent)}</mn></msup></math>`;
-      return (
-        <span
-          key={`sup-${chunkIndex}`}
-          aria-label="superscript"
-          className="inline-block align-middle"
-          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.1rem" }}
-          dangerouslySetInnerHTML={{ __html: supMathMl }}
-        />
-      );
-    }
-
-    if (chunk.type === "subscript") {
-      const subMathMl = `<math display="inline"><msub><mi>${escapeHtml(chunk.base)}</mi><mi>${escapeHtml(chunk.index)}</mi></msub></math>`;
-      return (
-        <span
-          key={`sub-${chunkIndex}`}
-          aria-label="subscript"
-          className="inline-block align-middle"
-          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.1rem" }}
-          dangerouslySetInnerHTML={{ __html: subMathMl }}
-        />
-      );
-    }
-
-    if (chunk.type === "fraction") {
-      const fractionMathMl = `<math display="inline"><mrow><mfrac><mrow>${escapeHtml(chunk.numerator)}</mrow><mrow>${escapeHtml(chunk.denominator)}</mrow></mfrac></mrow></math>`;
-      return (
-        <span
-          key={`fraction-${chunkIndex}`}
-          aria-label="fraction"
-          className="inline-block align-middle"
-          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
-          dangerouslySetInnerHTML={{ __html: fractionMathMl }}
-        />
-      );
-    }
-
-    const matrixRows = chunk.rows
-      .map((row) => `<mtr>${row.map((cell) => `<mtd>${renderMathToken(cell)}</mtd>`).join("")}</mtr>`)
-      .join("");
-    const matrixMathMl = `<math display="inline"><mrow><mo>(</mo><mtable>${matrixRows}</mtable><mo>)</mo></mrow></math>`;
-
-    return (
-      <span
-        key={`matrix-${chunkIndex}`}
-        aria-label="matrix"
-        className="inline-block align-middle"
-        style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
-        dangerouslySetInnerHTML={{ __html: matrixMathMl }}
-      />
-    );
-  });
+function renderFormattedText(rawText: string): ReactNode {
+  return <span className="preserve-whitespace" dangerouslySetInnerHTML={{ __html: formatJambText(rawText) }} />;
 }
 
 export default function StudentJambPage() {
@@ -1272,7 +1200,7 @@ export default function StudentJambPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-5 p-6">
-                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{renderQuestionWithMathML(question.question_text)}</p>
+                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{renderFormattedText(question.question_text)}</p>
 
                     <div className="grid gap-3">
                       {question.options.map((option, optionIndex) => {
@@ -1288,7 +1216,7 @@ export default function StudentJambPage() {
                             <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                               {String.fromCharCode(65 + optionIndex)}
                             </span>
-                            <span className="text-base">{formatJambOptionText(option)}</span>
+                            <span className="text-base" dangerouslySetInnerHTML={{ __html: formatJambOptionText(option) }} />
                           </Button>
                         );
                       })}
@@ -1296,9 +1224,14 @@ export default function StudentJambPage() {
 
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
                       <span>
-                        {answers[question.id]
-                          ? `Selected answer: ${formatJambOptionText(answers[question.id])}`
-                          : "No answer selected yet"}
+                        {answers[question.id] ? (
+                          <span className="flex flex-wrap items-center gap-1">
+                            <span>Selected answer:</span>
+                            {renderFormattedText(answers[question.id])}
+                          </span>
+                        ) : (
+                          "No answer selected yet"
+                        )}
                       </span>
                       <span>Question {displayQuestionNumber}</span>
                     </div>
@@ -1677,11 +1610,11 @@ export default function StudentJambPage() {
                           )}
                           <div className="rounded bg-red-50 p-2 border border-red-200">
                             <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900">{formatJambOptionText(item.userAnswer)}</p>
+                            <p className="text-red-900" dangerouslySetInnerHTML={{ __html: formatJambOptionText(item.userAnswer) }} />
                           </div>
                           <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
                             <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900">{formatJambOptionText(item.correctAnswer)}</p>
+                            <p className="text-emerald-900" dangerouslySetInnerHTML={{ __html: formatJambOptionText(item.correctAnswer) }} />
                           </div>
                           {item.explanation && (
                             <div className="rounded bg-blue-50 p-2 border border-blue-200">

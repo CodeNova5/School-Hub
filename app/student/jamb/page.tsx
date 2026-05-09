@@ -80,12 +80,18 @@ type FractionChunk = {
   denominator: string;
 };
 
+type PowerChunk = {
+  type: "power";
+  base: string;
+  exponent: string;
+};
+
 type TextChunk = {
   type: "text";
   value: string;
 };
 
-type RenderChunk = MatrixChunk | FractionChunk | TextChunk;
+type RenderChunk = MatrixChunk | FractionChunk | PowerChunk | TextChunk;
 
 function isNumericToken(token: string): boolean {
   return /^-?\d+(?:\.\d+)?$/.test(token);
@@ -195,13 +201,57 @@ function parseFractionsInText(text: string): RenderChunk[] {
   return chunks.length > 1 ? chunks : [{ type: "text", value: text }];
 }
 
+function parsePowersInText(text: string): RenderChunk[] {
+  const chunks: RenderChunk[] = [];
+  const powerRegex = /(\([^()]+\)|[A-Za-z0-9.]+)\s*\^\s*(\{[^{}]+\}|\([^()]+\)|[A-Za-z0-9+\-]+)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  const normalize = (value: string) => {
+    const trimmed = value.trim();
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("(") && trimmed.endsWith(")"))) {
+      return trimmed.slice(1, -1).trim();
+    }
+    return trimmed;
+  };
+
+  while ((match = powerRegex.exec(text)) !== null) {
+    const [fullMatch, baseRaw, exponentRaw] = match;
+    const matchStart = match.index;
+
+    if (matchStart > lastIndex) {
+      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
+    }
+
+    chunks.push({
+      type: "power",
+      base: normalize(baseRaw),
+      exponent: normalize(exponentRaw),
+    });
+
+    lastIndex = matchStart + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    chunks.push({ type: "text", value: text.slice(lastIndex) });
+  }
+
+  return chunks.length > 1 ? chunks : [{ type: "text", value: text }];
+}
+
 function parseComplexMathExpressions(text: string): RenderChunk[] {
   const fractionChunks = parseFractionsInText(text);
   const allChunks: RenderChunk[] = [];
   for (const chunk of fractionChunks) {
     if (chunk.type === "text") {
       const matrixChunks = parseTextWithMatrices(chunk.value);
-      allChunks.push(...matrixChunks);
+      for (const matrixChunk of matrixChunks) {
+        if (matrixChunk.type === "text") {
+          allChunks.push(...parsePowersInText(matrixChunk.value));
+        } else {
+          allChunks.push(matrixChunk);
+        }
+      }
     } else {
       allChunks.push(chunk);
     }
@@ -212,7 +262,7 @@ function parseComplexMathExpressions(text: string): RenderChunk[] {
 function renderQuestionWithMathML(rawText: string): ReactNode {
   const formatted = formatJambText(rawText);
   const chunks = parseComplexMathExpressions(formatted);
-  const hasMath = chunks.some((chunk) => chunk.type === "matrix" || chunk.type === "fraction");
+  const hasMath = chunks.some((chunk) => chunk.type === "matrix" || chunk.type === "fraction" || chunk.type === "power");
 
   if (!hasMath) {
     return formatted;
@@ -237,6 +287,15 @@ function renderQuestionWithMathML(rawText: string): ReactNode {
           style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
           dangerouslySetInnerHTML={{ __html: fractionMathMl }}
         />
+      );
+    }
+
+    if (chunk.type === "power") {
+      return (
+        <span key={`power-${chunkIndex}`} className="inline-block align-baseline">
+          {chunk.base}
+          <sup className="ml-[1px]">{chunk.exponent}</sup>
+        </span>
       );
     }
 

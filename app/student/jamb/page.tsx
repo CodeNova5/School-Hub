@@ -1221,7 +1221,7 @@ export default function StudentJambPage() {
                             <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                               {String.fromCharCode(65 + optionIndex)}
                             </span>
-                            <span className="text-base">{formatJambOptionText(option)}</span>
+                            <span className="text-base">{renderQuestionWithMathML(formatJambOptionText(option))}</span>
                           </Button>
                         );
                       })}
@@ -1229,9 +1229,14 @@ export default function StudentJambPage() {
 
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
                       <span>
-                        {answers[question.id]
-                          ? `Selected answer: ${formatJambOptionText(answers[question.id])}`
-                          : "No answer selected yet"}
+                        {answers[question.id] ? (
+                          <span>
+                            <span className="font-medium">Selected answer: </span>
+                            <span className="inline">{renderQuestionWithMathML(formatJambOptionText(answers[question.id]))}</span>
+                          </span>
+                        ) : (
+                          "No answer selected yet"
+                        )}
                       </span>
                       <span>Question {displayQuestionNumber}</span>
                     </div>
@@ -1610,11 +1615,11 @@ export default function StudentJambPage() {
                           )}
                           <div className="rounded bg-red-50 p-2 border border-red-200">
                             <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900">{formatJambOptionText(item.userAnswer)}</p>
+                            <p className="text-red-900">{renderQuestionWithMathML(formatJambOptionText(item.userAnswer))}</p>
                           </div>
                           <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
                             <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900">{formatJambOptionText(item.correctAnswer)}</p>
+                            <p className="text-emerald-900">{renderQuestionWithMathML(formatJambOptionText(item.correctAnswer))}</p>
                           </div>
                           {item.explanation && (
                             <div className="rounded bg-blue-50 p-2 border border-blue-200">

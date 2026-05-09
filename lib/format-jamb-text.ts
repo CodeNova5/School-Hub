@@ -74,22 +74,29 @@ function convertSuperscripts(text: string): string {
   const convert = (chars: string) =>
     chars.split('').map((c) => superscripts[c.toLowerCase()] ?? c).join('');
 
+  const unwrapPowerGroup = (value: string) => {
+    let result = value.trim();
+
+    while (result.startsWith('(') && result.endsWith(')')) {
+      const inner = result.slice(1, -1).trim();
+      if (!inner) break;
+      result = inner;
+    }
+
+    return result;
+  };
+
   let result = text;
-  // ^(...) groups (common in scraped content like 16^(x) or 2^(n+1))
-  result = result.replace(/\^\(([^)]+)\)/g, (_, g) => convert(g));
+  // ^(x), ^{(x)}, and similar grouped exponents should render as x²-style
+  // superscripts without showing the grouping brackets in the final text.
+  result = result.replace(/\^\s*\(([^()]+)\)/g, (_, g) => convert(unwrapPowerGroup(g)));
+  result = result.replace(/\^\s*\{\s*([^{}]+?)\s*\}/g, (_, g) => convert(unwrapPowerGroup(g)));
   // ^{...} groups
-  result = result.replace(/\^\{([^}]+)\}/g, (_, g) => convert(g));
+  result = result.replace(/\^\{([^}]+)\}/g, (_, g) => convert(unwrapPowerGroup(g)));
   // ^digits
   result = result.replace(/\^(\d+)/g, (_, d) => convert(d));
   // ^letters/symbols
   result = result.replace(/\^([a-zA-Z+\-=()]+)/g, (_, c) => convert(c));
-
-  // Handle escaped variants that may survive cleanup in some payloads.
-  result = result.replace(/\\\^\(([^)]+)\)/g, (_, g) => convert(g));
-  result = result.replace(/\\\^\{([^}]+)\}/g, (_, g) => convert(g));
-  result = result.replace(/\\\^(\d+)/g, (_, d) => convert(d));
-  result = result.replace(/\\\^([a-zA-Z+\-=()]+)/g, (_, c) => convert(c));
-
   return result;
 }
 

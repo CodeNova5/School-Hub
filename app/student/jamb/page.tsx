@@ -30,7 +30,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-
 type SubjectOption = {
   slug: string;
   name: string;
@@ -81,24 +80,12 @@ type FractionChunk = {
   denominator: string;
 };
 
-type SuperscriptChunk = {
-  type: "superscript";
-  base: string;
-  exponent: string;
-};
-
-type SubscriptChunk = {
-  type: "subscript";
-  base: string;
-  index: string;
-};
-
 type TextChunk = {
   type: "text";
   value: string;
 };
 
-type RenderChunk = MatrixChunk | FractionChunk | SuperscriptChunk | SubscriptChunk | TextChunk;
+type RenderChunk = MatrixChunk | FractionChunk | TextChunk;
 
 function isNumericToken(token: string): boolean {
   return /^-?\d+(?:\.\d+)?$/.test(token);
@@ -200,15 +187,8 @@ function parseComplexMathExpressions(text: string): RenderChunk[] {
   const allChunks: RenderChunk[] = [];
   for (const chunk of fractionChunks) {
     if (chunk.type === "text") {
-      const superSubChunks = parseSupscriptsAndSubscripts(chunk.value);
-      for (const subChunk of superSubChunks) {
-        if (subChunk.type === "text") {
-          const matrixChunks = parseTextWithMatrices(subChunk.value);
-          allChunks.push(...matrixChunks);
-        } else {
-          allChunks.push(subChunk);
-        }
-      }
+      const matrixChunks = parseTextWithMatrices(chunk.value);
+      allChunks.push(...matrixChunks);
     } else {
       allChunks.push(chunk);
     }
@@ -216,41 +196,52 @@ function parseComplexMathExpressions(text: string): RenderChunk[] {
   return allChunks;
 }
 
-function parseSupscriptsAndSubscripts(text: string): RenderChunk[] {
-  const chunks: RenderChunk[] = [];
-  // Match patterns like: letter followed by digit (e.g., y2, x3) or underscore followed by letter/digit (e.g., x_i, a_1)
-  const superSubRegex = /([a-zA-Z×])(_)([a-zA-Z0-9])|([a-zA-Z×])([0-9]+)(?![a-zA-Z0-9])/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+function renderQuestionWithMathML(rawText: string): ReactNode {
+  const formatted = formatJambText(rawText);
+  const chunks = parseComplexMathExpressions(formatted);
+  const hasMath = chunks.some((chunk) => chunk.type === "matrix" || chunk.type === "fraction");
 
-  while ((match = superSubRegex.exec(text)) !== null) {
-    const [fullMatch, subBase, underscore, subIndex, supBase, supExp] = match;
-    const matchStart = match.index;
-
-    if (matchStart > lastIndex) {
-      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
-    }
-
-    if (underscore) {
-      // Subscript pattern
-      chunks.push({ type: "subscript", base: subBase, index: subIndex });
-    } else if (supExp) {
-      // Superscript pattern
-      chunks.push({ type: "superscript", base: supBase, exponent: supExp });
-    }
-
-    lastIndex = matchStart + fullMatch.length;
+  if (!hasMath) {
+    return formatted;
   }
 
-  if (lastIndex < text.length) {
-    chunks.push({ type: "text", value: text.slice(lastIndex) });
-  }
+  return chunks.map((chunk, chunkIndex) => {
+    if (chunk.type === "text") {
+      return (
+        <span key={`text-${chunkIndex}`} className="preserve-whitespace">
+          {chunk.value}
+        </span>
+      );
+    }
 
-  return chunks.length > 1 ? chunks : [{ type: "text", value: text }];
-}
+    if (chunk.type === "fraction") {
+      const fractionMathMl = `<math display="inline"><mrow><mfrac><mrow>${escapeHtml(chunk.numerator)}</mrow><mrow>${escapeHtml(chunk.denominator)}</mrow></mfrac></mrow></math>`;
+      return (
+        <span
+          key={`fraction-${chunkIndex}`}
+          aria-label="fraction"
+          className="inline-block align-middle"
+          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
+          dangerouslySetInnerHTML={{ __html: fractionMathMl }}
+        />
+      );
+    }
 
-function renderFormattedText(rawText: string): ReactNode {
-  return <span className="preserve-whitespace" dangerouslySetInnerHTML={{ __html: formatJambText(rawText) }} />;
+    const matrixRows = chunk.rows
+      .map((row) => `<mtr>${row.map((cell) => `<mtd>${renderMathToken(cell)}</mtd>`).join("")}</mtr>`)
+      .join("");
+    const matrixMathMl = `<math display="inline"><mrow><mo>(</mo><mtable>${matrixRows}</mtable><mo>)</mo></mrow></math>`;
+
+    return (
+      <span
+        key={`matrix-${chunkIndex}`}
+        aria-label="matrix"
+        className="inline-block align-middle"
+        style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
+        dangerouslySetInnerHTML={{ __html: matrixMathMl }}
+      />
+    );
+  });
 }
 
 export default function StudentJambPage() {
@@ -309,9 +300,6 @@ export default function StudentJambPage() {
       });
     }
   }, [questions, questionPage]);
-
-  // Render KaTeX for wrapped math segments whenever questions change
-  (questions);
 
   // Reset allQuestionIds when session resets
   useEffect(() => {
@@ -1199,7 +1187,7 @@ export default function StudentJambPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-5 p-6">
-                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{renderFormattedText(question.question_text)}</p>
+                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{renderQuestionWithMathML(question.question_text)}</p>
 
                     <div className="grid gap-3">
                       {question.options.map((option, optionIndex) => {
@@ -1215,7 +1203,7 @@ export default function StudentJambPage() {
                             <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                               {String.fromCharCode(65 + optionIndex)}
                             </span>
-                            <span className="text-base" dangerouslySetInnerHTML={{ __html: formatJambOptionText(option) }} />
+                            <span className="text-base">{formatJambOptionText(option)}</span>
                           </Button>
                         );
                       })}
@@ -1223,14 +1211,9 @@ export default function StudentJambPage() {
 
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
                       <span>
-                        {answers[question.id] ? (
-                          <span className="flex flex-wrap items-center gap-1">
-                            <span>Selected answer:</span>
-                            {renderFormattedText(answers[question.id])}
-                          </span>
-                        ) : (
-                          "No answer selected yet"
-                        )}
+                        {answers[question.id]
+                          ? `Selected answer: ${formatJambOptionText(answers[question.id])}`
+                          : "No answer selected yet"}
                       </span>
                       <span>Question {displayQuestionNumber}</span>
                     </div>
@@ -1609,11 +1592,11 @@ export default function StudentJambPage() {
                           )}
                           <div className="rounded bg-red-50 p-2 border border-red-200">
                             <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900" dangerouslySetInnerHTML={{ __html: formatJambOptionText(item.userAnswer) }} />
+                            <p className="text-red-900">{formatJambOptionText(item.userAnswer)}</p>
                           </div>
                           <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
                             <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900" dangerouslySetInnerHTML={{ __html: formatJambOptionText(item.correctAnswer) }} />
+                            <p className="text-emerald-900">{formatJambOptionText(item.correctAnswer)}</p>
                           </div>
                           {item.explanation && (
                             <div className="rounded bg-blue-50 p-2 border border-blue-200">

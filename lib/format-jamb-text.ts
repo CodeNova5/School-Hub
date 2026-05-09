@@ -36,11 +36,7 @@ function decodeHtmlEntities(text: string): string {
 }
 
 // Convert subscript notation to Unicode subscripts
-// Handles patterns like: H_2SO_4, H_{2}SO_{4}, H_2_O, etc.
 function convertSubscripts(text: string): string {
-  let result = text;
-  
-  // Unicode subscript characters
   const subscripts: Record<string, string> = {
     '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
     '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
@@ -49,36 +45,22 @@ function convertSubscripts(text: string): string {
     's': 'ₛ', 't': 'ₜ', 'u': 'ᵤ', 'v': 'ᵥ', 'x': 'ₓ',
     '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
   };
-  
-  // Handle _{...} pattern (curly braces)
-  result = result.replace(/_\{([^}]+)\}/g, (match, content) => {
-    return content.split('').map((char: string) => subscripts[char.toLowerCase()] || char).join('');
-  });
-  
-  // Handle _X pattern (single character), but do it iteratively to handle consecutive subscripts
-  // This keeps replacing one at a time to avoid regex conflicts
-  let lastResult = '';
-  while (lastResult !== result) {
-    lastResult = result;
-    result = result.replace(/_([a-zA-Z0-9+\-=()]\b)/, (match, char) => {
-      return subscripts[char.toLowerCase()] || char;
-    });
-  }
-  
-  // Also handle cases like _23 or _123 (multiple digits in sequence)
-  result = result.replace(/_(\d+)(?=[A-Za-z]|$|\s)/g, (match, digits) => {
-    return digits.split('').map((d: string) => subscripts[d] || d).join('');
-  });
-  
+
+  const convert = (chars: string) =>
+    chars.split('').map((c) => subscripts[c.toLowerCase()] ?? c).join('');
+
+  let result = text;
+  // _{...} groups
+  result = result.replace(/_\{([^}]+)\}/g, (_, g) => convert(g));
+  // _digits (one or more)
+  result = result.replace(/_(\d+)/g, (_, d) => convert(d));
+  // _singleLetter/symbol
+  result = result.replace(/_([a-zA-Z+\-=()])/g, (_, c) => subscripts[c.toLowerCase()] ?? c);
   return result;
 }
 
 // Convert superscript notation to Unicode superscripts
-// Handles patterns like: 10^23, 10^{23}, x^2, etc.
 function convertSuperscripts(text: string): string {
-  let result = text;
-  
-  // Unicode superscript characters
   const superscripts: Record<string, string> = {
     '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
     '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
@@ -88,65 +70,51 @@ function convertSuperscripts(text: string): string {
     't': 'ᵗ', 'u': 'ᵘ', 'v': 'ᵛ', 'w': 'ʷ', 'x': 'ˣ', 'y': 'ʸ', 'z': 'ᶻ',
     '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
   };
-  
-  // Handle ^{...} pattern (curly braces)
-  result = result.replace(/\^\{([^}]+)\}/g, (match, content) => {
-    return content.split('').map((char: string) => superscripts[char.toLowerCase()] || char).join('');
-  });
-  
-  // Handle ^X pattern (single character or multiple digits)
-  result = result.replace(/\^(\d+)(?=[A-Za-z]|$|\s)/g, (match, digits) => {
-    return digits.split('').map((d: string) => superscripts[d] || d).join('');
-  });
-  
-  result = result.replace(/\^([a-zA-Z+\-=()]+)/g, (match, content) => {
-    return content.split('').map((char: string) => superscripts[char.toLowerCase()] || char).join('');
-  });
-  
+
+  const convert = (chars: string) =>
+    chars.split('').map((c) => superscripts[c.toLowerCase()] ?? c).join('');
+
+  let result = text;
+  // ^{...} groups
+  result = result.replace(/\^\{([^}]+)\}/g, (_, g) => convert(g));
+  // ^digits
+  result = result.replace(/\^(\d+)/g, (_, d) => convert(d));
+  // ^letters/symbols
+  result = result.replace(/\^([a-zA-Z+\-=()]+)/g, (_, c) => convert(c));
   return result;
 }
 
 // Clean up escaped characters and backslashes
 function cleanEscapedCharacters(text: string): string {
   let result = text;
-  
-  // Normalize duplicated escape slashes that often come back from the API
   result = result.replace(/\\{2,}/g, '\\');
-
-  // Convert wrapped math fragments like \({23}\) into superscript notation
   result = result.replace(/\\\(\s*\{([^}]+)\}\s*\\?\)/g, '^{$1}');
-
-  // Handle JAMB-style \L_2\) / \R_2\) artifacts before generic cleanup
   result = result.replace(/\\[LR]\s*_\s*(\d+)\s*\\?\)/g, '_$1');
-
-  // Remove unnecessary backslashes before common characters
   result = result.replace(/\\([(){}\[\]_^\-])/g, '$1');
   result = result.replace(/\\[LR]/g, '');
-  
   return result;
 }
 
 function convertSquareRoots(text: string): string {
-  return text.replace(/\\+sqrt(?:\s*\{([^}]+)\}|\s*\(([^)]+)\)|\s+([A-Za-z0-9]+))/g, (_match, braceContent, parenContent, bareContent) => {
-    const content = (braceContent || parenContent || bareContent || '').trim();
-    if (!content) return '√';
-
-    if (/^[A-Za-z0-9]+$/.test(content)) {
-      return `√${content}`;
-    }
-
-    return `√(${content})`;
-  });
+  return text.replace(
+    /\\+sqrt(?:\s*\{([^}]+)\}|\s*\(([^)]+)\)|\s+([A-Za-z0-9]+))/g,
+    (_match, braceContent, parenContent, bareContent) => {
+      const content = (braceContent || parenContent || bareContent || '').trim();
+      if (!content) return '√';
+      return /^[A-Za-z0-9]+$/.test(content) ? `√${content}` : `√(${content})`;
+    },
+  );
 }
 
+// ─── FIX: Greek letters & extra symbols ───────────────────────────────────────
 function normalizeCommonLatexMath(text: string): string {
   let result = text;
 
   const symbolReplacements: Array<[RegExp, string]> = [
     [/\\leq/g, '≤'],
     [/\\geq/g, '≥'],
-    [/\\le/g, '≤'],
-    [/\\ge/g, '≥'],
+    [/\\le\b/g, '≤'],
+    [/\\ge\b/g, '≥'],
     [/\\neq/g, '≠'],
     [/\\pm/g, '±'],
     [/\\times/g, '×'],
@@ -157,45 +125,108 @@ function normalizeCommonLatexMath(text: string): string {
     [/\\,/g, ' '],
     [/\\;/g, ' '],
     [/\\!/g, ''],
+    // Greek letters (common in physics/maths questions)
+    [/\\alpha/g, 'α'],
+    [/\\beta/g, 'β'],
+    [/\\gamma/g, 'γ'],
+    [/\\delta/g, 'δ'],
+    [/\\epsilon/g, 'ε'],
+    [/\\zeta/g, 'ζ'],
+    [/\\eta/g, 'η'],
+    [/\\theta/g, 'θ'],
+    [/\\lambda/g, 'λ'],
+    [/\\mu/g, 'μ'],
+    [/\\nu/g, 'ν'],
+    [/\\pi/g, 'π'],
+    [/\\rho/g, 'ρ'],
+    [/\\sigma/g, 'σ'],
+    [/\\tau/g, 'τ'],
+    [/\\phi/g, 'φ'],
+    [/\\chi/g, 'χ'],
+    [/\\psi/g, 'ψ'],
+    [/\\omega/g, 'ω'],
+    [/\\Omega/g, 'Ω'],
+    [/\\Delta/g, 'Δ'],
+    [/\\Sigma/g, 'Σ'],
+    [/\\Pi/g, 'Π'],
+    [/\\Theta/g, 'Θ'],
+    [/\\Lambda/g, 'Λ'],
+    // Misc math
+    [/\\infty/g, '∞'],
+    [/\\approx/g, '≈'],
+    [/\\equiv/g, '≡'],
+    [/\\propto/g, '∝'],
+    [/\\forall/g, '∀'],
+    [/\\exists/g, '∃'],
+    [/\\in\b/g, '∈'],
+    [/\\notin/g, '∉'],
+    [/\\subset/g, '⊂'],
+    [/\\cup/g, '∪'],
+    [/\\cap/g, '∩'],
+    [/\\therefore/g, '∴'],
+    [/\\because/g, '∵'],
+    [/\\angle/g, '∠'],
+    [/\\perp/g, '⊥'],
+    [/\\parallel/g, '∥'],
+    [/\\rightarrow/g, '→'],
+    [/\\leftarrow/g, '←'],
+    [/\\Rightarrow/g, '⇒'],
+    [/\\Leftrightarrow/g, '⟺'],
   ];
 
   for (const [pattern, replacement] of symbolReplacements) {
     result = result.replace(pattern, replacement);
   }
 
-  let previous = '';
-  while (previous !== result) {
-    previous = result;
-    result = result.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, (_match, numerator: string, denominator: string) => {
-      const cleanNumerator = numerator.trim();
-      const cleanDenominator = denominator.trim();
-      return `(${cleanNumerator}/${cleanDenominator})`;
-    });
-  }
-
   return result;
 }
 
-function formatJambTextSegment(text: string): string {
-  if (!text || typeof text !== 'string') return '';
-
-  let formatted = text.trim();
-  formatted = convertSquareRoots(formatted);
-  formatted = normalizeCommonLatexMath(formatted);
-  formatted = cleanEscapedCharacters(formatted);
-  formatted = convertSubscripts(formatted);
-  formatted = convertSuperscripts(formatted);
-  formatted = unwrapNumericParentheses(formatted);
-
-  return formatted.replace(/\s+/g, ' ').trim();
+/**
+ * FIX: the original code wrapped \frac in double parens — e.g.
+ *   \frac{2}{2r-1}  →  ((2/(2r-1)))
+ *
+ * New logic:
+ *   • numerator/denominator are only parenthesised if they contain an
+ *     operator ( + - * / ) that would be ambiguous without grouping.
+ *   • The fraction itself is written as  num/den  with NO outer parens.
+ *     A surrounding expression can add parens if it needs them.
+ *
+ * Example:  \frac{2}{2r-1} → 2/(2r-1)
+ *           \frac{5}{3}    → 5/3
+ *           \frac{1}{r+2}  → 1/(r+2)
+ */
+function convertFractions(text: string): string {
+  let result = text;
+  let previous = '';
+  // Iterate to handle nested fractions from inside out
+  while (previous !== result) {
+    previous = result;
+    result = result.replace(
+      /\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,
+      (_match, numerator: string, denominator: string) => {
+        const num = numerator.trim();
+        const den = denominator.trim();
+        // Parenthesise only when the expression contains operators that
+        // change meaning without grouping (i.e., the denominator "2r-1"
+        // must stay together, but a plain "3" does not need parens).
+        const needsNumParens = /[+\-]/.test(num.replace(/^\s*-\s*/, '')) || /[*/]/.test(num);
+        const needsDenParens = /[+\-*/]/.test(den);
+        const numStr = needsNumParens ? `(${num})` : num;
+        const denStr = needsDenParens ? `(${den})` : den;
+        return `${numStr}/${denStr}`;
+      },
+    );
+  }
+  return result;
 }
 
 function convertLatexMatrices(text: string): string {
-  const matrixRegex = /\\begin\{(pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|matrix)\}([\s\S]*?)\\end\{\1\}/g;
+  const matrixRegex =
+    /\\begin\{(pmatrix|bmatrix|Bmatrix|vmatrix|Vmatrix|matrix)\}([\s\S]*?)\\end\{\1\}/g;
 
   return text.replace(matrixRegex, (_match, environment, body) => {
     const wrappers: Record<string, [string, string]> = {
-      matrix: ['(', ')'],
+      matrix:  ['(', ')'],
       pmatrix: ['(', ')'],
       bmatrix: ['[', ']'],
       Bmatrix: ['{', '}'],
@@ -203,22 +234,22 @@ function convertLatexMatrices(text: string): string {
       Vmatrix: ['‖', '‖'],
     };
 
-    const [open, close] = wrappers[environment] || ['(', ')'];
+    const [open, close] = wrappers[environment] ?? ['(', ')'];
     const rows = body
       .split(/\\\\/)
       .map((row: string) => row.trim())
       .filter(Boolean)
-      .map((row: string) => {
-        const cells = row
+      .map((row: string) =>
+        row
           .split('&')
-          .map((cell: string) => formatJambTextSegment(cell))
-          .filter(Boolean);
+          .map((cell: string) => formatJambText(cell))
+          .join('  '),
+      );
 
-        return cells.join(' ');
-      })
-      .filter(Boolean);
-
-    return `${open}${rows.map((r: any) => `(${r})`).join('\n')}${close}`;
+    // Single-row matrix: inline
+    if (rows.length === 1) return `${open}${rows[0]}${close}`;
+    // Multi-row: one row per line for readability
+    return `${open}\n${rows.join('\n')}\n${close}`;
   });
 }
 
@@ -226,86 +257,75 @@ function stripOptionPrefix(text: string): string {
   return text.replace(/^\s*(?:option\s*)?[A-D](?:[\.:\-\)])\s*/i, '');
 }
 
-// Remove parentheses that wrap only subscript or superscript characters
+// Remove redundant parentheses around lone subscript/superscript Unicode chars
 function unwrapNumericParentheses(text: string): string {
   let result = text;
-
-  // Remove parentheses around Unicode subscript digits: (₂) -> ₂
-  result = result.replace(/\(([₀₁₂₃₄₅₆₇₈₉]+)\)/g, (_, digits) => digits);
-
-  // Remove parentheses around Unicode superscript digits: (²) -> ²
-  result = result.replace(/\(([⁰¹²³⁴⁵⁶⁷⁸⁹]+)\)/g, (_, digits) => digits);
-
-  // Convert simple patterns like H(2) or O(4) to H₂ or O₄
+  result = result.replace(/\(([₀₁₂₃₄₅₆₇₈₉]+)\)/g, (_, d) => d);
+  result = result.replace(/\(([⁰¹²³⁴⁵⁶⁷⁸⁹]+)\)/g, (_, d) => d);
+  // H(2) → H₂  (letter immediately followed by digits in parens)
   result = result.replace(/([A-Za-z])\((\d+)\)/g, (_m, letter, nums) => {
     const subs: Record<string, string> = {
-      '0': '₀','1': '₁','2': '₂','3': '₃','4': '₄','5': '₅','6': '₆','7': '₇','8': '₈','9': '₉'
+      '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
     };
-    return letter + nums.split('').map((d: string) => subs[d] || d).join('');
+    return letter + nums.split('').map((d: string) => subs[d] ?? d).join('');
   });
-
-  // Convert simple superscript patterns like x(2) where preceded by ^ or standalone pattern 10(23)
-  result = result.replace(/(\d+)\((\d+)\)/g, (_m, base, exp) => {
-    const supers: Record<string, string> = {
-      '0': '⁰','1': '¹','2': '²','3': '³','4': '⁴','5': '⁵','6': '⁶','7': '⁷','8': '⁸','9': '⁹'
-    };
-    return base + exp.split('').map((d: string) => supers[d] || d).join('');
-  });
-
   return result;
 }
 
 /**
- * Format JAMB question text or options for proper display
+ * Format JAMB question text or options for proper display.
  * @param text - The raw text from the API
  * @returns Formatted text with proper Unicode characters and entities decoded
  */
 export function formatJambText(text: string): string {
   if (!text || typeof text !== 'string') return '';
-  
+
   let formatted = text.trim();
-  
-  // 1. Decode HTML entities first
+
+  // 1. Decode HTML entities
   formatted = decodeHtmlEntities(formatted);
 
-  // 1.25 Normalize square-root notation before generic backslash cleanup
+  // 2. Square roots (before generic backslash cleanup)
   formatted = convertSquareRoots(formatted);
 
-  // 1.3 Normalize common latex math commands before generic backslash cleanup
+  // 3. LaTeX symbol normalisations (Greek letters, relational operators, etc.)
   formatted = normalizeCommonLatexMath(formatted);
 
-  // 1.5 Normalize matrix environments before generic backslash cleanup
+  // 4. Fractions — MUST come before cleanEscapedCharacters so \frac is intact
+  formatted = convertFractions(formatted);
+
+  // 5. Matrix environments
   formatted = convertLatexMatrices(formatted);
-  
-  // 2. Clean up escaped characters
+
+  // 6. Clean stray backslashes / escaped chars
   formatted = cleanEscapedCharacters(formatted);
-  
-  // 3. Convert subscripts
+
+  // 7. Sub/superscripts
   formatted = convertSubscripts(formatted);
-  
-  // 4. Convert superscripts
   formatted = convertSuperscripts(formatted);
 
-  // 4.5 unwrap numeric parentheses that remain
+  // 8. Unwrap redundant parentheses around lone script chars
   formatted = unwrapNumericParentheses(formatted);
-  
-  // 5. Final cleanup: remove multiple spaces but preserve newlines
-  // Replace sequences of spaces/tabs with a single space, then
-  // normalize newline spacing so matrix rows remain on separate lines.
-  formatted = formatted.replace(/[ \t]+/g, ' ').replace(/\r?\n\s*/g, '\n').replace(/\n{2,}/g, '\n').trim();
-  
+
+  // 9. Whitespace normalisation (preserves matrix newlines)
+  formatted = formatted
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\r?\n\s*/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+
   return formatted;
 }
 
 /**
- * Format an array of JAMB options
+ * Format an array of JAMB options.
  */
 export function formatJambOptions(options: string[]): string[] {
   return options.map((opt) => formatJambOptionText(opt));
 }
 
 /**
- * Format a single JAMB option for display, removing any scraped A./B./C./D. prefix.
+ * Format a single JAMB option, stripping any A./B./C./D. prefix.
  */
 export function formatJambOptionText(text: string): string {
   return stripOptionPrefix(formatJambText(text));

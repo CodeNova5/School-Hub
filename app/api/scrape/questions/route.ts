@@ -33,6 +33,25 @@ interface ErrorResponse {
   type?: string;
 }
 
+function getMathAwareText($: ReturnType<typeof load>, el: any): string {
+  if (!el || !$(el).length) return '';
+  const clone = $(el).clone();
+
+  // Handle MathJax 2.x
+  clone.find('script[type^="math/tex"]').each((_: any, script: any) => {
+    const latex = $(script).html();
+    $(script).replaceWith(` $${latex}$ `);
+  });
+
+  // Handle MathJax 3.x
+  clone.find('mjx-container').each((_: any, container: any) => {
+    const tex = $(container).attr('data-tex') || $(container).attr('aria-label') || '';
+    if (tex) $(container).replaceWith(` $${tex}$ `);
+  });
+
+  return clean(clone.text());
+}
+
 function clean(text: string | undefined): string {
   return (text || '').replace(/\s+/g, ' ').trim();
 }
@@ -86,9 +105,9 @@ async function fetchAnswerDetail(url: string): Promise<AnswerDetail> {
     const $ = load(data);
     const text = $('body').text() || '';
     let correct: string | undefined;
-    const m = text.match(/Correct Answer[:\s]*Option\s*([A-D])/i) || 
-              text.match(/Correct Answer[:\s]*([A-D])/i) || 
-              text.match(/Answer[:\s]*([A-D])/i);
+    const m = text.match(/Correct Answer[:\s]*Option\s*([A-D])/i) ||
+      text.match(/Correct Answer[:\s]*([A-D])/i) ||
+      text.match(/Answer[:\s]*([A-D])/i);
     if (m) correct = m[1].toUpperCase();
 
     let explanation = '';
@@ -105,6 +124,16 @@ async function fetchAnswerDetail(url: string): Promise<AnswerDetail> {
           const tag = node.tagName.toLowerCase();
           if (/^h[1-6]$/.test(tag)) break;
           const $node = $(node);
+
+          // NEW: Math extraction for explanations
+          $node.find('script[type^="math/tex"]').each((_: any, script: any) => {
+            $(script).replaceWith(` $${$(script).html()}$ `);
+          });
+          $node.find('mjx-container').each((_: any, container: any) => {
+            const tex = $(container).attr('data-tex') || $(container).attr('aria-label') || '';
+            if (tex) $(container).replaceWith(` $${tex}$ `);
+          });
+
           const nodeText = clean($node.text());
           if (nodeText && !/^(Contributions|Quick Questions|Post your Contribution|Next|Go back to|Report an Error)/i.test(nodeText)) {
             parts.push(nodeText);
@@ -139,7 +168,7 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
   try {
     const urlObj = new URL(req.url);
     const subject = urlObj.searchParams.get('subject');
-    
+
     if (!subject) {
       return NextResponse.json(
         { error: 'subject query param is required' },
@@ -181,21 +210,25 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
 
     $('.question-item').each((_i: number, el: any) => {
       const $el = $(el);
-      const questionText = getText($el.find('.question-desc p')) || getText($el.find('.question-desc')) || '';
+
+      // NEW: Use getMathAwareText instead of getText
+      const qParagraph = $el.find('.question-desc p');
+      const questionText = getMathAwareText($, qParagraph.length ? qParagraph : $el.find('.question-desc'));
+
       const options = $el
         .find('ul.list-unstyled li, ul.options li')
-        .map((_: number, opt: any) => clean($(opt).text()))
+        .map((_: number, opt: any) => getMathAwareText($, opt))
         .get()
         .filter(Boolean);
 
       const answerLink = $el.find('a.btn-outline-danger, a[href*="/answers"], a[href*="/answer"]').attr('href') || null;
       const answerId = answerLink ? (answerLink.match(/\/(\d+)\b/) || [])[1] : undefined;
 
-      questions.push({ 
-        id: answerId, 
-        question: questionText, 
-        options, 
-        answerLink 
+      questions.push({
+        id: answerId,
+        question: questionText,
+        options,
+        answerLink
       });
     });
 

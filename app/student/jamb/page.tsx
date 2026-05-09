@@ -29,6 +29,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+
 type SubjectOption = {
   slug: string;
   name: string;
@@ -67,34 +72,6 @@ type AttemptResult = {
 };
 
 const QUESTIONS_PER_PAGE = 5;
-
-function getMathAwareText(input: string) {
-  if (!input) return "";
-
-  if (typeof window === "undefined") {
-    return input.replace(/\s+/g, " ").trim();
-  }
-
-  const parser = new DOMParser();
-  const documentFragment = parser.parseFromString(`<div>${input}</div>`, "text/html");
-  const container = documentFragment.body.firstElementChild;
-
-  if (!container) {
-    return input.replace(/\s+/g, " ").trim();
-  }
-
-  container.querySelectorAll('script[type^="math/tex"]').forEach((script) => {
-    const latex = script.textContent || "";
-    script.replaceWith(` $${latex}$ `);
-  });
-
-  container.querySelectorAll("mjx-container").forEach((node) => {
-    const tex = node.getAttribute("data-tex") || node.getAttribute("aria-label") || "";
-    node.replaceWith(` $${tex}$ `);
-  });
-
-  return (container.textContent || "").replace(/\s+/g, " ").trim();
-}
 
 export default function StudentJambPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
@@ -138,8 +115,28 @@ export default function StudentJambPage() {
     year: string;
   } | null>(null);
 
+
+
+  // --- NEW HELPER COMPONENT ---
+  // This safely renders the math without breaking inline layouts
+  const MathText = ({ content }: { content: string }) => {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          // Prevent markdown from wrapping options in block <p> tags, which breaks alignment
+          p: ({ node, ...props }) => <span {...props} />
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    );
+  };
+
+
   // Track all question IDs across all pages for accurate submission
-  const [allQuestionIds, setAllQuestionIds] = useState<{id: string; pageNum: number}[]>([]);
+  const [allQuestionIds, setAllQuestionIds] = useState<{ id: string; pageNum: number }[]>([]);
 
   // When questions load for a page, register their IDs
   useEffect(() => {
@@ -346,11 +343,11 @@ export default function StudentJambPage() {
       const result = await response.json();
       const loadedSubjects = Array.isArray(result.subjects)
         ? result.subjects
-            .map((subject: any) => ({
-              slug: String(subject.slug || ""),
-              name: String(subject.name || ""),
-            }))
-            .filter((subject: SubjectOption) => subject.slug && subject.name)
+          .map((subject: any) => ({
+            slug: String(subject.slug || ""),
+            name: String(subject.name || ""),
+          }))
+          .filter((subject: SubjectOption) => subject.slug && subject.name)
         : [];
 
       setSubjects(loadedSubjects);
@@ -484,13 +481,13 @@ export default function StudentJambPage() {
       const payload = result.data || {};
       const loadedQuestions = Array.isArray(payload.questions)
         ? payload.questions.map((row: any) => ({
-            id: row.id,
-            question_text: row.question_text,
-            options: Array.isArray(row.options) ? row.options : [],
-            subject_slug: row.subject_slug,
-            subject_name: row.subject_name,
-            exam_year: row.exam_year,
-          }))
+          id: row.id,
+          question_text: row.question_text,
+          options: Array.isArray(row.options) ? row.options : [],
+          subject_slug: row.subject_slug,
+          subject_name: row.subject_name,
+          exam_year: row.exam_year,
+        }))
         : [];
 
       const pageNum = Number(payload.page) || page;
@@ -659,8 +656,8 @@ export default function StudentJambPage() {
       saveSessionState(selectedSubject, selectedYear);
       void loadQuestions(1);
     }
-  // intentionally exclude loadQuestions from deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // intentionally exclude loadQuestions from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSubject, selectedYear]);
 
   async function submitAttempt() {
@@ -991,13 +988,12 @@ export default function StudentJambPage() {
                         size="sm"
                         onClick={() => loadQuestions(pageNum)}
                         disabled={loadingQuestions}
-                        className={`min-w-10 transition-all ${
-                          isComplete && !isCurrent
-                            ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
-                            : hasAnswers && !isCurrent
+                        className={`min-w-10 transition-all ${isComplete && !isCurrent
+                          ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
+                          : hasAnswers && !isCurrent
                             ? "border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200"
                             : ""
-                        }`}
+                          }`}
                         title={isComplete ? "Complete! 5/5 answered" : hasAnswers ? `${pageAnswered}/5 answered` : ""}
                       >
                         {pageNum}
@@ -1024,53 +1020,58 @@ export default function StudentJambPage() {
                   const displayQuestionNumber = (questionPage - 1) * QUESTIONS_PER_PAGE + questionIndex + 1;
 
                   return (
-                <Card key={question.id} className="overflow-hidden shadow-lg">
-                  <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50">
-                    <div className="flex items-center justify-between gap-4">
-                      <div>
-                        <CardTitle>
-                          Question {displayQuestionNumber}
-                        </CardTitle>
-                        <p className="mt-1 text-sm text-gray-500">
-                          {question.subject_name} · {question.exam_year}
-                        </p>
-                      </div>
-                      <Badge variant="outline">JAMB CBT</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-5 p-6">
-                    <p className="text-lg font-medium text-gray-900">{getMathAwareText(question.question_text)}</p>
+                    <Card key={question.id} className="overflow-hidden shadow-lg">
+                      <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <CardTitle>
+                              Question {displayQuestionNumber}
+                            </CardTitle>
+                            <p className="mt-1 text-sm text-gray-500">
+                              {question.subject_name} · {question.exam_year}
+                            </p>
+                          </div>
+                          <Badge variant="outline">JAMB CBT</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-5 p-6">
 
-                    <div className="grid gap-3">
-                      {question.options.map((option, optionIndex) => {
-                        const selected = answers[question.id] === option;
-                        return (
-                          <Button
-                            key={`${question.id}-${optionIndex}`}
-                            type="button"
-                            variant={selected ? "default" : "outline"}
-                            className={`justify-start py-6 text-left ${selected ? "border-blue-600" : ""}`}
-                            onClick={() => recordAnswer(question.id, option)}
-                          >
-                            <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
-                              {String.fromCharCode(65 + optionIndex)}
-                            </span>
-                            <span className="text-base">{getMathAwareText(option)}</span>
-                          </Button>
-                        );
-                      })}
-                    </div>
+                        <div className="text-lg font-medium text-gray-900">
+                          <MathText content={question.question_text} />
+                        </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
-                      <span>
-                        {answers[question.id]
-                          ? `Selected answer: ${getMathAwareText(answers[question.id])}`
-                          : "No answer selected yet"}
-                      </span>
-                      <span>Question {displayQuestionNumber}</span>
-                    </div>
-                  </CardContent>
-                </Card>
+                        <div className="grid gap-3">
+                          {question.options.map((option, optionIndex) => {
+                            const selected = answers[question.id] === option;
+                            return (
+                              <Button
+                                key={`${question.id}-${optionIndex}`}
+                                type="button"
+                                variant={selected ? "default" : "outline"}
+                                className={`justify-start py-6 text-left ${selected ? "border-blue-600" : ""}`}
+                                onClick={() => recordAnswer(question.id, option)}
+                              >
+                                <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
+                                  {String.fromCharCode(65 + optionIndex)}
+                                </span>
+                                <span className="text-base">
+                                  <MathText content={option} />
+                                </span>
+                              </Button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
+                          <span>
+                            {answers[question.id]
+                              ? `Selected answer: ${answers[question.id]}`
+                              : "No answer selected yet"}
+                          </span>
+                          <span>Question {displayQuestionNumber}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
                   );
                 })()
               ))}
@@ -1108,13 +1109,12 @@ export default function StudentJambPage() {
                         size="sm"
                         onClick={() => loadQuestions(pageNum)}
                         disabled={loadingQuestions}
-                        className={`min-w-10 transition-all ${
-                          isComplete && !isCurrent
-                            ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
-                            : hasAnswers && !isCurrent
+                        className={`min-w-10 transition-all ${isComplete && !isCurrent
+                          ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
+                          : hasAnswers && !isCurrent
                             ? "border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200"
                             : ""
-                        }`}
+                          }`}
                         title={isComplete ? "Complete! 5/5 answered" : hasAnswers ? `${pageAnswered}/5 answered` : ""}
                       >
                         {pageNum}
@@ -1212,13 +1212,12 @@ export default function StudentJambPage() {
                   return (
                     <div
                       key={pageNum}
-                      className={`flex items-center justify-between rounded-lg border p-3 ${
-                        isComplete
-                          ? "border-emerald-200 bg-emerald-50"
-                          : pageAnswered > 0
+                      className={`flex items-center justify-between rounded-lg border p-3 ${isComplete
+                        ? "border-emerald-200 bg-emerald-50"
+                        : pageAnswered > 0
                           ? "border-amber-200 bg-amber-50"
                           : "border-slate-200 bg-slate-50"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center gap-3">
                         {isComplete ? (
@@ -1439,22 +1438,23 @@ export default function StudentJambPage() {
                           {item.questionText && (
                             <div>
                               <p className="text-gray-600 mb-1">Question:</p>
-                              <p className="text-gray-900">{getMathAwareText(item.questionText)}</p>
+                              <MathText content={item.questionText} />
                             </div>
                           )}
                           <div className="rounded bg-red-50 p-2 border border-red-200">
                             <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900">{getMathAwareText(item.userAnswer)}</p>
+                            <p className="text-red-900">{item.userAnswer}</p>
                           </div>
                           <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
                             <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900">{getMathAwareText(item.correctAnswer)}</p>
+                            <p className="text-emerald-900">{item.correctAnswer}</p>
                           </div>
                           {item.explanation && (
                             <div className="rounded bg-blue-50 p-2 border border-blue-200">
                               <p className="text-blue-700 font-medium">Explanation:</p>
-                              <p className="text-blue-900 text-xs">{getMathAwareText(item.explanation)}</p>
-                            </div>
+                              <div className="text-blue-900 text-xs">
+                                <MathText content={item.explanation} />
+                              </div>                            </div>
                           )}
                         </div>
                       </div>

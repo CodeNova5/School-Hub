@@ -120,54 +120,8 @@ function renderMathToken(token: string): string {
 }
 
 function parseTextWithMatrices(text: string): RenderChunk[] {
-  const chunks: RenderChunk[] = [];
-  // Match outer double-paren matrix blocks like: (( (r1) (r2) (r3) )) or (( r1 \n r2 ))
-  const outerRegex = /\(\(\s*([\s\S]*?)\s*\)\)/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = outerRegex.exec(text)) !== null) {
-    const fullMatch = match[0];
-    const inner = match[1];
-    const matchStart = match.index;
-
-    if (matchStart > lastIndex) {
-      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
-    }
-
-    // extract rows from inner content: rows may be in parentheses or separated by newlines/spaces
-    const rows: string[][] = [];
-    const rowParenRegex = /\(([^()]*)\)/g;
-    let rowMatch: RegExpExecArray | null;
-    while ((rowMatch = rowParenRegex.exec(inner)) !== null) {
-      const row = rowMatch[1].trim().split(/\s+/).filter(Boolean);
-      if (row.length) rows.push(row);
-    }
-
-    // fallback: if no parenthesized rows, split by newlines or double spaces
-    if (rows.length === 0) {
-      const lines = inner.split(/[\r\n]+|;;|\s{2,}/).map((l) => l.trim()).filter(Boolean);
-      for (const line of lines) {
-        const row = line.split(/\s+/).filter(Boolean);
-        if (row.length) rows.push(row);
-      }
-    }
-
-    if (rows.length) {
-      chunks.push({ type: "matrix", rows });
-    } else {
-      // nothing recognizable as a matrix, treat as plain text
-      chunks.push({ type: "text", value: fullMatch });
-    }
-
-    lastIndex = matchStart + fullMatch.length;
-  }
-
-  if (lastIndex < text.length) {
-    chunks.push({ type: "text", value: text.slice(lastIndex) });
-  }
-
-  return chunks;
+  // No matrix parsing needed — formatJambText handles matrix environments
+  return [{ type: "text", value: text }];
 }
 
 function parseFractionsInText(text: string): RenderChunk[] {

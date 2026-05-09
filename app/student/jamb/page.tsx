@@ -121,37 +121,50 @@ function renderMathToken(token: string): string {
 
 function parseTextWithMatrices(text: string): RenderChunk[] {
   const chunks: RenderChunk[] = [];
-  const matrixRegex = /\(\(([^()]+)\)\s*\(([^()]+)\)\)/g;
+  // Match outer double-paren matrix blocks like: (( (r1) (r2) (r3) )) or (( r1 \n r2 ))
+  const outerRegex = /\(\(\s*([\s\S]*?)\s*\)\)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = matrixRegex.exec(text)) !== null) {
-    const [fullMatch, row1Raw, row2Raw] = match;
+  while ((match = outerRegex.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const inner = match[1];
     const matchStart = match.index;
 
     if (matchStart > lastIndex) {
-      chunks.push({
-        type: "text",
-        value: text.slice(lastIndex, matchStart),
-      });
+      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
     }
 
-    const row1 = row1Raw.trim().split(/\s+/).filter(Boolean);
-    const row2 = row2Raw.trim().split(/\s+/).filter(Boolean);
+    // extract rows from inner content: rows may be in parentheses or separated by newlines/spaces
+    const rows: string[][] = [];
+    const rowParenRegex = /\(([^()]*)\)/g;
+    let rowMatch: RegExpExecArray | null;
+    while ((rowMatch = rowParenRegex.exec(inner)) !== null) {
+      const row = rowMatch[1].trim().split(/\s+/).filter(Boolean);
+      if (row.length) rows.push(row);
+    }
 
-    chunks.push({
-      type: "matrix",
-      rows: [row1, row2],
-    });
+    // fallback: if no parenthesized rows, split by newlines or double spaces
+    if (rows.length === 0) {
+      const lines = inner.split(/[\r\n]+|;;|\s{2,}/).map((l) => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        const row = line.split(/\s+/).filter(Boolean);
+        if (row.length) rows.push(row);
+      }
+    }
+
+    if (rows.length) {
+      chunks.push({ type: "matrix", rows });
+    } else {
+      // nothing recognizable as a matrix, treat as plain text
+      chunks.push({ type: "text", value: fullMatch });
+    }
 
     lastIndex = matchStart + fullMatch.length;
   }
 
   if (lastIndex < text.length) {
-    chunks.push({
-      type: "text",
-      value: text.slice(lastIndex),
-    });
+    chunks.push({ type: "text", value: text.slice(lastIndex) });
   }
 
   return chunks;
@@ -230,14 +243,19 @@ function renderQuestionWithMathML(rawText: string): ReactNode {
     const matrixRows = chunk.rows
       .map((row) => `<mtr>${row.map((cell) => `<mtd>${renderMathToken(cell)}</mtd>`).join("")}</mtr>`)
       .join("");
-    const matrixMathMl = `<math display="inline"><mrow><mo>(</mo><mtable>${matrixRows}</mtable><mo>)</mo></mrow></math>`;
+
+    // center-align all columns for nicer visual
+    const colAlign = (chunk.rows[0] || []).map(() => "center").join(" ") || undefined;
+
+    const matrixMathMl = `<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mfenced open="(" close=")"><mtable${colAlign ? ` columnalign="${colAlign}"` : ""}>${matrixRows}</mtable></mfenced></math>`;
 
     return (
       <span
         key={`matrix-${chunkIndex}`}
         aria-label="matrix"
-        className="inline-block align-middle"
-        style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
+        className="inline-block align-middle matrix-inline"
+        style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.25rem", fontSize: "0.95rem", lineHeight: 1 }}
+        title="matrix"
         dangerouslySetInnerHTML={{ __html: matrixMathMl }}
       />
     );

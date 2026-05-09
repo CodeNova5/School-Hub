@@ -1,9 +1,8 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { formatJambOptionText, formatJambText } from "@/lib/format-jamb-text";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -69,197 +68,32 @@ type AttemptResult = {
 
 const QUESTIONS_PER_PAGE = 5;
 
-type MatrixChunk = {
-  type: "matrix";
-  rows: string[][];
-};
+function getMathAwareText(input: string) {
+  if (!input) return "";
 
-type FractionChunk = {
-  type: "fraction";
-  numerator: string;
-  denominator: string;
-};
-
-type TextChunk = {
-  type: "text";
-  value: string;
-};
-
-type RenderChunk = MatrixChunk | FractionChunk | TextChunk;
-
-function isNumericToken(token: string): boolean {
-  return /^-?\d+(?:\.\d+)?$/.test(token);
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function renderMathToken(token: string): string {
-  const trimmed = token.trim();
-  if (!trimmed) return "<mtext></mtext>";
-
-  if (isNumericToken(trimmed) && trimmed.startsWith("-")) {
-    return `<mrow><mo>-</mo><mn>${escapeHtml(trimmed.slice(1))}</mn></mrow>`;
+  if (typeof window === "undefined") {
+    return input.replace(/\s+/g, " ").trim();
   }
 
-  if (isNumericToken(trimmed)) {
-    return `<mn>${escapeHtml(trimmed)}</mn>`;
+  const parser = new DOMParser();
+  const documentFragment = parser.parseFromString(`<div>${input}</div>`, "text/html");
+  const container = documentFragment.body.firstElementChild;
+
+  if (!container) {
+    return input.replace(/\s+/g, " ").trim();
   }
 
-  if (/^[A-Za-z]+$/.test(trimmed)) {
-    return `<mi>${escapeHtml(trimmed)}</mi>`;
-  }
-
-  return `<mtext>${escapeHtml(trimmed)}</mtext>`;
-}
-
-function parseTextWithMatrices(text: string): RenderChunk[] {
-  const chunks: RenderChunk[] = [];
-  // Match outer double-paren matrix blocks like: (( (r1) (r2) (r3) )) or (( r1 \n r2 ))
-  const outerRegex = /\(\(\s*([\s\S]*?)\s*\)\)/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = outerRegex.exec(text)) !== null) {
-    const fullMatch = match[0];
-    const inner = match[1];
-    const matchStart = match.index;
-
-    if (matchStart > lastIndex) {
-      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
-    }
-
-    // extract rows from inner content: rows may be in parentheses or separated by newlines/spaces
-    const rows: string[][] = [];
-    const rowParenRegex = /\(([^()]*)\)/g;
-    let rowMatch: RegExpExecArray | null;
-    while ((rowMatch = rowParenRegex.exec(inner)) !== null) {
-      const row = rowMatch[1].trim().split(/\s+/).filter(Boolean);
-      if (row.length) rows.push(row);
-    }
-
-    // fallback: if no parenthesized rows, split by newlines or double spaces
-    if (rows.length === 0) {
-      const lines = inner.split(/[\r\n]+|;;|\s{2,}/).map((l) => l.trim()).filter(Boolean);
-      for (const line of lines) {
-        const row = line.split(/\s+/).filter(Boolean);
-        if (row.length) rows.push(row);
-      }
-    }
-
-    if (rows.length) {
-      chunks.push({ type: "matrix", rows });
-    } else {
-      // nothing recognizable as a matrix, treat as plain text
-      chunks.push({ type: "text", value: fullMatch });
-    }
-
-    lastIndex = matchStart + fullMatch.length;
-  }
-
-  if (lastIndex < text.length) {
-    chunks.push({ type: "text", value: text.slice(lastIndex) });
-  }
-
-  return chunks;
-}
-
-function parseFractionsInText(text: string): RenderChunk[] {
-  const chunks: RenderChunk[] = [];
-  const fractionRegex = /\(([^()]+)\)\/\(([^()]+)\)/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = fractionRegex.exec(text)) !== null) {
-    const [fullMatch, numeratorRaw, denominatorRaw] = match;
-    const matchStart = match.index;
-
-    if (matchStart > lastIndex) {
-      chunks.push({ type: "text", value: text.slice(lastIndex, matchStart) });
-    }
-
-    chunks.push({ type: "fraction", numerator: numeratorRaw.trim(), denominator: denominatorRaw.trim() });
-    lastIndex = matchStart + fullMatch.length;
-  }
-
-  if (lastIndex < text.length) {
-    chunks.push({ type: "text", value: text.slice(lastIndex) });
-  }
-
-  return chunks.length > 1 ? chunks : [{ type: "text", value: text }];
-}
-
-function parseComplexMathExpressions(text: string): RenderChunk[] {
-  const fractionChunks = parseFractionsInText(text);
-  const allChunks: RenderChunk[] = [];
-  for (const chunk of fractionChunks) {
-    if (chunk.type === "text") {
-      const matrixChunks = parseTextWithMatrices(chunk.value);
-      allChunks.push(...matrixChunks);
-    } else {
-      allChunks.push(chunk);
-    }
-  }
-  return allChunks;
-}
-
-function renderQuestionWithMathML(rawText: string): ReactNode {
-  const formatted = formatJambText(rawText);
-  const chunks = parseComplexMathExpressions(formatted);
-  const hasMath = chunks.some((chunk) => chunk.type === "matrix" || chunk.type === "fraction");
-
-  if (!hasMath) {
-    return formatted;
-  }
-
-  return chunks.map((chunk, chunkIndex) => {
-    if (chunk.type === "text") {
-      return (
-        <span key={`text-${chunkIndex}`} className="preserve-whitespace">
-          {chunk.value}
-        </span>
-      );
-    }
-
-    if (chunk.type === "fraction") {
-      const fractionMathMl = `<math display="inline"><mrow><mfrac><mrow>${escapeHtml(chunk.numerator)}</mrow><mrow>${escapeHtml(chunk.denominator)}</mrow></mfrac></mrow></math>`;
-      return (
-        <span
-          key={`fraction-${chunkIndex}`}
-          aria-label="fraction"
-          className="inline-block align-middle"
-          style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.2rem" }}
-          dangerouslySetInnerHTML={{ __html: fractionMathMl }}
-        />
-      );
-    }
-
-    const matrixRows = chunk.rows
-      .map((row) => `<mtr>${row.map((cell) => `<mtd>${renderMathToken(cell)}</mtd>`).join("")}</mtr>`)
-      .join("");
-
-    // center-align all columns for nicer visual
-    const colAlign = (chunk.rows[0] || []).map(() => "center").join(" ") || undefined;
-
-    const matrixMathMl = `<math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mfenced open="(" close=")"><mtable${colAlign ? ` columnalign="${colAlign}"` : ""}>${matrixRows}</mtable></mfenced></math>`;
-
-    return (
-      <span
-        key={`matrix-${chunkIndex}`}
-        aria-label="matrix"
-        className="inline-block align-middle matrix-inline"
-        style={{ display: "inline-block", verticalAlign: "middle", margin: "0 0.25rem", fontSize: "0.95rem", lineHeight: 1 }}
-        title="matrix"
-        dangerouslySetInnerHTML={{ __html: matrixMathMl }}
-      />
-    );
+  container.querySelectorAll('script[type^="math/tex"]').forEach((script) => {
+    const latex = script.textContent || "";
+    script.replaceWith(` $${latex}$ `);
   });
+
+  container.querySelectorAll("mjx-container").forEach((node) => {
+    const tex = node.getAttribute("data-tex") || node.getAttribute("aria-label") || "";
+    node.replaceWith(` $${tex}$ `);
+  });
+
+  return (container.textContent || "").replace(/\s+/g, " ").trim();
 }
 
 export default function StudentJambPage() {
@@ -1205,7 +1039,7 @@ export default function StudentJambPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-5 p-6">
-                    <p className="text-lg font-medium text-gray-900 preserve-whitespace">{renderQuestionWithMathML(question.question_text)}</p>
+                    <p className="text-lg font-medium text-gray-900">{getMathAwareText(question.question_text)}</p>
 
                     <div className="grid gap-3">
                       {question.options.map((option, optionIndex) => {
@@ -1221,7 +1055,7 @@ export default function StudentJambPage() {
                             <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                               {String.fromCharCode(65 + optionIndex)}
                             </span>
-                            <span className="text-base">{renderQuestionWithMathML(formatJambOptionText(option))}</span>
+                            <span className="text-base">{getMathAwareText(option)}</span>
                           </Button>
                         );
                       })}
@@ -1229,14 +1063,9 @@ export default function StudentJambPage() {
 
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
                       <span>
-                        {answers[question.id] ? (
-                          <span>
-                            <span className="font-medium">Selected answer: </span>
-                            <span className="inline">{renderQuestionWithMathML(formatJambOptionText(answers[question.id]))}</span>
-                          </span>
-                        ) : (
-                          "No answer selected yet"
-                        )}
+                        {answers[question.id]
+                          ? `Selected answer: ${getMathAwareText(answers[question.id])}`
+                          : "No answer selected yet"}
                       </span>
                       <span>Question {displayQuestionNumber}</span>
                     </div>
@@ -1610,21 +1439,21 @@ export default function StudentJambPage() {
                           {item.questionText && (
                             <div>
                               <p className="text-gray-600 mb-1">Question:</p>
-                              <p className="text-gray-900">{formatJambText(item.questionText)}</p>
+                              <p className="text-gray-900">{getMathAwareText(item.questionText)}</p>
                             </div>
                           )}
                           <div className="rounded bg-red-50 p-2 border border-red-200">
                             <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900">{renderQuestionWithMathML(formatJambOptionText(item.userAnswer))}</p>
+                            <p className="text-red-900">{getMathAwareText(item.userAnswer)}</p>
                           </div>
                           <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
                             <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900">{renderQuestionWithMathML(formatJambOptionText(item.correctAnswer))}</p>
+                            <p className="text-emerald-900">{getMathAwareText(item.correctAnswer)}</p>
                           </div>
                           {item.explanation && (
                             <div className="rounded bg-blue-50 p-2 border border-blue-200">
                               <p className="text-blue-700 font-medium">Explanation:</p>
-                              <p className="text-blue-900 text-xs">{formatJambText(item.explanation)}</p>
+                              <p className="text-blue-900 text-xs">{getMathAwareText(item.explanation)}</p>
                             </div>
                           )}
                         </div>

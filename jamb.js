@@ -47,6 +47,7 @@ async function scrapeJamb(pageNumber) {
         return questions;
     } catch (error) {
         console.error("Scraping failed:", error);
+        return [];
     }
 }
 async function fetchAnswerDetail(url) {
@@ -137,4 +138,12 @@ async function run(pageNumber = 1) {
     console.log(questions);
 }
 
-run(1).catch(err => console.error(err));
+module.exports = {
+    getRandomUserAgent,
+    scrapeJamb,
+    fetchAnswerDetail,
+};
+
+if (require.main === module) {
+    run(1).catch(err => console.error(err));
+}

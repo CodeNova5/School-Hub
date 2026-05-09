@@ -73,6 +73,53 @@ type AttemptResult = {
 
 const QUESTIONS_PER_PAGE = 5;
 
+function normalizeMathContent(input: string): string {
+  if (!input) return "";
+
+  // Convert common escaped TeX delimiters to remark-math friendly forms.
+  let normalized = input
+    .replace(/\\\[(.+?)\\\]/gs, (_m, expr: string) => `$$${expr}$$`)
+    .replace(/\\\((.+?)\\\)/g, (_m, expr: string) => `$${expr}$`)
+    .replace(/\r\n/g, "\n")
+    .replace(/\u00a0/g, " ");
+
+  // Scraped content can contain HTML/MathJax wrappers; extract readable text + TeX.
+  if (typeof window !== "undefined" && /<[^>]+>/.test(normalized)) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(`<div>${normalized}</div>`, "text/html");
+      const root = doc.body.firstElementChild as HTMLElement | null;
+
+      if (root) {
+        root.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+
+        root.querySelectorAll('script[type^="math/tex"]').forEach((script) => {
+          const latex = (script.textContent || "").trim();
+          script.replaceWith(latex ? ` $${latex}$ ` : " ");
+        });
+
+        root.querySelectorAll("mjx-container").forEach((container) => {
+          const tex =
+            container.getAttribute("data-tex") ||
+            container.getAttribute("aria-label") ||
+            container.textContent ||
+            "";
+          container.replaceWith(tex ? ` $${tex.trim()}$ ` : " ");
+        });
+
+        normalized = root.textContent || normalized;
+      }
+    } catch (error) {
+      console.error("Failed to normalize question content", error);
+    }
+  }
+
+  return normalized
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export default function StudentJambPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   const [loading, setLoading] = useState(true);
@@ -120,6 +167,8 @@ export default function StudentJambPage() {
   // --- NEW HELPER COMPONENT ---
   // This safely renders the math without breaking inline layouts
   const MathText = ({ content }: { content: string }) => {
+    const normalized = useMemo(() => normalizeMathContent(content), [content]);
+
     return (
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
@@ -129,7 +178,7 @@ export default function StudentJambPage() {
           p: ({ node, ...props }) => <span {...props} />
         }}
       >
-        {content}
+        {normalized}
       </ReactMarkdown>
     );
   };

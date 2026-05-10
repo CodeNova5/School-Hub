@@ -15,6 +15,7 @@ type ScrapedQuestion = {
   answerLink: string | null;
   correct?: string;
   explanation?: string;
+  image?: string | null;
 };
 
 function clean(text: string) {
@@ -158,6 +159,7 @@ export async function GET(req: NextRequest) {
           correct_option: clean(question.correct || "") || null,
           explanation: clean(question.explanation || "") || null,
           source_url: question.answerLink || null,
+          image_url: question.image || null,
           external_question_id: sourceId ? `${pageScopedId}-${sourceId}` : pageScopedId,
         };
       })
@@ -173,8 +175,9 @@ export async function GET(req: NextRequest) {
       correct_option: string | null;
       explanation: string | null;
       source_url: string | null;
+      image_url: string | null;
       external_question_id: string;
-    }>;
+    }>;>
 
     const externalIds = rows.map((row) => row.external_question_id);
     const { data: existingRows, error: existingError } = externalIds.length
@@ -215,7 +218,7 @@ export async function GET(req: NextRequest) {
     const { data: storedQuestions, error: storedError } = await supabaseAdmin
       .from("jamb_questions")
       .select(
-        "id, external_question_id, question_text, options, subject_slug, subject_name, exam_year, topic, correct_option, explanation"
+        "id, external_question_id, question_text, options, subject_slug, subject_name, exam_year, topic, correct_option, explanation, image_url"
       )
       .eq("school_id", student.school_id)
       .eq("subject_slug", subject)
@@ -248,6 +251,7 @@ export async function GET(req: NextRequest) {
           topic: stored.topic,
           correct_option: stored.correct_option,
           explanation: stored.explanation,
+          image_url: stored.image_url || null,
         };
       })
       .filter(Boolean);

@@ -17,6 +17,7 @@ interface Question {
   answerLink: string | null;
   correct?: string;
   explanation?: string;
+  image?: string | null;
 }
 
 interface QuestionsResponse {
@@ -211,15 +212,27 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
     $('.question-item').each((_i: number, el: any) => {
       const $el = $(el);
 
-      // NEW: Use getMathAwareText instead of getText
+      // Extract question text
       const qParagraph = $el.find('.question-desc p');
       const questionText = getMathAwareText($, qParagraph.length ? qParagraph : $el.find('.question-desc'));
 
+      // Extract options
       const options = $el
         .find('ul.list-unstyled li, ul.options li')
         .map((_: number, opt: any) => getMathAwareText($, opt))
         .get()
         .filter(Boolean);
+
+      // Extract images (can be in media-body or directly in question-item)
+      let image: string | null = null;
+      const imgElement = $el.find('img.img-fluid, img').first();
+      if (imgElement && imgElement.length) {
+        const src = imgElement.attr('src');
+        if (src) {
+          // Convert relative URLs to absolute URLs
+          image = src.startsWith('http') ? src : `${BASE_URL}${src}`;
+        }
+      }
 
       const answerLink = $el.find('a.btn-outline-danger, a[href*="/answers"], a[href*="/answer"]').attr('href') || null;
       const answerId = answerLink ? (answerLink.match(/\/(\d+)\b/) || [])[1] : undefined;
@@ -228,7 +241,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
         id: answerId,
         question: questionText,
         options,
-        answerLink
+        answerLink,
+        image: image || null
       });
     });
 

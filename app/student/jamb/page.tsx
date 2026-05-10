@@ -46,6 +46,7 @@ type QuestionRow = {
   subject_slug: string;
   subject_name: string;
   exam_year: number;
+  image_url?: string | null;
 };
 
 type AttemptResult = {
@@ -536,6 +537,7 @@ export default function StudentJambPage() {
           subject_slug: row.subject_slug,
           subject_name: row.subject_name,
           exam_year: row.exam_year,
+          image_url: row.image_url || null,
         }))
         : [];
 
@@ -1084,6 +1086,20 @@ export default function StudentJambPage() {
                         </div>
                       </CardHeader>
                       <CardContent className="space-y-5 p-6">
+
+                        {question.image_url && (
+                          <div className="flex justify-center rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <img
+                              src={question.image_url}
+                              alt={`Question ${displayQuestionNumber}`}
+                              className="max-h-64 max-w-full object-contain"
+                              onError={(e) => {
+                                console.error("Failed to load image:", question.image_url);
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          </div>
+                        )}
 
                         <div className="text-lg font-medium text-gray-900">
                           <MathText content={question.question_text} />

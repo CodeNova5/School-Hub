@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
@@ -74,6 +75,33 @@ type AttemptResult = {
 
 const QUESTIONS_PER_PAGE = 5;
 
+function tableToMarkdown(table: HTMLTableElement): string {
+  const rows = Array.from(table.querySelectorAll("tr"))
+    .map((row) =>
+      Array.from(row.querySelectorAll("th, td")).map((cell) => {
+        const raw = (cell.textContent || "").replace(/\s+/g, " ").trim();
+        return raw.replace(/\|/g, "\\|");
+      })
+    )
+    .filter((row) => row.length > 0);
+
+  if (!rows.length) return "";
+
+  const maxCols = Math.max(...rows.map((row) => row.length));
+  const normalizedRows = rows.map((row) => {
+    if (row.length >= maxCols) return row;
+    return [...row, ...Array.from({ length: maxCols - row.length }, () => "")];
+  });
+
+  const header = normalizedRows[0];
+  const separator = Array.from({ length: maxCols }, () => "---");
+  const body = normalizedRows.slice(1);
+
+  const asLine = (cells: string[]) => `| ${cells.join(" | ")} |`;
+
+  return [asLine(header), asLine(separator), ...body.map(asLine)].join("\n");
+}
+
 function normalizeMathContent(input: string): string {
   if (!input) return "";
 
@@ -106,6 +134,12 @@ function normalizeMathContent(input: string): string {
             container.textContent ||
             "";
           container.replaceWith(tex ? ` $${tex.trim()}$ ` : " ");
+        });
+
+        root.querySelectorAll("table").forEach((table) => {
+          if (!(table instanceof HTMLTableElement)) return;
+          const markdownTable = tableToMarkdown(table);
+          table.replaceWith(markdownTable ? `\n\n${markdownTable}\n\n` : " ");
         });
 
         normalized = root.textContent || normalized;
@@ -172,11 +206,21 @@ export default function StudentJambPage() {
 
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkMath]}
+        remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
           // Prevent markdown from wrapping options in block <p> tags, which breaks alignment
-          p: ({ node, ...props }) => <span {...props} />
+          p: ({ node, ...props }) => <span {...props} />,
+          table: ({ node, ...props }) => (
+            <div className="my-3 overflow-x-auto rounded-lg border border-slate-300">
+              <table className="min-w-full border-collapse text-sm" {...props} />
+            </div>
+          ),
+          thead: ({ node, ...props }) => <thead className="bg-slate-100" {...props} />,
+          th: ({ node, ...props }) => (
+            <th className="border border-slate-300 px-3 py-2 text-left font-semibold text-slate-700" {...props} />
+          ),
+          td: ({ node, ...props }) => <td className="border border-slate-300 px-3 py-2" {...props} />,
         }}
       >
         {normalized}

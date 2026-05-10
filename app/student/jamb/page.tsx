@@ -221,7 +221,7 @@ export default function StudentJambPage() {
           p: ({ node, ...props }) => <span {...props} />,
           table: ({ node, ...props }) => (
             <div className="my-3 overflow-x-auto rounded-lg border border-slate-300">
-              <table className="min-w-full border-collapse text-sm" {...props} />
+              <table className="min-w-0 w-full border-collapse text-sm" {...props} />
             </div>
           ),
           thead: ({ node, ...props }) => <thead className="bg-slate-100" {...props} />,
@@ -1166,13 +1166,13 @@ export default function StudentJambPage() {
                                 key={`${question.id}-${optionIndex}`}
                                 type="button"
                                 variant={selected ? "default" : "outline"}
-                                className={`justify-start items-start py-4 text-left ${selected ? "border-blue-600" : ""}`}
+                                className={`justify-start items-start py-4 text-left overflow-visible ${selected ? "border-blue-600" : ""}`}
                                 onClick={() => recordAnswer(question.id, option)}
                               >
-                                <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
+                                <span className="mr-3 inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                                   {String.fromCharCode(65 + optionIndex)}
                                 </span>
-                                <span className="text-base whitespace-pre-wrap break-words">
+                                <span className="text-base whitespace-pre-wrap break-words block w-full">
                                   <MathText content={displayText} />
                                 </span>
                               </Button>

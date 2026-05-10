@@ -34,7 +34,11 @@ interface ErrorResponse {
   type?: string;
 }
 
-function getMathAwareText($: ReturnType<typeof load>, el: any): string {
+function getMathAwareText(
+  $: ReturnType<typeof load>,
+  el: any,
+  options?: { preserveHtml?: boolean }
+): string {
   if (!el || !$(el).length) return '';
   const clone = $(el).clone();
 
@@ -49,6 +53,11 @@ function getMathAwareText($: ReturnType<typeof load>, el: any): string {
     const tex = $(container).attr('data-tex') || $(container).attr('aria-label') || '';
     if (tex) $(container).replaceWith(` $${tex}$ `);
   });
+
+  if (options?.preserveHtml) {
+    clone.find('script,style').remove();
+    return (clone.html() || '').replace(/\u00a0/g, ' ').trim();
+  }
 
   return clean(clone.text());
 }
@@ -212,9 +221,8 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
     $('.question-item').each((_i: number, el: any) => {
       const $el = $(el);
 
-      // Extract question text
-      const qParagraph = $el.find('.question-desc p');
-      const questionText = getMathAwareText($, qParagraph.length ? qParagraph : $el.find('.question-desc'));
+      // Extract full question block so tables and other sibling nodes are preserved.
+      const questionText = getMathAwareText($, $el.find('.question-desc'), { preserveHtml: true });
 
       // Extract options
       const options = $el

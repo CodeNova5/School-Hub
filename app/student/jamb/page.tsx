@@ -207,7 +207,7 @@ export default function StudentJambPage() {
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        rehypePlugins={[[rehypeKatex, { strict: "ignore" }]]}
         components={{
           // Prevent markdown from wrapping options in block <p> tags, which breaks alignment
           p: ({ node, ...props }) => <span {...props} />,

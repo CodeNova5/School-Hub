@@ -22,6 +22,17 @@ function clean(text: string) {
   return (text || "").replace(/\s+/g, " ").trim();
 }
 
+function cleanRichText(text: string) {
+  return (text || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]{2,}/g, " ").trimEnd())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function parsePageNumber(value: string | null, fallback: number) {
   const parsed = Number(value || fallback);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -154,10 +165,10 @@ export async function GET(req: NextRequest) {
           subject_name: subjectName || subject,
           exam_year: Number(year),
           topic: normalizedTopic || null,
-          question_text: clean(question.question || ""),
+          question_text: cleanRichText(question.question || ""),
           options: Array.isArray(question.options) ? question.options : [],
           correct_option: clean(question.correct || "") || null,
-          explanation: clean(question.explanation || "") || null,
+          explanation: cleanRichText(question.explanation || "") || null,
           source_url: question.answerLink || null,
           image_url: question.image || null,
           external_question_id: sourceId ? `${pageScopedId}-${sourceId}` : pageScopedId,
@@ -194,9 +205,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: existingError.message }, { status: 500 });
     }
 
-    const existingExternalIds = new Set(
-      (existingRows || []).map((row: any) => String(row.external_question_id))
+    const existingByExternalId = new Map(
+      (existingRows || []).map((row: any) => [String(row.external_question_id), row])
     );
+    const existingExternalIds = new Set(existingByExternalId.keys());
     const missingRows = rows.filter((row) => !existingExternalIds.has(row.external_question_id));
 
     if (missingRows.length > 0) {
@@ -213,6 +225,36 @@ export async function GET(req: NextRequest) {
         });
         return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
+    }
+
+    const rowsToRefresh = rows.filter((row) => existingExternalIds.has(row.external_question_id));
+    if (rowsToRefresh.length > 0) {
+      const refreshPromises = rowsToRefresh.map(async (row) => {
+        const existing = existingByExternalId.get(row.external_question_id);
+        if (!existing?.id) return;
+
+        const { error: updateError } = await supabaseAdmin
+          .from("jamb_questions")
+          .update({
+            question_text: row.question_text,
+            options: row.options,
+            correct_option: row.correct_option,
+            explanation: row.explanation,
+            source_url: row.source_url,
+            image_url: row.image_url,
+          })
+          .eq("id", existing.id);
+
+        if (updateError) {
+          console.error("[student/jamb/questions] refresh failed", {
+            id: existing.id,
+            externalQuestionId: row.external_question_id,
+            message: updateError.message,
+          });
+        }
+      });
+
+      await Promise.all(refreshPromises);
     }
 
     const { data: storedQuestions, error: storedError } = await supabaseAdmin

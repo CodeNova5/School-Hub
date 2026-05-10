@@ -41,6 +41,7 @@ type SubjectOption = {
 };
 
 type QuestionRow = {
+
   id: string;
   question_text: string;
   options: string[];
@@ -74,6 +75,13 @@ type AttemptResult = {
 };
 
 const QUESTIONS_PER_PAGE = 5;
+
+// Remove duplicated leading labels like "A.", "B)", "C -" from scraped option text
+function stripLeadingOptionLabel(input: string) {
+  if (!input) return "";
+  // Remove common leading labels: A., A), A - , a: etc.
+  return input.replace(/^\s*(?:[A-Da-d])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
+}
 
 function tableToMarkdown(table: HTMLTableElement): string {
   const rows = Array.from(table.querySelectorAll("tr"))
@@ -1152,19 +1160,20 @@ export default function StudentJambPage() {
                         <div className="grid gap-3">
                           {question.options.map((option, optionIndex) => {
                             const selected = answers[question.id] === option;
+                            const displayText = stripLeadingOptionLabel(option);
                             return (
                               <Button
                                 key={`${question.id}-${optionIndex}`}
                                 type="button"
                                 variant={selected ? "default" : "outline"}
-                                className={`justify-start py-6 text-left ${selected ? "border-blue-600" : ""}`}
+                                className={`justify-start items-start py-4 text-left ${selected ? "border-blue-600" : ""}`}
                                 onClick={() => recordAnswer(question.id, option)}
                               >
                                 <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                                   {String.fromCharCode(65 + optionIndex)}
                                 </span>
-                                <span className="text-base">
-                                  <MathText content={option} />
+                                <span className="text-base whitespace-pre-wrap break-words">
+                                  <MathText content={displayText} />
                                 </span>
                               </Button>
                             );
@@ -1174,7 +1183,7 @@ export default function StudentJambPage() {
                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
                           <span>
                             {answers[question.id]
-                              ? `Selected answer: ${answers[question.id]}`
+                              ? `Selected answer: ${stripLeadingOptionLabel(answers[question.id])}`
                               : "No answer selected yet"}
                           </span>
                           <span>Question {displayQuestionNumber}</span>

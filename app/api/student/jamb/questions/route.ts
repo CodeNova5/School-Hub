@@ -177,7 +177,7 @@ export async function GET(req: NextRequest) {
       source_url: string | null;
       image_url: string | null;
       external_question_id: string;
-    }>;>
+    }>;
 
     const externalIds = rows.map((row) => row.external_question_id);
     const { data: existingRows, error: existingError } = externalIds.length

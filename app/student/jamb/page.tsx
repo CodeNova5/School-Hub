@@ -179,6 +179,7 @@ export default function StudentJambPage() {
   // Page-level pagination (each "page" has QUESTIONS_PER_PAGE questions)
   const [questionPage, setQuestionPage] = useState(1);
   const [questionTotalPages, setQuestionTotalPages] = useState(1);
+  const [totalQuestionCount, setTotalQuestionCount] = useState(0);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
 
   // Index of the active question within the current page (0-based)
@@ -295,6 +296,7 @@ export default function StudentJambPage() {
     setAnswers({});
     setQuestions([]);
     setAllQuestionIds([]);
+    setTotalQuestionCount(0);
     setShowRestoreDialog(false);
     toast.success("Started fresh session");
   }
@@ -380,11 +382,11 @@ export default function StudentJambPage() {
 
   useEffect(() => {
     if (!selectedSubject) {
-      setYears([]); setSelectedYear(""); setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null);
+      setYears([]); setSelectedYear(""); setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0);
       return;
     }
     if (!(pendingSession && pendingSession.subject === selectedSubject)) setSelectedYear("");
-    setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null);
+    setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0);
     void loadAvailableFilters(selectedSubject).catch((err: any) => toast.error(err.message || "Failed to load years"));
   }, [selectedSubject, pendingSession]);
 
@@ -398,7 +400,7 @@ export default function StudentJambPage() {
     () => questions.reduce((c, q) => (answers[q.id] ? c + 1 : c), 0),
     [answers, questions]
   );
-  const totalQuestions = useMemo(() => questionTotalPages * QUESTIONS_PER_PAGE, [questionTotalPages]);
+  const totalQuestions = useMemo(() => totalQuestionCount, [totalQuestionCount]);
   const totalAnsweredCount = useMemo(() => Object.keys(answers).length, [answers]);
   const progressPercent = useMemo(
     () => (totalQuestions ? Math.round((totalAnsweredCount / totalQuestions) * 100) : 0),
@@ -485,6 +487,7 @@ export default function StudentJambPage() {
       const totalPages = Math.ceil((totalCount || 0) / QUESTIONS_PER_PAGE);
       const hasMore = page < totalPages;
       if (loadedQuestions.length === 0 && page === 1) toast.info("No questions matched the selected filters");
+      setTotalQuestionCount(totalCount || 0);
       setQuestions(loadedQuestions);
       try {
         const saved = loadDraftFromLocalStorage();
@@ -524,7 +527,7 @@ export default function StudentJambPage() {
   }
   function handleConfirmTermination() {
     if (pendingFilterChange) {
-      setAnswers({}); setQuestions([]); setAllQuestionIds([]); setAttemptResult(null);
+      setAnswers({}); setQuestions([]); setAllQuestionIds([]); setAttemptResult(null); setTotalQuestionCount(0);
       setIsSessionActive(false); clearSessionState();
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
       setPendingFilterChange(null); setShowTerminationDialog(false);

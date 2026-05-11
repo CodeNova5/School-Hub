@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,19 @@ import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Loader2, Lock, ShieldCheck, Trophy, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  Trophy,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  BookOpen,
+  LayoutGrid,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,19 +40,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
-type SubjectOption = {
-  slug: string;
-  name: string;
-};
+/* ─── Types ─────────────────────────────────────────────────────────────── */
+
+type SubjectOption = { slug: string; name: string };
 
 type QuestionRow = {
-
   id: string;
   question_text: string;
   options: string[];
@@ -67,19 +76,17 @@ type AttemptResult = {
     correctAnswer: string;
     explanation?: string;
   }>;
-  previousAttempt?: {
-    score: number;
-    correctCount: number;
-    totalQuestions: number;
-  };
+  previousAttempt?: { score: number; correctCount: number; totalQuestions: number };
 };
+
+/* ─── Constants ──────────────────────────────────────────────────────────── */
 
 const QUESTIONS_PER_PAGE = 5;
 
-// Remove duplicated leading labels like "A.", "B)", "C -" from scraped option text
+/* ─── Helpers ────────────────────────────────────────────────────────────── */
+
 function stripLeadingOptionLabel(input: string) {
   if (!input) return "";
-  // Remove common leading labels: A., A), A - , a: etc.
   return input.replace(/^\s*(?:[A-Da-d])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
 }
 
@@ -92,49 +99,36 @@ function tableToMarkdown(table: HTMLTableElement): string {
       })
     )
     .filter((row) => row.length > 0);
-
   if (!rows.length) return "";
-
   const maxCols = Math.max(...rows.map((row) => row.length));
-  const normalizedRows = rows.map((row) => {
-    if (row.length >= maxCols) return row;
-    return [...row, ...Array.from({ length: maxCols - row.length }, () => "")];
-  });
-
+  const normalizedRows = rows.map((row) =>
+    row.length >= maxCols ? row : [...row, ...Array.from({ length: maxCols - row.length }, () => "")]
+  );
   const header = normalizedRows[0];
   const separator = Array.from({ length: maxCols }, () => "---");
   const body = normalizedRows.slice(1);
-
   const asLine = (cells: string[]) => `| ${cells.join(" | ")} |`;
-
   return [asLine(header), asLine(separator), ...body.map(asLine)].join("\n");
 }
 
 function normalizeMathContent(input: string): string {
   if (!input) return "";
-
-  // Convert common escaped TeX delimiters to remark-math friendly forms.
   let normalized = input
     .replace(/\\\[(.+?)\\\]/gs, (_m, expr: string) => `$$${expr}$$`)
     .replace(/\\\((.+?)\\\)/g, (_m, expr: string) => `$${expr}$`)
     .replace(/\r\n/g, "\n")
     .replace(/\u00a0/g, " ");
-
-  // Scraped content can contain HTML/MathJax wrappers; extract readable text + TeX.
   if (typeof window !== "undefined" && /<[^>]+>/.test(normalized)) {
     try {
       const parser = new DOMParser();
       const doc = parser.parseFromString(`<div>${normalized}</div>`, "text/html");
       const root = doc.body.firstElementChild as HTMLElement | null;
-
       if (root) {
         root.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
-
         root.querySelectorAll('script[type^="math/tex"]').forEach((script) => {
           const latex = (script.textContent || "").trim();
           script.replaceWith(latex ? ` $${latex}$ ` : " ");
         });
-
         root.querySelectorAll("mjx-container").forEach((container) => {
           const tex =
             container.getAttribute("data-tex") ||
@@ -143,25 +137,23 @@ function normalizeMathContent(input: string): string {
             "";
           container.replaceWith(tex ? ` $${tex.trim()}$ ` : " ");
         });
-
         root.querySelectorAll("table").forEach((table) => {
           if (!(table instanceof HTMLTableElement)) return;
           const markdownTable = tableToMarkdown(table);
           table.replaceWith(markdownTable ? `\n\n${markdownTable}\n\n` : " ");
         });
-
         normalized = root.textContent || normalized;
       }
     } catch (error) {
       console.error("Failed to normalize question content", error);
     }
   }
-
-  return normalized
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  return normalized.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+const OPTION_LABELS = ["A", "B", "C", "D", "E"];
+
+/* ─── Component ──────────────────────────────────────────────────────────── */
 
 export default function StudentJambPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
@@ -182,11 +174,16 @@ export default function StudentJambPage() {
     totalPages: number;
     count: number;
     hasMore: boolean;
-    sourceUrl?: string;
   } | null>(null);
+
+  // Page-level pagination (each "page" has QUESTIONS_PER_PAGE questions)
   const [questionPage, setQuestionPage] = useState(1);
   const [questionTotalPages, setQuestionTotalPages] = useState(1);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
+
+  // Index of the active question within the current page (0-based)
+  const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
+
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [attemptResult, setAttemptResult] = useState<AttemptResult | null>(null);
@@ -200,35 +197,28 @@ export default function StudentJambPage() {
   const [resultWizardStep, setResultWizardStep] = useState(1);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showPreSubmitReview, setShowPreSubmitReview] = useState(false);
-  const [pendingSession, setPendingSession] = useState<{
-    subject: string;
-    year: string;
-  } | null>(null);
+  const [pendingSession, setPendingSession] = useState<{ subject: string; year: string } | null>(null);
+  const [showQuestionGrid, setShowQuestionGrid] = useState(false);
 
-
-
-  // --- NEW HELPER COMPONENT ---
-  // This safely renders the math without breaking inline layouts
+  /* ── MathText ── */
   const MathText = ({ content }: { content: string }) => {
     const normalized = useMemo(() => normalizeMathContent(content), [content]);
-
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeKatex, { strict: "ignore" }]]}
         components={{
-          // Prevent markdown from wrapping options in block <p> tags, which breaks alignment
           p: ({ node, ...props }) => <span {...props} />,
           table: ({ node, ...props }) => (
-            <div className="my-3 overflow-x-auto rounded-lg border border-slate-300">
+            <div className="my-3 overflow-x-auto rounded-lg border border-slate-200">
               <table className="min-w-full border-collapse text-sm" {...props} />
             </div>
           ),
           thead: ({ node, ...props }) => <thead className="bg-slate-100" {...props} />,
           th: ({ node, ...props }) => (
-            <th className="border border-slate-300 px-3 py-2 text-left font-semibold text-slate-700" {...props} />
+            <th className="border border-slate-200 px-3 py-2 text-left font-semibold text-slate-700" {...props} />
           ),
-          td: ({ node, ...props }) => <td className="border border-slate-300 px-3 py-2" {...props} />,
+          td: ({ node, ...props }) => <td className="border border-slate-200 px-3 py-2" {...props} />,
         }}
       >
         {normalized}
@@ -236,30 +226,27 @@ export default function StudentJambPage() {
     );
   };
 
-
-  // Track all question IDs across all pages for accurate submission
+  /* ── Question ID tracking ── */
   const [allQuestionIds, setAllQuestionIds] = useState<{ id: string; pageNum: number }[]>([]);
 
-  // When questions load for a page, register their IDs
   useEffect(() => {
     if (questions.length > 0 && questionPage) {
-      setAllQuestionIds(prev => {
-        // Remove any existing entries for this page
-        const filtered = prev.filter(q => q.pageNum !== questionPage);
-        const newEntries = questions.map(q => ({ id: q.id, pageNum: questionPage }));
+      setAllQuestionIds((prev) => {
+        const filtered = prev.filter((q) => q.pageNum !== questionPage);
+        const newEntries = questions.map((q) => ({ id: q.id, pageNum: questionPage }));
         return [...filtered, ...newEntries];
       });
     }
   }, [questions, questionPage]);
 
-  // Reset allQuestionIds when session resets
   useEffect(() => {
-    if (!selectedSubject || !selectedYear) {
-      setAllQuestionIds([]);
-    }
+    if (!selectedSubject || !selectedYear) setAllQuestionIds([]);
   }, [selectedSubject, selectedYear]);
+
+  /* ── Draft persistence ── */
   const isRestoringDraftRef = useRef(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
 
   function getDraftKey(subject?: string, year?: string) {
     const s = subject || selectedSubject || "";
@@ -267,46 +254,31 @@ export default function StudentJambPage() {
     const sid = schoolId || "global";
     return `jamb_draft:${sid}:${s}:${y}`;
   }
-
   function getSessionKey() {
-    const sid = schoolId || "global";
-    return `jamb_session:${sid}`;
+    return `jamb_session:${schoolId || "global"}`;
   }
-
   function saveSessionState(subject: string, year: string) {
     try {
       if (typeof window === "undefined") return;
-      const key = getSessionKey();
-      const session = { subject, year, timestamp: Date.now() };
-      window.localStorage.setItem(key, JSON.stringify(session));
+      window.localStorage.setItem(getSessionKey(), JSON.stringify({ subject, year, timestamp: Date.now() }));
     } catch (e) {
-      console.error("Failed to save session state", e);
+      console.error(e);
     }
   }
-
   function loadSessionState() {
     try {
       if (typeof window === "undefined") return null;
-      const key = getSessionKey();
-      const raw = window.localStorage.getItem(key);
-      if (!raw) return null;
-      return JSON.parse(raw);
+      const raw = window.localStorage.getItem(getSessionKey());
+      return raw ? JSON.parse(raw) : null;
     } catch (e) {
-      console.error("Failed to load session state", e);
       return null;
     }
   }
-
   function clearSessionState() {
     try {
-      if (typeof window === "undefined") return;
-      const key = getSessionKey();
-      window.localStorage.removeItem(key);
-    } catch (e) {
-      console.error("Failed to clear session state", e);
-    }
+      if (typeof window !== "undefined") window.localStorage.removeItem(getSessionKey());
+    } catch (e) {}
   }
-
   function handleRestoreSession() {
     if (pendingSession) {
       isRestoringDraftRef.current = true;
@@ -315,7 +287,6 @@ export default function StudentJambPage() {
       setShowRestoreDialog(false);
     }
   }
-
   function handleStartFresh() {
     isRestoringDraftRef.current = false;
     clearSessionState();
@@ -327,105 +298,58 @@ export default function StudentJambPage() {
     setShowRestoreDialog(false);
     toast.success("Started fresh session");
   }
-
   function loadDraftFromLocalStorage(key?: string) {
     try {
       const k = key || getDraftKey();
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(k) : null;
       if (!raw) return {} as Record<string, string>;
-      const parsed = JSON.parse(raw || "{}");
-      return parsed.answers || {};
+      return JSON.parse(raw).answers || {};
     } catch (e) {
-      console.error("Failed to load draft from localStorage", e);
       return {} as Record<string, string>;
     }
   }
-
-  function saveDraftToLocalStorage(data?: Record<string, string>, key?: string) {
+  function saveDraftToLocalStorage(data?: Record<string, string>) {
     try {
-      const k = key || getDraftKey();
-      const currentAnswers = data || answers;
-      const isCurrentPageComplete = questions.length === QUESTIONS_PER_PAGE &&
-        questions.every(q => currentAnswers[q.id]);
-
+      const k = getDraftKey();
       const payload = {
         subject: selectedSubject,
         year: selectedYear,
         updatedAt: Date.now(),
-        answers: currentAnswers,
-        pageCompletion: pageCompletion,
+        answers: data || answers,
+        pageCompletion,
       };
       if (typeof window !== "undefined") window.localStorage.setItem(k, JSON.stringify(payload));
-    } catch (e) {
-      console.error("Failed to save draft to localStorage", e);
-    }
+    } catch (e) {}
   }
 
-  const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
-
+  /* ── Load ── */
   useEffect(() => {
-    if (!schoolLoading && schoolId) {
-      loadJambData();
-    }
+    if (!schoolLoading && schoolId) loadJambData();
   }, [schoolId, schoolLoading]);
 
   async function loadJambData() {
     if (!schoolId) return;
-
     try {
       setLoading(true);
       const user = await getCurrentUser();
-
-      if (!user) {
-        toast.error("Please log in to continue");
-        window.location.href = "/student/login";
-        return;
-      }
-
+      if (!user) { toast.error("Please log in"); window.location.href = "/student/login"; return; }
       const { data: student, error: studentError } = await supabase
-        .from("students")
-        .select("id, first_name, last_name")
-        .eq("user_id", user.id)
-        .eq("school_id", schoolId)
-        .single();
-
-      if (studentError || !student) {
-        toast.error("Student profile not found");
-        return;
-      }
-
+        .from("students").select("id, first_name, last_name")
+        .eq("user_id", user.id).eq("school_id", schoolId).single();
+      if (studentError || !student) { toast.error("Student profile not found"); return; }
       setStudentName(`${student.first_name} ${student.last_name}`);
-
-      const { data: jambAccess, error: jambAccessError } = await supabase
-        .from("jamb_student_access")
-        .select("id")
-        .eq("student_id", student.id)
-        .eq("school_id", schoolId)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (jambAccessError) {
-        console.error("Failed to load JAMB access:", jambAccessError);
-      }
-
-      if (!jambAccess) {
-        setHasAccess(false);
-        return;
-      }
-
+      const { data: jambAccess } = await supabase
+        .from("jamb_student_access").select("id")
+        .eq("student_id", student.id).eq("school_id", schoolId).eq("is_active", true).maybeSingle();
+      if (!jambAccess) { setHasAccess(false); return; }
       setHasAccess(true);
-
-      // Check for existing session to restore
       const savedSession = loadSessionState();
-      if (savedSession && savedSession.subject && savedSession.year) {
+      if (savedSession?.subject && savedSession?.year) {
         setPendingSession(savedSession);
         setShowRestoreDialog(true);
       }
-
-      // load first page of subjects
       await fetchSubjects(1);
     } catch (error: any) {
-      console.error("Failed to load JAMB data:", error);
       toast.error(error.message || "Failed to load JAMB data");
     } finally {
       setLoading(false);
@@ -435,31 +359,19 @@ export default function StudentJambPage() {
   async function fetchSubjects(page = 1) {
     try {
       setSubjectLoading(true);
-      
-      // Query distinct subjects from jamb_questions
       const { data, error } = await supabase
-        .from('jamb_questions')
-        .select('subject_slug, subject_name')
-        .order('subject_name', { ascending: true });
-
+        .from("jamb_questions").select("subject_slug, subject_name").order("subject_name", { ascending: true });
       if (error) throw error;
-
-      // Deduplicate by subject_slug
       const subjectMap = new Map<string, SubjectOption>(
-        (data || []).map(
-          (row: any): [string, SubjectOption] => [
-            row.subject_slug,
-            { slug: row.subject_slug, name: row.subject_name },
-          ]
-        )
+        (data || []).map((row: any): [string, SubjectOption] => [
+          row.subject_slug,
+          { slug: row.subject_slug, name: row.subject_name },
+        ])
       );
-      const uniqueSubjects = Array.from(subjectMap.values());
-
-      setSubjects(uniqueSubjects);
+      setSubjects(Array.from(subjectMap.values()));
       setSubjectPage(1);
       setSubjectTotalPages(1);
     } catch (error: any) {
-      console.error("Failed to fetch subjects:", error);
       toast.error(error.message || "Failed to load subjects");
     } finally {
       setSubjectLoading(false);
@@ -468,125 +380,99 @@ export default function StudentJambPage() {
 
   useEffect(() => {
     if (!selectedSubject) {
-      setYears([]);
-      setSelectedYear("");
-      setQuestions([]);
-      setAnswers({});
-      setAttemptResult(null);
-      setQuestionDebug(null);
+      setYears([]); setSelectedYear(""); setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null);
       return;
     }
-
-    // If there's a pending session for this subject, don't wipe the year
-    // because the restore flow will apply it. Otherwise, reset year.
-    if (!(pendingSession && pendingSession.subject === selectedSubject)) {
-      setSelectedYear("");
-    }
-
-    setQuestions([]);
-    setAnswers({});
-    setAttemptResult(null);
-    setQuestionDebug(null);
-
-    void loadAvailableFilters(selectedSubject).catch((error: any) => {
-      console.error("Failed to load subject filters:", error);
-      toast.error(error.message || "Failed to load available years");
-    });
+    if (!(pendingSession && pendingSession.subject === selectedSubject)) setSelectedYear("");
+    setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null);
+    void loadAvailableFilters(selectedSubject).catch((err: any) => toast.error(err.message || "Failed to load years"));
   }, [selectedSubject, pendingSession]);
 
-  const filteredSubjectLabel = useMemo(() => {
-    return subjects.find((subject) => subject.slug === selectedSubject)?.name || "JAMB";
-  }, [selectedSubject, subjects]);
+  const filteredSubjectLabel = useMemo(
+    () => subjects.find((s) => s.slug === selectedSubject)?.name || "JAMB",
+    [selectedSubject, subjects]
+  );
 
-  const answeredCount = useMemo(() => {
-    return questions.reduce((count, question) => {
-      return answers[question.id] ? count + 1 : count;
-    }, 0);
-  }, [answers, questions]);
+  /* ── Computed totals ── */
+  const answeredOnPage = useMemo(
+    () => questions.reduce((c, q) => (answers[q.id] ? c + 1 : c), 0),
+    [answers, questions]
+  );
+  const totalQuestions = useMemo(() => questionTotalPages * QUESTIONS_PER_PAGE, [questionTotalPages]);
+  const totalAnsweredCount = useMemo(() => Object.keys(answers).length, [answers]);
+  const progressPercent = useMemo(
+    () => (totalQuestions ? Math.round((totalAnsweredCount / totalQuestions) * 100) : 0),
+    [totalAnsweredCount, totalQuestions]
+  );
 
-  const totalQuestions = useMemo(() => {
-    return questionTotalPages * QUESTIONS_PER_PAGE;
-  }, [questionTotalPages]);
+  const isPageComplete = (p: number) => pageCompletion[p] === true;
+  const getPageAnsweredCount = (p: number) =>
+    p === questionPage ? answeredOnPage : pageCompletion[p] ? QUESTIONS_PER_PAGE : 0;
 
-  const totalAnsweredCount = useMemo(() => {
-    return Object.keys(answers).length;
-  }, [answers]);
+  /* ── Global question number helpers ── */
+  const globalQuestionNumber = (pageNum: number, indexOnPage: number) =>
+    (pageNum - 1) * QUESTIONS_PER_PAGE + indexOnPage + 1;
 
-  const progressPercent = useMemo(() => {
-    if (!totalQuestions) return 0;
-    return Math.round((totalAnsweredCount / totalQuestions) * 100);
-  }, [totalAnsweredCount, totalQuestions]);
+  const activeQuestion = questions[activeQuestionIndex] ?? null;
+  const activeGlobalNumber = globalQuestionNumber(questionPage, activeQuestionIndex);
 
-  const isPageComplete = (pageNum: number): boolean => {
-    return pageCompletion[pageNum] === true;
-  };
-
-  const getPageAnsweredCount = (pageNum: number): number => {
+  /* ── Navigation ── */
+  function goToQuestion(pageNum: number, indexOnPage: number) {
     if (pageNum === questionPage) {
-      return answeredCount;
-    }
-    // For other pages, we can't reliably calculate without knowing their question IDs
-    // So we just check if the page is marked complete
-    return pageCompletion[pageNum] ? QUESTIONS_PER_PAGE : 0;
-  };
-
-  async function loadAvailableFilters(subjectSlug: string) {
-    try {
-      // Query distinct years for this subject from jamb_questions
-      const { data, error } = await supabase
-        .from('jamb_questions')
-        .select('exam_year')
-        .eq('subject_slug', subjectSlug)
-        .order('exam_year', { ascending: false });
-
-      if (error) throw error;
-
-      // Deduplicate years
-      const uniqueYears: number[] = Array.from(new Set((data || []).map((row: any) => row.exam_year)))
-        .filter((year: any) => Number.isFinite(year))
-        .map((year: any) => Number(year))
-        .sort((a, b) => b - a);
-
-      setYears(uniqueYears);
-    } catch (error: any) {
-      throw new Error(error.message || "Failed to load available years");
+      setActiveQuestionIndex(indexOnPage);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      loadQuestions(pageNum, indexOnPage);
     }
   }
 
-  async function loadQuestions(page = 1) {
-    if (!selectedSubject || !selectedYear) {
-      toast.error("Please select a subject and year");
-      return;
+  function handlePrevQuestion() {
+    if (activeQuestionIndex > 0) {
+      setActiveQuestionIndex(activeQuestionIndex - 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (questionPage > 1) {
+      loadQuestions(questionPage - 1, QUESTIONS_PER_PAGE - 1);
     }
+  }
 
+  function handleNextQuestion() {
+    if (activeQuestionIndex < questions.length - 1) {
+      setActiveQuestionIndex(activeQuestionIndex + 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (questionPage < questionTotalPages) {
+      loadQuestions(questionPage + 1, 0);
+    }
+  }
+
+  const isFirstQuestion = questionPage === 1 && activeQuestionIndex === 0;
+  const isLastQuestion =
+    questionPage === questionTotalPages && activeQuestionIndex === questions.length - 1;
+
+  /* ── Filters ── */
+  async function loadAvailableFilters(subjectSlug: string) {
+    const { data, error } = await supabase
+      .from("jamb_questions").select("exam_year").eq("subject_slug", subjectSlug).order("exam_year", { ascending: false });
+    if (error) throw error;
+    const uniqueYears: number[] = Array.from(new Set((data || []).map((row: any) => row.exam_year)))
+      .filter((y: any) => Number.isFinite(y)).map((y: any) => Number(y)).sort((a, b) => b - a);
+    setYears(uniqueYears);
+  }
+
+  async function loadQuestions(page = 1, targetIndex = 0) {
+    if (!selectedSubject || !selectedYear) { toast.error("Please select a subject and year"); return; }
     try {
       setLoadingQuestions(true);
-      console.info("[student/jamb/page] loading questions", {
-        subject: selectedSubject,
-        year: selectedYear,
-        page,
-      });
-
       const offset = (page - 1) * QUESTIONS_PER_PAGE;
-
       const { count: totalCount, error: countError } = await supabase
-        .from("jamb_questions")
-        .select("id", { count: "exact", head: true })
-        .eq("subject_slug", selectedSubject)
-        .eq("exam_year", Number(selectedYear));
-
+        .from("jamb_questions").select("id", { count: "exact", head: true })
+        .eq("subject_slug", selectedSubject).eq("exam_year", Number(selectedYear));
       if (countError) throw countError;
-
       const { data, error } = await supabase
         .from("jamb_questions")
         .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url")
-        .eq("subject_slug", selectedSubject)
-        .eq("exam_year", Number(selectedYear))
-        .order("id", { ascending: true })
-        .range(offset, offset + QUESTIONS_PER_PAGE - 1);
-
+        .eq("subject_slug", selectedSubject).eq("exam_year", Number(selectedYear))
+        .order("id", { ascending: true }).range(offset, offset + QUESTIONS_PER_PAGE - 1);
       if (error) throw error;
-
       const loadedQuestions: QuestionRow[] = (data || []).map((row: any) => ({
         id: row.id,
         question_text: row.question_text,
@@ -596,62 +482,26 @@ export default function StudentJambPage() {
         exam_year: row.exam_year,
         image_url: row.image_url || null,
       }));
-
       const totalPages = Math.ceil((totalCount || 0) / QUESTIONS_PER_PAGE);
       const hasMore = page < totalPages;
-
-      if (loadedQuestions.length === 0 && page === 1) {
-        toast.info("No questions matched the selected filters");
-      }
-
-      // Always replace questions when loading a new page (not append)
+      if (loadedQuestions.length === 0 && page === 1) toast.info("No questions matched the selected filters");
       setQuestions(loadedQuestions);
-
-      // Restore any saved answers for this subject/year
       try {
         const saved = loadDraftFromLocalStorage();
-        if (saved && Object.keys(saved).length) {
-          setAnswers((current) => ({ ...current, ...saved }));
-        }
-
-        const draftKey = getDraftKey();
-        const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed.pageCompletion) {
-            setPageCompletion(parsed.pageCompletion);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to restore saved answers", e);
-      }
-
+        if (saved && Object.keys(saved).length) setAnswers((cur) => ({ ...cur, ...saved }));
+        const raw = typeof window !== "undefined" ? window.localStorage.getItem(getDraftKey()) : null;
+        if (raw) { const parsed = JSON.parse(raw); if (parsed.pageCompletion) setPageCompletion(parsed.pageCompletion); }
+      } catch (e) {}
       setAttemptResult(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
       isRestoringDraftRef.current = false;
       setQuestionPage(page);
       setQuestionTotalPages(totalPages || 1);
       setHasMoreQuestions(hasMore);
-      setQuestionDebug({
-        page,
-        totalPages: totalPages || 1,
-        count: loadedQuestions.length,
-        hasMore,
-      });
-
-      if (loadedQuestions.length > 0) {
-        setIsSessionActive(true);
-        setResultWizardStep(1);
-      }
-
-      console.info("[student/jamb/page] loaded questions", {
-        page,
-        totalPages,
-        count: loadedQuestions.length,
-        hasMore,
-      });
+      setQuestionDebug({ page, totalPages: totalPages || 1, count: loadedQuestions.length, hasMore });
+      setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
+      if (loadedQuestions.length > 0) { setIsSessionActive(true); setResultWizardStep(1); }
     } catch (error: any) {
-      console.error("[student/jamb/page] question load failed", error);
       toast.error(error.message || "Failed to load questions");
     } finally {
       setLoadingQuestions(false);
@@ -660,165 +510,87 @@ export default function StudentJambPage() {
 
   function applyFilterChange(type: "subject" | "year", value: string) {
     if (type === "subject") setSelectedSubject(value);
-    else if (type === "year") setSelectedYear(value);
+    else setSelectedYear(value);
   }
-
   function handleFilterChange(type: "subject" | "year", value: string) {
     const currentValue = type === "subject" ? selectedSubject : selectedYear;
     if (value === currentValue) return;
-
-    const hasProgress = Object.keys(answers).length > 0;
-    if (isSessionActive && hasProgress) {
+    if (isSessionActive && Object.keys(answers).length > 0) {
       setPendingFilterChange({ type, value });
       setShowTerminationDialog(true);
       return;
     }
-
     applyFilterChange(type, value);
   }
-
   function handleConfirmTermination() {
     if (pendingFilterChange) {
-      setAnswers({});
-      setQuestions([]);
-      setAllQuestionIds([]);
-      setAttemptResult(null);
-      setIsSessionActive(false);
-      clearSessionState();
+      setAnswers({}); setQuestions([]); setAllQuestionIds([]); setAttemptResult(null);
+      setIsSessionActive(false); clearSessionState();
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
-      setPendingFilterChange(null);
-      setShowTerminationDialog(false);
-      toast.success("Session terminated. You can start a new practice session.");
+      setPendingFilterChange(null); setShowTerminationDialog(false);
+      toast.success("Session terminated. Starting fresh.");
     }
   }
-
-  function handleSaveAndExit() {
-    clearSessionState();
-    toast.success("Progress saved. You can resume this session later.");
-    window.location.href = "/student";
-  }
+  function handleSaveAndExit() { clearSessionState(); toast.success("Progress saved."); window.location.href = "/student"; }
 
   function recordAnswer(id: string, option: string) {
     setAnswers((prev) => ({ ...prev, [id]: option }));
     setAttemptResult(null);
   }
 
-  // Track page completion when answers change
   useEffect(() => {
     if (questions.length === QUESTIONS_PER_PAGE && questionPage) {
-      const allAnswered = questions.every(q => answers[q.id]);
+      const allAnswered = questions.every((q) => answers[q.id]);
       if (allAnswered !== pageCompletion[questionPage]) {
-        setPageCompletion(prev => ({
-          ...prev,
-          [questionPage]: allAnswered
-        }));
+        setPageCompletion((prev) => ({ ...prev, [questionPage]: allAnswered }));
       }
     }
   }, [answers, questions, questionPage, pageCompletion]);
 
-  // Persist answers to localStorage (debounced)
   useEffect(() => {
-    // don't save if no subject/year selected
     if (!selectedSubject || !selectedYear) return;
     if (isRestoringDraftRef.current) return;
-
-    if (saveTimerRef.current) {
-      window.clearTimeout(saveTimerRef.current);
-    }
-
-    // debounce 800ms
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     // @ts-ignore
-    saveTimerRef.current = window.setTimeout(() => {
-      saveDraftToLocalStorage();
-      saveTimerRef.current = null;
-    }, 800);
-
-    return () => {
-      if (saveTimerRef.current) {
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
-    };
+    saveTimerRef.current = window.setTimeout(() => { saveDraftToLocalStorage(); saveTimerRef.current = null; }, 800);
+    return () => { if (saveTimerRef.current) { window.clearTimeout(saveTimerRef.current); saveTimerRef.current = null; } };
   }, [answers, selectedSubject, selectedYear]);
 
-  // save on unload
   useEffect(() => {
-    function handleBeforeUnload() {
-      if (isRestoringDraftRef.current) return;
-      saveDraftToLocalStorage();
-    }
-    if (typeof window !== "undefined") {
-      window.addEventListener("beforeunload", handleBeforeUnload);
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("beforeunload", handleBeforeUnload);
-      }
-    };
+    function handleBeforeUnload() { if (!isRestoringDraftRef.current) saveDraftToLocalStorage(); }
+    if (typeof window !== "undefined") window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => { if (typeof window !== "undefined") window.removeEventListener("beforeunload", handleBeforeUnload); };
   }, [answers, selectedSubject, selectedYear]);
 
-  // Auto-load questions when subject + year are selected
   useEffect(() => {
-    if (selectedSubject && selectedYear) {
-      saveSessionState(selectedSubject, selectedYear);
-      void loadQuestions(1);
-    }
-    // intentionally exclude loadQuestions from deps
+    if (selectedSubject && selectedYear) { saveSessionState(selectedSubject, selectedYear); void loadQuestions(1, 0); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSubject, selectedYear]);
 
   async function submitAttempt() {
     if (!allQuestionIds.length && !questions.length) return;
-
     try {
-      setSubmitting(true);
-      setShowPreSubmitReview(false);
-
-      // Use all tracked question IDs across all pages
-      const questionIdsToSubmit = allQuestionIds.length > 0
-        ? allQuestionIds.map(q => q.id)
-        : questions.map(q => q.id);
-
-      const answersPayload = questionIdsToSubmit.map((questionId) => ({
-        questionId,
-        selectedOption: answers[questionId] || null,
-      }));
-
+      setSubmitting(true); setShowPreSubmitReview(false);
+      const questionIdsToSubmit = allQuestionIds.length > 0 ? allQuestionIds.map((q) => q.id) : questions.map((q) => q.id);
+      const answersPayload = questionIdsToSubmit.map((questionId) => ({ questionId, selectedOption: answers[questionId] || null }));
       const response = await fetch("/api/student/jamb/attempts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subjectSlug: selectedSubject,
-          subjectName: filteredSubjectLabel,
-          examYear: Number(selectedYear),
-          answers: answersPayload,
-          totalQuestions,
-          totalPages: questionTotalPages,
-          questionsPerPage: QUESTIONS_PER_PAGE,
+          subjectSlug: selectedSubject, subjectName: filteredSubjectLabel,
+          examYear: Number(selectedYear), answers: answersPayload,
+          totalQuestions, totalPages: questionTotalPages, questionsPerPage: QUESTIONS_PER_PAGE,
         }),
       });
-
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to submit attempt");
-      }
-
-      // Fetch previous attempt for comparison
+      if (!response.ok) throw new Error(result.error || "Failed to submit attempt");
       const prevResponse = await fetch(
         `/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${selectedYear}`,
         { cache: "no-store" }
       );
       const prevResult = prevResponse.ok ? await prevResponse.json() : null;
-
-      setAttemptResult({
-        ...result.data,
-        previousAttempt: prevResult?.data,
-      });
-      setShowResultWizard(true);
-      setResultWizardStep(1);
-      setIsSessionActive(false);
-      clearSessionState();
+      setAttemptResult({ ...result.data, previousAttempt: prevResult?.data });
+      setShowResultWizard(true); setResultWizardStep(1); setIsSessionActive(false); clearSessionState();
       toast.success("Attempt submitted successfully");
     } catch (error: any) {
       toast.error(error.message || "Unable to save attempt");
@@ -827,6 +599,7 @@ export default function StudentJambPage() {
     }
   }
 
+  /* ── Loading state ── */
   if (loading || schoolLoading) {
     return (
       <DashboardLayout role="student">
@@ -837,49 +610,46 @@ export default function StudentJambPage() {
     );
   }
 
+  /* ── No access ── */
   if (!hasAccess) {
     return (
       <DashboardLayout role="student">
-        <div className="mx-auto max-w-3xl space-y-6">
-          <Alert className="border-amber-200 bg-amber-50">
-            <Lock className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800">
-              JAMB CBT practice is not enabled for your account yet.
-            </AlertDescription>
-          </Alert>
-          <Card className="border-0 shadow-lg">
-            <CardContent className="flex flex-col items-start gap-4 p-8">
-              <Badge variant="outline">Restricted feature</Badge>
-              <h1 className="text-3xl font-bold text-gray-900">JAMB CBT Practice</h1>
-              <p className="text-gray-600 max-w-2xl">
-                Your administrator has not enabled this feature for your student profile.
-                Once access is granted, you will be able to practice past questions here.
-              </p>
-              <Button asChild>
-                <Link href="/student">Back to dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="mx-auto max-w-2xl space-y-6 py-12 px-4">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 flex gap-4 items-start">
+            <Lock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold text-amber-900">Access Restricted</p>
+              <p className="mt-1 text-sm text-amber-700">JAMB CBT practice has not been enabled for your account yet. Contact your administrator to get access.</p>
+            </div>
+          </div>
+          <Button asChild variant="outline"><Link href="/student">← Back to dashboard</Link></Button>
         </div>
       </DashboardLayout>
     );
   }
 
+  /* ─────────────────────────────────────────────────────────────────────── */
+  /* Main render                                                             */
+  /* ─────────────────────────────────────────────────────────────────────── */
+
+  const hasQuestions = questions.length > 0;
+
   return (
     <DashboardLayout role="student">
+      {/* ── Dialogs ── */}
       <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
         <AlertDialogContent>
-          <AlertDialogTitle>Continue Previous Session?</AlertDialogTitle>
+          <AlertDialogTitle>Resume previous session?</AlertDialogTitle>
           <AlertDialogDescription>
-            We found your previous practice session. Would you like to resume where you left off?
+            We found a saved practice session. Would you like to pick up where you left off?
             {pendingSession && (
-              <div className="mt-3 space-y-2 rounded-lg bg-slate-100 p-3">
-                <div className="text-sm"><span className="font-semibold text-gray-700">Subject:</span> {subjects.find(s => s.slug === pendingSession.subject)?.name || pendingSession.subject}</div>
-                <div className="text-sm"><span className="font-semibold text-gray-700">Year:</span> {pendingSession.year}</div>
+              <div className="mt-3 rounded-lg bg-slate-100 p-3 text-sm space-y-1">
+                <div><span className="font-medium text-gray-700">Subject:</span> {subjects.find((s) => s.slug === pendingSession.subject)?.name || pendingSession.subject}</div>
+                <div><span className="font-medium text-gray-700">Year:</span> {pendingSession.year}</div>
               </div>
             )}
           </AlertDialogDescription>
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end mt-2">
             <AlertDialogCancel onClick={handleStartFresh}>Start Fresh</AlertDialogCancel>
             <AlertDialogAction onClick={handleRestoreSession}>Resume Session</AlertDialogAction>
           </div>
@@ -888,141 +658,309 @@ export default function StudentJambPage() {
 
       <AlertDialog open={showTerminationDialog} onOpenChange={setShowTerminationDialog}>
         <AlertDialogContent>
-          <AlertDialogTitle>Terminate Current Session?</AlertDialogTitle>
+          <AlertDialogTitle>End current session?</AlertDialogTitle>
           <AlertDialogDescription>
-            You have an active practice session with unanswered questions. Changing the subject or year will clear your current progress and start a new session.
-            {pendingFilterChange && (
-              <div className="mt-3 space-y-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
-                <div className="text-sm text-amber-900">Your answers will be lost. This action cannot be undone.</div>
-              </div>
-            )}
+            You have an active session in progress. Changing the subject or year will clear your answers — this cannot be undone.
           </AlertDialogDescription>
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end mt-2">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmTermination} className="bg-red-600 hover:bg-red-700">
-              Terminate & Change
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleConfirmTermination} className="bg-red-600 hover:bg-red-700">End & Change</AlertDialogAction>
           </div>
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="space-y-8">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      {/* ── Page body ── */}
+      <div className="space-y-8 pb-16">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <Badge variant="success" className="gap-2">
-                <ShieldCheck className="h-3.5 w-3.5" />
+            <div className="mb-2 flex items-center gap-2">
+              <Badge variant="success" className="gap-1.5 text-xs">
+                <ShieldCheck className="h-3 w-3" />
                 Access enabled
               </Badge>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">JAMB CBT Practice</h1>
-            <p className="text-gray-600 mt-2">
-              Welcome {studentName}. Pick a subject and year, then practice past questions.
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">JAMB CBT Practice</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Welcome, {studentName}. Select a subject and year to begin.</p>
           </div>
-          <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-4 text-white shadow-lg">
-            <p className="text-sm text-blue-100">Exam type</p>
-            <p className="text-2xl font-bold">JAMB</p>
+          <div className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-5 py-3 text-white shadow-md">
+            <p className="text-xs text-blue-200 leading-none mb-1">Exam type</p>
+            <p className="text-xl font-bold leading-none">JAMB</p>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <Card className="shadow-lg">
-            <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-              <CardTitle>Practice Filters</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5 p-6">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-blue-50">Step 1</Badge>
-                    <p className="text-sm font-medium text-gray-700">Subject</p>
+        {/* ── Filters ── */}
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Subject */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">1</span>
+                Subject
+              </label>
+              <Select value={selectedSubject} onValueChange={(v) => handleFilterChange("subject", v)}>
+                <SelectTrigger><SelectValue placeholder="Choose a subject" /></SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s) => <SelectItem key={s.slug} value={s.slug}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Year */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${selectedSubject ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"}`}>2</span>
+                Exam Year
+              </label>
+              <Select value={selectedYear} onValueChange={(v) => handleFilterChange("year", v)} disabled={!selectedSubject}>
+                <SelectTrigger className={!selectedSubject ? "opacity-50 cursor-not-allowed" : ""}>
+                  <SelectValue placeholder={selectedSubject ? "Choose a year" : "Select subject first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {selectedSubject && selectedYear && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
+              <BookOpen className="h-4 w-4 text-blue-500 shrink-0" />
+              <span>{filteredSubjectLabel} · {selectedYear} · {totalQuestions} questions</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Loading skeleton ── */}
+        {loadingQuestions && (
+          <div className="flex items-center justify-center py-24">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+              <p className="text-sm text-gray-500">Loading questions…</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Question View ── */}
+        {!loadingQuestions && hasQuestions && activeQuestion && (
+          <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+
+            {/* Left: question card */}
+            <div className="space-y-4">
+
+              {/* Progress bar */}
+              <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    Question <span className="text-blue-600 font-bold">{activeGlobalNumber}</span> of {totalQuestions}
+                  </span>
+                  <span className="text-sm text-gray-500">{progressPercent}% complete</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
+                  <span>{totalAnsweredCount} answered</span>
+                  <span>{totalQuestions - totalAnsweredCount} remaining</span>
+                </div>
+              </div>
+
+              {/* Question card */}
+              <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+                {/* Card header */}
+                <div className="flex items-center justify-between gap-4 border-b bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4">
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-widest text-blue-500">
+                      {activeQuestion.subject_name} · {activeQuestion.exam_year}
+                    </p>
+                    <h2 className="mt-0.5 text-lg font-semibold text-gray-900">
+                      Question {activeGlobalNumber}
+                    </h2>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <Select value={selectedSubject} onValueChange={(value) => handleFilterChange("subject", value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose subject" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subjects.map((subject) => (
-                            <SelectItem key={subject.slug} value={subject.slug}>
-                              {subject.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    {answers[activeQuestion.id] ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                        <CheckCircle2 className="h-3 w-3" /> Answered
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                        <HelpCircle className="h-3 w-3" /> Unanswered
+                      </span>
+                    )}
+                    <Badge variant="outline" className="text-xs">JAMB CBT</Badge>
+                  </div>
+                </div>
+
+                <div className="space-y-6 p-6">
+                  {/* Image */}
+                  {activeQuestion.image_url && (
+                    <div className="flex justify-center rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <img
+                        src={activeQuestion.image_url}
+                        alt={`Question ${activeGlobalNumber}`}
+                        className="max-h-64 max-w-full object-contain"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Question text */}
+                  <div className="text-base font-medium leading-relaxed text-gray-900">
+                    <MathText content={activeQuestion.question_text} />
+                  </div>
+
+                  {/* Options */}
+                  <div className="space-y-3">
+                    {activeQuestion.options.map((option, idx) => {
+                      const selected = answers[activeQuestion.id] === option;
+                      const displayText = stripLeadingOptionLabel(option);
+                      return (
+                        <button
+                          key={`${activeQuestion.id}-${idx}`}
+                          type="button"
+                          onClick={() => recordAnswer(activeQuestion.id, option)}
+                          className={`group w-full flex items-start gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-150 ${
+                            selected
+                              ? "border-blue-500 bg-blue-50 shadow-sm"
+                              : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30"
+                          }`}
+                        >
+                          <span className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                            selected ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700"
+                          }`}>
+                            {OPTION_LABELS[idx]}
+                          </span>
+                          <span className="flex-1 text-base text-gray-800">
+                            <MathText content={displayText} />
+                          </span>
+                          {selected && <CheckCircle2 className="h-5 w-5 shrink-0 text-blue-500 mt-0.5" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Question navigation */}
+              <div className="flex items-center justify-between gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handlePrevQuestion}
+                  disabled={isFirstQuestion || loadingQuestions}
+                  className="gap-2"
+                >
+                  <ChevronLeft className="h-4 w-4" /> Previous
+                </Button>
+
+                <button
+                  onClick={() => setShowQuestionGrid(true)}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-slate-100 transition-colors"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  Jump to question
+                </button>
+
+                {isLastQuestion ? (
+                  <Button
+                    onClick={() => setShowPreSubmitReview(true)}
+                    disabled={submitting}
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                    Submit Attempt
+                  </Button>
+                ) : (
+                  <Button onClick={handleNextQuestion} disabled={loadingQuestions} className="gap-2">
+                    Next <ChevronRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Right: sticky sidebar */}
+            <aside className="hidden lg:block">
+              <div className="sticky top-6 space-y-4">
+
+                {/* Summary card */}
+                <div className="rounded-2xl border bg-white p-5 shadow-sm space-y-4">
+                  <p className="text-sm font-semibold text-gray-700">Session Summary</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
+                      <p className="text-xs text-emerald-600 font-medium">Answered</p>
+                      <p className="text-2xl font-bold text-emerald-700">{totalAnsweredCount}</p>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-center">
+                      <p className="text-xs text-amber-600 font-medium">Remaining</p>
+                      <p className="text-2xl font-bold text-amber-700">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p>
+                    </div>
+                  </div>
+
+                  {/* Page pills */}
+                  <div>
+                    <p className="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">Pages</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pn) => {
+                        const complete = isPageComplete(pn);
+                        const current = pn === questionPage;
+                        const partial = getPageAnsweredCount(pn) > 0 && !complete;
+                        return (
+                          <button
+                            key={pn}
+                            onClick={() => loadQuestions(pn, 0)}
+                            disabled={loadingQuestions}
+                            title={`Page ${pn}: Q${(pn - 1) * QUESTIONS_PER_PAGE + 1}–${Math.min(pn * QUESTIONS_PER_PAGE, totalQuestions)}`}
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
+                              current
+                                ? "bg-blue-600 text-white"
+                                : complete
+                                ? "bg-emerald-500 text-white"
+                                : partial
+                                ? "bg-amber-200 text-amber-900"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            {pn}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Question dots for current page */}
+                  <div>
+                    <p className="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Page {questionPage} questions
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {questions.map((q, idx) => {
+                        const answered = !!answers[q.id];
+                        const active = idx === activeQuestionIndex;
+                        const gNum = globalQuestionNumber(questionPage, idx);
+                        return (
+                          <button
+                            key={q.id}
+                            onClick={() => setActiveQuestionIndex(idx)}
+                            title={`Q${gNum}${answered ? " (answered)" : ""}`}
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold border-2 transition-all ${
+                              active
+                                ? "border-blue-500 bg-blue-50 text-blue-700"
+                                : answered
+                                ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                            }`}
+                          >
+                            {gNum}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
 
+                {/* Actions */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={selectedSubject ? "bg-blue-50" : "bg-gray-50"}>Step 2</Badge>
-                    <p className="text-sm font-medium text-gray-700">Year</p>
-                  </div>
-                  <Select value={selectedYear} onValueChange={(value) => handleFilterChange("year", value)} disabled={!selectedSubject}>
-                    <SelectTrigger className={!selectedSubject ? "opacity-50 cursor-not-allowed" : ""}>
-                      <SelectValue placeholder={selectedSubject ? "Choose year" : "Select subject first"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {years.map((year) => (
-                        <SelectItem key={year} value={String(year)}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {selectedSubject && selectedYear && (
-                <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-center gap-2 text-sm text-blue-900">
-                  <span>📚 {subjects.find(s => s.slug === selectedSubject)?.name} • 📅 {selectedYear}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-lg">
-            <CardHeader className="border-b bg-gradient-to-r from-emerald-50 to-green-50">
-              <CardTitle>Practice Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 p-6">
-              <div className="rounded-xl border bg-white p-4">
-                <p className="text-sm text-gray-500">Selected subject</p>
-                <p className="mt-1 font-semibold text-gray-900">{filteredSubjectLabel || "—"}</p>
-              </div>
-              <div className="rounded-xl border bg-white p-4">
-                <p className="text-sm text-gray-500">Total questions available</p>
-                <p className="mt-1 font-semibold text-gray-900">{totalQuestions || "—"}</p>
-                {totalQuestions > 0 && <p className="mt-1 text-xs text-gray-500">{questionTotalPages} pages × {QUESTIONS_PER_PAGE} questions</p>}
-              </div>
-              <div className="rounded-xl border bg-white p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-gray-500">Overall Progress</p>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {totalAnsweredCount}/{totalQuestions}
-                  </p>
-                </div>
-                <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <p className="mt-2 text-xs text-gray-500">{progressPercent}% complete</p>
-              </div>
-              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
-                <p className="text-sm text-gray-500">Pages completed</p>
-                <p className="mt-1 font-semibold text-gray-900">
-                  {Object.values(pageCompletion).filter(Boolean).length}/{questionTotalPages}
-                </p>
-                {questionTotalPages > 0 && <p className="mt-1 text-xs text-gray-500">{QUESTIONS_PER_PAGE} questions per page</p>}
-              </div>
-
-              {questions.length > 0 && !attemptResult && (
-                <div className="space-y-2 pt-2">
                   <Button
                     type="button"
                     onClick={() => setShowPreSubmitReview(true)}
@@ -1032,266 +970,88 @@ export default function StudentJambPage() {
                     {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
                     Submit Attempt
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleSaveAndExit}
-                    className="w-full gap-2"
-                  >
+                  <Button type="button" variant="outline" onClick={handleSaveAndExit} className="w-full">
                     Save & Exit
                   </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {questions.length > 0 ? (
-          <div className="space-y-6">
-            {/* Top Pagination */}
-            <div className="flex flex-col gap-3 rounded-2xl border bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Overall Progress</p>
-                  <p className="text-lg font-semibold text-gray-900">
-                    {totalAnsweredCount} / {totalQuestions} questions answered
-                  </p>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Page {questionPage}: {answeredCount}/{QUESTIONS_PER_PAGE} answered · {progressPercent}% total
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleSaveAndExit} className="gap-2">
-                    Save & Exit
-                  </Button>
-                  <Button type="button" onClick={() => setShowPreSubmitReview(true)} disabled={submitting} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-                    Submit Attempt
-                  </Button>
-                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadQuestions(Math.max(1, questionPage - 1))}
-                  disabled={loadingQuestions || questionPage <= 1}
-                  className="gap-1"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <div className="flex flex-wrap items-center gap-1">
-                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => {
-                    const isComplete = isPageComplete(pageNum);
-                    const isCurrent = pageNum === questionPage;
-                    const pageAnswered = getPageAnsweredCount(pageNum);
-                    const hasAnswers = pageAnswered > 0;
-
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={isCurrent ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => loadQuestions(pageNum)}
-                        disabled={loadingQuestions}
-                        className={`min-w-10 transition-all ${isComplete && !isCurrent
-                          ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
-                          : hasAnswers && !isCurrent
-                            ? "border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200"
-                            : ""
-                          }`}
-                        title={isComplete ? "Complete! 5/5 answered" : hasAnswers ? `${pageAnswered}/5 answered` : ""}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadQuestions(Math.min(questionTotalPages, questionPage + 1))}
-                  disabled={loadingQuestions || questionPage >= questionTotalPages}
-                  className="gap-1"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              {questions.map((question, questionIndex) => (
-                (() => {
-                  const displayQuestionNumber = (questionPage - 1) * QUESTIONS_PER_PAGE + questionIndex + 1;
-
-                  return (
-                    <Card key={question.id} className="overflow-hidden shadow-lg">
-                      <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50">
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <CardTitle>
-                              Question {displayQuestionNumber}
-                            </CardTitle>
-                            <p className="mt-1 text-sm text-gray-500">
-                              {question.subject_name} · {question.exam_year}
-                            </p>
-                          </div>
-                          <Badge variant="outline">JAMB CBT</Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-5 p-6">
-
-                        {question.image_url && (
-                          <div className="flex justify-center rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <img
-                              src={question.image_url}
-                              alt={`Question ${displayQuestionNumber}`}
-                              className="max-h-64 max-w-full object-contain"
-                              onError={(e) => {
-                                console.error("Failed to load image:", question.image_url);
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        <div className="text-lg font-medium text-gray-900">
-                          <MathText content={question.question_text} />
-                        </div>
-
-                        <div className="grid gap-3">
-                          {question.options.map((option, optionIndex) => {
-                            const selected = answers[question.id] === option;
-                            const displayText = stripLeadingOptionLabel(option);
-
-                            return (
-                              <Button
-                                key={`${question.id}-${optionIndex}`}
-                                type="button"
-                                variant={selected ? "default" : "outline"}
-                                className={`h-auto w-full justify-start items-start py-4 text-left ${selected ? "border-blue-600" : ""}`}
-                                onClick={() => recordAnswer(question.id, option)}
-                              >
-                                <span className="mr-3 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
-                                  {String.fromCharCode(65 + optionIndex)}
-                                </span>
-                                <span className="min-w-0 flex-1 text-base whitespace-pre-wrap break-words text-left">
-                                  <MathText content={displayText} />
-                                </span>
-                              </Button>
-                            );
-                          })}
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
-                          <span>
-                            {answers[question.id]
-                              ? `Selected answer: ${stripLeadingOptionLabel(answers[question.id])}`
-                              : "No answer selected yet"}
-                          </span>
-                          <span>Question {displayQuestionNumber}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })()
-              ))}
-            </div>
-
-            {/* Bottom Pagination */}
-            <div className="flex flex-col gap-3 rounded-2xl border bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between border-b pb-3">
-                <div className="text-sm text-gray-600">
-                  Page {questionPage} of {questionTotalPages} · {answeredCount}/{QUESTIONS_PER_PAGE} answered on this tab
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadQuestions(Math.max(1, questionPage - 1))}
-                  disabled={loadingQuestions || questionPage <= 1}
-                  className="gap-1"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <div className="flex flex-wrap items-center gap-1">
-                  {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => {
-                    const isComplete = isPageComplete(pageNum);
-                    const isCurrent = pageNum === questionPage;
-                    const pageAnswered = getPageAnsweredCount(pageNum);
-                    const hasAnswers = pageAnswered > 0;
-
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={isCurrent ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => loadQuestions(pageNum)}
-                        disabled={loadingQuestions}
-                        className={`min-w-10 transition-all ${isComplete && !isCurrent
-                          ? "border-emerald-500 bg-emerald-500 text-white hover:bg-emerald-600"
-                          : hasAnswers && !isCurrent
-                            ? "border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200"
-                            : ""
-                          }`}
-                        title={isComplete ? "Complete! 5/5 answered" : hasAnswers ? `${pageAnswered}/5 answered` : ""}
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadQuestions(Math.min(questionTotalPages, questionPage + 1))}
-                  disabled={loadingQuestions || questionPage >= questionTotalPages}
-                  className="gap-1"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            </aside>
           </div>
-        ) : null}
+        )}
 
-        {attemptResult ? (
-          <Card className="border-emerald-200 bg-emerald-50 shadow-lg">
-            <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-medium text-emerald-700">Attempt saved</p>
-                <h2 className="text-2xl font-bold text-emerald-900">
-                  {attemptResult.correctCount} / {attemptResult.totalQuestions} correct
-                </h2>
-                <p className="text-emerald-700">Score: {attemptResult.score}%</p>
-              </div>
-              <Button variant="outline" asChild>
-                <Link href="/student">Back to dashboard</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : null}
+        {/* ── Result card ── */}
+        {attemptResult && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-emerald-700">Attempt saved</p>
+              <h2 className="text-2xl font-bold text-emerald-900">{attemptResult.correctCount} / {attemptResult.totalQuestions} correct</h2>
+              <p className="text-emerald-700">Score: {attemptResult.score}%</p>
+            </div>
+            <Button variant="outline" asChild><Link href="/student">Back to dashboard</Link></Button>
+          </div>
+        )}
       </div>
 
+      {/* ── Question grid modal ── */}
+      <Dialog open={showQuestionGrid} onOpenChange={setShowQuestionGrid}>
+        <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Jump to Question</DialogTitle>
+            <DialogDescription>Select any question to navigate directly to it.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {Array.from({ length: questionTotalPages }, (_, pi) => pi + 1).map((pn) => (
+              <div key={pn}>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Page {pn} · Q{(pn - 1) * QUESTIONS_PER_PAGE + 1}–{Math.min(pn * QUESTIONS_PER_PAGE, totalQuestions)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from({ length: pn < questionTotalPages ? QUESTIONS_PER_PAGE : (totalQuestions - (questionTotalPages - 1) * QUESTIONS_PER_PAGE) }, (_, qi) => qi).map((qi) => {
+                    const gNum = (pn - 1) * QUESTIONS_PER_PAGE + qi + 1;
+                    const qId = pn === questionPage ? questions[qi]?.id : null;
+                    const answered = qId ? !!answers[qId] : false;
+                    const isActive = pn === questionPage && qi === activeQuestionIndex;
+                    return (
+                      <button
+                        key={gNum}
+                        onClick={() => { goToQuestion(pn, qi); setShowQuestionGrid(false); }}
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-semibold border-2 transition-all ${
+                          isActive
+                            ? "border-blue-500 bg-blue-100 text-blue-700"
+                            : answered
+                            ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        {gNum}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center gap-4 pt-2 border-t text-xs text-gray-500">
+              <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-blue-500 bg-blue-100 inline-block" /> Current</span>
+              <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-emerald-400 bg-emerald-50 inline-block" /> Answered</span>
+              <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-slate-200 bg-white inline-block" /> Unanswered</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Pre-submit review ── */}
       <Dialog open={showPreSubmitReview} onOpenChange={setShowPreSubmitReview}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl">
+            <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-emerald-600" />
               Review Before Submitting
             </DialogTitle>
             <DialogDescription>
-              Check your progress across all pages before submitting. Unanswered questions will be marked incorrect.
+              Check your progress across all pages. Unanswered questions will be marked incorrect.
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-6 py-2">
-            {/* Summary stats */}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-xl border bg-emerald-50 p-4 text-center">
                 <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">Answered</p>
@@ -1299,116 +1059,69 @@ export default function StudentJambPage() {
               </div>
               <div className="rounded-xl border bg-amber-50 p-4 text-center">
                 <p className="text-xs text-amber-700 font-medium uppercase tracking-wide">Unanswered</p>
-                <p className="mt-1 text-3xl font-bold text-amber-800">
-                  {Math.max(totalQuestions - totalAnsweredCount, 0)}
-                </p>
+                <p className="mt-1 text-3xl font-bold text-amber-800">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p>
               </div>
               <div className="rounded-xl border bg-blue-50 p-4 text-center">
                 <p className="text-xs text-blue-700 font-medium uppercase tracking-wide">Total</p>
                 <p className="mt-1 text-3xl font-bold text-blue-800">{totalQuestions}</p>
               </div>
             </div>
-
-            {/* Overall progress bar */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-gray-700">Overall Completion</p>
                 <p className="text-sm font-semibold text-gray-900">{progressPercent}%</p>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
-                  style={{ width: `${progressPercent}%` }}
-                />
+              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{ width: `${progressPercent}%` }} />
               </div>
             </div>
-
-            {/* Per-page breakdown */}
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-3">Page-by-page Breakdown</p>
+              <p className="text-sm font-medium text-gray-700 mb-3">Page-by-page breakdown</p>
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pageNum) => {
-                  const isComplete = isPageComplete(pageNum);
-                  const pageAnswered = getPageAnsweredCount(pageNum);
-                  const isCurrent = pageNum === questionPage;
-
+                {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pn) => {
+                  const complete = isPageComplete(pn);
+                  const pageAnswered = getPageAnsweredCount(pn);
+                  const isCurrent = pn === questionPage;
                   return (
-                    <div
-                      key={pageNum}
-                      className={`flex items-center justify-between rounded-lg border p-3 ${isComplete
-                        ? "border-emerald-200 bg-emerald-50"
-                        : pageAnswered > 0
-                          ? "border-amber-200 bg-amber-50"
-                          : "border-slate-200 bg-slate-50"
-                        }`}
-                    >
+                    <div key={pn} className={`flex items-center justify-between rounded-lg border p-3 ${complete ? "border-emerald-200 bg-emerald-50" : pageAnswered > 0 ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50"}`}>
                       <div className="flex items-center gap-3">
-                        {isComplete ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
-                        ) : pageAnswered > 0 ? (
-                          <HelpCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                        )}
+                        {complete ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> : pageAnswered > 0 ? <HelpCircle className="h-4 w-4 text-amber-600 shrink-0" /> : <XCircle className="h-4 w-4 text-slate-400 shrink-0" />}
                         <span className="text-sm font-medium text-gray-800">
-                          Page {pageNum}
+                          Page {pn} <span className="text-xs font-normal text-gray-500">(Q{(pn - 1) * QUESTIONS_PER_PAGE + 1}–{Math.min(pn * QUESTIONS_PER_PAGE, totalQuestions)})</span>
                           {isCurrent && <span className="ml-2 text-xs text-blue-600 font-normal">(current)</span>}
                         </span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
-                          <div
-                            className={`h-full rounded-full ${isComplete ? "bg-emerald-500" : "bg-amber-400"}`}
-                            style={{ width: `${(pageAnswered / QUESTIONS_PER_PAGE) * 100}%` }}
-                          />
+                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-200">
+                          <div className={`h-full rounded-full ${complete ? "bg-emerald-500" : "bg-amber-400"}`} style={{ width: `${(pageAnswered / QUESTIONS_PER_PAGE) * 100}%` }} />
                         </div>
-                        <span className={`text-sm font-semibold ${isComplete ? "text-emerald-700" : pageAnswered > 0 ? "text-amber-700" : "text-slate-500"}`}>
-                          {pageAnswered}/{QUESTIONS_PER_PAGE}
-                        </span>
+                        <span className={`text-sm font-semibold ${complete ? "text-emerald-700" : pageAnswered > 0 ? "text-amber-700" : "text-slate-500"}`}>{pageAnswered}/{QUESTIONS_PER_PAGE}</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-
-            {/* Warning if unanswered */}
-            {totalAnsweredCount < totalQuestions && (
+            {totalAnsweredCount < totalQuestions ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
                   <HelpCircle className="h-4 w-4" />
-                  You have {Math.max(totalQuestions - totalAnsweredCount, 0)} unanswered question(s).
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  You can still submit — unanswered questions will count as incorrect.
+                  You have {Math.max(totalQuestions - totalAnsweredCount, 0)} unanswered question(s). They will count as incorrect.
                 </p>
               </div>
-            )}
-
-            {totalAnsweredCount === totalQuestions && (
+            ) : (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4" />
-                  All questions answered! You&apos;re ready to submit.
+                  All questions answered — you're ready to submit!
                 </p>
               </div>
             )}
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs text-slate-600">
-                Total questions are estimated as {questionTotalPages} pages × {QUESTIONS_PER_PAGE} questions. The final page may contain fewer questions.
-              </p>
-            </div>
+            <p className="text-xs text-slate-500">The final page may contain fewer than {QUESTIONS_PER_PAGE} questions.</p>
           </div>
-
           <div className="flex gap-3 justify-end border-t pt-4">
-            <Button variant="outline" onClick={() => setShowPreSubmitReview(false)}>
-              Go Back & Review
-            </Button>
-            <Button
-              onClick={submitAttempt}
-              disabled={submitting}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-            >
+            <Button variant="outline" onClick={() => setShowPreSubmitReview(false)}>Go Back & Review</Button>
+            <Button onClick={submitAttempt} disabled={submitting} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
               Confirm & Submit
             </Button>
@@ -1416,78 +1129,41 @@ export default function StudentJambPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Results wizard ── */}
       <Dialog open={showResultWizard} onOpenChange={setShowResultWizard}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {resultWizardStep === 1 ? "Practice Session Summary" : "Your Results"}
-            </DialogTitle>
+            <DialogTitle>{resultWizardStep === 1 ? "Practice Session Summary" : "Your Results"}</DialogTitle>
             <DialogDescription>
-              {resultWizardStep === 1
-                ? "Review your answers before viewing your score"
-                : "See your score and review missed questions"}
+              {resultWizardStep === 1 ? "Review your answers before viewing your score" : "Your score and missed questions"}
             </DialogDescription>
           </DialogHeader>
 
           {resultWizardStep === 1 && attemptResult && (
             <div className="space-y-6">
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-gray-500">Total Questions</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">
-                      {attemptResult.totalQuestions}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-gray-500">Answered</p>
-                    <p className="mt-2 text-3xl font-bold text-emerald-600">
-                      {attemptResult.answeredCount || 0}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="pt-6">
-                    <p className="text-sm text-gray-500">Unanswered</p>
-                    <p className="mt-2 text-3xl font-bold text-amber-600">
-                      {(attemptResult.totalQuestions || 0) - (attemptResult.answeredCount || 0)}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium text-gray-700 mb-3">Progress</p>
-                <div className="space-y-2">
-                  <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
-                      style={{
-                        width: `${((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100}%`,
-                      }}
-                    />
+              <div className="grid gap-4 sm:grid-cols-3">
+                {[
+                  { label: "Total Questions", value: attemptResult.totalQuestions, color: "blue" },
+                  { label: "Answered", value: attemptResult.answeredCount || 0, color: "emerald" },
+                  { label: "Unanswered", value: (attemptResult.totalQuestions || 0) - (attemptResult.answeredCount || 0), color: "amber" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className={`rounded-xl border bg-${color}-50 p-4 text-center`}>
+                    <p className={`text-xs font-medium text-${color}-700 uppercase tracking-wide`}>{label}</p>
+                    <p className={`mt-1 text-3xl font-bold text-${color}-800`}>{value}</p>
                   </div>
-                  <p className="text-sm text-gray-600">
-                    {Math.round(((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100)}% complete
-                  </p>
+                ))}
+              </div>
+              <div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
+                    style={{ width: `${((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100}%` }} />
                 </div>
+                <p className="mt-1 text-xs text-gray-500">{Math.round(((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100)}% complete</p>
               </div>
-
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
-                <p className="text-sm text-blue-900">
-                  ✓ Ready to view your score and detailed feedback?
-                </p>
-              </div>
-
-              <div className="flex gap-3 justify-end border-t pt-6">
-                <Button variant="outline" onClick={() => setShowResultWizard(false)}>
-                  Close
-                </Button>
+              <div className="flex gap-3 justify-end border-t pt-4">
+                <Button variant="outline" onClick={() => setShowResultWizard(false)}>Close</Button>
                 <Button onClick={() => setResultWizardStep(2)} className="gap-2">
-                  <Trophy className="h-4 w-4" />
-                  View Score
+                  <Trophy className="h-4 w-4" /> View Score
                 </Button>
               </div>
             </div>
@@ -1495,105 +1171,74 @@ export default function StudentJambPage() {
 
           {resultWizardStep === 2 && attemptResult && (
             <div className="space-y-6">
-              <Card className="border-emerald-200 bg-emerald-50">
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-emerald-700">Your Score</p>
-                    <h2 className="mt-2 text-4xl font-bold text-emerald-900">
-                      {attemptResult.score}%
-                    </h2>
-                    <p className="mt-2 text-sm text-emerald-700">
-                      {attemptResult.correctCount} out of {attemptResult.totalQuestions} questions correct
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
+                <p className="text-sm font-medium text-emerald-700">Your Score</p>
+                <h2 className="mt-1 text-5xl font-bold text-emerald-900">{attemptResult.score}%</h2>
+                <p className="mt-2 text-sm text-emerald-700">{attemptResult.correctCount} out of {attemptResult.totalQuestions} correct</p>
+              </div>
               {attemptResult.previousAttempt && (
-                <Card className="border-blue-200 bg-blue-50">
-                  <CardContent className="pt-6">
-                    <p className="text-sm font-medium text-blue-700 mb-3">Comparison with Previous Attempt</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-blue-600">Previous score</p>
-                        <p className="mt-1 text-2xl font-bold text-blue-900">
-                          {attemptResult.previousAttempt.score}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-blue-600">Improvement</p>
-                        <p className={`mt-1 text-2xl font-bold ${attemptResult.score >= attemptResult.previousAttempt.score ? "text-emerald-600" : "text-red-600"}`}>
-                          {attemptResult.score > attemptResult.previousAttempt.score ? "+" : ""}{(attemptResult.score - attemptResult.previousAttempt.score).toFixed(1)}%
-                        </p>
-                      </div>
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="text-sm font-semibold text-blue-700 mb-3">vs. Previous Attempt</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-blue-600">Previous score</p>
+                      <p className="text-2xl font-bold text-blue-900">{attemptResult.previousAttempt.score}%</p>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {(attemptResult.unansweredCount ?? 0) > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4 text-amber-600" />
-                    Unanswered Questions ({attemptResult.unansweredCount ?? 0})
-                  </p>
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
-                    <p className="text-sm text-amber-900">
-                      {attemptResult.unansweredQuestions?.join(", ") || `${attemptResult.unansweredCount ?? 0} questions`}
-                    </p>
+                    <div>
+                      <p className="text-xs text-blue-600">Change</p>
+                      <p className={`text-2xl font-bold ${attemptResult.score >= attemptResult.previousAttempt.score ? "text-emerald-600" : "text-red-600"}`}>
+                        {attemptResult.score > attemptResult.previousAttempt.score ? "+" : ""}{(attemptResult.score - attemptResult.previousAttempt.score).toFixed(1)}%
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
-
+              {(attemptResult.unansweredCount ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-amber-600" />
+                    Unanswered ({attemptResult.unansweredCount ?? 0})
+                  </p>
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+                    {attemptResult.unansweredQuestions?.join(", ") || `${attemptResult.unansweredCount ?? 0} questions`}
+                  </div>
+                </div>
+              )}
               {(attemptResult.missedCount ?? 0) > 0 && (
                 <div className="space-y-3">
                   <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <XCircle className="h-4 w-4 text-red-600" />
                     Incorrect Answers ({attemptResult.missedCount ?? 0})
                   </p>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {attemptResult.missedQuestions?.map((item: any, idx: number) => (
-                      <div key={idx} className="rounded-lg border bg-white p-4">
-                        <p className="text-sm font-medium text-gray-900 mb-3">
-                          Question {item.questionNumber || idx + 1}
-                        </p>
-                        <div className="space-y-2 text-sm">
-                          {item.questionText && (
-                            <div>
-                              <p className="text-gray-600 mb-1">Question:</p>
-                              <MathText content={item.questionText} />
-                            </div>
-                          )}
-                          <div className="rounded bg-red-50 p-2 border border-red-200">
-                            <p className="text-red-700 font-medium">Your answer:</p>
-                            <p className="text-red-900">{item.userAnswer}</p>
-                          </div>
-                          <div className="rounded bg-emerald-50 p-2 border border-emerald-200">
-                            <p className="text-emerald-700 font-medium">Correct answer:</p>
-                            <p className="text-emerald-900">{item.correctAnswer}</p>
-                          </div>
-                          {item.explanation && (
-                            <div className="rounded bg-blue-50 p-2 border border-blue-200">
-                              <p className="text-blue-700 font-medium">Explanation:</p>
-                              <div className="text-blue-900 text-xs">
-                                <MathText content={item.explanation} />
-                              </div>                            </div>
-                          )}
+                      <div key={idx} className="rounded-xl border bg-white p-4 space-y-3">
+                        <p className="text-sm font-semibold text-gray-900">Question {item.questionNumber || idx + 1}</p>
+                        {item.questionText && <div className="text-sm text-gray-700"><MathText content={item.questionText} /></div>}
+                        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm">
+                          <p className="text-red-700 font-medium text-xs mb-0.5">Your answer</p>
+                          <p className="text-red-900">{item.userAnswer}</p>
                         </div>
+                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm">
+                          <p className="text-emerald-700 font-medium text-xs mb-0.5">Correct answer</p>
+                          <p className="text-emerald-900">{item.correctAnswer}</p>
+                        </div>
+                        {item.explanation && (
+                          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
+                            <p className="text-blue-700 font-medium text-xs mb-0.5">Explanation</p>
+                            <div className="text-blue-900"><MathText content={item.explanation} /></div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              <div className="flex gap-3 justify-end border-t pt-6">
+              <div className="flex gap-3 justify-end border-t pt-4">
                 <Button variant="outline" onClick={() => setResultWizardStep(1)} className="gap-1">
-                  <ChevronLeft className="h-4 w-4" />
-                  Back
+                  <ChevronLeft className="h-4 w-4" /> Back
                 </Button>
-                <Button asChild>
-                  <Link href="/student">Back to dashboard</Link>
-                </Button>
+                <Button asChild><Link href="/student">Back to dashboard</Link></Button>
               </div>
             </div>
           )}

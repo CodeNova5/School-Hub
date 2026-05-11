@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+require('dotenv').config();
+
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { createClient } = require('@supabase/supabase-js');
@@ -266,9 +268,9 @@ async function fetchAnswerDetail(url) {
 
     let correct;
     const match =
-      text.match(/Correct Answer[:\s]*Option\s*([A-D])/i) ||
-      text.match(/Correct Answer[:\s]*([A-D])/i) ||
-      text.match(/Answer[:\s]*([A-D])/i);
+      text.match(/Correct Answer[:\s]*Option\s*([A-E])/i) ||
+      text.match(/Correct Answer[:\s]*([A-E])/i) ||
+      text.match(/Answer[:\s]*([A-E])/i);
 
     if (match) {
       correct = match[1].toUpperCase();
@@ -700,7 +702,14 @@ async function importSubjectYear(options) {
 }
 
 async function main() {
-  const options = parseArgs(process.argv);
+  const options = {
+    detail: true,
+    pageDelayMs: 250,
+    bucket: process.env.JAMB_IMAGE_BUCKET || DEFAULT_BUCKET,
+    subject: 'mathematics',
+    subjectName: '',
+    year: '1978'
+  };
 
   try {
     await importSubjectYear(options);

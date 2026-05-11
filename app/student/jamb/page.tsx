@@ -435,26 +435,29 @@ export default function StudentJambPage() {
   async function fetchSubjects(page = 1) {
     try {
       setSubjectLoading(true);
-      const response = await fetch(`/api/scrape/subjects?page=${page}`, { cache: "no-store" });
+      
+      // Query distinct subjects from jamb_questions
+      const { data, error } = await supabase
+        .from('jamb_questions')
+        .select('subject_slug, subject_name')
+        .order('subject_name', { ascending: true });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err?.error || "Failed to load subject list");
-      }
+      if (error) throw error;
 
-      const result = await response.json();
-      const loadedSubjects = Array.isArray(result.subjects)
-        ? result.subjects
-          .map((subject: any) => ({
-            slug: String(subject.slug || ""),
-            name: String(subject.name || ""),
-          }))
-          .filter((subject: SubjectOption) => subject.slug && subject.name)
-        : [];
+      // Deduplicate by subject_slug
+      const subjectMap = new Map<string, SubjectOption>(
+        (data || []).map(
+          (row: any): [string, SubjectOption] => [
+            row.subject_slug,
+            { slug: row.subject_slug, name: row.subject_name },
+          ]
+        )
+      );
+      const uniqueSubjects = Array.from(subjectMap.values());
 
-      setSubjects(loadedSubjects);
-      setSubjectPage(Number(result.page) || page);
-      setSubjectTotalPages(Number(result.totalPages) || 1);
+      setSubjects(uniqueSubjects);
+      setSubjectPage(1);
+      setSubjectTotalPages(1);
     } catch (error: any) {
       console.error("Failed to fetch subjects:", error);
       toast.error(error.message || "Failed to load subjects");
@@ -528,23 +531,26 @@ export default function StudentJambPage() {
   };
 
   async function loadAvailableFilters(subjectSlug: string) {
-    const response = await fetch(`/api/scrape/available?subject=${encodeURIComponent(subjectSlug)}`, {
-      cache: "no-store",
-    });
+    try {
+      // Query distinct years for this subject from jamb_questions
+      const { data, error } = await supabase
+        .from('jamb_questions')
+        .select('exam_year')
+        .eq('subject_slug', subjectSlug)
+        .order('exam_year', { ascending: false });
 
-    if (!response.ok) {
-      throw new Error("Failed to load available years");
-    }
+      if (error) throw error;
 
-    const result = await response.json();
-    const loadedYears = Array.isArray(result.years)
-      ? result.years
+      // Deduplicate years
+      const uniqueYears: number[] = Array.from(new Set((data || []).map((row: any) => row.exam_year)))
+        .filter((year: any) => Number.isFinite(year))
         .map((year: any) => Number(year))
-        .filter((year: number) => Number.isFinite(year))
-        .sort((a: number, b: number) => b - a)
-      : [];
+        .sort((a, b) => b - a);
 
-    setYears(loadedYears);
+      setYears(uniqueYears);
+    } catch (error: any) {
+      throw new Error(error.message || "Failed to load available years");
+    }
   }
 
   async function loadQuestions(page = 1) {
@@ -555,47 +561,44 @@ export default function StudentJambPage() {
 
     try {
       setLoadingQuestions(true);
-      const params = new URLSearchParams({
-        subject: selectedSubject,
-        subjectName: filteredSubjectLabel,
-        year: selectedYear,
-        limit: String(QUESTIONS_PER_PAGE),
-        page: String(page),
-      });
-
       console.info("[student/jamb/page] loading questions", {
         subject: selectedSubject,
         year: selectedYear,
         page,
-        url: `/api/student/jamb/questions?${params.toString()}`,
       });
 
-      const response = await fetch(`/api/student/jamb/questions?${params.toString()}`, {
-        cache: "no-store",
-      });
+      const offset = (page - 1) * QUESTIONS_PER_PAGE;
 
-      const result = await response.json();
+      const { count: totalCount, error: countError } = await supabase
+        .from("jamb_questions")
+        .select("id", { count: "exact", head: true })
+        .eq("subject_slug", selectedSubject)
+        .eq("exam_year", Number(selectedYear));
 
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to load questions");
-      }
+      if (countError) throw countError;
 
-      const payload = result.data || {};
-      const loadedQuestions = Array.isArray(payload.questions)
-        ? payload.questions.map((row: any) => ({
-          id: row.id,
-          question_text: row.question_text,
-          options: Array.isArray(row.options) ? row.options : [],
-          subject_slug: row.subject_slug,
-          subject_name: row.subject_name,
-          exam_year: row.exam_year,
-          image_url: row.image_url || null,
-        }))
-        : [];
+      const { data, error } = await supabase
+        .from("jamb_questions")
+        .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url")
+        .eq("subject_slug", selectedSubject)
+        .eq("exam_year", Number(selectedYear))
+        .order("id", { ascending: true })
+        .range(offset, offset + QUESTIONS_PER_PAGE - 1);
 
-      const pageNum = Number(payload.page) || page;
-      const totalPages = payload.totalPages !== undefined ? Number(payload.totalPages) : pageNum;
-      const hasMore = Boolean(payload.hasMore ?? pageNum < totalPages);
+      if (error) throw error;
+
+      const loadedQuestions: QuestionRow[] = (data || []).map((row: any) => ({
+        id: row.id,
+        question_text: row.question_text,
+        options: Array.isArray(row.options) ? row.options : [],
+        subject_slug: row.subject_slug,
+        subject_name: row.subject_name,
+        exam_year: row.exam_year,
+        image_url: row.image_url || null,
+      }));
+
+      const totalPages = Math.ceil((totalCount || 0) / QUESTIONS_PER_PAGE);
+      const hasMore = page < totalPages;
 
       if (loadedQuestions.length === 0 && page === 1) {
         toast.info("No questions matched the selected filters");
@@ -603,13 +606,14 @@ export default function StudentJambPage() {
 
       // Always replace questions when loading a new page (not append)
       setQuestions(loadedQuestions);
+
       // Restore any saved answers for this subject/year
       try {
         const saved = loadDraftFromLocalStorage();
         if (saved && Object.keys(saved).length) {
           setAnswers((current) => ({ ...current, ...saved }));
         }
-        // Restore page completion status
+
         const draftKey = getDraftKey();
         const raw = typeof window !== "undefined" ? window.localStorage.getItem(draftKey) : null;
         if (raw) {
@@ -621,33 +625,30 @@ export default function StudentJambPage() {
       } catch (e) {
         console.error("Failed to restore saved answers", e);
       }
+
       setAttemptResult(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
       isRestoringDraftRef.current = false;
-
-      setQuestionPage(pageNum);
+      setQuestionPage(page);
       setQuestionTotalPages(totalPages || 1);
       setHasMoreQuestions(hasMore);
       setQuestionDebug({
-        page: pageNum,
+        page,
         totalPages: totalPages || 1,
         count: loadedQuestions.length,
         hasMore,
-        sourceUrl: payload.url,
       });
 
-      // Mark session as active now that questions are loaded
       if (loadedQuestions.length > 0) {
         setIsSessionActive(true);
         setResultWizardStep(1);
       }
 
       console.info("[student/jamb/page] loaded questions", {
-        page: pageNum,
+        page,
         totalPages,
         count: loadedQuestions.length,
         hasMore,
-        sourceUrl: payload.url,
       });
     } catch (error: any) {
       console.error("[student/jamb/page] question load failed", error);
@@ -657,25 +658,23 @@ export default function StudentJambPage() {
     }
   }
 
-  function recordAnswer(questionId: string, selectedOption: string) {
-    setAnswers((current) => ({
-      ...current,
-      [questionId]: selectedOption,
-    }));
-  }
-
-  function handleFilterChange(type: "subject" | "year", value: string) {
-    if (isSessionActive && !attemptResult) {
-      setPendingFilterChange({ type, value });
-      setShowTerminationDialog(true);
-    } else {
-      applyFilterChange(type, value);
-    }
-  }
-
   function applyFilterChange(type: "subject" | "year", value: string) {
     if (type === "subject") setSelectedSubject(value);
     else if (type === "year") setSelectedYear(value);
+  }
+
+  function handleFilterChange(type: "subject" | "year", value: string) {
+    const currentValue = type === "subject" ? selectedSubject : selectedYear;
+    if (value === currentValue) return;
+
+    const hasProgress = Object.keys(answers).length > 0;
+    if (isSessionActive && hasProgress) {
+      setPendingFilterChange({ type, value });
+      setShowTerminationDialog(true);
+      return;
+    }
+
+    applyFilterChange(type, value);
   }
 
   function handleConfirmTermination() {
@@ -697,6 +696,11 @@ export default function StudentJambPage() {
     clearSessionState();
     toast.success("Progress saved. You can resume this session later.");
     window.location.href = "/student";
+  }
+
+  function recordAnswer(id: string, option: string) {
+    setAnswers((prev) => ({ ...prev, [id]: option }));
+    setAttemptResult(null);
   }
 
   // Track page completion when answers change
@@ -1161,6 +1165,7 @@ export default function StudentJambPage() {
                           {question.options.map((option, optionIndex) => {
                             const selected = answers[question.id] === option;
                             const displayText = stripLeadingOptionLabel(option);
+
                             return (
                               <Button
                                 key={`${question.id}-${optionIndex}`}

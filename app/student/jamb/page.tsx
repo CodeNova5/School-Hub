@@ -88,7 +88,7 @@ const QUESTION_CARD_ID = "jamb-question-card";
 
 function stripLeadingOptionLabel(input: string) {
   if (!input) return "";
-  return input.replace(/^\s*(?:[A-Da-d])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
+  return input.replace(/^\s*(?:[A-Ea-e])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
 }
 
 function tableToMarkdown(table: HTMLTableElement): string {
@@ -297,6 +297,7 @@ export default function StudentJambPage() {
     setQuestions([]);
     setAllQuestionIds([]);
     setTotalQuestionCount(0);
+    setPageCompletion({});
     setShowRestoreDialog(false);
     toast.success("Started fresh session");
   }
@@ -383,10 +384,11 @@ export default function StudentJambPage() {
   useEffect(() => {
     if (!selectedSubject) {
       setYears([]); setSelectedYear(""); setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0);
+      setPageCompletion({});
       return;
     }
     if (!(pendingSession && pendingSession.subject === selectedSubject)) setSelectedYear("");
-    setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0);
+    setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0); setPageCompletion({});
     void loadAvailableFilters(selectedSubject).catch((err: any) => toast.error(err.message || "Failed to load years"));
   }, [selectedSubject, pendingSession]);
 
@@ -539,6 +541,7 @@ export default function StudentJambPage() {
   function handleConfirmTermination() {
     if (pendingFilterChange) {
       setAnswers({}); setQuestions([]); setAllQuestionIds([]); setAttemptResult(null); setTotalQuestionCount(0);
+      setPageCompletion({});
       setIsSessionActive(false); clearSessionState();
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
       setPendingFilterChange(null); setShowTerminationDialog(false);

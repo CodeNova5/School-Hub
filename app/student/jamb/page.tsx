@@ -1166,13 +1166,13 @@ export default function StudentJambPage() {
                                 key={`${question.id}-${optionIndex}`}
                                 type="button"
                                 variant={selected ? "default" : "outline"}
-                                className={`justify-start items-start py-4 text-left ${selected ? "border-blue-600" : ""}`}
+                                className={`h-auto w-full justify-start items-start py-4 text-left ${selected ? "border-blue-600" : ""}`}
                                 onClick={() => recordAnswer(question.id, option)}
                               >
-                                <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
+                                <span className="mr-3 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                                   {String.fromCharCode(65 + optionIndex)}
                                 </span>
-                                <span className="text-base whitespace-pre-wrap break-words">
+                                <span className="min-w-0 flex-1 text-base whitespace-pre-wrap break-words text-left">
                                   <MathText content={displayText} />
                                 </span>
                               </Button>

@@ -187,17 +187,15 @@ export async function GET(req: NextRequest): Promise<NextResponse<QuestionsRespo
     }
 
     const year = urlObj.searchParams.get('year') || '';
-    const topic = urlObj.searchParams.get('topic') || '';
     const page = parsePageNumber(urlObj.searchParams.get('page') || undefined) || 1;
     const detail = urlObj.searchParams.get('detail') === 'true';
     const pageSize = parsePageNumber(urlObj.searchParams.get('limit') || undefined) || DEFAULT_PAGE_SIZE;
 
-    const target = `${BASE_URL}/classroom/${encodeURIComponent(subject)}?exam_type=jamb&exam_year=${encodeURIComponent(year)}&topic=${encodeURIComponent(topic)}&page=${encodeURIComponent(String(page))}`;
+    const target = `${BASE_URL}/classroom/${encodeURIComponent(subject)}?exam_type=jamb&exam_year=${encodeURIComponent(year)}&page=${encodeURIComponent(String(page))}`;
 
     console.info('[scrape/questions] request', {
       subject,
       year,
-      topic,
       page,
       pageSize,
       detail,

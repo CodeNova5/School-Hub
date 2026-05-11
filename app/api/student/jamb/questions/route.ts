@@ -159,7 +159,6 @@ export async function GET(req: NextRequest) {
         const sourceId = clean(question.id || "");
 
         return {
-          school_id: student.school_id,
           exam_type: "jamb",
           subject_slug: subject,
           subject_name: subjectName || subject,
@@ -175,7 +174,6 @@ export async function GET(req: NextRequest) {
         };
       })
       .filter(Boolean) as Array<{
-      school_id: string;
       exam_type: string;
       subject_slug: string;
       subject_name: string;
@@ -195,7 +193,6 @@ export async function GET(req: NextRequest) {
       ? await supabaseAdmin
           .from("jamb_questions")
           .select("id, external_question_id")
-          .eq("school_id", student.school_id)
           .eq("subject_slug", subject)
           .eq("exam_year", Number(year))
           .in("external_question_id", externalIds)
@@ -262,7 +259,6 @@ export async function GET(req: NextRequest) {
       .select(
         "id, external_question_id, question_text, options, subject_slug, subject_name, exam_year, topic, correct_option, explanation, image_url"
       )
-      .eq("school_id", student.school_id)
       .eq("subject_slug", subject)
       .eq("exam_year", Number(year))
       .in("external_question_id", externalIds);

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "jamb:import": "node scripts/import-jamb-questions.js"
   },
   "overrides": {
     "@types/react-dom": "18.2.7",

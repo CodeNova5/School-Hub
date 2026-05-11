@@ -71,7 +71,6 @@ export async function POST(req: NextRequest) {
   const { data: questions, error: questionError } = await supabaseAdmin
     .from("jamb_questions")
     .select("id, correct_option, question_text, options, explanation")
-    .eq("school_id", student.school_id)
     .in("id", questionIds);
 
   if (questionError) {

@@ -41,6 +41,7 @@ type SubjectOption = {
 };
 
 type QuestionRow = {
+
   id: string;
   question_text: string;
   options: string[];
@@ -74,6 +75,13 @@ type AttemptResult = {
 };
 
 const QUESTIONS_PER_PAGE = 5;
+
+// Remove duplicated leading labels like "A.", "B)", "C -" from scraped option text
+function stripLeadingOptionLabel(input: string) {
+  if (!input) return "";
+  // Remove common leading labels: A., A), A - , a: etc.
+  return input.replace(/^\s*(?:[A-Da-d])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
+}
 
 function tableToMarkdown(table: HTMLTableElement): string {
   const rows = Array.from(table.querySelectorAll("tr"))
@@ -599,11 +607,7 @@ export default function StudentJambPage() {
       try {
         const saved = loadDraftFromLocalStorage();
         if (saved && Object.keys(saved).length) {
-          const normalizedSaved: Record<string, string> = {};
-          Object.entries(saved).forEach(([k, v]) => {
-            normalizedSaved[k] = normalizeOptionText(String(v || ""));
-          });
-          setAnswers((current) => ({ ...current, ...normalizedSaved }));
+          setAnswers((current) => ({ ...current, ...saved }));
         }
         // Restore page completion status
         const draftKey = getDraftKey();
@@ -1155,21 +1159,21 @@ export default function StudentJambPage() {
 
                         <div className="grid gap-3">
                           {question.options.map((option, optionIndex) => {
-                            const cleaned = normalizeOptionText(option);
-                            const selected = answers[question.id] === cleaned;
+                            const selected = answers[question.id] === option;
+                            const displayText = stripLeadingOptionLabel(option);
                             return (
                               <Button
                                 key={`${question.id}-${optionIndex}`}
                                 type="button"
                                 variant={selected ? "default" : "outline"}
-                                className={`justify-start py-6 text-left ${selected ? "border-blue-600" : ""}`}
-                                onClick={() => recordAnswer(question.id, cleaned)}
+                                className={`justify-start items-start py-4 text-left ${selected ? "border-blue-600" : ""}`}
+                                onClick={() => recordAnswer(question.id, option)}
                               >
                                 <span className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/5 text-sm font-semibold">
                                   {String.fromCharCode(65 + optionIndex)}
                                 </span>
-                                <span className="text-base">
-                                  <MathText content={cleaned} />
+                                <span className="text-base whitespace-pre-wrap break-words">
+                                  <MathText content={displayText} />
                                 </span>
                               </Button>
                             );
@@ -1179,7 +1183,7 @@ export default function StudentJambPage() {
                         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm text-gray-600">
                           <span>
                             {answers[question.id]
-                              ? `Selected answer: ${answers[question.id]}`
+                              ? `Selected answer: ${stripLeadingOptionLabel(answers[question.id])}`
                               : "No answer selected yet"}
                           </span>
                           <span>Question {displayQuestionNumber}</span>
@@ -1592,26 +1596,4 @@ export default function StudentJambPage() {
       </Dialog>
     </DashboardLayout>
   );
-}
-
-// Remove common leading option labels from scraped option text (e.g. "A.", "B)", "C -").
-function normalizeOptionText(input: string): string {
-  if (!input) return "";
-  let s = String(input).trim();
-
-  // Replace non-breaking spaces and collapse whitespace
-  s = s.replace(/\u00a0/g, " ").replace(/[ \t]{2,}/g, " ");
-
-  // Regex for a single leading label token like: A.  A)  1.  I)  C -  etc.
-  const labelRe = /^\s*(?:[A-Za-z]|\d+|I|II|III|IV|V|VI|VII|VIII|IX|X)\s*(?:[.)\]\-–—:]?)\s*/i;
-
-  // Remove repeated leading labels if present (some scrapers duplicate them)
-  while (labelRe.test(s)) {
-    s = s.replace(labelRe, "").trim();
-  }
-
-  // Trim leftover punctuation like leading dash or colon
-  s = s.replace(/^[\-–—:\s]+/, "").trim();
-
-  return s;
 }

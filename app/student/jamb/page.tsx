@@ -362,34 +362,46 @@ export default function StudentJambPage() {
   async function fetchSubjects() {
     try {
       setSubjectLoading(true);
-      const pageSize = 1000;
-      let from = 0;
-      let allRows: Array<{ subject_slug: string; subject_name: string }> = [];
+      const { data: catalogRows, error: catalogError } = await supabase
+        .from("jamb_subjects")
+        .select("slug, name")
+        .order("name", { ascending: true });
 
-      // Supabase may cap each response size; page through the dataset before deduping.
-      while (true) {
-        const { data, error } = await supabase
-          .from("jamb_questions")
-          .select("subject_slug, subject_name")
-          .order("subject_name", { ascending: true })
-          .range(from, from + pageSize - 1);
-        if (error) throw error;
+      if (!catalogError && (catalogRows?.length || 0) > 0) {
+        const fromCatalog = (catalogRows || [])
+          .filter((row: any) => !!row.slug && !!row.name)
+          .map((row: any): SubjectOption => ({ slug: row.slug, name: row.name }));
+        setSubjects(fromCatalog);
+      } else {
+        const pageSize = 1000;
+        let from = 0;
+        let allRows: Array<{ subject_slug: string; subject_name: string }> = [];
 
-        const batch = (data || []) as Array<{ subject_slug: string; subject_name: string }>;
-        allRows = allRows.concat(batch);
-        if (batch.length < pageSize) break;
-        from += pageSize;
+        // Compatibility fallback for environments that have not migrated jamb_subjects yet.
+        while (true) {
+          const { data, error } = await supabase
+            .from("jamb_questions")
+            .select("subject_slug, subject_name")
+            .order("subject_name", { ascending: true })
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+
+          const batch = (data || []) as Array<{ subject_slug: string; subject_name: string }>;
+          allRows = allRows.concat(batch);
+          if (batch.length < pageSize) break;
+          from += pageSize;
+        }
+
+        const subjectMap = new Map<string, SubjectOption>(
+          allRows
+            .filter((row) => !!row.subject_slug && !!row.subject_name)
+            .map((row): [string, SubjectOption] => [
+              row.subject_slug,
+              { slug: row.subject_slug, name: row.subject_name },
+            ])
+        );
+        setSubjects(Array.from(subjectMap.values()));
       }
-
-      const subjectMap = new Map<string, SubjectOption>(
-        allRows
-          .filter((row) => !!row.subject_slug && !!row.subject_name)
-          .map((row): [string, SubjectOption] => [
-          row.subject_slug,
-          { slug: row.subject_slug, name: row.subject_name },
-          ])
-      );
-      setSubjects(Array.from(subjectMap.values()));
       setSubjectPage(1);
       setSubjectTotalPages(1);
     } catch (error: any) {

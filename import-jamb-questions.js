@@ -174,6 +174,26 @@ function buildSupabaseClient() {
   });
 }
 
+async function ensureSubjectCatalogEntry(supabase, subjectSlug, subjectName) {
+  const payload = {
+    slug: subjectSlug,
+    name: subjectName,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase
+    .from('jamb_subjects')
+    .upsert(payload, { onConflict: 'slug' });
+
+  if (error) {
+    // Table may not exist in older environments; importer can proceed without catalog sync.
+    if (/relation .*jamb_subjects.* does not exist/i.test(error.message || '')) {
+      return;
+    }
+    throw new Error(error.message);
+  }
+}
+
 async function ensureBucketExists(supabase, bucketName) {
   const { data, error } = await supabase.storage.listBuckets();
 
@@ -563,6 +583,8 @@ async function importSubjectYear(options) {
   const subjectSlug = options.subject.trim();
   const subjectName = normalizeSubjectName(subjectSlug, options.subjectName.trim());
   const supabase = buildSupabaseClient();
+
+  await ensureSubjectCatalogEntry(supabase, subjectSlug, subjectName);
 
   await ensureBucketExists(supabase, options.bucket);
 

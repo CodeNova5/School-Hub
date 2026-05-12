@@ -366,42 +366,12 @@ export default function StudentJambPage() {
         .from("jamb_subjects")
         .select("slug, name")
         .order("name", { ascending: true });
+      if (catalogError) throw catalogError;
 
-      if (!catalogError && (catalogRows?.length || 0) > 0) {
-        const fromCatalog = (catalogRows || [])
-          .filter((row: any) => !!row.slug && !!row.name)
-          .map((row: any): SubjectOption => ({ slug: row.slug, name: row.name }));
-        setSubjects(fromCatalog);
-      } else {
-        const pageSize = 1000;
-        let from = 0;
-        let allRows: Array<{ subject_slug: string; subject_name: string }> = [];
-
-        // Compatibility fallback for environments that have not migrated jamb_subjects yet.
-        while (true) {
-          const { data, error } = await supabase
-            .from("jamb_questions")
-            .select("subject_slug, subject_name")
-            .order("subject_name", { ascending: true })
-            .range(from, from + pageSize - 1);
-          if (error) throw error;
-
-          const batch = (data || []) as Array<{ subject_slug: string; subject_name: string }>;
-          allRows = allRows.concat(batch);
-          if (batch.length < pageSize) break;
-          from += pageSize;
-        }
-
-        const subjectMap = new Map<string, SubjectOption>(
-          allRows
-            .filter((row) => !!row.subject_slug && !!row.subject_name)
-            .map((row): [string, SubjectOption] => [
-              row.subject_slug,
-              { slug: row.subject_slug, name: row.subject_name },
-            ])
-        );
-        setSubjects(Array.from(subjectMap.values()));
-      }
+      const fromCatalog = (catalogRows || [])
+        .filter((row: any) => !!row.slug && !!row.name)
+        .map((row: any): SubjectOption => ({ slug: row.slug, name: row.name }));
+      setSubjects(fromCatalog);
       setSubjectPage(1);
       setSubjectTotalPages(1);
     } catch (error: any) {
@@ -496,46 +466,14 @@ export default function StudentJambPage() {
 
   /* ── Filters ── */
   async function loadAvailableFilters(subjectSlug: string) {
-    try {
-      const { data: yearRows, error: yearError } = await supabase
-        .from("jamb_subject_years")
-        .select("exam_year")
-        .eq("subject_slug", subjectSlug)
-        .order("exam_year", { ascending: false });
+    const { data: yearRows, error: yearError } = await supabase
+      .from("jamb_subject_years")
+      .select("exam_year")
+      .eq("subject_slug", subjectSlug)
+      .order("exam_year", { ascending: false });
+    if (yearError) throw yearError;
 
-      if (!yearError && (yearRows?.length || 0) > 0) {
-        const uniqueYears: number[] = Array.from(new Set((yearRows || []).map((row: any) => row.exam_year)))
-          .filter((y: any) => Number.isFinite(y))
-          .map((y: any) => Number(y))
-          .sort((a, b) => b - a);
-        setYears(uniqueYears);
-        return;
-      }
-    } catch (error) {
-      console.error("Failed to load jamb_subject_years", error);
-    }
-
-    const pageSize = 1000;
-    let from = 0;
-    let allYears: number[] = [];
-
-    // Compatibility fallback for environments that have not migrated jamb_subject_years yet.
-    while (true) {
-      const { data, error } = await supabase
-        .from("jamb_questions")
-        .select("exam_year")
-        .eq("subject_slug", subjectSlug)
-        .order("exam_year", { ascending: false })
-        .range(from, from + pageSize - 1);
-      if (error) throw error;
-
-      const batch = (data || []).map((row: any) => row.exam_year);
-      allYears = allYears.concat(batch);
-      if (batch.length < pageSize) break;
-      from += pageSize;
-    }
-
-    const uniqueYears: number[] = Array.from(new Set(allYears))
+    const uniqueYears: number[] = Array.from(new Set((yearRows || []).map((row: any) => row.exam_year)))
       .filter((y: any) => Number.isFinite(y))
       .map((y: any) => Number(y))
       .sort((a, b) => b - a);

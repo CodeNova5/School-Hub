@@ -186,10 +186,23 @@ async function ensureSubjectCatalogEntry(supabase, subjectSlug, subjectName) {
     .upsert(payload, { onConflict: 'slug' });
 
   if (error) {
-    // Table may not exist in older environments; importer can proceed without catalog sync.
-    if (/relation .*jamb_subjects.* does not exist/i.test(error.message || '')) {
-      return;
-    }
+    throw new Error(error.message);
+  }
+}
+
+async function ensureSubjectYearCatalogEntry(supabase, subjectSlug, subjectName, examYear) {
+  const payload = {
+    subject_slug: subjectSlug,
+    subject_name: subjectName,
+    exam_year: examYear,
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabase
+    .from('jamb_subject_years')
+    .upsert(payload, { onConflict: 'subject_slug,exam_year' });
+
+  if (error) {
     throw new Error(error.message);
   }
 }
@@ -582,9 +595,14 @@ async function importSubjectYear(options) {
 
   const subjectSlug = options.subject.trim();
   const subjectName = normalizeSubjectName(subjectSlug, options.subjectName.trim());
+  const examYear = Number(options.year);
+  if (!Number.isFinite(examYear)) {
+    throw new Error('The --year flag must be a valid number');
+  }
   const supabase = buildSupabaseClient();
 
   await ensureSubjectCatalogEntry(supabase, subjectSlug, subjectName);
+  await ensureSubjectYearCatalogEntry(supabase, subjectSlug, subjectName, examYear);
 
   await ensureBucketExists(supabase, options.bucket);
 
@@ -676,7 +694,7 @@ async function importSubjectYear(options) {
         exam_type: 'jamb',
         subject_slug: subjectSlug,
         subject_name: subjectName,
-        exam_year: Number(options.year),
+        exam_year: examYear,
         topic: null,
         question_text: cleanRichText(question.question || ''),
         options: Array.isArray(question.options) ? question.options : [],

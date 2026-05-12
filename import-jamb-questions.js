@@ -569,6 +569,18 @@ async function importSubjectYear(options) {
   const firstPage = await scrapeQuestionsPage(subjectSlug, options.year, 1, options.detail);
   const totalPages = Math.max(1, firstPage.totalPages || 1);
 
+  // Validation: skip years with > 50 pages (likely edge case where year doesn't exist and combined data is returned)
+  const MAX_PAGES = 50;
+  if (totalPages > MAX_PAGES) {
+    console.warn('[jamb-import] skipping year with suspicious page count', {
+      subjectSlug,
+      year: options.year,
+      totalPages,
+      reason: `exceeds max allowed pages (${MAX_PAGES})`
+    });
+    return;
+  }
+
   console.log('[jamb-import] starting import', {
     subjectSlug,
     subjectName,
@@ -701,18 +713,51 @@ async function importSubjectYear(options) {
   });
 }
 
+function parseYearRange(yearValue) {
+  if (!yearValue || typeof yearValue !== 'string') return null;
+  const m = yearValue.match(/^\s*(\d{4})\s*-\s*(\d{4})\s*$/);
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  if (a === b) return [String(a)];
+  const start = Math.min(a, b);
+  const end = Math.max(a, b);
+  const years = [];
+  for (let y = start; y <= end; y += 1) years.push(String(y));
+  return years;
+}
+
+async function importYears(options) {
+  const years = parseYearRange(String(options.year || '')) || (options.year ? [String(options.year)] : []);
+  if (years.length === 0) {
+    throw new Error('The --year flag is required');
+  }
+
+  for (const year of years) {
+    console.log('[jamb-import] starting year', { year });
+    try {
+      // clone options and set the current year
+      const opts = Object.assign({}, options, { year });
+      await importSubjectYear(opts);
+    } catch (err) {
+      console.error('[jamb-import] error importing year', { year, message: err?.message || String(err) });
+    }
+  }
+}
+
 async function main() {
   const options = {
     detail: true,
     pageDelayMs: 250,
-    bucket: process.env.JAMB_IMAGE_BUCKET || DEFAULT_BUCKET,
+    bucket: DEFAULT_BUCKET,
     subject: 'mathematics',
     subjectName: '',
-    year: '1978'
+    year: '1997-2025'
   };
 
   try {
-    await importSubjectYear(options);
+    await importYears(options);
   } catch (error) {
     console.error('[jamb-import] fatal error', {
       message: error?.message || String(error),

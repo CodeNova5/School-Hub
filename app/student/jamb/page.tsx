@@ -443,9 +443,10 @@ export default function StudentJambPage() {
   function handlePrevQuestion() {
     if (activeQuestionIndex > 0) {
       setActiveQuestionIndex(activeQuestionIndex - 1);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      requestAnimationFrame(() => scrollToQuestionCard());
     } else if (questionPage > 1) {
       loadQuestions(questionPage - 1, QUESTIONS_PER_PAGE - 1);
+      requestAnimationFrame(() => requestAnimationFrame(() => scrollToQuestionCard()));
     }
   }
 

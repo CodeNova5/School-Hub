@@ -362,13 +362,18 @@ export default function StudentJambPage() {
   async function fetchSubjects(page = 1) {
     try {
       setSubjectLoading(true);
+      // Select distinct subject_slug/name pairs and filter out empty/null slugs
       const { data, error } = await supabase
-        .from("jamb_questions").select("subject_slug, subject_name").order("subject_name", { ascending: true });
+        .from("jamb_questions")
+        .select("distinct subject_slug, subject_name")
+        .neq("subject_slug", null)
+        .neq("subject_slug", "")
+        .order("subject_name", { ascending: true });
       if (error) throw error;
       const subjectMap = new Map<string, SubjectOption>(
         (data || []).map((row: any): [string, SubjectOption] => [
-          row.subject_slug,
-          { slug: row.subject_slug, name: row.subject_name },
+          String(row.subject_slug),
+          { slug: String(row.subject_slug), name: String(row.subject_name) },
         ])
       );
       setSubjects(Array.from(subjectMap.values()));

@@ -380,6 +380,30 @@ async function fetchAnswerDetail(url) {
 }
 
 async function downloadImage(imageUrl) {
+  if (typeof imageUrl === 'string' && imageUrl.startsWith('data:')) {
+    const commaIndex = imageUrl.indexOf(',');
+    if (commaIndex === -1) {
+      throw new Error('Invalid data URI image URL');
+    }
+
+    const metadata = imageUrl.slice(5, commaIndex);
+    const encodedData = imageUrl.slice(commaIndex + 1);
+    const parts = metadata.split(';').filter(Boolean);
+    const contentType = parts.find((part) => part.includes('/')) || 'application/octet-stream';
+    const isBase64 = parts.includes('base64');
+
+    const buffer = isBase64
+      ? Buffer.from(encodedData, 'base64')
+      : Buffer.from(decodeURIComponent(encodedData), 'utf8');
+
+    return {
+      buffer,
+      contentType,
+      contentLength: buffer.length,
+      finalUrl: imageUrl
+    };
+  }
+
   const response = await axios.get(imageUrl, {
     responseType: 'arraybuffer',
     headers: {

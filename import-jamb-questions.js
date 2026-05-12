@@ -84,6 +84,23 @@ function sanitizePathSegment(value) {
     .replace(/^-|-$/g, '');
 }
 
+function normalizeImageSource(rawSrc) {
+  if (!rawSrc) return null;
+
+  const src = String(rawSrc).trim();
+  if (!src) return null;
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('data:')) {
+    return src;
+  }
+
+  const dataUriIndex = src.indexOf('data:');
+  if (dataUriIndex >= 0) {
+    return src.slice(dataUriIndex);
+  }
+
+  return `${BASE_URL}${src}`;
+}
+
 function normalizeSubjectName(subjectSlug, subjectName) {
   if (subjectName) return subjectName;
 
@@ -380,6 +397,13 @@ async function fetchAnswerDetail(url) {
 }
 
 async function downloadImage(imageUrl) {
+  const normalizedImageUrl = normalizeImageSource(imageUrl);
+  if (!normalizedImageUrl) {
+    throw new Error('Missing image URL');
+  }
+
+  imageUrl = normalizedImageUrl;
+
   if (typeof imageUrl === 'string' && imageUrl.startsWith('data:')) {
     const commaIndex = imageUrl.indexOf(',');
     if (commaIndex === -1) {
@@ -516,7 +540,7 @@ async function scrapeQuestionsPage(subjectSlug, year, page, detail) {
     if (imageElement && imageElement.length) {
       const src = imageElement.attr('src');
       if (src) {
-        image = src.startsWith('http') ? src : `${BASE_URL}${src}`;
+        image = normalizeImageSource(src);
       }
     }
 
@@ -817,7 +841,7 @@ async function main() {
     bucket: DEFAULT_BUCKET,
     subject: 'physics',
     subjectName: '',
-    year: '1978-2025'
+    year: '2019'
   };
 
   try {

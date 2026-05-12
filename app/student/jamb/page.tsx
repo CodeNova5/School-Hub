@@ -496,12 +496,39 @@ export default function StudentJambPage() {
 
   /* ── Filters ── */
   async function loadAvailableFilters(subjectSlug: string) {
-    const { data, error } = await supabase
-      .from("jamb_questions").select("exam_year").eq("subject_slug", subjectSlug).order("exam_year", { ascending: false });
-    if (error) throw error;
-    const uniqueYears: number[] = Array.from(new Set((data || []).map((row: any) => row.exam_year)))
-      .filter((y: any) => Number.isFinite(y)).map((y: any) => Number(y)).sort((a, b) => b - a);
-    setYears(uniqueYears);
+    try {
+      // Try to fetch years from the subject catalog first (O(1) lookup)
+      const { data: subjectData, error: catalogError } = await supabase
+        .from("jamb_subjects")
+        .select("years")
+        .eq("slug", subjectSlug)
+        .single();
+
+      if (!catalogError && subjectData?.years && Array.isArray(subjectData.years) && subjectData.years.length > 0) {
+        const years = subjectData.years
+          .filter((y: any) => Number.isFinite(y))
+          .map((y: any) => Number(y))
+          .sort((a: number, b: number) => b - a);
+        setYears(years);
+        return;
+      }
+
+      // Fallback: scan jamb_questions if catalog lookup fails or is incomplete
+      const { data, error } = await supabase
+        .from("jamb_questions")
+        .select("exam_year")
+        .eq("subject_slug", subjectSlug)
+        .order("exam_year", { ascending: false });
+      if (error) throw error;
+      const uniqueYears: number[] = Array.from(new Set((data || []).map((row: any) => row.exam_year)))
+        .filter((y: any) => Number.isFinite(y))
+        .map((y: any) => Number(y))
+        .sort((a: number, b: number) => b - a);
+      setYears(uniqueYears);
+    } catch (error: any) {
+      console.error("Failed to load available years", error);
+      toast.error(error.message || "Failed to load years");
+    }
   }
 
   async function loadQuestions(page = 1, targetIndex = 0) {

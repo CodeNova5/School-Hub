@@ -15,12 +15,12 @@ DROP TABLE IF EXISTS jamb_subjects;
 
 CREATE TABLE jamb_questions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
   exam_type text NOT NULL DEFAULT 'jamb' CHECK (exam_type = 'jamb'),
   subject_slug text NOT NULL,
   subject_name text NOT NULL,
   exam_year int NOT NULL,
   topic text,
+  image_url text,
   question_text text NOT NULL,
   options jsonb NOT NULL DEFAULT '[]'::jsonb,
   correct_option text NOT NULL,
@@ -31,9 +31,8 @@ CREATE TABLE jamb_questions (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_jamb_questions_school ON jamb_questions (school_id);
-CREATE INDEX idx_jamb_questions_subject ON jamb_questions (school_id, subject_slug, exam_year);
-CREATE INDEX idx_jamb_questions_topic ON jamb_questions (school_id, subject_slug, exam_year, topic);
+CREATE INDEX idx_jamb_questions_subject ON jamb_questions (subject_slug, exam_year);
+CREATE INDEX idx_jamb_questions_topic ON jamb_questions (subject_slug, exam_year, topic);
 
 CREATE TABLE jamb_subjects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,13 +83,13 @@ DROP POLICY IF EXISTS "Students can read accessible JAMB questions" ON jamb_ques
 CREATE POLICY "Admins can manage JAMB questions"
   ON jamb_questions FOR ALL
   TO authenticated
-  USING (is_admin() AND school_id = get_my_school_id())
-  WITH CHECK (is_admin() AND school_id = get_my_school_id());
+  USING (is_admin())
+  WITH CHECK (is_admin());
 
 CREATE POLICY "Students can read accessible JAMB questions"
   ON jamb_questions FOR SELECT
   TO authenticated
-  USING (school_id = get_my_school_id() AND can_access_jamb_cbt());
+  USING (can_access_jamb_cbt());
 
 CREATE POLICY "Admins can manage JAMB subjects"
   ON jamb_subjects FOR ALL

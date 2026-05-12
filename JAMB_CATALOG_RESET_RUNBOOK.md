@@ -3,7 +3,7 @@
 This runbook applies the catalog-only architecture:
 - no fallback scans from `jamb_questions` for subject/year filters
 - no trigger/backfill-based catalog maintenance
-- `jamb_questions` is dropped and rebuilt from scratch
+- `jamb_questions` is dropped and rebuilt as a shared global bank with no `school_id`
 - importer is the sole writer for `jamb_questions`, `jamb_subjects`, and `jamb_subject_years`
 
 ## Preconditions
@@ -86,6 +86,7 @@ Important:
 - Importer now fails fast if any JAMB catalog table is missing/broken.
 - Importer now upserts `jamb_subjects` and `jamb_subject_years` before question writes.
 - Because `jamb_questions` is reset, you must re-import all intended questions.
+- Because `jamb_questions` is shared across schools, do not add `school_id` back to the importer payload or schema.
 
 ## 4) Verify rebuilt data quality
 

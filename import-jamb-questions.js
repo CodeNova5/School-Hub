@@ -751,9 +751,9 @@ async function main() {
     detail: true,
     pageDelayMs: 250,
     bucket: DEFAULT_BUCKET,
-    subject: 'mathematics',
+    subject: 'chemistry',
     subjectName: '',
-    year: '1997-2025'
+    year: '1978-2025'
   };
 
   try {

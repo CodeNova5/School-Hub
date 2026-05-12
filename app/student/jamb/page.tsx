@@ -82,13 +82,12 @@ type AttemptResult = {
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
 const QUESTIONS_PER_PAGE = 5;
-const QUESTION_CARD_ID = "jamb-question-card";
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
 
 function stripLeadingOptionLabel(input: string) {
   if (!input) return "";
-  return input.replace(/^\s*(?:[A-Ea-e])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
+  return input.replace(/^\s*(?:[A-Da-d])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
 }
 
 function tableToMarkdown(table: HTMLTableElement): string {
@@ -196,6 +195,7 @@ export default function StudentJambPage() {
     value: string;
   } | null>(null);
   const [showResultWizard, setShowResultWizard] = useState(false);
+  const [resultWizardStep, setResultWizardStep] = useState(1);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showPreSubmitReview, setShowPreSubmitReview] = useState(false);
   const [pendingSession, setPendingSession] = useState<{ subject: string; year: string } | null>(null);
@@ -278,7 +278,7 @@ export default function StudentJambPage() {
   function clearSessionState() {
     try {
       if (typeof window !== "undefined") window.localStorage.removeItem(getSessionKey());
-    } catch (e) { }
+    } catch (e) {}
   }
   function handleRestoreSession() {
     if (pendingSession) {
@@ -297,7 +297,6 @@ export default function StudentJambPage() {
     setQuestions([]);
     setAllQuestionIds([]);
     setTotalQuestionCount(0);
-    setPageCompletion({});
     setShowRestoreDialog(false);
     toast.success("Started fresh session");
   }
@@ -322,7 +321,7 @@ export default function StudentJambPage() {
         pageCompletion,
       };
       if (typeof window !== "undefined") window.localStorage.setItem(k, JSON.stringify(payload));
-    } catch (e) { }
+    } catch (e) {}
   }
 
   /* ── Load ── */
@@ -365,16 +364,13 @@ export default function StudentJambPage() {
       const { data, error } = await supabase
         .from("jamb_questions").select("subject_slug, subject_name").order("subject_name", { ascending: true });
       if (error) throw error;
-      const subjectMap = new Map<string, SubjectOption>();
-      (data || []).forEach((row: any) => {
-        const name = (row.subject_name || "").trim();
-        let slug = row.subject_slug;
-        if (!slug && name) slug = name.toLowerCase().replace(/\s+/g, "-");
-        if (!slug && !name) return;
-        if (!subjectMap.has(slug)) subjectMap.set(slug, { slug, name: name || slug });
-      });
-      const subjectsArray = Array.from(subjectMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-      setSubjects(subjectsArray);
+      const subjectMap = new Map<string, SubjectOption>(
+        (data || []).map((row: any): [string, SubjectOption] => [
+          row.subject_slug,
+          { slug: row.subject_slug, name: row.subject_name },
+        ])
+      );
+      setSubjects(Array.from(subjectMap.values()));
       setSubjectPage(1);
       setSubjectTotalPages(1);
     } catch (error: any) {
@@ -387,11 +383,10 @@ export default function StudentJambPage() {
   useEffect(() => {
     if (!selectedSubject) {
       setYears([]); setSelectedYear(""); setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0);
-      setPageCompletion({});
       return;
     }
     if (!(pendingSession && pendingSession.subject === selectedSubject)) setSelectedYear("");
-    setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0); setPageCompletion({});
+    setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0);
     void loadAvailableFilters(selectedSubject).catch((err: any) => toast.error(err.message || "Failed to load years"));
   }, [selectedSubject, pendingSession]);
 
@@ -423,16 +418,6 @@ export default function StudentJambPage() {
   const activeQuestion = questions[activeQuestionIndex] ?? null;
   const activeGlobalNumber = globalQuestionNumber(questionPage, activeQuestionIndex);
 
-  function scrollToQuestionCard() {
-    if (typeof window === "undefined") return;
-    const card = document.getElementById(QUESTION_CARD_ID);
-    if (card) {
-      card.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
   /* ── Navigation ── */
   function goToQuestion(pageNum: number, indexOnPage: number) {
     if (pageNum === questionPage) {
@@ -446,20 +431,18 @@ export default function StudentJambPage() {
   function handlePrevQuestion() {
     if (activeQuestionIndex > 0) {
       setActiveQuestionIndex(activeQuestionIndex - 1);
-      requestAnimationFrame(() => scrollToQuestionCard());
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (questionPage > 1) {
       loadQuestions(questionPage - 1, QUESTIONS_PER_PAGE - 1);
-      requestAnimationFrame(() => requestAnimationFrame(() => scrollToQuestionCard()));
     }
   }
 
   function handleNextQuestion() {
     if (activeQuestionIndex < questions.length - 1) {
       setActiveQuestionIndex(activeQuestionIndex + 1);
-      requestAnimationFrame(() => scrollToQuestionCard());
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (questionPage < questionTotalPages) {
       loadQuestions(questionPage + 1, 0);
-      requestAnimationFrame(() => requestAnimationFrame(() => scrollToQuestionCard()));
     }
   }
 
@@ -511,7 +494,7 @@ export default function StudentJambPage() {
         if (saved && Object.keys(saved).length) setAnswers((cur) => ({ ...cur, ...saved }));
         const raw = typeof window !== "undefined" ? window.localStorage.getItem(getDraftKey()) : null;
         if (raw) { const parsed = JSON.parse(raw); if (parsed.pageCompletion) setPageCompletion(parsed.pageCompletion); }
-      } catch (e) { }
+      } catch (e) {}
       setAttemptResult(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
       isRestoringDraftRef.current = false;
@@ -520,7 +503,7 @@ export default function StudentJambPage() {
       setHasMoreQuestions(hasMore);
       setQuestionDebug({ page, totalPages: totalPages || 1, count: loadedQuestions.length, hasMore });
       setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
-      if (loadedQuestions.length > 0) { setIsSessionActive(true); }
+      if (loadedQuestions.length > 0) { setIsSessionActive(true); setResultWizardStep(1); }
     } catch (error: any) {
       toast.error(error.message || "Failed to load questions");
     } finally {
@@ -545,7 +528,6 @@ export default function StudentJambPage() {
   function handleConfirmTermination() {
     if (pendingFilterChange) {
       setAnswers({}); setQuestions([]); setAllQuestionIds([]); setAttemptResult(null); setTotalQuestionCount(0);
-      setPageCompletion({});
       setIsSessionActive(false); clearSessionState();
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
       setPendingFilterChange(null); setShowTerminationDialog(false);
@@ -611,7 +593,7 @@ export default function StudentJambPage() {
       );
       const prevResult = prevResponse.ok ? await prevResponse.json() : null;
       setAttemptResult({ ...result.data, previousAttempt: prevResult?.data });
-      setShowResultWizard(true); setIsSessionActive(false); clearSessionState();
+      setShowResultWizard(true); setResultWizardStep(1); setIsSessionActive(false); clearSessionState();
       toast.success("Attempt submitted successfully");
     } catch (error: any) {
       toast.error(error.message || "Unable to save attempt");
@@ -789,7 +771,7 @@ export default function StudentJambPage() {
               </div>
 
               {/* Question card */}
-              <div id={QUESTION_CARD_ID} className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+              <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
                 {/* Card header */}
                 <div className="flex items-center justify-between gap-4 border-b bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4">
                   <div>
@@ -842,13 +824,15 @@ export default function StudentJambPage() {
                           key={`${activeQuestion.id}-${idx}`}
                           type="button"
                           onClick={() => recordAnswer(activeQuestion.id, option)}
-                          className={`group w-full flex items-start gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-150 ${selected
+                          className={`group w-full flex items-start gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-150 ${
+                            selected
                               ? "border-blue-500 bg-blue-50 shadow-sm"
                               : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30"
-                            }`}
+                          }`}
                         >
-                          <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${selected ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700"
-                            }`}>
+                          <span className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                            selected ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700"
+                          }`}>
                             {OPTION_LABELS[idx]}
                           </span>
                           <span className="flex-1 text-base text-gray-800">
@@ -930,14 +914,15 @@ export default function StudentJambPage() {
                             onClick={() => loadQuestions(pn, 0)}
                             disabled={loadingQuestions}
                             title={`Page ${pn}: Q${(pn - 1) * QUESTIONS_PER_PAGE + 1}–${Math.min(pn * QUESTIONS_PER_PAGE, totalQuestions)}`}
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold transition-colors ${current
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold transition-colors ${
+                              current
                                 ? "bg-blue-600 text-white"
                                 : complete
-                                  ? "bg-emerald-500 text-white"
-                                  : partial
-                                    ? "bg-amber-200 text-amber-900"
-                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                              }`}
+                                ? "bg-emerald-500 text-white"
+                                : partial
+                                ? "bg-amber-200 text-amber-900"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
                           >
                             {pn}
                           </button>
@@ -961,12 +946,13 @@ export default function StudentJambPage() {
                             key={q.id}
                             onClick={() => setActiveQuestionIndex(idx)}
                             title={`Q${gNum}${answered ? " (answered)" : ""}`}
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold border-2 transition-all ${active
+                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold border-2 transition-all ${
+                              active
                                 ? "border-blue-500 bg-blue-50 text-blue-700"
                                 : answered
-                                  ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
-                              }`}
+                                ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                                : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                            }`}
                           >
                             {gNum}
                           </button>
@@ -1032,12 +1018,13 @@ export default function StudentJambPage() {
                       <button
                         key={gNum}
                         onClick={() => { goToQuestion(pn, qi); setShowQuestionGrid(false); }}
-                        className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-semibold border-2 transition-all ${isActive
+                        className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-semibold border-2 transition-all ${
+                          isActive
                             ? "border-blue-500 bg-blue-100 text-blue-700"
                             : answered
-                              ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                          }`}
+                            ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
                       >
                         {gNum}
                       </button>
@@ -1091,6 +1078,33 @@ export default function StudentJambPage() {
                 <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{ width: `${progressPercent}%` }} />
               </div>
             </div>
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-3">Page-by-page breakdown</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pn) => {
+                  const complete = isPageComplete(pn);
+                  const pageAnswered = getPageAnsweredCount(pn);
+                  const isCurrent = pn === questionPage;
+                  return (
+                    <div key={pn} className={`flex items-center justify-between rounded-lg border p-3 ${complete ? "border-emerald-200 bg-emerald-50" : pageAnswered > 0 ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50"}`}>
+                      <div className="flex items-center gap-3">
+                        {complete ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> : pageAnswered > 0 ? <HelpCircle className="h-4 w-4 text-amber-600 shrink-0" /> : <XCircle className="h-4 w-4 text-slate-400 shrink-0" />}
+                        <span className="text-sm font-medium text-gray-800">
+                          Page {pn} <span className="text-xs font-normal text-gray-500">(Q{(pn - 1) * QUESTIONS_PER_PAGE + 1}–{Math.min(pn * QUESTIONS_PER_PAGE, totalQuestions)})</span>
+                          {isCurrent && <span className="ml-2 text-xs text-blue-600 font-normal">(current)</span>}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-200">
+                          <div className={`h-full rounded-full ${complete ? "bg-emerald-500" : "bg-amber-400"}`} style={{ width: `${(pageAnswered / QUESTIONS_PER_PAGE) * 100}%` }} />
+                        </div>
+                        <span className={`text-sm font-semibold ${complete ? "text-emerald-700" : pageAnswered > 0 ? "text-amber-700" : "text-slate-500"}`}>{pageAnswered}/{QUESTIONS_PER_PAGE}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
             {totalAnsweredCount < totalQuestions ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
@@ -1106,6 +1120,7 @@ export default function StudentJambPage() {
                 </p>
               </div>
             )}
+            <p className="text-xs text-slate-500">The final page may contain fewer than {QUESTIONS_PER_PAGE} questions.</p>
           </div>
           <div className="flex gap-3 justify-end border-t pt-4">
             <Button variant="outline" onClick={() => setShowPreSubmitReview(false)}>Go Back & Review</Button>
@@ -1121,10 +1136,43 @@ export default function StudentJambPage() {
       <Dialog open={showResultWizard} onOpenChange={setShowResultWizard}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Your Results</DialogTitle>
-            <DialogDescription>Your score and missed questions</DialogDescription>
+            <DialogTitle>{resultWizardStep === 1 ? "Practice Session Summary" : "Your Results"}</DialogTitle>
+            <DialogDescription>
+              {resultWizardStep === 1 ? "Review your answers before viewing your score" : "Your score and missed questions"}
+            </DialogDescription>
           </DialogHeader>
-          {attemptResult && (
+
+          {resultWizardStep === 1 && attemptResult && (
+            <div className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-3">
+                {[
+                  { label: "Total Questions", value: attemptResult.totalQuestions, color: "blue" },
+                  { label: "Answered", value: attemptResult.answeredCount || 0, color: "emerald" },
+                  { label: "Unanswered", value: (attemptResult.totalQuestions || 0) - (attemptResult.answeredCount || 0), color: "amber" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className={`rounded-xl border bg-${color}-50 p-4 text-center`}>
+                    <p className={`text-xs font-medium text-${color}-700 uppercase tracking-wide`}>{label}</p>
+                    <p className={`mt-1 text-3xl font-bold text-${color}-800`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
+                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
+                    style={{ width: `${((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100}%` }} />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">{Math.round(((attemptResult.answeredCount || 0) / (attemptResult.totalQuestions || 1)) * 100)}% complete</p>
+              </div>
+              <div className="flex gap-3 justify-end border-t pt-4">
+                <Button variant="outline" onClick={() => setShowResultWizard(false)}>Close</Button>
+                <Button onClick={() => setResultWizardStep(2)} className="gap-2">
+                  <Trophy className="h-4 w-4" /> View Score
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {resultWizardStep === 2 && attemptResult && (
             <div className="space-y-6">
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
                 <p className="text-sm font-medium text-emerald-700">Your Score</p>
@@ -1172,7 +1220,7 @@ export default function StudentJambPage() {
                         {item.questionText && <div className="text-sm text-gray-700"><MathText content={item.questionText} /></div>}
                         <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm">
                           <p className="text-red-700 font-medium text-xs mb-0.5">Your answer</p>
-                          <p className="text-red-900"><MathText content={item.userAnswer} /></p>
+                          <p className="text-red-900">{item.userAnswer}</p>
                         </div>
                         <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm">
                           <p className="text-emerald-700 font-medium text-xs mb-0.5">Correct answer</p>
@@ -1190,7 +1238,9 @@ export default function StudentJambPage() {
                 </div>
               )}
               <div className="flex gap-3 justify-end border-t pt-4">
-                <Button variant="outline" onClick={() => setShowResultWizard(false)}>Close</Button>
+                <Button variant="outline" onClick={() => setResultWizardStep(1)} className="gap-1">
+                  <ChevronLeft className="h-4 w-4" /> Back
+                </Button>
                 <Button asChild><Link href="/student">Back to dashboard</Link></Button>
               </div>
             </div>

@@ -11,6 +11,12 @@ import {
   calculateImageQuality,
   SCAN_RESOLUTIONS,
 } from "@/lib/qr-processing";
+import {
+  addAttendanceQueueItem,
+  getAttendanceQueueItems,
+  removeAttendanceQueueItem,
+  updateAttendanceQueueItem,
+} from "@/lib/attendance-queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -127,6 +133,21 @@ export default function QRScannerPage() {
       }
     };
   }, [isCameraActive, studentsByUuid, studentsByStudentCode, teachersById, teachersByStaffId]);
+
+  useEffect(() => {
+    if (!schoolId) return;
+
+    const handleOnline = () => {
+      flushAttendanceQueue();
+    };
+
+    window.addEventListener("online", handleOnline);
+    if (navigator.onLine) {
+      flushAttendanceQueue();
+    }
+
+    return () => window.removeEventListener("online", handleOnline);
+  }, [schoolId]);
 
   async function fetchStudents() {
     if (!schoolId) return;
@@ -285,6 +306,155 @@ export default function QRScannerPage() {
     if (value >= 50) return "Good";
     if (value >= 30) return "Fair";
     return "Low";
+  }
+
+  function createQueueId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  async function enqueueAttendance(kind: "student" | "teacher", payload: Record<string, unknown>) {
+    const item = {
+      id: createQueueId(),
+      kind,
+      payload,
+      createdAt: Date.now(),
+      retryCount: 0,
+    };
+    await addAttendanceQueueItem(item);
+  }
+
+  async function persistStudentAttendance(
+    record: {
+      school_id: string | null;
+      student_id: string;
+      class_id: string;
+      date: string;
+      status: string;
+      marked_by: string | null;
+    },
+    allowQueue = true
+  ) {
+    try {
+      const { data: existingRecord, error: existingError } = await supabase
+        .from("attendance")
+        .select("id")
+        .eq("school_id", record.school_id)
+        .eq("student_id", record.student_id)
+        .eq("date", record.date)
+        .single();
+
+      if (existingError && existingError.code !== "PGRST116") {
+        throw existingError;
+      }
+
+      if (!existingRecord) {
+        const { error } = await supabase.from("attendance").insert([record]);
+        if (error) throw error;
+      }
+
+      return true;
+    } catch (error) {
+      if (allowQueue) {
+        await enqueueAttendance("student", record);
+      }
+      return false;
+    }
+  }
+
+  async function persistTeacherAttendance(
+    record: {
+      school_id: string | null;
+      teacher_id: string;
+      date: string;
+      status: string;
+      marked_by: string | null;
+      notes: string;
+    },
+    allowQueue = true
+  ) {
+    try {
+      const { data: existingRecord, error: existingError } = await supabase
+        .from("teacher_attendance")
+        .select("id")
+        .eq("school_id", record.school_id)
+        .eq("teacher_id", record.teacher_id)
+        .eq("date", record.date)
+        .single();
+
+      if (existingError && existingError.code !== "PGRST116") {
+        throw existingError;
+      }
+
+      if (!existingRecord) {
+        const { error } = await supabase
+          .from("teacher_attendance")
+          .insert([record]);
+        if (error) throw error;
+      }
+
+      return true;
+    } catch (error) {
+      if (allowQueue) {
+        await enqueueAttendance("teacher", record);
+      }
+      return false;
+    }
+  }
+
+  async function flushAttendanceQueue() {
+    try {
+      if (!navigator.onLine) return;
+      const items = await getAttendanceQueueItems();
+      if (items.length === 0) return;
+
+      for (const item of items) {
+        const payloadSchoolId = (item.payload as { school_id?: string | null }).school_id;
+        if (schoolId && payloadSchoolId && payloadSchoolId !== schoolId) {
+          continue;
+        }
+
+        let saved = false;
+        if (item.kind === "student") {
+          saved = await persistStudentAttendance(
+            item.payload as {
+              school_id: string | null;
+              student_id: string;
+              class_id: string;
+              date: string;
+              status: string;
+              marked_by: string | null;
+            },
+            false
+          );
+        } else {
+          saved = await persistTeacherAttendance(
+            item.payload as {
+              school_id: string | null;
+              teacher_id: string;
+              date: string;
+              status: string;
+              marked_by: string | null;
+              notes: string;
+            },
+            false
+          );
+        }
+
+        if (saved) {
+          await removeAttendanceQueueItem(item.id);
+        } else {
+          await updateAttendanceQueueItem({
+            ...item,
+            retryCount: item.retryCount + 1,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to flush attendance queue:", error);
+    }
   }
 
   function scanQRCode() {
@@ -559,25 +729,10 @@ export default function QRScannerPage() {
           status: selectedStatus,
           marked_by: null,
         };
-
-        const { data: existingRecord } = await supabase
-          .from("attendance")
-          .select("id")
-          .eq("school_id", schoolId)
-          .eq("student_id", student.id)
-          .eq("date", selectedDate)
-          .single();
-
-        if (!existingRecord) {
-          const { error } = await supabase
-            .from("attendance")
-            .insert([attendanceRecord]);
-
-          if (error) {
-            console.error("Failed to save student attendance:", error);
-            toast.error(`Could not save attendance for ${student.first_name}`);
-            return;
-          }
+        const saved = await persistStudentAttendance(attendanceRecord);
+        if (!saved) {
+          toast.info("Saved offline. Will sync when online.");
+          return;
         }
 
         console.log(`✅ Student attendance saved: ${student.first_name} ${student.last_name}`);
@@ -655,25 +810,10 @@ export default function QRScannerPage() {
           marked_by: null,
           notes: "",
         };
-
-        const { data: existingRecord } = await supabase
-          .from("teacher_attendance")
-          .select("id")
-          .eq("school_id", schoolId)
-          .eq("teacher_id", teacher.id)
-          .eq("date", selectedDate)
-          .single();
-
-        if (!existingRecord) {
-          const { error } = await supabase
-            .from("teacher_attendance")
-            .insert([attendanceRecord]);
-
-          if (error) {
-            console.error("Failed to save teacher attendance:", error);
-            toast.error(`Could not save attendance for ${teacher.first_name}`);
-            return;
-          }
+        const saved = await persistTeacherAttendance(attendanceRecord);
+        if (!saved) {
+          toast.info("Saved offline. Will sync when online.");
+          return;
         }
 
         console.log(`✅ Teacher attendance saved: ${teacher.first_name} ${teacher.last_name}`);

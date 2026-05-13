@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Camera, X, Check, AlertCircle, Clock, Users } from "lucide-react";
+import { Camera, X, Check, AlertCircle, Clock, Users, HelpCircle, Zap } from "lucide-react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 
 interface Student {
@@ -67,7 +67,7 @@ export default function QRScannerPage() {
   const presentTeacherIdsRef = useRef<Set<string>>(new Set());
   const lastScanAtRef = useRef<Map<string, number>>(new Map());
   const scanCooldownMs = 1200;
-  const scanThrottleMs = 80;
+  const scanThrottleMs = 50;
   const lastFrameScanRef = useRef(0);
   const failedDecodeAttemptsRef = useRef<Map<string, number>>(new Map());
 
@@ -86,6 +86,9 @@ export default function QRScannerPage() {
   const [presentTeacherIds, setPresentTeacherIds] = useState<Set<string>>(new Set());
   const [recentScans, setRecentScans] = useState<ScanResult[]>([]);
   const [scanQuality, setScanQuality] = useState(0);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
+  const [isTorchSupported, setIsTorchSupported] = useState(false);
 
   // Fetch students and teachers for the whole school on mount
   useEffect(() => {
@@ -216,6 +219,10 @@ export default function QRScannerPage() {
           console.error("Error playing video:", error);
         });
       }
+
+      const [track] = stream.getVideoTracks();
+      const caps = track?.getCapabilities?.();
+      setIsTorchSupported(Boolean(caps && "torch" in caps && caps.torch));
     } catch (error) {
       toast.error("Failed to access camera");
       setIsCameraActive(false);
@@ -234,6 +241,50 @@ export default function QRScannerPage() {
     }
 
     canvasCtxRef.current = null;
+    setIsTorchOn(false);
+    setIsTorchSupported(false);
+  }
+
+  async function toggleTorch() {
+    if (!streamRef.current) return;
+    const [track] = streamRef.current.getVideoTracks();
+    const caps = track?.getCapabilities?.();
+    if (!caps || !(caps as any).torch) {
+      setIsTorchSupported(false);
+      return;
+    }
+
+    try {
+      const next = !isTorchOn;
+      await track.applyConstraints({ advanced: [{ torch: next }] } as unknown as MediaTrackConstraints);
+      setIsTorchOn(next);
+    } catch (error) {
+      console.error("Torch toggle failed:", error);
+      toast.error("Torch not available on this device");
+    }
+  }
+
+  function getScanCanvas(width: number, height: number) {
+    const existing = multiCanvasRefsRef.current.get(width);
+    if (existing && existing.height === height) return existing;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    multiCanvasRefsRef.current.set(width, canvas);
+    return canvas;
+  }
+
+  function vibrate(pattern: number | number[]) {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      navigator.vibrate(pattern);
+    }
+  }
+
+  function getScanQualityLabel(value: number) {
+    if (value >= 75) return "Great";
+    if (value >= 50) return "Good";
+    if (value >= 30) return "Fair";
+    return "Low";
   }
 
   function scanQRCode() {
@@ -285,37 +336,10 @@ export default function QRScannerPage() {
         return;
       }
 
-      // Attempt 2: Try alternative resolutions if primary fails
-      
-      // Only retry with enhancement if quality is borderline (not completely dark/bright)
-      if (imageQuality > 15 && imageQuality < 85) {
-        // Try enhanced brightness version
-        const brightenedData = enhanceBrightness(primaryImageData, 1.4);
+      // Attempt 2: Enhancement pass based on quality
+      if (imageQuality < 35) {
+        const brightenedData = enhanceBrightness(primaryImageData, 1.6);
         code = jsQR(brightenedData.data, brightenedData.width, brightenedData.height, {
-          inversionAttempts: "attemptBoth",
-        });
-
-        if (code) {
-          handleScannedCode(code.data);
-          failedDecodeAttemptsRef.current.clear();
-          return;
-        }
-
-        // Try enhanced contrast version
-        const contrastedData = enhanceContrast(primaryImageData, 1.3);
-        code = jsQR(contrastedData.data, contrastedData.width, contrastedData.height, {
-          inversionAttempts: "attemptBoth",
-        });
-
-        if (code) {
-          handleScannedCode(code.data);
-          failedDecodeAttemptsRef.current.clear();
-          return;
-        }
-
-        // Try combined enhancement
-        const combinedData = enhanceContrast(enhanceBrightness(primaryImageData, 1.3), 1.2);
-        code = jsQR(combinedData.data, combinedData.width, combinedData.height, {
           inversionAttempts: "attemptBoth",
         });
 
@@ -326,11 +350,33 @@ export default function QRScannerPage() {
         }
       }
 
+      if (imageQuality >= 35 && imageQuality <= 80) {
+        const contrastedData = enhanceContrast(primaryImageData, 1.35);
+        code = jsQR(contrastedData.data, contrastedData.width, contrastedData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+
+        if (code) {
+          handleScannedCode(code.data);
+          failedDecodeAttemptsRef.current.clear();
+          return;
+        }
+      }
+
+      const combinedData = enhanceContrast(enhanceBrightness(primaryImageData, 1.25), 1.2);
+      code = jsQR(combinedData.data, combinedData.width, combinedData.height, {
+        inversionAttempts: "attemptBoth",
+      });
+
+      if (code) {
+        handleScannedCode(code.data);
+        failedDecodeAttemptsRef.current.clear();
+        return;
+      }
+
       // Attempt 3: Try alternative resolutions (secondary and fallback)
       for (const resolution of SCAN_RESOLUTIONS.slice(1)) {
-        const altCanvas = document.createElement("canvas");
-        altCanvas.width = resolution.width;
-        altCanvas.height = resolution.height;
+        const altCanvas = getScanCanvas(resolution.width, resolution.height);
         const altCtx = altCanvas.getContext("2d", { willReadFrequently: true });
         if (!altCtx) continue;
 
@@ -417,6 +463,7 @@ export default function QRScannerPage() {
       };
       setRecentScans((prev) => [wrongSchoolScan, ...prev].slice(0, 10));
       toast.error("This ID card belongs to a different school");
+      vibrate([80, 60, 80]);
       return;
     }
 
@@ -447,6 +494,7 @@ export default function QRScannerPage() {
         };
         setRecentScans((prev) => [unknownScan, ...prev].slice(0, 10));
         toast.error("QR code not recognized");
+        vibrate([80, 60, 80]);
       }
     }
   }
@@ -476,6 +524,7 @@ export default function QRScannerPage() {
       };
       setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
       toast.error("Student not found");
+      vibrate([80, 60, 80]);
       return;
     }
 
@@ -496,6 +545,7 @@ export default function QRScannerPage() {
     };
     setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
     toast.success(`${student.first_name} ${student.last_name}`);
+    vibrate(35);
     playWelcome();
 
     // Save student attendance to database
@@ -570,6 +620,7 @@ export default function QRScannerPage() {
       };
       setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
       toast.error("Teacher not found");
+      vibrate([80, 60, 80]);
       return;
     }
 
@@ -590,6 +641,7 @@ export default function QRScannerPage() {
     };
     setRecentScans((prev) => [scanResult, ...prev].slice(0, 10));
     toast.success(`${teacher.first_name} ${teacher.last_name}`);
+    vibrate(35);
     playWelcome();
 
     // Save teacher attendance to database
@@ -1057,10 +1109,35 @@ export default function QRScannerPage() {
             {/* Camera Feed */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Camera className="w-5 h-5" />
-                  Scanner Feed
-                </CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Camera className="w-5 h-5" />
+                    Scanner Feed
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={isTorchOn ? "default" : "outline"}
+                      onClick={toggleTorch}
+                      disabled={!isCameraActive || !isTorchSupported}
+                      className="h-8"
+                    >
+                      <Zap className="w-4 h-4 mr-1" />
+                      {isTorchOn ? "Torch On" : "Torch"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsHelpOpen((prev) => !prev)}
+                      className="h-8"
+                    >
+                      <HelpCircle className="w-4 h-4 mr-1" />
+                      Help
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="relative bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
@@ -1075,7 +1152,7 @@ export default function QRScannerPage() {
                     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center">
                       <Camera className="w-12 h-12 text-gray-400 mb-4" />
                       <p className="text-gray-300 text-center">
-                        Click "Start Scanner" to begin
+                        Click &quot;Start Scanner&quot; to begin
                       </p>
                     </div>
                   )}
@@ -1085,6 +1162,52 @@ export default function QRScannerPage() {
                       <div className="absolute top-4 left-4 right-4 h-1 bg-green-500 animate-pulse" />
                     </div>
                   )}
+
+                  {isHelpOpen && (
+                    <div className="absolute inset-0 bg-black/70 text-white p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">Scanning tips</p>
+                          <ul className="text-sm text-white/80 mt-2 space-y-1">
+                            <li>Hold the ID card steady and centered.</li>
+                            <li>Avoid glare; tilt the card slightly if needed.</li>
+                            <li>Use good lighting or enable the torch.</li>
+                            <li>Keep the QR within the green frame.</li>
+                          </ul>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setIsHelpOpen(false)}
+                          className="text-white hover:bg-white/10"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>Scan quality</span>
+                    <span className="font-medium text-gray-700">{getScanQualityLabel(scanQuality)}</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(Math.max(scanQuality, 0), 100)}%`,
+                        background:
+                          scanQuality >= 75
+                            ? "#16a34a"
+                            : scanQuality >= 50
+                            ? "#f59e0b"
+                            : "#ef4444",
+                      }}
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

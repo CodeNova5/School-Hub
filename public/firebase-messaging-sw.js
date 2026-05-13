@@ -8,6 +8,16 @@ importScripts(
     "https://www.gstatic.com/firebasejs/10.5.0/firebase-messaging-compat.js"
 );
 
+const CACHE_NAME = "school-hub-pwa-v1";
+const APP_SHELL = [
+    "/",
+    "/admin/attendance/qr-scanner",
+    "/manifest.json",
+    "/logo.png",
+    "/logo-192.png",
+    "/icon-192.png"
+];
+
 // Initialize Firebase in the service worker
 const firebaseConfig = {
     apiKey: "AIzaSyBi3udeo5_oURwg7hizNNQBN7tcZkkIP4s",
@@ -22,6 +32,60 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 
 const messaging = firebase.messaging();
+
+self.addEventListener("install", (event) => {
+    event.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    );
+    self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+    event.waitUntil(
+        caches.keys().then((keys) =>
+            Promise.all(
+                keys.map((key) => (key !== CACHE_NAME ? caches.delete(key) : null))
+            )
+        )
+    );
+    self.clients.claim();
+});
+
+self.addEventListener("fetch", (event) => {
+    const { request } = event;
+    if (request.method !== "GET") return;
+
+    const url = new URL(request.url);
+    if (url.origin !== self.location.origin) return;
+    if (url.pathname.startsWith("/api")) return;
+
+    if (request.mode === "navigate") {
+        event.respondWith(
+            fetch(request)
+                .then((response) => {
+                    const copy = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+                    return response;
+                })
+                .catch(() => caches.match(request).then((res) => res || caches.match("/")))
+        );
+        return;
+    }
+
+    event.respondWith(
+        caches.match(request).then((cached) => {
+            const fetched = fetch(request)
+                .then((response) => {
+                    const copy = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+                    return response;
+                })
+                .catch(() => cached);
+
+            return cached || fetched;
+        })
+    );
+});
 
 messaging.onBackgroundMessage((payload) => {
     console.log("Received background message:", payload);

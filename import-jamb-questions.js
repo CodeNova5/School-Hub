@@ -839,9 +839,9 @@ async function main() {
     detail: true,
     pageDelayMs: 250,
     bucket: DEFAULT_BUCKET,
-    subject: 'physics',
+    subject: 'mathematics',
     subjectName: '',
-    year: '2019'
+    year: '1978-2025'
   };
 
   try {

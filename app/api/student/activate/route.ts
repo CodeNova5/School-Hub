@@ -130,10 +130,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5️⃣ Mark student as activated
+    // 5️⃣ Mark student as activated and persist the auth user link
     await supabase
       .from("students")
       .update({
+        user_id: user.id,
         activation_used: true,
         is_active: true,
         status: "active",

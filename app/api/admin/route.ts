@@ -53,16 +53,30 @@ export async function POST(req: NextRequest) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
 
-      // First, get the student to find their user_id if not provided
-      let userIdToDelete = userId;
-      if (!userIdToDelete) {
-        const { data: studentData } = await supabaseAdmin
-          .from("students")
-          .select("user_id")
-          .eq("id", studentId)
-          .single();
+      // First, get the student so we can resolve the auth user safely.
+      const { data: studentData, error: studentLookupError } = await supabaseAdmin
+        .from("students")
+        .select("user_id, email, parent_email, student_id")
+        .eq("id", studentId)
+        .single();
 
-        userIdToDelete = studentData?.user_id;
+      if (studentLookupError || !studentData) {
+        return NextResponse.json(
+          { error: "Student not found" },
+          { status: 404 }
+        );
+      }
+
+      const userIdToDelete = userId || studentData.user_id;
+
+      if (!userIdToDelete) {
+        return NextResponse.json(
+          {
+            error:
+              "Student auth link is missing. Backfill students.user_id for this record before deleting it.",
+          },
+          { status: 409 }
+        );
       }
 
       // 1. Delete attendance records
@@ -110,11 +124,17 @@ export async function POST(req: NextRequest) {
           const { error: deleteUserError } = await supabaseAdmin.auth.admin.deleteUser(userIdToDelete);
           if (deleteUserError) {
             console.error("Error deleting auth user:", deleteUserError);
-            // Continue anyway
+            return NextResponse.json(
+              { error: `Failed to delete linked auth account: ${deleteUserError.message}` },
+              { status: 500 }
+            );
           }
         } catch (authError: any) {
           console.error("Error deleting auth user:", authError);
-          // Continue anyway
+          return NextResponse.json(
+            { error: `Failed to delete linked auth account: ${authError.message || "Unknown error"}` },
+            { status: 500 }
+          );
         }
       }
 

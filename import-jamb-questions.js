@@ -839,7 +839,7 @@ async function main() {
     detail: true,
     pageDelayMs: 250,
     bucket: DEFAULT_BUCKET,
-    subject: 'mathematics',
+    subject: 'biology',
     subjectName: '',
     year: '1978-2025'
   };

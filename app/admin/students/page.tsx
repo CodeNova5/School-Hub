@@ -11,7 +11,7 @@ import { Student, Session, Term, Class, Department } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
 import { EditStudentModal } from '@/components/edit-student-modal';
-import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon, Plus, ArrowRightLeft, AlertTriangle } from 'lucide-react';
+import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon, Plus, ArrowRightLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
 import {
@@ -24,6 +24,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { StudentsSkeleton } from '@/components/skeletons';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 
 export default function AdminStudentsPage() {
   const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
@@ -45,6 +46,12 @@ export default function AdminStudentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [createStep, setCreateStep] = useState(0);
+  const [emailVerificationStatus, setEmailVerificationStatus] = useState<'idle' | 'sending' | 'sent' | 'verified'>('idle');
+  const [emailVerificationCode, setEmailVerificationCode] = useState('');
+  const [isSendingCode, setIsSendingCode] = useState(false);
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [resendCountdown, setResendCountdown] = useState(0);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
@@ -52,8 +59,7 @@ export default function AdminStudentsPage() {
   const [filterGender, setFilterGender] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Form fields for creating student
-  const [formData, setFormData] = useState({
+  const getDefaultFormData = () => ({
     first_name: '',
     last_name: '',
     email: '',
@@ -71,6 +77,9 @@ export default function AdminStudentsPage() {
     image_url: '',
   });
 
+  // Form fields for creating student
+  const [formData, setFormData] = useState(getDefaultFormData);
+
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -79,6 +88,15 @@ export default function AdminStudentsPage() {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
 
   const router = useRouter();
+
+  const createSteps = [
+    { title: 'Verify Email', description: 'Confirm student email' },
+    { title: 'Student Info', description: 'Basic details' },
+    { title: 'Academic', description: 'Class and department' },
+    { title: 'Parent/Guardian', description: 'Contact details' },
+    { title: 'Photo', description: 'Optional upload' },
+    { title: 'Review', description: 'Confirm and create' },
+  ];
 
   const handleNextStudent = useCallback(() => {
     if (!selectedStudent) return;
@@ -102,6 +120,14 @@ export default function AdminStudentsPage() {
       setIsCameraOpen(false);
     }
   }, [isCreateDialogOpen, cameraStream]);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setResendCountdown((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendCountdown]);
 
   useEffect(() => {
     if (schoolId) {
@@ -392,6 +418,106 @@ export default function AdminStudentsPage() {
     setFormData(prev => ({ ...prev, image_url: '' }));
   }
 
+  function resetCreateWizard() {
+    setCreateStep(0);
+    setEmailVerificationStatus('idle');
+    setEmailVerificationCode('');
+    setResendCountdown(0);
+    setIsSendingCode(false);
+    setIsVerifyingCode(false);
+    closeCameraAndClear();
+    setFormData(getDefaultFormData());
+  }
+
+  function handleCreateDialogChange(open: boolean) {
+    setIsCreateDialogOpen(open);
+    if (!open) {
+      resetCreateWizard();
+    }
+  }
+
+  function handleStudentEmailChange(value: string) {
+    setFormData(prev => ({ ...prev, email: value }));
+    setEmailVerificationStatus('idle');
+    setEmailVerificationCode('');
+    setResendCountdown(0);
+  }
+
+  async function handleSendVerificationCode() {
+    const email = formData.email.trim();
+    if (!email) {
+      toast.error('Enter the student email to send a verification code');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Enter a valid student email address');
+      return;
+    }
+
+    setIsSendingCode(true);
+    setEmailVerificationStatus('sending');
+    try {
+      const response = await fetch('/api/admin/student-email-verification/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || 'Failed to send verification code');
+        setEmailVerificationStatus('idle');
+        return;
+      }
+
+      setEmailVerificationStatus('sent');
+      setResendCountdown(30);
+      toast.success('Verification code sent to the student email');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to send verification code');
+      setEmailVerificationStatus('idle');
+    } finally {
+      setIsSendingCode(false);
+    }
+  }
+
+  async function handleVerifyEmailCode() {
+    const email = formData.email.trim();
+    if (!email) {
+      toast.error('Enter the student email to verify');
+      return;
+    }
+    if (emailVerificationCode.trim().length !== 6) {
+      toast.error('Enter the 6-digit verification code');
+      return;
+    }
+
+    setIsVerifyingCode(true);
+    try {
+      const response = await fetch('/api/admin/student-email-verification/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: emailVerificationCode.trim() }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || 'Verification failed');
+        return;
+      }
+
+      setEmailVerificationStatus('verified');
+      toast.success('Student email verified');
+    } catch (error: any) {
+      toast.error(error.message || 'Verification failed');
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  }
+
   function handleEditStudent(student: Student) {
     setSelectedStudent(student);
     setIsEditStudentOpen(true);
@@ -514,6 +640,35 @@ export default function AdminStudentsPage() {
     setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
   }
 
+  function canProceedFromStep(step: number) {
+    const hasStudentEmail = formData.email.trim().length > 0;
+
+    switch (step) {
+      case 0:
+        return !hasStudentEmail || emailVerificationStatus === 'verified';
+      case 1:
+        return formData.first_name.trim().length > 0 && formData.last_name.trim().length > 0;
+      case 2:
+        return formData.admission_date.trim().length > 0;
+      case 3:
+        return formData.parent_name.trim().length > 0 && formData.parent_email.trim().length > 0;
+      default:
+        return true;
+    }
+  }
+
+  function handleNextStep() {
+    if (!canProceedFromStep(createStep)) {
+      toast.error('Please complete the required fields before continuing');
+      return;
+    }
+    setCreateStep((prev) => Math.min(prev + 1, createSteps.length - 1));
+  }
+
+  function handlePreviousStep() {
+    setCreateStep((prev) => Math.max(prev - 1, 0));
+  }
+
   async function handleCreateStudent(e: React.FormEvent) {
     e.preventDefault();
     setIsCreating(true);
@@ -521,6 +676,12 @@ export default function AdminStudentsPage() {
     // Validation
     if (!formData.first_name.trim() || !formData.last_name.trim()) {
       toast.error('First name and last name are required');
+      setIsCreating(false);
+      return;
+    }
+
+    if (formData.email.trim() && emailVerificationStatus !== 'verified') {
+      toast.error('Verify the student email before creating the account');
       setIsCreating(false);
       return;
     }
@@ -561,28 +722,7 @@ export default function AdminStudentsPage() {
         setStudents([...students, result.student]);
       }
 
-      // Reset form
-      setFormData({
-        first_name: '',
-        last_name: '',
-        email: '',
-        phone: '',
-        date_of_birth: '',
-        gender: '',
-        address: '',
-        class_id: '',
-        department_id: '',
-        religion_id: '',
-        parent_name: '',
-        parent_email: '',
-        parent_phone: '',
-        admission_date: new Date().toISOString().split('T')[0],
-        image_url: '',
-      });
-
-      setImagePreview(null);
-      closeCameraAndClear();
-
+      resetCreateWizard();
       setIsCreateDialogOpen(false);
     } catch (error: any) {
       toast.error(error.message || 'Failed to create student');
@@ -653,7 +793,7 @@ export default function AdminStudentsPage() {
             <p className="text-gray-600 mt-1">Manage all students in the system</p>
           </div>
           <div className="flex gap-2">
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <Dialog open={isCreateDialogOpen} onOpenChange={handleCreateDialogChange}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
@@ -664,286 +804,424 @@ export default function AdminStudentsPage() {
                 <DialogHeader>
                   <DialogTitle>Create New Student</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleCreateStudent} className="space-y-4">
-                  {/* Basic Information */}
-                  <div className="border-b pb-4">
-                    <h3 className="font-semibold mb-3">Basic Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                <form onSubmit={handleCreateStudent} className="space-y-5">
+                  <div className="rounded-lg border bg-slate-50 p-4">
+                    <div className="flex items-start justify-between gap-4">
                       <div>
-                        <Label htmlFor="email">Email</Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          placeholder="student@example.com"
-                        />
+                        <p className="text-sm font-semibold text-slate-900">
+                          Step {createStep + 1} of {createSteps.length}
+                        </p>
+                        <p className="text-xs text-slate-500">{createSteps[createStep].description}</p>
                       </div>
-                      <div>
-                        <Label htmlFor="first_name">First Name *</Label>
-                        <Input
-                          id="first_name"
-                          value={formData.first_name}
-                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                          placeholder="John"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="last_name">Last Name *</Label>
-                        <Input
-                          id="last_name"
-                          value={formData.last_name}
-                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                          placeholder="Doe"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="phone">Phone</Label>
-                        <Input
-                          id="phone"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          placeholder="+234..."
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="date_of_birth">Date of Birth</Label>
-                        <Input
-                          id="date_of_birth"
-                          type="date"
-                          value={formData.date_of_birth}
-                          onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="gender">Gender</Label>
-                        <select
-                          id="gender"
-                          value={formData.gender}
-                          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md"
-                        >
-                          <option value="">Select gender</option>
-                          <option value="male">Male</option>
-                          <option value="female">Female</option>
-                          <option value="others">Others</option>
-                        </select>
-                      </div>
-                      <div>
-                        <Label htmlFor="address">Address</Label>
-                        <Input
-                          id="address"
-                          value={formData.address}
-                          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                          placeholder="Street address"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Class & Academic */}
-                  <div className="border-b pb-4">
-                    <h3 className="font-semibold mb-3">Academic Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="class_id">Class</Label>
-                        <select
-                          id="class_id"
-                          value={formData.class_id}
-                          onChange={(e) => setFormData({ ...formData, class_id: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md"
-                        >
-                          <option value="">Select class (optional)</option>
-                          {classes.map((cls) => (
-                            <option key={cls.id} value={cls.id}>
-                              {cls.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <Label htmlFor="department_id">Department</Label>
-                        <select
-                          id="department_id"
-                          value={formData.department_id}
-                          onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md"
-                        >
-                          <option value="">Select department</option>
-                          {departments.map((dept) => (
-                            <option key={dept.id} value={dept.id}>
-                              {dept.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <Label htmlFor="religion_id">Religion</Label>
-                        <select
-                          id="religion_id"
-                          value={formData.religion_id}
-                          onChange={(e) => setFormData({ ...formData, religion_id: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-md"
-                        >
-                          <option value="">Select religion (optional)</option>
-                          {religions.map((religion) => (
-                            <option key={religion.id} value={religion.id}>
-                              {religion.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <Label htmlFor="admission_date">Admission Date *</Label>
-                        <Input
-                          id="admission_date"
-                          type="date"
-                          value={formData.admission_date}
-                          onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Parent/Guardian Information */}
-                  <div className="pb-4">
-                    <h3 className="font-semibold mb-3">Parent/Guardian Information</h3>
-                    <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                      <p className="text-sm text-blue-900">
-                        <strong>📌 Important:</strong> If this student has siblings already registered,
-                        use the <strong>same parent email</strong> to link them to the existing parent account.
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="parent_name">Parent/Guardian Name *</Label>
-                        <Input
-                          id="parent_name"
-                          value={formData.parent_name}
-                          onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })}
-                          placeholder="Parent name"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="parent_email">Parent Email *</Label>
-                        <Input
-                          id="parent_email"
-                          type="email"
-                          value={formData.parent_email}
-                          onChange={(e) => setFormData({ ...formData, parent_email: e.target.value })}
-                          placeholder="parent@example.com"
-                          required
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <Label htmlFor="parent_phone">Parent Phone</Label>
-                        <Input
-                          id="parent_phone"
-                          value={formData.parent_phone}
-                          onChange={(e) => setFormData({ ...formData, parent_phone: e.target.value })}
-                          placeholder="+234..."
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Student Photo */}
-                  <div className="border-b pb-4">
-                    <h3 className="font-semibold mb-3">Student Photo</h3>
-                    <div className="flex flex-col gap-4">
-                      {/* Image Preview */}
-                      {imagePreview && (
-                        <div className="flex flex-col items-center gap-2">
-                          <img
-                            src={imagePreview}
-                            alt="Preview"
-                            className="w-32 h-32 rounded-lg object-cover border-2 border-gray-300"
-                          />
-                          <p className="text-sm text-green-600 font-medium">Image ready to upload</p>
+                      {emailVerificationStatus === 'verified' && createStep === 0 && (
+                        <div className="flex items-center gap-2 text-sm text-green-700">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Email verified
                         </div>
                       )}
-
-                      {/* Camera View */}
-                      {isCameraOpen ? (
-                        <div className="flex flex-col gap-3 items-center">
-                          <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            className="w-full rounded-lg bg-black max-w-sm"
-                            style={{ height: '300px' }}
+                    </div>
+                    <div className="mt-3 grid grid-cols-6 gap-2">
+                      {createSteps.map((step, index) => (
+                        <div key={step.title} className="flex flex-col gap-1">
+                          <div
+                            className={`h-1 rounded-full ${index <= createStep ? 'bg-blue-600' : 'bg-slate-200'}`}
                           />
-                          <canvas ref={canvasRef} style={{ display: 'none' }} />
-                          <div className="flex gap-2">
-                            <Button
-                              type="button"
-                              onClick={handleCameraCapture}
-                              disabled={uploadingImage}
-                            >
-                              {uploadingImage ? 'Uploading...' : 'Capture Photo'}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={closeCameraAndClear}
-                              disabled={uploadingImage}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
+                          <span
+                            className={`text-[11px] ${index === createStep ? 'text-slate-900 font-medium' : 'text-slate-500'}`}
+                          >
+                            {step.title}
+                          </span>
                         </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <div className="flex-1">
-                            <Input
-                              id="student_image"
-                              type="file"
-                              accept="image/*"
-                              onChange={handleImageFileSelect}
-                              disabled={uploadingImage}
-                              className="cursor-pointer"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">JPG, PNG, WebP (Max 5MB)</p>
-                          </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {createStep === 0 && (
+                    <div className="space-y-4">
+                      <div className="rounded-md border border-slate-200 bg-white p-4">
+                        <h3 className="text-sm font-semibold text-slate-900">Student Email Verification</h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          If the student has their own email, verify it with a 6-digit code before moving on. Leave it
+                          blank to use the parent email.
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <Label htmlFor="student_email">Student Email (optional)</Label>
+                          <Input
+                            id="student_email"
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => handleStudentEmailChange(e.target.value)}
+                            placeholder="student@example.com"
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button
                             type="button"
-                            variant="outline"
-                            onClick={handleCameraCapture}
-                            disabled={uploadingImage}
+                            onClick={handleSendVerificationCode}
+                            disabled={!formData.email.trim() || isSendingCode || resendCountdown > 0 || emailVerificationStatus === 'verified'}
                           >
-                            📷 Camera
+                            {emailVerificationStatus === 'verified'
+                              ? 'Email Verified'
+                              : isSendingCode
+                                ? 'Sending...'
+                                : resendCountdown > 0
+                                  ? `Resend in ${resendCountdown}s`
+                                  : 'Send Code'}
                           </Button>
                         </div>
-                      )}
-
-                      {uploadingImage && (
-                        <p className="text-sm text-blue-600">Uploading image to GitHub...</p>
-                      )}
-
-                      {formData.image_url && (
-                        <div className="text-sm text-green-600 flex items-center gap-2">
-                          ✓ Image uploaded successfully
+                      </div>
+                      {formData.email.trim() && emailVerificationStatus !== 'idle' && (
+                        <div className="rounded-md border border-slate-200 bg-white p-4 space-y-3">
+                          <div>
+                            <Label>Verification Code</Label>
+                            <div className="mt-2">
+                              <InputOTP maxLength={6} value={emailVerificationCode} onChange={setEmailVerificationCode}>
+                                <InputOTPGroup>
+                                  {Array.from({ length: 6 }).map((_, index) => (
+                                    <InputOTPSlot key={index} index={index} />
+                                  ))}
+                                </InputOTPGroup>
+                              </InputOTP>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              onClick={handleVerifyEmailCode}
+                              disabled={emailVerificationStatus === 'verified' || isVerifyingCode}
+                            >
+                              {isVerifyingCode ? 'Verifying...' : 'Verify Code'}
+                            </Button>
+                            <p className="text-xs text-slate-500 flex items-center">
+                              Check the student inbox for the 6-digit code.
+                            </p>
+                          </div>
                         </div>
                       )}
+                      {formData.email.trim() && emailVerificationStatus !== 'verified' && (
+                        <p className="text-xs text-slate-500">
+                          You can continue without a student email. The student will use the parent portal for now.
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  )}
 
-                  <div className="flex gap-2 justify-end pt-4 border-t">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsCreateDialogOpen(false)}
-                      disabled={isCreating}
-                    >
-                      Cancel
+                  {createStep === 1 && (
+                    <div className="space-y-4">
+                      <h3 className="font-semibold">Basic Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="first_name">First Name *</Label>
+                          <Input
+                            id="first_name"
+                            value={formData.first_name}
+                            onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                            placeholder="John"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="last_name">Last Name *</Label>
+                          <Input
+                            id="last_name"
+                            value={formData.last_name}
+                            onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                            placeholder="Doe"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="phone">Phone</Label>
+                          <Input
+                            id="phone"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            placeholder="+234..."
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="date_of_birth">Date of Birth</Label>
+                          <Input
+                            id="date_of_birth"
+                            type="date"
+                            value={formData.date_of_birth}
+                            onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="gender">Gender</Label>
+                          <select
+                            id="gender"
+                            value={formData.gender}
+                            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-md"
+                          >
+                            <option value="">Select gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                            <option value="others">Others</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label htmlFor="address">Address</Label>
+                          <Input
+                            id="address"
+                            value={formData.address}
+                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                            placeholder="Street address"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {createStep === 2 && (
+                    <div className="space-y-4">
+                      <h3 className="font-semibold">Academic Information</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="class_id">Class</Label>
+                          <select
+                            id="class_id"
+                            value={formData.class_id}
+                            onChange={(e) => setFormData({ ...formData, class_id: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-md"
+                          >
+                            <option value="">Select class (optional)</option>
+                            {classes.map((cls) => (
+                              <option key={cls.id} value={cls.id}>
+                                {cls.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <Label htmlFor="department_id">Department</Label>
+                          <select
+                            id="department_id"
+                            value={formData.department_id}
+                            onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-md"
+                          >
+                            <option value="">Select department</option>
+                            {departments.map((dept) => (
+                              <option key={dept.id} value={dept.id}>
+                                {dept.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <Label htmlFor="religion_id">Religion</Label>
+                          <select
+                            id="religion_id"
+                            value={formData.religion_id}
+                            onChange={(e) => setFormData({ ...formData, religion_id: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-md"
+                          >
+                            <option value="">Select religion (optional)</option>
+                            {religions.map((religion) => (
+                              <option key={religion.id} value={religion.id}>
+                                {religion.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <Label htmlFor="admission_date">Admission Date *</Label>
+                          <Input
+                            id="admission_date"
+                            type="date"
+                            value={formData.admission_date}
+                            onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })}
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {createStep === 3 && (
+                    <div className="space-y-4">
+                      <h3 className="font-semibold">Parent/Guardian Information</h3>
+                      <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                        <p className="text-sm text-blue-900">
+                          <strong>Important:</strong> If this student has siblings already registered, use the same parent
+                          email to link them to the existing parent account.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="parent_name">Parent/Guardian Name *</Label>
+                          <Input
+                            id="parent_name"
+                            value={formData.parent_name}
+                            onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })}
+                            placeholder="Parent name"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="parent_email">Parent Email *</Label>
+                          <Input
+                            id="parent_email"
+                            type="email"
+                            value={formData.parent_email}
+                            onChange={(e) => setFormData({ ...formData, parent_email: e.target.value })}
+                            placeholder="parent@example.com"
+                            required
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <Label htmlFor="parent_phone">Parent Phone</Label>
+                          <Input
+                            id="parent_phone"
+                            value={formData.parent_phone}
+                            onChange={(e) => setFormData({ ...formData, parent_phone: e.target.value })}
+                            placeholder="+234..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {createStep === 4 && (
+                    <div className="space-y-4">
+                      <h3 className="font-semibold">Student Photo</h3>
+                      <div className="flex flex-col gap-4">
+                        {imagePreview && (
+                          <div className="flex flex-col items-center gap-2">
+                            <img
+                              src={imagePreview}
+                              alt="Preview"
+                              className="w-32 h-32 rounded-lg object-cover border-2 border-gray-300"
+                            />
+                            <p className="text-sm text-green-600 font-medium">Image ready to upload</p>
+                          </div>
+                        )}
+
+                        {isCameraOpen ? (
+                          <div className="flex flex-col gap-3 items-center">
+                            <video
+                              ref={videoRef}
+                              autoPlay
+                              playsInline
+                              className="w-full rounded-lg bg-black max-w-sm"
+                              style={{ height: '300px' }}
+                            />
+                            <canvas ref={canvasRef} style={{ display: 'none' }} />
+                            <div className="flex gap-2">
+                              <Button type="button" onClick={handleCameraCapture} disabled={uploadingImage}>
+                                {uploadingImage ? 'Uploading...' : 'Capture Photo'}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={closeCameraAndClear}
+                                disabled={uploadingImage}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <Input
+                                id="student_image"
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageFileSelect}
+                                disabled={uploadingImage}
+                                className="cursor-pointer"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">JPG, PNG, WebP (Max 5MB)</p>
+                            </div>
+                            <Button type="button" variant="outline" onClick={handleCameraCapture} disabled={uploadingImage}>
+                              📷 Camera
+                            </Button>
+                          </div>
+                        )}
+
+                        {uploadingImage && (
+                          <p className="text-sm text-blue-600">Uploading image to GitHub...</p>
+                        )}
+
+                        {formData.image_url && (
+                          <div className="text-sm text-green-600 flex items-center gap-2">
+                            ✓ Image uploaded successfully
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {createStep === 5 && (
+                    <div className="space-y-4">
+                      <h3 className="font-semibold">Review</h3>
+                      <div className="rounded-lg border bg-white p-4 space-y-3">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Student</span>
+                          <span className="font-medium">
+                            {formData.first_name || '-'} {formData.last_name || ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Student Email</span>
+                          <span className="font-medium">{formData.email || 'Using parent email'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Parent/Guardian</span>
+                          <span className="font-medium">{formData.parent_name || '-'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Parent Email</span>
+                          <span className="font-medium">{formData.parent_email || '-'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Class</span>
+                          <span className="font-medium">
+                            {classes.find((cls) => cls.id === formData.class_id)?.name || 'Not selected'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Department</span>
+                          <span className="font-medium">
+                            {departments.find((dept) => dept.id === formData.department_id)?.name || 'Not selected'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-500">Admission Date</span>
+                          <span className="font-medium">{formData.admission_date || '-'}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        When you create the student, the system will send an activation link to the verified student
+                        email (if provided) and notify the parent.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between border-t pt-4">
+                    <Button type="button" variant="outline" onClick={handlePreviousStep} disabled={createStep === 0 || isCreating}>
+                      Back
                     </Button>
-                    <Button type="submit" disabled={isCreating}>
-                      {isCreating ? 'Creating...' : 'Create Student'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" onClick={() => handleCreateDialogChange(false)} disabled={isCreating}>
+                        Cancel
+                      </Button>
+                      {createStep < createSteps.length - 1 ? (
+                        <Button type="button" onClick={handleNextStep} disabled={!canProceedFromStep(createStep) || isCreating}>
+                          Continue
+                        </Button>
+                      ) : (
+                        <Button type="submit" disabled={isCreating}>
+                          {isCreating ? 'Creating...' : 'Create Student'}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </form>
               </DialogContent>

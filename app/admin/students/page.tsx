@@ -126,27 +126,27 @@ function StepItem({
     <div
       className={`
         flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-all duration-200
-        ${isActive ? 'bg-white/10 ring-1 ring-white/20' : ''}
+        ${isActive ? 'bg-white ring-1 ring-slate-200' : ''}
         ${isDone ? 'opacity-70' : !isActive ? 'opacity-40' : ''}
       `}
     >
       <div
         className={`
           flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all
-          ${isActive ? 'bg-indigo-400 text-slate-950 shadow-lg shadow-indigo-500/30' : ''}
-          ${isDone ? 'bg-emerald-400 text-slate-950' : ''}
-          ${!isActive && !isDone ? 'bg-white/10 text-white/60' : ''}
+          ${isActive ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : ''}
+          ${isDone ? 'bg-emerald-500 text-white' : ''}
+          ${!isActive && !isDone ? 'bg-slate-200 text-slate-500' : ''}
         `}
       >
         {isDone ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
       </div>
       <div className="min-w-0">
-        <p className={`text-[13px] font-semibold leading-none ${isActive ? 'text-white' : 'text-white/80'}`}>
+        <p className={`text-[13px] font-semibold leading-none ${isActive ? 'text-slate-900' : 'text-slate-600'}`}>
           {step.title}
         </p>
-        <p className="mt-0.5 text-[11px] leading-none text-white/50">{step.description}</p>
+        <p className="mt-0.5 text-[11px] leading-none text-slate-400">{step.description}</p>
       </div>
-      {isActive && <ChevronRight className="ml-auto h-4 w-4 text-indigo-300 shrink-0" />}
+      {isActive && <ChevronRight className="ml-auto h-4 w-4 text-indigo-500 shrink-0" />}
     </div>
   );
 }
@@ -183,7 +183,7 @@ function WizardProgress({ current, total }: { current: number; total: number }) 
         <div
           key={i}
           className={`h-1 flex-1 rounded-full transition-all duration-500 ${
-            i <= current ? 'bg-indigo-400' : 'bg-white/15'
+            i <= current ? 'bg-indigo-500' : 'bg-slate-200'
           }`}
         />
       ))}
@@ -706,16 +706,16 @@ export default function AdminStudentsPage() {
                   <div className="flex min-h-0 flex-1 overflow-hidden">
 
                     {/* ── Sidebar ── */}
-                    <aside className="hidden w-64 shrink-0 flex-col border-r border-white/10 bg-[#0f1117] lg:flex">
+                    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-100 bg-slate-50 lg:flex">
                       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-1">
                         {/* Progress ring / number */}
-                        <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">Overall progress</p>
+                        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Overall progress</p>
                           <div className="mt-3 flex items-end gap-2">
-                            <span className="text-4xl font-bold text-white tabular-nums">
+                            <span className="text-4xl font-bold text-slate-900 tabular-nums">
                               {String(createStep + 1).padStart(2, '0')}
                             </span>
-                            <span className="pb-1 text-sm text-white/40">/ {String(createSteps.length).padStart(2, '0')}</span>
+                            <span className="pb-1 text-sm text-slate-400">/ {String(createSteps.length).padStart(2, '0')}</span>
                           </div>
                           <div className="mt-3">
                             <WizardProgress current={createStep} total={createSteps.length} />
@@ -723,13 +723,13 @@ export default function AdminStudentsPage() {
                         </div>
 
                         {/* Email status pill */}
-                        <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                        <div className="mb-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
                           <div className="flex items-center gap-2">
                             {emailVerificationStatus === 'verified'
-                              ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                              : <Shield className="h-4 w-4 text-amber-300/70 shrink-0" />
+                              ? <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                              : <Shield className="h-4 w-4 text-amber-500 shrink-0" />
                             }
-                            <p className="text-[11px] font-medium text-white/70 leading-snug">
+                            <p className="text-[11px] font-medium text-slate-600 leading-snug">
                               {emailVerificationStatus === 'verified'
                                 ? 'Email verified'
                                 : formData.email.trim()
@@ -746,9 +746,9 @@ export default function AdminStudentsPage() {
                       </div>
 
                       {/* Notes footer */}
-                      <div className="shrink-0 border-t border-white/8 px-4 py-4">
-                        <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Notes</p>
-                        <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-white/40">
+                      <div className="shrink-0 border-t border-slate-100 px-4 py-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Notes</p>
+                        <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-slate-500">
                           <li>Keep student & parent details accurate.</li>
                           <li>Use the same parent email for siblings.</li>
                           <li>Optional steps can be skipped.</li>

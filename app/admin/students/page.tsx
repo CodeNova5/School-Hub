@@ -11,7 +11,13 @@ import { Student, Session, Term, Class, Department } from '@/lib/types';
 import { StudentTable } from '@/components/student-table';
 import { StudentDetailsModal } from '@/components/student-details-modal';
 import { EditStudentModal } from '@/components/edit-student-modal';
-import { Search, Download, Users, UserCheck, UserX, Calendar as CalendarIcon, Plus, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import {
+  Search, Download, Users, UserCheck, UserX,
+  Calendar as CalendarIcon, Plus, AlertTriangle,
+  CheckCircle2, ChevronRight, Mail, User, GraduationCap,
+  Heart, Camera, ClipboardCheck, ArrowLeft, ArrowRight,
+  Shield, Sparkles, X
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { exportToCSV } from '@/lib/student-utils';
 import {
@@ -26,6 +32,176 @@ import { useRouter } from 'next/navigation';
 import { StudentsSkeleton } from '@/components/skeletons';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 
+// ─── Step icon map ────────────────────────────────────────────────────────────
+const STEP_ICONS = [Mail, User, GraduationCap, Heart, Camera, ClipboardCheck];
+
+const createSteps = [
+  {
+    title: 'Verify Email',
+    description: 'Confirm student email address',
+    detail: 'Verify the student email before they enter the portal.',
+  },
+  {
+    title: 'Student Info',
+    description: 'Basic personal details',
+    detail: 'Full name, contact information and personal identifiers.',
+  },
+  {
+    title: 'Academic',
+    description: 'Class and department',
+    detail: 'Assign the student to the correct academic structure.',
+  },
+  {
+    title: 'Parent / Guardian',
+    description: 'Emergency contact details',
+    detail: 'Guardian information used for notifications and access.',
+  },
+  {
+    title: 'Photo',
+    description: 'Optional profile image',
+    detail: 'Add a profile image to make the record immediately recognisable.',
+  },
+  {
+    title: 'Review',
+    description: 'Confirm and create',
+    detail: 'Review everything before the account is provisioned.',
+  },
+];
+
+// ─── Styled field primitives ──────────────────────────────────────────────────
+function FieldLabel({ children, required }: { children: React.ReactNode; required?: boolean }) {
+  return (
+    <label className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">
+      {children}
+      {required && <span className="ml-1 text-rose-400">*</span>}
+    </label>
+  );
+}
+
+function StyledInput(props: React.ComponentProps<typeof Input>) {
+  return (
+    <Input
+      {...props}
+      className={
+        'h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 ' +
+        'shadow-sm ring-0 transition-all ' +
+        'focus-visible:border-indigo-400 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none ' +
+        (props.className ?? '')
+      }
+    />
+  );
+}
+
+function StyledSelect(props: React.ComponentProps<'select'>) {
+  return (
+    <select
+      {...props}
+      className={
+        'h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 ' +
+        'shadow-sm outline-none transition-all appearance-none ' +
+        'focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 ' +
+        (props.className ?? '')
+      }
+    />
+  );
+}
+
+function FieldGroup({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={`space-y-1.5 ${className ?? ''}`}>{children}</div>;
+}
+
+// ─── Step sidebar item ────────────────────────────────────────────────────────
+function StepItem({
+  step, index, current,
+}: {
+  step: typeof createSteps[0];
+  index: number;
+  current: number;
+}) {
+  const Icon = STEP_ICONS[index];
+  const isActive = index === current;
+  const isDone = index < current;
+
+  return (
+    <div
+      className={`
+        flex items-center gap-3 rounded-2xl px-3 py-2.5 transition-all duration-200
+        ${isActive ? 'bg-white/10 ring-1 ring-white/20' : ''}
+        ${isDone ? 'opacity-70' : !isActive ? 'opacity-40' : ''}
+      `}
+    >
+      <div
+        className={`
+          flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all
+          ${isActive ? 'bg-indigo-400 text-slate-950 shadow-lg shadow-indigo-500/30' : ''}
+          ${isDone ? 'bg-emerald-400 text-slate-950' : ''}
+          ${!isActive && !isDone ? 'bg-white/10 text-white/60' : ''}
+        `}
+      >
+        {isDone ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-3.5 w-3.5" />}
+      </div>
+      <div className="min-w-0">
+        <p className={`text-[13px] font-semibold leading-none ${isActive ? 'text-white' : 'text-white/80'}`}>
+          {step.title}
+        </p>
+        <p className="mt-0.5 text-[11px] leading-none text-white/50">{step.description}</p>
+      </div>
+      {isActive && <ChevronRight className="ml-auto h-4 w-4 text-indigo-300 shrink-0" />}
+    </div>
+  );
+}
+
+// ─── Stat card ────────────────────────────────────────────────────────────────
+function StatCard({
+  title, value, icon: Icon, color,
+}: {
+  title: string;
+  value: number;
+  icon: React.ElementType;
+  color: string;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{title}</p>
+          <p className={`mt-2 text-3xl font-bold tracking-tight ${color}`}>{value}</p>
+        </div>
+        <div className={`rounded-xl p-2.5 ${color.replace('text-', 'bg-').replace('-600', '-50').replace('-700', '-50')}`}>
+          <Icon className={`h-5 w-5 ${color}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Wizard progress bar ──────────────────────────────────────────────────────
+function WizardProgress({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex gap-1">
+      {Array.from({ length: total }).map((_, i) => (
+        <div
+          key={i}
+          className={`h-1 flex-1 rounded-full transition-all duration-500 ${
+            i <= current ? 'bg-indigo-400' : 'bg-white/15'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Review row ───────────────────────────────────────────────────────────────
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-2.5 border-b border-slate-100 last:border-0">
+      <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 shrink-0">{label}</span>
+      <span className="text-sm font-medium text-slate-900 text-right">{value || '—'}</span>
+    </div>
+  );
+}
+
+// ─── Main page component ──────────────────────────────────────────────────────
 export default function AdminStudentsPage() {
   const { schoolId, isLoading: schoolLoading, error: schoolError } = useSchoolContext();
   const [students, setStudents] = useState<Student[]>([]);
@@ -41,7 +217,7 @@ export default function AdminStudentsPage() {
   const [isTransferStudentOpen, setIsTransferStudentOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
-  const [transferTargetClassId, setTransferTargetClassId] = useState("");
+  const [transferTargetClassId, setTransferTargetClassId] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -52,7 +228,6 @@ export default function AdminStudentsPage() {
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
-
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
@@ -77,9 +252,7 @@ export default function AdminStudentsPage() {
     image_url: '',
   });
 
-  // Form fields for creating student
   const [formData, setFormData] = useState(getDefaultFormData);
-
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -89,33 +262,22 @@ export default function AdminStudentsPage() {
 
   const router = useRouter();
 
-  const createSteps = [
-    { title: 'Verify Email', description: 'Confirm student email' },
-    { title: 'Student Info', description: 'Basic details' },
-    { title: 'Academic', description: 'Class and department' },
-    { title: 'Parent/Guardian', description: 'Contact details' },
-    { title: 'Photo', description: 'Optional upload' },
-    { title: 'Review', description: 'Confirm and create' },
-  ];
-
+  // ── navigation ──────────────────────────────────────────────────────────────
   const handleNextStudent = useCallback(() => {
     if (!selectedStudent) return;
-    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-    const nextIndex = (currentIndex + 1) % filteredStudents.length;
-    setSelectedStudent(filteredStudents[nextIndex]);
+    const i = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
+    setSelectedStudent(filteredStudents[(i + 1) % filteredStudents.length]);
   }, [filteredStudents, selectedStudent]);
 
   const handlePreviousStudent = useCallback(() => {
     if (!selectedStudent) return;
-    const currentIndex = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
-    const previousIndex = (currentIndex - 1 + filteredStudents.length) % filteredStudents.length;
-    setSelectedStudent(filteredStudents[previousIndex]);
+    const i = filteredStudents.findIndex((s) => s.id === selectedStudent.id);
+    setSelectedStudent(filteredStudents[(i - 1 + filteredStudents.length) % filteredStudents.length]);
   }, [filteredStudents, selectedStudent]);
 
   useEffect(() => {
     if (!isCreateDialogOpen && cameraStream) {
-      // Clean up camera when dialog closes
-      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream.getTracks().forEach((t) => t.stop());
       setCameraStream(null);
       setIsCameraOpen(false);
     }
@@ -123,81 +285,55 @@ export default function AdminStudentsPage() {
 
   useEffect(() => {
     if (resendCountdown <= 0) return;
-    const interval = setInterval(() => {
-      setResendCountdown((prev) => Math.max(prev - 1, 0));
-    }, 1000);
-    return () => clearInterval(interval);
+    const id = setInterval(() => setResendCountdown((p) => Math.max(p - 1, 0)), 1000);
+    return () => clearInterval(id);
   }, [resendCountdown]);
 
-  useEffect(() => {
-    if (schoolId) {
-      loadData();
-    }
-  }, [schoolId]);
+  useEffect(() => { if (schoolId) loadData(); }, [schoolId]);
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
+    const down = (e: KeyboardEvent) => {
       if (!isModalOpen) return;
-
-      if (event.key === 'ArrowRight') {
-        handleNextStudent();
-      } else if (event.key === 'ArrowLeft') {
-        handlePreviousStudent();
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      if (e.key === 'ArrowRight') handleNextStudent();
+      if (e.key === 'ArrowLeft') handlePreviousStudent();
     };
+    window.addEventListener('keydown', down);
+    return () => window.removeEventListener('keydown', down);
   }, [isModalOpen, handleNextStudent, handlePreviousStudent]);
 
   const applyFilters = useCallback(() => {
-    let filtered = [...students];
-
+    let f = [...students];
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (s) =>
-          s.first_name.toLowerCase().includes(term) ||
-          s.last_name.toLowerCase().includes(term) ||
-          s.student_id.toLowerCase().includes(term) ||
-          s.email.toLowerCase().includes(term)
+      const t = searchTerm.toLowerCase();
+      f = f.filter((s) =>
+        s.first_name.toLowerCase().includes(t) ||
+        s.last_name.toLowerCase().includes(t) ||
+        s.student_id.toLowerCase().includes(t) ||
+        s.email.toLowerCase().includes(t)
       );
     }
-
-    if (filterClass) {
-      filtered = filtered.filter((s) => s.class_id === filterClass);
-    }
-
-    if (filterDepartment) {
-      filtered = filtered.filter((s) => s.department_id === filterDepartment);
-    }
-
-    if (filterGender) {
-      filtered = filtered.filter((s) => s.gender === filterGender);
-    }
-
-    if (filterStatus) {
-      filtered = filtered.filter((s) => s.status === filterStatus);
-    }
-
-    setFilteredStudents(filtered);
+    if (filterClass) f = f.filter((s) => s.class_id === filterClass);
+    if (filterDepartment) f = f.filter((s) => s.department_id === filterDepartment);
+    if (filterGender) f = f.filter((s) => s.gender === filterGender);
+    if (filterStatus) f = f.filter((s) => s.status === filterStatus);
+    setFilteredStudents(f);
   }, [students, searchTerm, filterClass, filterDepartment, filterGender, filterStatus]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
+  useEffect(() => { applyFilters(); }, [applyFilters]);
 
+  // ── data loading ─────────────────────────────────────────────────────────────
   async function loadData() {
     setIsLoading(true);
     try {
-      if (!schoolId) {
-        throw new Error('School ID not available');
-      }
-
-      // Use Supabase client instead of API - ALL queries now filter by school_id
-      const [{ data: studentList, error: studentsError }, { data: sessionsList, error: sessionsError }, { data: termsList, error: termsError }, { data: classList, error: classesError }, { data: departmentsList, error: departmentsError }, { data: religionsList, error: religionsError }] = await Promise.all([
+      if (!schoolId) throw new Error('School ID not available');
+      const [
+        { data: studentList, error: studentsError },
+        { data: sessionsList, error: sessionsError },
+        { data: termsList, error: termsError },
+        { data: classList, error: classesError },
+        { data: departmentsList, error: departmentsError },
+        { data: religionsList, error: religionsError },
+      ] = await Promise.all([
         supabase.from('students').select('*').eq('school_id', schoolId).order('first_name', { ascending: true }),
         supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
         supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
@@ -205,64 +341,28 @@ export default function AdminStudentsPage() {
         supabase.from('school_departments').select('*').eq('school_id', schoolId).eq('is_active', true).order('name', { ascending: true }),
         supabase.from('school_religions').select('*').eq('school_id', schoolId).eq('is_active', true).order('name', { ascending: true }),
       ]);
-
       if (studentsError || sessionsError || termsError || classesError || departmentsError || religionsError) {
-        throw new Error(
-          studentsError?.message ||
-          sessionsError?.message ||
-          termsError?.message ||
-          classesError?.message ||
-          departmentsError?.message ||          religionsError?.message ||          'Unknown error'
-        );
+        throw new Error(studentsError?.message || sessionsError?.message || termsError?.message || classesError?.message || departmentsError?.message || religionsError?.message || 'Unknown error');
       }
-
       const departmentMap = new Map((departmentsList || []).map((d: Department) => [d.id, d.name]));
-
       const studentIds = (studentList || []).map((s: Student) => s.id).filter(Boolean);
-
       let attendance: any[] = [];
       if (studentIds.length > 0) {
-        const { data: attendanceRes, error: attendanceError } = await supabase
-          .from('attendance')
-          .select('*')
-          .eq('school_id', schoolId)
-          .in('student_id', studentIds);
-
+        const { data: attendanceRes, error: attendanceError } = await supabase.from('attendance').select('*').eq('school_id', schoolId).in('student_id', studentIds);
         if (attendanceError) throw attendanceError;
         attendance = attendanceRes || [];
       }
-
-      interface AttendanceRecord {
-        id: string;
-        student_id: string;
-        status: string;
-        [key: string]: any;
-      }
-
-      interface StudentWithAttendance extends Student {
-        average_attendance: number;
-        total_attendance: number;
-      }
-
-      const studentsWithAttendance: StudentWithAttendance[] = (studentList || []).map((student: Student) => {
-        const records: AttendanceRecord[] = attendance.filter((a: AttendanceRecord) => a.student_id === student.id) || [];
-        const total: number = records.length;
-        const present: number = records.filter(
-          (r: AttendanceRecord) => r.status === "present" || r.status === "late" || r.status === "excused"
-        ).length;
-
-        const resolvedDepartmentName = student.department_id
-          ? departmentMap.get(student.department_id)
-          : null;
-
+      const studentsWithAttendance = (studentList || []).map((student: Student) => {
+        const records = attendance.filter((a: any) => a.student_id === student.id);
+        const total = records.length;
+        const present = records.filter((r: any) => r.status === 'present' || r.status === 'late' || r.status === 'excused').length;
         return {
           ...student,
-          department: student.department || resolvedDepartmentName || undefined,
+          department: student.department || departmentMap.get(student.department_id) || undefined,
           average_attendance: total === 0 ? 0 : Math.round((present / total) * 100),
           total_attendance: total,
         };
       });
-
       setStudents(studentsWithAttendance);
       setSessions(sessionsList || []);
       setTerms(termsList || []);
@@ -278,85 +378,41 @@ export default function AdminStudentsPage() {
 
   async function handleViewDetails(student: Student) {
     try {
-      // Fetch attendance data for this student - filtered by school_id
-      const { data: attendance, error } = await supabase
-        .from('attendance')
-        .select('*')
-        .eq('school_id', schoolId)
-        .eq('student_id', student.id);
-
+      const { data: attendance, error } = await supabase.from('attendance').select('*').eq('school_id', schoolId).eq('student_id', student.id);
       if (error) throw error;
-
       const total = attendance?.length || 0;
-      const present = attendance?.filter(
-        (r: any) => r.status === 'present' || r.status === 'late' || r.status === 'excused'
-      ).length || 0;
-
-      const averageAttendance = total === 0 ? 0 : Math.round((present / total) * 100);
-
-      const enrichedStudent = {
-        ...student,
-        average_attendance: averageAttendance,
-        total_attendance: total,
-      };
-
-      setSelectedStudent(enrichedStudent);
-    } catch (error) {
-      console.error('Error fetching attendance:', error);
+      const present = attendance?.filter((r: any) => r.status === 'present' || r.status === 'late' || r.status === 'excused').length || 0;
+      setSelectedStudent({ ...student, average_attendance: total === 0 ? 0 : Math.round((present / total) * 100), total_attendance: total } as Student);
+    } catch {
       setSelectedStudent(student);
     }
     setIsModalOpen(true);
   }
 
-  function handleManageSubjects(student: Student) {
-    // This would navigate to a page to manage subjects
-    router.push(`/admin/students/${student.id}/subjects`);
-  }
+  function handleManageSubjects(student: Student) { router.push(`/admin/students/${student.id}/subjects`); }
 
-  // Image handling functions
   async function handleImageFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Preview
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
+    reader.onloadend = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
-
-    // Upload to GitHub
     await uploadImageToGitHub(file);
   }
 
   async function uploadImageToGitHub(file: File) {
     setUploadingImage(true);
     try {
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", file);
-      uploadFormData.append("type", "student_photo");
-      uploadFormData.append("student_id", `student_${formData.first_name}_${formData.last_name}_${new Date().getTime()}`);
-
-      // Call server-side upload API
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: uploadFormData,
-      });
-
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('type', 'student_photo');
+      fd.append('student_id', `student_${formData.first_name}_${formData.last_name}_${Date.now()}`);
+      const response = await fetch('/api/upload', { method: 'POST', body: fd });
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Unknown error');
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        image_url: result.fileUrl,
-      }));
-
+      if (!response.ok) throw new Error(result.error || 'Unknown error');
+      setFormData((p) => ({ ...p, image_url: result.fileUrl }));
       toast.success('Image uploaded successfully');
     } catch (error) {
-      console.error('Failed to upload image:', error);
       toast.error('Failed to upload image to GitHub');
     } finally {
       setUploadingImage(false);
@@ -366,56 +422,39 @@ export default function AdminStudentsPage() {
   async function handleCameraCapture() {
     try {
       if (!cameraStream) {
-        // Open camera
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user' },
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
         setCameraStream(stream);
         setIsCameraOpen(true);
-
-        // Add stream to video element
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
       } else {
-        // Capture photo
         if (canvasRef.current && videoRef.current) {
-          const video = videoRef.current;
-          const canvas = canvasRef.current;
-          const context = canvas.getContext('2d');
-
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          context?.drawImage(video, 0, 0);
-
-          // Convert canvas to blob and upload
-          canvas.toBlob(async (blob: Blob | null) => {
+          const v = videoRef.current;
+          const c = canvasRef.current;
+          c.width = v.videoWidth;
+          c.height = v.videoHeight;
+          c.getContext('2d')?.drawImage(v, 0, 0);
+          c.toBlob(async (blob) => {
             if (!blob) return;
             const file = new File([blob], `student_camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-            setImagePreview(canvas.toDataURL());
+            setImagePreview(c.toDataURL());
             await uploadImageToGitHub(file);
-            
-            // Close camera
-            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream.getTracks().forEach((t) => t.stop());
             setCameraStream(null);
             setIsCameraOpen(false);
           });
         }
       }
-    } catch (error) {
-      console.error('Camera error:', error);
+    } catch {
       toast.error('Failed to access camera');
     }
   }
 
   function closeCameraAndClear() {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-    }
+    cameraStream?.getTracks().forEach((t) => t.stop());
     setCameraStream(null);
     setIsCameraOpen(false);
     setImagePreview(null);
-    setFormData(prev => ({ ...prev, image_url: '' }));
+    setFormData((p) => ({ ...p, image_url: '' }));
   }
 
   function resetCreateWizard() {
@@ -431,13 +470,11 @@ export default function AdminStudentsPage() {
 
   function handleCreateDialogChange(open: boolean) {
     setIsCreateDialogOpen(open);
-    if (!open) {
-      resetCreateWizard();
-    }
+    if (!open) resetCreateWizard();
   }
 
   function handleStudentEmailChange(value: string) {
-    setFormData(prev => ({ ...prev, email: value }));
+    setFormData((p) => ({ ...p, email: value }));
     setEmailVerificationStatus('idle');
     setEmailVerificationCode('');
     setResendCountdown(0);
@@ -445,1083 +482,712 @@ export default function AdminStudentsPage() {
 
   async function handleSendVerificationCode() {
     const email = formData.email.trim();
-    if (!email) {
-      toast.error('Enter the student email to send a verification code');
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error('Enter a valid student email address');
-      return;
-    }
-
+    if (!email) { toast.error('Enter the student email'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error('Enter a valid email address'); return; }
     setIsSendingCode(true);
     setEmailVerificationStatus('sending');
     try {
-      const response = await fetch('/api/admin/student-email-verification/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch('/api/admin/student-email-verification/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast.error(result.error || 'Failed to send verification code');
-        setEmailVerificationStatus('idle');
-        return;
-      }
-
+      const result = await res.json();
+      if (!res.ok) { toast.error(result.error || 'Failed to send code'); setEmailVerificationStatus('idle'); return; }
       setEmailVerificationStatus('sent');
       setResendCountdown(30);
-      toast.success('Verification code sent to the student email');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to send verification code');
+      toast.success('Verification code sent');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to send code');
       setEmailVerificationStatus('idle');
-    } finally {
-      setIsSendingCode(false);
-    }
+    } finally { setIsSendingCode(false); }
   }
 
   async function handleVerifyEmailCode() {
-    const email = formData.email.trim();
-    if (!email) {
-      toast.error('Enter the student email to verify');
-      return;
-    }
-    if (emailVerificationCode.trim().length !== 6) {
-      toast.error('Enter the 6-digit verification code');
-      return;
-    }
-
+    if (!formData.email.trim()) { toast.error('Enter the student email'); return; }
+    if (emailVerificationCode.trim().length !== 6) { toast.error('Enter the 6-digit code'); return; }
     setIsVerifyingCode(true);
     try {
-      const response = await fetch('/api/admin/student-email-verification/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: emailVerificationCode.trim() }),
+      const res = await fetch('/api/admin/student-email-verification/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email.trim(), code: emailVerificationCode.trim() }),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast.error(result.error || 'Verification failed');
-        return;
-      }
-
+      const result = await res.json();
+      if (!res.ok) { toast.error(result.error || 'Verification failed'); return; }
       setEmailVerificationStatus('verified');
-      toast.success('Student email verified');
-    } catch (error: any) {
-      toast.error(error.message || 'Verification failed');
-    } finally {
-      setIsVerifyingCode(false);
-    }
+      toast.success('Email verified');
+    } catch (e: any) {
+      toast.error(e.message || 'Verification failed');
+    } finally { setIsVerifyingCode(false); }
   }
 
-  function handleEditStudent(student: Student) {
-    setSelectedStudent(student);
-    setIsEditStudentOpen(true);
-  }
-
-  function handleTransferStudent(student: Student) {
-    setSelectedStudent(student);
-    setIsTransferStudentOpen(true);
-  }
+  function handleEditStudent(student: Student) { setSelectedStudent(student); setIsEditStudentOpen(true); }
+  function handleTransferStudent(student: Student) { setSelectedStudent(student); setIsTransferStudentOpen(true); }
 
   async function handleTransferStudentToClass(targetClassId: string) {
-    if (!selectedStudent || !targetClassId) {
-      toast.error("Please select a valid student and target class");
-      return;
-    }
-
+    if (!selectedStudent || !targetClassId) { toast.error('Please select a valid student and class'); return; }
     try {
-      const response = await fetch("/api/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "transfer-students",
-          studentIds: [selectedStudent.id],
-          targetClassId,
-        }),
+      const res = await fetch('/api/admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'transfer-students', studentIds: [selectedStudent.id], targetClassId }),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast.error(result.error || "Failed to transfer student");
-        return;
-      }
-
-      toast.success(`Successfully transferred ${selectedStudent.first_name} ${selectedStudent.last_name} to another class`);
-      // Update student in list with new class
-      const updatedStudent = { ...selectedStudent, class_id: targetClassId };
-      setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+      const result = await res.json();
+      if (!res.ok) { toast.error(result.error || 'Failed to transfer student'); return; }
+      toast.success(`Transferred ${selectedStudent.first_name} ${selectedStudent.last_name}`);
+      setStudents(students.map((s) => s.id === selectedStudent.id ? { ...s, class_id: targetClassId } : s));
       setIsTransferStudentOpen(false);
-      setTransferTargetClassId("");
+      setTransferTargetClassId('');
       setSelectedStudent(null);
-    } catch (error: any) {
-      toast.error("Failed to transfer student: " + (error.message || error));
-    }
+    } catch (e: any) { toast.error('Failed to transfer student: ' + e.message); }
   }
 
   async function handleRemoveStudent(student: Student) {
     if (!student) return;
     setIsDeleting(true);
     try {
-      const response = await fetch("/api/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "delete-student",
-          studentId: student.id,
-          userId: student.user_id,
-        }),
+      const res = await fetch('/api/admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-student', studentId: student.id, userId: student.user_id }),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast.error(result.error || "Failed to delete student");
-        return;
-      }
-
-      toast.success("Student and all related data deleted.");
-      setIsDeleteDialogOpen(false);
-      // Remove student from list immediately
-      setStudents(students.filter(s => s.id !== student.id));
-      setStudentToDelete(null);
-    } catch (error: any) {
-      toast.error("Failed to delete student: " + (error.message || error));
-    } finally {
-      setIsDeleting(false);
-    }
+      const result = await res.json();
+      if (!res.ok) { toast.error(result.error || 'Failed to delete student'); return; }
+      toast.success('Student deleted.');
+      setStudents(students.filter((s) => s.id !== student.id));
+    } catch (e: any) { toast.error('Failed to delete student: ' + e.message); }
+    finally { setIsDeleting(false); }
   }
 
-  function handleDeleteStudent(student: Student) {
-    setStudentToDelete(student);
-    setIsDeleteDialogOpen(true);
-  }
+  function handleDeleteStudent(student: Student) { setStudentToDelete(student); setIsDeleteDialogOpen(true); }
 
   async function handleDeleteStudentCompletely() {
     if (!studentToDelete) return;
     setIsDeleting(true);
     try {
-      const response = await fetch("/api/admin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "delete-student",
-          studentId: studentToDelete.id,
-          userId: studentToDelete.user_id,
-        }),
+      const res = await fetch('/api/admin', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete-student', studentId: studentToDelete.id, userId: studentToDelete.user_id }),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast.error(result.error || "Failed to delete student");
-        return;
-      }
-
-      toast.success("Student and all related data deleted.");
+      const result = await res.json();
+      if (!res.ok) { toast.error(result.error || 'Failed to delete student'); return; }
+      toast.success('Student permanently deleted.');
       setIsDeleteDialogOpen(false);
-      // Remove student from list immediately
-      setStudents(students.filter(s => s.id !== studentToDelete.id));
+      setStudents(students.filter((s) => s.id !== studentToDelete.id));
       setStudentToDelete(null);
-    } catch (error: any) {
-      toast.error("Failed to delete student: " + (error.message || error));
-    } finally {
-      setIsDeleting(false);
-    }
+    } catch (e: any) { toast.error('Failed to delete student: ' + e.message); }
+    finally { setIsDeleting(false); }
   }
 
   function handleEditStudentSuccess(updatedStudent: Student) {
-    // Update the student in the list
-    setStudents(students.map(s => s.id === updatedStudent.id ? updatedStudent : s));
+    setStudents(students.map((s) => s.id === updatedStudent.id ? updatedStudent : s));
   }
 
   function canProceedFromStep(step: number) {
-    const hasStudentEmail = formData.email.trim().length > 0;
-
+    const hasEmail = formData.email.trim().length > 0;
     switch (step) {
-      case 0:
-        return !hasStudentEmail || emailVerificationStatus === 'verified';
-      case 1:
-        return formData.first_name.trim().length > 0 && formData.last_name.trim().length > 0;
-      case 2:
-        return formData.admission_date.trim().length > 0;
-      case 3:
-        return formData.parent_name.trim().length > 0 && formData.parent_email.trim().length > 0;
-      default:
-        return true;
+      case 0: return !hasEmail || emailVerificationStatus === 'verified';
+      case 1: return formData.first_name.trim().length > 0 && formData.last_name.trim().length > 0;
+      case 2: return formData.admission_date.trim().length > 0;
+      case 3: return formData.parent_name.trim().length > 0 && formData.parent_email.trim().length > 0;
+      default: return true;
     }
   }
 
   function handleNextStep() {
-    if (!canProceedFromStep(createStep)) {
-      toast.error('Please complete the required fields before continuing');
-      return;
-    }
-    setCreateStep((prev) => Math.min(prev + 1, createSteps.length - 1));
+    if (!canProceedFromStep(createStep)) { toast.error('Please complete required fields'); return; }
+    setCreateStep((p) => Math.min(p + 1, createSteps.length - 1));
   }
 
-  function handlePreviousStep() {
-    setCreateStep((prev) => Math.max(prev - 1, 0));
-  }
+  function handlePreviousStep() { setCreateStep((p) => Math.max(p - 1, 0)); }
 
   async function handleCreateStudent(e: React.FormEvent) {
     e.preventDefault();
     setIsCreating(true);
-
-    // Validation
-    if (!formData.first_name.trim() || !formData.last_name.trim()) {
-      toast.error('First name and last name are required');
-      setIsCreating(false);
-      return;
-    }
-
-    if (formData.email.trim() && emailVerificationStatus !== 'verified') {
-      toast.error('Verify the student email before creating the account');
-      setIsCreating(false);
-      return;
-    }
-
-
-    if (!formData.parent_name.trim() || !formData.parent_email.trim()) {
-      toast.error('Parent name and email are required');
-      setIsCreating(false);
-      return;
-    }
-
+    if (!formData.first_name.trim() || !formData.last_name.trim()) { toast.error('First and last name are required'); setIsCreating(false); return; }
+    if (formData.email.trim() && emailVerificationStatus !== 'verified') { toast.error('Verify the student email first'); setIsCreating(false); return; }
+    if (!formData.parent_name.trim() || !formData.parent_email.trim()) { toast.error('Parent name and email are required'); setIsCreating(false); return; }
     try {
-      const creatingToast = toast.loading('Creating student...');
-
-      const response = await fetch('/api/create-student', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const tid = toast.loading('Creating student account…');
+      const res = await fetch('/api/create-student', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        toast.error(result.error || 'Failed to create student', { id: creatingToast });
-        setIsCreating(false);
-        return;
-      }
-
-      const successMessage = result?.message || `Student created successfully (ID: ${result.studentId}).`;
-      toast.success(successMessage, { id: creatingToast });
-
-      if (Array.isArray(result?.warnings) && result.warnings.length > 0) {
-        toast.warning(result.warnings.join(' | '));
-      }
-
-      // Add the new student to the list immediately
-      if (result.student) {
-        setStudents([...students, result.student]);
-      }
-
+      const result = await res.json();
+      if (!res.ok) { toast.error(result.error || 'Failed to create student', { id: tid }); setIsCreating(false); return; }
+      toast.success(result?.message || `Student created (ID: ${result.studentId}).`, { id: tid });
+      if (Array.isArray(result?.warnings) && result.warnings.length > 0) toast.warning(result.warnings.join(' | '));
+      if (result.student) setStudents((p) => [...p, result.student]);
       resetCreateWizard();
       setIsCreateDialogOpen(false);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create student');
-    } finally {
-      setIsCreating(false);
-    }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to create student');
+    } finally { setIsCreating(false); }
   }
 
   function handleExport() {
-    const exportData = filteredStudents.map((s) => ({
-      'Student ID': s.student_id,
-      'First Name': s.first_name,
-      'Last Name': s.last_name,
-      Email: s.email,
-      Phone: s.phone,
-      Gender: s.gender,
-      Department: s.department || 'N/A',
-      'Parent Name': s.parent_name,
-      'Parent Email': s.parent_email,
-      'Parent Phone': s.parent_phone,
-      'Average Attendance': s.average_attendance + '%',
-      Status: s.status,
+    const data = filteredStudents.map((s) => ({
+      'Student ID': s.student_id, 'First Name': s.first_name, 'Last Name': s.last_name,
+      Email: s.email, Phone: s.phone, Gender: s.gender,
+      Department: s.department || 'N/A', 'Parent Name': s.parent_name,
+      'Parent Email': s.parent_email, 'Parent Phone': s.parent_phone,
+      'Average Attendance': s.average_attendance + '%', Status: s.status,
     }));
-
-    exportToCSV(exportData, `students_export_${new Date().toISOString().split('T')[0]}`);
+    exportToCSV(data, `students_export_${new Date().toISOString().split('T')[0]}`);
     toast.success('Students exported successfully');
   }
 
   const totalStudents = students.length;
   const activeStudents = students.filter((s) => s.status === 'active').length;
   const suspendedStudents = students.filter((s) => s.status === 'suspended').length;
-  const currentTermStartDate = terms.filter(t => t.is_current).length > 0
-    ? new Date(terms.find(t => t.is_current)?.start_date || '')
-    : null;
-  const newThisTerm = currentTermStartDate
-    ? students.filter((s) => new Date(s.admission_date) >= currentTermStartDate).length
-    : 0;
-
+  const currentTermStartDate = terms.find((t) => t.is_current)?.start_date ? new Date(terms.find((t) => t.is_current)!.start_date) : null;
+  const newThisTerm = currentTermStartDate ? students.filter((s) => new Date(s.admission_date) >= currentTermStartDate!).length : 0;
   const uniqueDepartments = departments;
 
-  if (schoolLoading || isLoading) {
-    return (
-      <DashboardLayout role="admin">
-        <StudentsSkeleton />
-      </DashboardLayout>
-    );
-  }
+  if (schoolLoading || isLoading) return <DashboardLayout role="admin"><StudentsSkeleton /></DashboardLayout>;
 
-  if (schoolError || !schoolId) {
-    return (
-      <DashboardLayout role="admin">
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
-            <p className="text-gray-600 text-sm mt-2">Please contact your administrator or try logging in again.</p>
-          </div>
+  if (schoolError || !schoolId) return (
+    <DashboardLayout role="admin">
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <p className="text-red-600 font-semibold">{schoolError || 'Unable to determine your school'}</p>
+          <p className="text-slate-500 text-sm mt-2">Please contact your administrator or try logging in again.</p>
         </div>
-      </DashboardLayout>
-    );
-  }
+      </div>
+    </DashboardLayout>
+  );
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8">
+
+        {/* ── Page header ── */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Students</h1>
-            <p className="text-gray-600 mt-1">Manage all students in the system</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Students</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Manage all students in the system</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            {/* ── Create student dialog ── */}
             <Dialog open={isCreateDialogOpen} onOpenChange={handleCreateDialogChange}>
               <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-900 text-white shadow-lg shadow-slate-900/20 transition-all hover:shadow-xl hover:shadow-slate-900/25">
-                  <Plus className="mr-2 h-4 w-4" />
+                <button className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-all hover:bg-slate-800 hover:shadow-xl hover:shadow-slate-900/25 active:scale-95">
+                  <Plus className="h-4 w-4" />
                   Add Student
-                </Button>
+                </button>
               </DialogTrigger>
-              <DialogContent className="max-h-[90vh] overflow-hidden border-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/70 p-0 shadow-2xl sm:max-w-5xl">
-                <div className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader className="border-b border-slate-200/80 bg-white/80 px-6 py-5 backdrop-blur">
-                    <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-                      Create New Student
-                    </DialogTitle>
-                    <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                      Step through identity, academics, guardian details, and a final review in one polished flow.
-                    </p>
-                  </DialogHeader>
 
-                  <form onSubmit={handleCreateStudent} className="space-y-6 px-6 py-6">
-                    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-950 text-white shadow-xl shadow-slate-900/10">
-                      <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)] lg:p-8">
-                        <div className="space-y-5">
-                          <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white/80">
-                            Student onboarding wizard
-                          </div>
-                          <div className="space-y-3">
-                            <p className="text-sm uppercase tracking-[0.24em] text-white/55">
-                              Step {createStep + 1} of {createSteps.length}
-                            </p>
-                            <h3 className="text-2xl font-semibold text-white sm:text-3xl">
-                              {createSteps[createStep].title}
-                            </h3>
-                            <p className="max-w-xl text-sm leading-6 text-white/72 sm:text-base">
-                              {createSteps[createStep].description}
-                              {createStep === 0 && ' Verify the student email before they enter the portal.'}
-                              {createStep === 4 && ' Add a profile image to make the record immediately recognizable.'}
-                              {createStep === 5 && ' Review everything before the account is provisioned.'}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/75">
-                              Parent notification ready
-                            </div>
-                            <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/75">
-                              Optional student email
-                            </div>
-                            <div className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs text-white/75">
-                              Photo and class assignment
-                            </div>
-                          </div>
-                        </div>
+              {/* ─────────────────── WIZARD DIALOG ─────────────────── */}
+              <DialogContent className="max-h-[92vh] overflow-hidden border-0 bg-transparent p-0 shadow-none sm:max-w-5xl [&>button]:hidden">
+                <div className="flex h-full max-h-[92vh] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/10">
 
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/50">Progress</p>
-                            <div className="mt-3 flex items-end gap-3">
-                              <span className="text-4xl font-semibold text-white">0{createStep + 1}</span>
-                              <span className="pb-1 text-sm text-white/65">of 06 steps</span>
-                            </div>
-                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                              <div
-                                className="h-full rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 transition-all duration-300"
-                                style={{ width: `${((createStep + 1) / createSteps.length) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                            <p className="text-xs uppercase tracking-[0.2em] text-white/50">Email status</p>
-                            <div className="mt-3 flex items-center gap-3">
-                              {emailVerificationStatus === 'verified' ? (
-                                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                              ) : (
-                                <AlertTriangle className="h-5 w-5 text-amber-300" />
-                              )}
-                              <span className="text-sm font-medium text-white/90">
-                                {emailVerificationStatus === 'verified'
-                                  ? 'Verified and ready'
-                                  : formData.email.trim()
-                                    ? 'Waiting for verification'
-                                    : 'Using parent email fallback'}
-                              </span>
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-white/65">
-                              A verified student email enables activation while keeping the parent account in sync.
-                            </p>
-                          </div>
-                        </div>
+                  {/* ── Top bar ── */}
+                  <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-950">
+                        <Sparkles className="h-4 w-4 text-indigo-300" />
                       </div>
-
-                      <div className="grid gap-px border-t border-white/10 bg-white/5 lg:grid-cols-[280px_minmax(0,1fr)]">
-                        <aside className="bg-slate-950/95 p-5 text-white">
-                          <p className="text-xs uppercase tracking-[0.2em] text-white/45">Flow map</p>
-                          <div className="mt-4 space-y-3">
-                            {createSteps.map((step, index) => {
-                              const isActive = index === createStep;
-                              const isCompleted = index < createStep;
-
-                              return (
-                                <div
-                                  key={step.title}
-                                  className={`rounded-2xl border px-4 py-3 transition-all ${
-                                    isActive
-                                      ? 'border-sky-400/50 bg-sky-500/10 shadow-lg shadow-sky-500/10'
-                                      : isCompleted
-                                        ? 'border-emerald-400/30 bg-emerald-500/10'
-                                        : 'border-white/10 bg-white/5'
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <div
-                                      className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                                        isActive
-                                          ? 'bg-sky-400 text-slate-950'
-                                          : isCompleted
-                                            ? 'bg-emerald-400 text-slate-950'
-                                            : 'bg-white/10 text-white/70'
-                                      }`}
-                                    >
-                                      {index + 1}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <p className="text-sm font-medium text-white">{step.title}</p>
-                                      <p className="text-xs leading-5 text-white/60">{step.description}</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-
-                          <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-                            <p className="text-sm font-medium text-white">Creation notes</p>
-                            <ul className="mt-3 space-y-2 text-sm text-white/65">
-                              <li>Keep the student and parent contact details accurate.</li>
-                              <li>Use the same parent email for siblings when needed.</li>
-                              <li>Optional steps can be skipped without blocking creation.</li>
-                            </ul>
-                          </div>
-                        </aside>
-
-                        <div className="bg-white p-5 sm:p-6 lg:p-8">
-                          {createStep === 0 && (
-                            <div className="space-y-5">
-                              <div className="rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
-                                <h3 className="text-base font-semibold text-slate-900">Student Email Verification</h3>
-                                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-                                  If the student has their own email, verify it with a 6-digit code before moving on.
-                                  Leave it blank to rely on the parent email and continue the enrollment flow.
-                                </p>
-                              </div>
-
-                              <div className="grid gap-4">
-                                <div>
-                                  <Label htmlFor="student_email" className="text-sm font-medium text-slate-700">
-                                    Student Email (optional)
-                                  </Label>
-                                  <Input
-                                    id="student_email"
-                                    type="email"
-                                    value={formData.email}
-                                    onChange={(e) => handleStudentEmailChange(e.target.value)}
-                                    placeholder="student@example.com"
-                                    className="mt-2 h-12 rounded-xl border-slate-200 bg-white px-4 shadow-sm transition-colors focus-visible:ring-sky-500"
-                                  />
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-3">
-                                  <Button
-                                    type="button"
-                                    onClick={handleSendVerificationCode}
-                                    disabled={!formData.email.trim() || isSendingCode || resendCountdown > 0 || emailVerificationStatus === 'verified'}
-                                    className="h-11 rounded-xl bg-slate-950 px-5 text-white transition-colors hover:bg-slate-800"
-                                  >
-                                    {emailVerificationStatus === 'verified'
-                                      ? 'Email Verified'
-                                      : isSendingCode
-                                        ? 'Sending...'
-                                        : resendCountdown > 0
-                                          ? `Resend in ${resendCountdown}s`
-                                          : 'Send Code'}
-                                  </Button>
-                                  {emailVerificationStatus === 'verified' && (
-                                    <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-                                      <CheckCircle2 className="h-4 w-4" />
-                                      Verification complete
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {formData.email.trim() && emailVerificationStatus !== 'idle' && (
-                                <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                  <div>
-                                    <Label className="text-sm font-medium text-slate-700">Verification Code</Label>
-                                    <p className="mt-1 text-sm text-slate-500">Enter the 6-digit code sent to the student inbox.</p>
-                                    <div className="mt-4">
-                                      <InputOTP maxLength={6} value={emailVerificationCode} onChange={setEmailVerificationCode}>
-                                        <InputOTPGroup>
-                                          {Array.from({ length: 6 }).map((_, index) => (
-                                            <InputOTPSlot key={index} index={index} />
-                                          ))}
-                                        </InputOTPGroup>
-                                      </InputOTP>
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-3">
-                                    <Button
-                                      type="button"
-                                      onClick={handleVerifyEmailCode}
-                                      disabled={emailVerificationStatus === 'verified' || isVerifyingCode}
-                                      className="h-11 rounded-xl bg-sky-600 px-5 text-white hover:bg-sky-700"
-                                    >
-                                      {isVerifyingCode ? 'Verifying...' : 'Verify Code'}
-                                    </Button>
-                                    <p className="text-sm text-slate-500">
-                                      This keeps the student account tied to an address they can actually access.
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-
-                              {formData.email.trim() && emailVerificationStatus !== 'verified' && (
-                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                                  You can continue without a student email. The parent portal will remain the primary contact path.
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {createStep === 1 && (
-                            <div className="space-y-5">
-                              <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Basic Information</h3>
-                                <p className="mt-1 text-sm text-slate-500">Capture the student’s core identity and contact details.</p>
-                              </div>
-                              <div className="grid gap-4 sm:grid-cols-2">
-                                <div>
-                                  <Label htmlFor="first_name" className="text-sm font-medium text-slate-700">First Name *</Label>
-                                  <Input
-                                    id="first_name"
-                                    value={formData.first_name}
-                                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                                    placeholder="John"
-                                    required
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="last_name" className="text-sm font-medium text-slate-700">Last Name *</Label>
-                                  <Input
-                                    id="last_name"
-                                    value={formData.last_name}
-                                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                                    placeholder="Doe"
-                                    required
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="phone" className="text-sm font-medium text-slate-700">Phone</Label>
-                                  <Input
-                                    id="phone"
-                                    value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                    placeholder="+234..."
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="date_of_birth" className="text-sm font-medium text-slate-700">Date of Birth</Label>
-                                  <Input
-                                    id="date_of_birth"
-                                    type="date"
-                                    value={formData.date_of_birth}
-                                    onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="gender" className="text-sm font-medium text-slate-700">Gender</Label>
-                                  <select
-                                    id="gender"
-                                    value={formData.gender}
-                                    onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                                    className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 shadow-sm outline-none transition-colors focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                                  >
-                                    <option value="">Select gender</option>
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                    <option value="others">Others</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <Label htmlFor="address" className="text-sm font-medium text-slate-700">Address</Label>
-                                  <Input
-                                    id="address"
-                                    value={formData.address}
-                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                    placeholder="Street address"
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {createStep === 2 && (
-                            <div className="space-y-5">
-                              <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Academic Information</h3>
-                                <p className="mt-1 text-sm text-slate-500">Assign the student to the right academic structure.</p>
-                              </div>
-                              <div className="grid gap-4 sm:grid-cols-2">
-                                <div>
-                                  <Label htmlFor="class_id" className="text-sm font-medium text-slate-700">Class</Label>
-                                  <select
-                                    id="class_id"
-                                    value={formData.class_id}
-                                    onChange={(e) => setFormData({ ...formData, class_id: e.target.value })}
-                                    className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 shadow-sm outline-none transition-colors focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                                  >
-                                    <option value="">Select class (optional)</option>
-                                    {classes.map((cls) => (
-                                      <option key={cls.id} value={cls.id}>
-                                        {cls.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <Label htmlFor="department_id" className="text-sm font-medium text-slate-700">Department</Label>
-                                  <select
-                                    id="department_id"
-                                    value={formData.department_id}
-                                    onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}
-                                    className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 shadow-sm outline-none transition-colors focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                                  >
-                                    <option value="">Select department</option>
-                                    {departments.map((dept) => (
-                                      <option key={dept.id} value={dept.id}>
-                                        {dept.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <Label htmlFor="religion_id" className="text-sm font-medium text-slate-700">Religion</Label>
-                                  <select
-                                    id="religion_id"
-                                    value={formData.religion_id}
-                                    onChange={(e) => setFormData({ ...formData, religion_id: e.target.value })}
-                                    className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 shadow-sm outline-none transition-colors focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                                  >
-                                    <option value="">Select religion (optional)</option>
-                                    {religions.map((religion) => (
-                                      <option key={religion.id} value={religion.id}>
-                                        {religion.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <Label htmlFor="admission_date" className="text-sm font-medium text-slate-700">Admission Date *</Label>
-                                  <Input
-                                    id="admission_date"
-                                    type="date"
-                                    value={formData.admission_date}
-                                    onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })}
-                                    required
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {createStep === 3 && (
-                            <div className="space-y-5">
-                              <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Parent/Guardian Information</h3>
-                                <p className="mt-1 text-sm text-slate-500">This is the primary communication channel for the student’s account.</p>
-                              </div>
-                              <div className="rounded-3xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                                <strong>Tip:</strong> if siblings already exist in the system, reuse the same parent email so the account stays linked.
-                              </div>
-                              <div className="grid gap-4 sm:grid-cols-2">
-                                <div>
-                                  <Label htmlFor="parent_name" className="text-sm font-medium text-slate-700">Parent/Guardian Name *</Label>
-                                  <Input
-                                    id="parent_name"
-                                    value={formData.parent_name}
-                                    onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })}
-                                    placeholder="Parent name"
-                                    required
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="parent_email" className="text-sm font-medium text-slate-700">Parent Email *</Label>
-                                  <Input
-                                    id="parent_email"
-                                    type="email"
-                                    value={formData.parent_email}
-                                    onChange={(e) => setFormData({ ...formData, parent_email: e.target.value })}
-                                    placeholder="parent@example.com"
-                                    required
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                                <div className="sm:col-span-2">
-                                  <Label htmlFor="parent_phone" className="text-sm font-medium text-slate-700">Parent Phone</Label>
-                                  <Input
-                                    id="parent_phone"
-                                    value={formData.parent_phone}
-                                    onChange={(e) => setFormData({ ...formData, parent_phone: e.target.value })}
-                                    placeholder="+234..."
-                                    className="mt-2 h-12 rounded-xl border-slate-200 px-4 shadow-sm focus-visible:ring-sky-500"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {createStep === 4 && (
-                            <div className="space-y-5">
-                              <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Student Photo</h3>
-                                <p className="mt-1 text-sm text-slate-500">Add a profile image now or skip and attach one later.</p>
-                              </div>
-                              <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                                <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-white">
-                                    {imagePreview ? (
-                                      <img
-                                        src={imagePreview}
-                                        alt="Preview"
-                                        className="h-full w-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="px-4 text-center">
-                                        <p className="text-sm font-medium text-slate-700">No photo selected yet</p>
-                                        <p className="mt-1 text-sm text-slate-500">Use file upload or the camera to capture a clean student portrait.</p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="space-y-4">
-                                  {isCameraOpen ? (
-                                    <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-5">
-                                      <video
-                                        ref={videoRef}
-                                        autoPlay
-                                        playsInline
-                                        className="w-full rounded-2xl bg-black shadow-sm"
-                                        style={{ height: '300px' }}
-                                      />
-                                      <canvas ref={canvasRef} style={{ display: 'none' }} />
-                                      <div className="flex flex-wrap gap-3">
-                                        <Button type="button" onClick={handleCameraCapture} disabled={uploadingImage} className="h-11 rounded-xl bg-slate-950 px-5 text-white hover:bg-slate-800">
-                                          {uploadingImage ? 'Uploading...' : 'Capture Photo'}
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          onClick={closeCameraAndClear}
-                                          disabled={uploadingImage}
-                                          className="h-11 rounded-xl border-slate-300 px-5"
-                                        >
-                                          Cancel
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                                      <div>
-                                        <Label htmlFor="student_image" className="text-sm font-medium text-slate-700">Upload from device</Label>
-                                        <Input
-                                          id="student_image"
-                                          type="file"
-                                          accept="image/*"
-                                          onChange={handleImageFileSelect}
-                                          disabled={uploadingImage}
-                                          className="mt-2 cursor-pointer rounded-xl border-slate-200 px-4 py-3 shadow-sm"
-                                        />
-                                        <p className="mt-2 text-xs text-slate-500">JPG, PNG, WebP. Keep the image under 5MB for a faster upload.</p>
-                                      </div>
-                                      <Button type="button" variant="outline" onClick={handleCameraCapture} disabled={uploadingImage} className="h-11 rounded-xl border-slate-300 px-5">
-                                        📷 Camera capture
-                                      </Button>
-                                    </div>
-                                  )}
-
-                                  {uploadingImage && (
-                                    <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
-                                      Uploading image to GitHub...
-                                    </div>
-                                  )}
-
-                                  {formData.image_url && (
-                                    <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
-                                      <CheckCircle2 className="h-4 w-4" />
-                                      Image uploaded successfully
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {createStep === 5 && (
-                            <div className="space-y-5">
-                              <div>
-                                <h3 className="text-lg font-semibold text-slate-900">Review</h3>
-                                <p className="mt-1 text-sm text-slate-500">Confirm the details before the student account is created.</p>
-                              </div>
-                              <div className="grid gap-4 sm:grid-cols-2">
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Student</p>
-                                  <p className="mt-2 text-base font-semibold text-slate-900">
-                                    {formData.first_name || '-'} {formData.last_name || ''}
-                                  </p>
-                                  <p className="mt-1 text-sm text-slate-500">{formData.email || 'Using parent email'}</p>
-                                </div>
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Guardian</p>
-                                  <p className="mt-2 text-base font-semibold text-slate-900">{formData.parent_name || '-'}</p>
-                                  <p className="mt-1 text-sm text-slate-500">{formData.parent_email || '-'}</p>
-                                </div>
-                              </div>
-                              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                                <div className="space-y-3">
-                                  <div className="flex items-center justify-between gap-4 text-sm">
-                                    <span className="text-slate-500">Class</span>
-                                    <span className="font-medium text-slate-900">
-                                      {classes.find((cls) => cls.id === formData.class_id)?.name || 'Not selected'}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-4 text-sm">
-                                    <span className="text-slate-500">Department</span>
-                                    <span className="font-medium text-slate-900">
-                                      {departments.find((dept) => dept.id === formData.department_id)?.name || 'Not selected'}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center justify-between gap-4 text-sm">
-                                    <span className="text-slate-500">Admission Date</span>
-                                    <span className="font-medium text-slate-900">{formData.admission_date || '-'}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                When you create the student, the system will send an activation link to the verified student email
-                                if one was provided, and notify the parent account.
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="mt-8 flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={handlePreviousStep}
-                              disabled={createStep === 0 || isCreating}
-                              className="h-11 rounded-xl border-slate-300 px-5"
-                            >
-                              Back
-                            </Button>
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleCreateDialogChange(false)}
-                                disabled={isCreating}
-                                className="h-11 rounded-xl border-slate-300 px-5"
-                              >
-                                Cancel
-                              </Button>
-                              {createStep < createSteps.length - 1 ? (
-                                <Button
-                                  type="button"
-                                  onClick={handleNextStep}
-                                  disabled={!canProceedFromStep(createStep) || isCreating}
-                                  className="h-11 rounded-xl bg-slate-950 px-6 text-white hover:bg-slate-800"
-                                >
-                                  Continue
-                                </Button>
-                              ) : (
-                                <Button
-                                  type="submit"
-                                  disabled={isCreating}
-                                  className="h-11 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 px-6 text-white hover:from-sky-700 hover:to-indigo-700"
-                                >
-                                  {isCreating ? 'Creating...' : 'Create Student'}
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                      <div>
+                        <DialogTitle className="text-base font-bold text-slate-900 leading-none">New Student Enrolment</DialogTitle>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Step {createStep + 1} of {createSteps.length} — {createSteps[createStep].title}
+                        </p>
                       </div>
                     </div>
-                  </form>
+                    <button
+                      onClick={() => handleCreateDialogChange(false)}
+                      className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* ── Body: sidebar + content ── */}
+                  <div className="flex min-h-0 flex-1 overflow-hidden">
+
+                    {/* ── Sidebar ── */}
+                    <aside className="hidden w-64 shrink-0 flex-col border-r border-white/10 bg-[#0f1117] lg:flex">
+                      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-1">
+                        {/* Progress ring / number */}
+                        <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-widest text-white/40">Overall progress</p>
+                          <div className="mt-3 flex items-end gap-2">
+                            <span className="text-4xl font-bold text-white tabular-nums">
+                              {String(createStep + 1).padStart(2, '0')}
+                            </span>
+                            <span className="pb-1 text-sm text-white/40">/ {String(createSteps.length).padStart(2, '0')}</span>
+                          </div>
+                          <div className="mt-3">
+                            <WizardProgress current={createStep} total={createSteps.length} />
+                          </div>
+                        </div>
+
+                        {/* Email status pill */}
+                        <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {emailVerificationStatus === 'verified'
+                              ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                              : <Shield className="h-4 w-4 text-amber-300/70 shrink-0" />
+                            }
+                            <p className="text-[11px] font-medium text-white/70 leading-snug">
+                              {emailVerificationStatus === 'verified'
+                                ? 'Email verified'
+                                : formData.email.trim()
+                                  ? 'Awaiting verification'
+                                  : 'Using parent email fallback'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Steps */}
+                        {createSteps.map((step, i) => (
+                          <StepItem key={step.title} step={step} index={i} current={createStep} />
+                        ))}
+                      </div>
+
+                      {/* Notes footer */}
+                      <div className="shrink-0 border-t border-white/8 px-4 py-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Notes</p>
+                        <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed text-white/40">
+                          <li>Keep student & parent details accurate.</li>
+                          <li>Use the same parent email for siblings.</li>
+                          <li>Optional steps can be skipped.</li>
+                        </ul>
+                      </div>
+                    </aside>
+
+                    {/* ── Main content panel ── */}
+                    <form
+                      onSubmit={handleCreateStudent}
+                      className="flex flex-1 flex-col overflow-hidden"
+                    >
+                      {/* Step header */}
+                      <div className="shrink-0 border-b border-slate-100 bg-slate-50/60 px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {(() => { const Icon = STEP_ICONS[createStep]; return (
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+                              <Icon className="h-4.5 w-4.5 text-indigo-600" />
+                            </div>
+                          ); })()}
+                          <div>
+                            <h2 className="text-base font-bold text-slate-900 leading-none">{createSteps[createStep].title}</h2>
+                            <p className="mt-0.5 text-[12px] text-slate-500">{createSteps[createStep].detail}</p>
+                          </div>
+                        </div>
+                        {/* Mobile progress bar */}
+                        <div className="mt-3 lg:hidden">
+                          <WizardProgress current={createStep} total={createSteps.length} />
+                        </div>
+                      </div>
+
+                      {/* Scrollable step body */}
+                      <div className="flex-1 overflow-y-auto px-6 py-6">
+
+                        {/* ── STEP 0: Email Verification ── */}
+                        {createStep === 0 && (
+                          <div className="space-y-5 max-w-lg">
+                            <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 px-5 py-4">
+                              <p className="text-[11px] font-semibold uppercase tracking-widest text-indigo-400">Optional</p>
+                              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                                If the student has their own email, verify it with a 6-digit code. Leave it blank to rely on the parent email instead.
+                              </p>
+                            </div>
+
+                            <FieldGroup>
+                              <FieldLabel>Student Email</FieldLabel>
+                              <StyledInput
+                                type="email"
+                                value={formData.email}
+                                onChange={(e) => handleStudentEmailChange(e.target.value)}
+                                placeholder="student@example.com"
+                              />
+                            </FieldGroup>
+
+                            <div className="flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={handleSendVerificationCode}
+                                disabled={!formData.email.trim() || isSendingCode || resendCountdown > 0 || emailVerificationStatus === 'verified'}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white transition-all hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Mail className="h-3.5 w-3.5" />
+                                {emailVerificationStatus === 'verified'
+                                  ? 'Email Verified'
+                                  : isSendingCode ? 'Sending…'
+                                  : resendCountdown > 0 ? `Resend in ${resendCountdown}s`
+                                  : 'Send Code'}
+                              </button>
+                              {emailVerificationStatus === 'verified' && (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />Verified
+                                </span>
+                              )}
+                            </div>
+
+                            {formData.email.trim() && emailVerificationStatus !== 'idle' && (
+                              <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                <FieldGroup>
+                                  <FieldLabel>6-Digit Code</FieldLabel>
+                                  <p className="text-xs text-slate-500 -mt-1">Sent to the student's inbox</p>
+                                  <div className="mt-3">
+                                    <InputOTP maxLength={6} value={emailVerificationCode} onChange={setEmailVerificationCode}>
+                                      <InputOTPGroup>
+                                        {Array.from({ length: 6 }).map((_, i) => (
+                                          <InputOTPSlot key={i} index={i} />
+                                        ))}
+                                      </InputOTPGroup>
+                                    </InputOTP>
+                                  </div>
+                                </FieldGroup>
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyEmailCode}
+                                  disabled={emailVerificationStatus === 'verified' || isVerifyingCode}
+                                  className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition-all hover:bg-indigo-700 disabled:opacity-50"
+                                >
+                                  {isVerifyingCode ? 'Verifying…' : 'Verify Code'}
+                                </button>
+                              </div>
+                            )}
+
+                            {formData.email.trim() && emailVerificationStatus !== 'verified' && (
+                              <div className="flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                You can continue without a student email. The parent portal will remain the primary contact path.
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* ── STEP 1: Student Info ── */}
+                        {createStep === 1 && (
+                          <div className="space-y-5 max-w-2xl">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <FieldGroup>
+                                <FieldLabel required>First Name</FieldLabel>
+                                <StyledInput value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} placeholder="John" required />
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel required>Last Name</FieldLabel>
+                                <StyledInput value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} placeholder="Doe" required />
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel>Phone</FieldLabel>
+                                <StyledInput value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+234…" />
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel>Date of Birth</FieldLabel>
+                                <StyledInput type="date" value={formData.date_of_birth} onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })} />
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel>Gender</FieldLabel>
+                                <StyledSelect value={formData.gender} onChange={(e) => setFormData({ ...formData, gender: e.target.value })}>
+                                  <option value="">Select gender</option>
+                                  <option value="male">Male</option>
+                                  <option value="female">Female</option>
+                                  <option value="others">Others</option>
+                                </StyledSelect>
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel>Address</FieldLabel>
+                                <StyledInput value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="Street address" />
+                              </FieldGroup>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── STEP 2: Academic ── */}
+                        {createStep === 2 && (
+                          <div className="space-y-5 max-w-2xl">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <FieldGroup>
+                                <FieldLabel>Class</FieldLabel>
+                                <StyledSelect value={formData.class_id} onChange={(e) => setFormData({ ...formData, class_id: e.target.value })}>
+                                  <option value="">Select class (optional)</option>
+                                  {classes.map((cls) => <option key={cls.id} value={cls.id}>{cls.name}</option>)}
+                                </StyledSelect>
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel>Department</FieldLabel>
+                                <StyledSelect value={formData.department_id} onChange={(e) => setFormData({ ...formData, department_id: e.target.value })}>
+                                  <option value="">Select department</option>
+                                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                </StyledSelect>
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel>Religion</FieldLabel>
+                                <StyledSelect value={formData.religion_id} onChange={(e) => setFormData({ ...formData, religion_id: e.target.value })}>
+                                  <option value="">Select religion (optional)</option>
+                                  {religions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                </StyledSelect>
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel required>Admission Date</FieldLabel>
+                                <StyledInput type="date" value={formData.admission_date} onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })} required />
+                              </FieldGroup>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── STEP 3: Parent / Guardian ── */}
+                        {createStep === 3 && (
+                          <div className="space-y-5 max-w-2xl">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <FieldGroup className="sm:col-span-2">
+                                <FieldLabel required>Parent / Guardian Name</FieldLabel>
+                                <StyledInput value={formData.parent_name} onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })} placeholder="Full name" required />
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel required>Parent Email</FieldLabel>
+                                <StyledInput type="email" value={formData.parent_email} onChange={(e) => setFormData({ ...formData, parent_email: e.target.value })} placeholder="parent@example.com" required />
+                              </FieldGroup>
+                              <FieldGroup>
+                                <FieldLabel>Parent Phone</FieldLabel>
+                                <StyledInput value={formData.parent_phone} onChange={(e) => setFormData({ ...formData, parent_phone: e.target.value })} placeholder="+234…" />
+                              </FieldGroup>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── STEP 4: Photo ── */}
+                        {createStep === 4 && (
+                          <div className="space-y-5 max-w-2xl">
+                            <div className="grid gap-5 sm:grid-cols-2">
+                              {/* Preview */}
+                              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
+                                {imagePreview ? (
+                                  <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                                ) : (
+                                  <div className="text-center px-6">
+                                    <Camera className="mx-auto h-8 w-8 text-slate-300" />
+                                    <p className="mt-2 text-xs font-medium text-slate-400">No photo selected</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Upload / camera */}
+                              <div className="space-y-3">
+                                {isCameraOpen ? (
+                                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                    <video ref={videoRef} autoPlay playsInline className="w-full rounded-xl bg-black" style={{ height: 220 }} />
+                                    <canvas ref={canvasRef} style={{ display: 'none' }} />
+                                    <div className="flex gap-2">
+                                      <button type="button" onClick={handleCameraCapture} disabled={uploadingImage}
+                                        className="flex-1 h-10 rounded-xl bg-slate-950 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50">
+                                        {uploadingImage ? 'Uploading…' : 'Capture'}
+                                      </button>
+                                      <button type="button" onClick={closeCameraAndClear} disabled={uploadingImage}
+                                        className="h-10 rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+                                    <FieldGroup>
+                                      <FieldLabel>Upload from device</FieldLabel>
+                                      <input
+                                        type="file" accept="image/*" onChange={handleImageFileSelect} disabled={uploadingImage}
+                                        className="block w-full cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
+                                      />
+                                      <p className="text-[11px] text-slate-400">JPG, PNG, WebP — max 5 MB</p>
+                                    </FieldGroup>
+                                    <button type="button" onClick={handleCameraCapture} disabled={uploadingImage}
+                                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
+                                      <Camera className="h-4 w-4" /> Open Camera
+                                    </button>
+                                  </div>
+                                )}
+
+                                {uploadingImage && (
+                                  <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-700">
+                                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-300 border-t-sky-600" />
+                                    Uploading image…
+                                  </div>
+                                )}
+                                {formData.image_url && (
+                                  <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Uploaded successfully
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── STEP 5: Review ── */}
+                        {createStep === 5 && (
+                          <div className="space-y-5 max-w-2xl">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              {/* Student card */}
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                <div className="flex items-center gap-3 mb-4">
+                                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 overflow-hidden shrink-0">
+                                    {imagePreview
+                                      ? <img src={imagePreview} alt="" className="h-full w-full object-cover" />
+                                      : <User className="h-5 w-5 text-indigo-500" />}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-900">
+                                      {formData.first_name || '—'} {formData.last_name}
+                                    </p>
+                                    <p className="text-xs text-slate-500">{formData.email || 'Using parent email'}</p>
+                                  </div>
+                                </div>
+                                <ReviewRow label="Phone" value={formData.phone} />
+                                <ReviewRow label="DOB" value={formData.date_of_birth} />
+                                <ReviewRow label="Gender" value={formData.gender} />
+                                <ReviewRow label="Address" value={formData.address} />
+                              </div>
+
+                              {/* Guardian card */}
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Guardian</p>
+                                <ReviewRow label="Name" value={formData.parent_name} />
+                                <ReviewRow label="Email" value={formData.parent_email} />
+                                <ReviewRow label="Phone" value={formData.parent_phone} />
+                              </div>
+
+                              {/* Academic card */}
+                              <div className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Academic</p>
+                                <ReviewRow label="Class" value={classes.find((c) => c.id === formData.class_id)?.name || ''} />
+                                <ReviewRow label="Department" value={departments.find((d) => d.id === formData.department_id)?.name || ''} />
+                                <ReviewRow label="Admission Date" value={formData.admission_date} />
+                              </div>
+                            </div>
+
+                            <div className="flex items-start gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+                              <Shield className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
+                              When created, the system sends an activation link to the verified student email and notifies the parent account.
+                            </div>
+                          </div>
+                        )}
+
+                      </div>{/* end scrollable body */}
+
+                      {/* ── Footer navigation ── */}
+                      <div className="shrink-0 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            onClick={handlePreviousStep}
+                            disabled={createStep === 0 || isCreating}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <ArrowLeft className="h-4 w-4" /> Back
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleCreateDialogChange(false)}
+                              disabled={isCreating}
+                              className="inline-flex h-10 items-center px-4 rounded-xl text-sm font-medium text-slate-500 transition hover:text-slate-700 disabled:opacity-40"
+                            >
+                              Cancel
+                            </button>
+
+                            {createStep < createSteps.length - 1 ? (
+                              <button
+                                type="button"
+                                onClick={handleNextStep}
+                                disabled={!canProceedFromStep(createStep) || isCreating}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                Continue <ArrowRight className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <button
+                                type="submit"
+                                disabled={isCreating}
+                                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 text-sm font-bold text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50"
+                              >
+                                {isCreating ? (
+                                  <>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                    Creating…
+                                  </>
+                                ) : (
+                                  <><Sparkles className="h-4 w-4" /> Create Student</>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                    </form>
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
-            <Button variant="outline" onClick={handleExport}>
+
+            <Button variant="outline" onClick={handleExport} className="rounded-xl">
               <Download className="mr-2 h-4 w-4" />
               Export
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
-              <Users className="h-4 w-4 text-gray-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalStudents}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Active Students</CardTitle>
-              <UserCheck className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{activeStudents}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Suspended</CardTitle>
-              <UserX className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{suspendedStudents}</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">New This Term</CardTitle>
-              <CalendarIcon className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{newThisTerm}</div>
-            </CardContent>
-          </Card>
+        {/* ── Stat cards ── */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard title="Total Students" value={totalStudents} icon={Users} color="text-slate-700" />
+          <StatCard title="Active" value={activeStudents} icon={UserCheck} color="text-emerald-600" />
+          <StatCard title="Suspended" value={suspendedStudents} icon={UserX} color="text-rose-600" />
+          <StatCard title="New This Term" value={newThisTerm} icon={CalendarIcon} color="text-indigo-600" />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Search & Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-5">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search students..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              <select
-                value={filterClass}
-                onChange={(e) => setFilterClass(e.target.value)}
-                className="px-3 py-2 border rounded-md"
-              >
-                <option value="">All Classes</option>
-                {classes.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={filterDepartment}
-                onChange={(e) => setFilterDepartment(e.target.value)}
-                className="px-3 py-2 border rounded-md"
-              >
-                <option value="">All Departments</option>
-                {uniqueDepartments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={filterGender}
-                onChange={(e) => setFilterGender(e.target.value)}
-                className="px-3 py-2 border rounded-md"
-              >
-                <option value="">All Genders</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="others">Others</option>
-              </select>
-
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-3 py-2 border rounded-md"
-              >
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="suspended">Suspended</option>
-                <option value="graduated">Graduated</option>
-                <option value="withdrawn">Withdrawn</option>
-              </select>
+        {/* ── Search & filters ── */}
+        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4">Search & Filters</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="relative lg:col-span-1 sm:col-span-2">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search students…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-10 rounded-xl border-slate-200 pl-10 text-sm shadow-sm focus-visible:ring-indigo-300"
+              />
             </div>
-          </CardContent>
-        </Card>
+            {[
+              { value: filterClass, setter: setFilterClass, placeholder: 'All Classes', options: classes.map((c) => ({ id: c.id, name: c.name })) },
+              { value: filterDepartment, setter: setFilterDepartment, placeholder: 'All Departments', options: uniqueDepartments.map((d) => ({ id: d.id, name: d.name })) },
+            ].map(({ value, setter, placeholder, options }, i) => (
+              <select key={i} value={value} onChange={(e) => setter(e.target.value)}
+                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200">
+                <option value="">{placeholder}</option>
+                {options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            ))}
+            <select value={filterGender} onChange={(e) => setFilterGender(e.target.value)}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200">
+              <option value="">All Genders</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="others">Others</option>
+            </select>
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200">
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+              <option value="graduated">Graduated</option>
+              <option value="withdrawn">Withdrawn</option>
+            </select>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Students List</CardTitle>
-            <p className="text-sm text-gray-600">
-              Showing {filteredStudents.length} of {totalStudents} students
-            </p>
-          </CardHeader>
-          <CardContent>
+        {/* ── Students table ── */}
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">Students List</h2>
+              <p className="text-[11px] text-slate-400 mt-0.5">Showing {filteredStudents.length} of {totalStudents} students</p>
+            </div>
+          </div>
+          <div className="px-2 pb-2">
             <StudentTable
               students={filteredStudents}
               onViewDetails={handleViewDetails}
@@ -1531,121 +1197,69 @@ export default function AdminStudentsPage() {
               onRemoveStudent={handleRemoveStudent}
               onDeleteStudent={handleDeleteStudent}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        {/* Student Details Modal */}
-        <StudentDetailsModal
-          student={selectedStudent}
-          sessions={sessions}
-          terms={terms}
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-        />
-
-        {/* Edit Student Modal */}
-        <EditStudentModal
-          student={selectedStudent}
-          isOpen={isEditStudentOpen}
-          onClose={() => {
-            setIsEditStudentOpen(false);
-            setSelectedStudent(null);
-          }}
+        {/* ── Modals ── */}
+        <StudentDetailsModal student={selectedStudent} sessions={sessions} terms={terms} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+        <EditStudentModal student={selectedStudent} isOpen={isEditStudentOpen}
+          onClose={() => { setIsEditStudentOpen(false); setSelectedStudent(null); }}
           onSuccess={handleEditStudentSuccess}
         />
 
-        {/* Transfer Student Dialog */}
+        {/* ── Transfer dialog ── */}
         <Dialog open={isTransferStudentOpen} onOpenChange={setIsTransferStudentOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-2xl border-0 shadow-2xl sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Transfer Student</DialogTitle>
+              <DialogTitle className="text-base font-bold text-slate-900">Transfer Student</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Transfer {selectedStudent?.first_name} {selectedStudent?.last_name} to another class:
+            <div className="space-y-4 pt-1">
+              <p className="text-sm text-slate-500">
+                Move <span className="font-semibold text-slate-800">{selectedStudent?.first_name} {selectedStudent?.last_name}</span> to a new class:
               </p>
-
-              <select
-                className="w-full border rounded-md p-2"
-                value={transferTargetClassId}
-                onChange={(e) => setTransferTargetClassId(e.target.value)}
-              >
+              <StyledSelect value={transferTargetClassId} onChange={(e) => setTransferTargetClassId(e.target.value)}>
                 <option value="">Select target class</option>
-                {classes
-                  .filter((c) => c.id !== selectedStudent?.class_id)
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-              </select>
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsTransferStudentOpen(false);
-                    setTransferTargetClassId("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    handleTransferStudentToClass(transferTargetClassId);
-                  }}
-                  disabled={!transferTargetClassId}
-                >
-                  Transfer
-                </Button>
+                {classes.filter((c) => c.id !== selectedStudent?.class_id).map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </StyledSelect>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => { setIsTransferStudentOpen(false); setTransferTargetClassId(''); }} className="rounded-xl">Cancel</Button>
+                <Button onClick={() => handleTransferStudentToClass(transferTargetClassId)} disabled={!transferTargetClassId} className="rounded-xl bg-slate-950 text-white hover:bg-slate-800">Transfer</Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Delete Student Dialog */}
+        {/* ── Delete dialog ── */}
         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-2xl border-0 shadow-2xl sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>
-                <span className="flex items-center gap-2 text-red-700">
-                  <AlertTriangle className="h-5 w-5" />
-                  Delete Student Completely
-                </span>
+              <DialogTitle className="flex items-center gap-2 text-rose-700">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                Permanently Delete Student
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-3">
-              <p className="text-red-700 font-semibold">
-                This will permanently delete <b>{studentToDelete?.first_name} {studentToDelete?.last_name}</b> and all related data:
+            <div className="space-y-3 pt-1">
+              <p className="text-sm font-semibold text-rose-700">
+                This will permanently delete <strong>{studentToDelete?.first_name} {studentToDelete?.last_name}</strong> and all associated data:
               </p>
-              <ul className="list-disc pl-6 text-sm text-red-600">
-                <li>Student record</li>
-                <li>Attendance, results, class assignments</li>
-                <li>Session/term links</li>
-                <li>Auth user account (cannot be undone)</li>
+              <ul className="space-y-1.5 rounded-xl bg-rose-50 px-4 py-3 text-xs text-rose-700">
+                {['Student record', 'Attendance, results, class assignments', 'Session / term links', 'Auth user account (cannot be undone)'].map((item) => (
+                  <li key={item} className="flex items-center gap-2"><span className="h-1 w-1 rounded-full bg-rose-400 shrink-0" />{item}</li>
+                ))}
               </ul>
-              <p className="text-sm text-muted-foreground">
-                This action cannot be undone. Are you sure you want to proceed?
-              </p>
+              <p className="text-xs text-slate-500">This action cannot be undone. Are you sure?</p>
               <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsDeleteDialogOpen(false)}
-                  disabled={isDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDeleteStudentCompletely}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? "Deleting..." : "Delete Permanently"}
+                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting} className="rounded-xl">Cancel</Button>
+                <Button variant="destructive" onClick={handleDeleteStudentCompletely} disabled={isDeleting} className="rounded-xl">
+                  {isDeleting ? 'Deleting…' : 'Delete Permanently'}
                 </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
+
       </div>
     </DashboardLayout>
   );

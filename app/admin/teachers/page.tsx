@@ -187,7 +187,7 @@ export default function TeachersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [teacherToDelete, setTeacherToDelete] = useState<{ id: string; userId?: string; name: string } | null>(null);
-  
+
   // Image handling state
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -400,7 +400,7 @@ export default function TeachersPage() {
             const file = new File([blob], `teacher_camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
             setImagePreview(canvas.toDataURL());
             await uploadImageToGitHub(file);
-            
+
             // Close camera
             cameraStream.getTracks().forEach(track => track.stop());
             setCameraStream(null);
@@ -1268,116 +1268,116 @@ export default function TeachersPage() {
                 </Button>
               </div>
               <div className="max-h-[calc(92vh-72px)] overflow-y-auto px-6 py-6 sm:px-7">
-            <DialogHeader>
-              <DialogTitle className="sr-only">Teacher Details</DialogTitle>
-            </DialogHeader>
-            {viewingTeacher && (
-              <div className="space-y-6">
-                {/* Header with Avatar */}
-                <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <Avatar className="h-20 w-20 ring-4 ring-white shadow-sm">
-                    {(viewingTeacher as any).photo_url && (
-                      <img
-                        src={(viewingTeacher as any).photo_url}
-                        alt={`${viewingTeacher.first_name} ${viewingTeacher.last_name}`}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                    <AvatarFallback className="bg-gradient-to-br from-green-100 to-green-200 text-green-700 text-2xl font-semibold">
-                      {getInitials(viewingTeacher.first_name, viewingTeacher.last_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900">
-                      {viewingTeacher.first_name} {viewingTeacher.last_name}
-                    </h3>
-                    <p className="text-sm text-gray-600 mt-1">{viewingTeacher.qualification || 'N/A'}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge variant={viewingTeacher.status === 'active' ? 'default' : 'secondary'}>
-                        {viewingTeacher.status}
-                      </Badge>
-                      {viewingTeacher.specialization && (
-                        <Badge variant="outline" className="text-xs">
-                          {viewingTeacher.specialization}
-                        </Badge>
+                <DialogHeader>
+                  <DialogTitle className="sr-only">Teacher Details</DialogTitle>
+                </DialogHeader>
+                {viewingTeacher && (
+                  <div className="space-y-6">
+                    {/* Header with Avatar */}
+                    <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <Avatar className="h-20 w-20 ring-4 ring-white shadow-sm">
+                        {(viewingTeacher as any).photo_url && (
+                          <img
+                            src={(viewingTeacher as any).photo_url}
+                            alt={`${viewingTeacher.first_name} ${viewingTeacher.last_name}`}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                        <AvatarFallback className="bg-gradient-to-br from-green-100 to-green-200 text-green-700 text-2xl font-semibold">
+                          {getInitials(viewingTeacher.first_name, viewingTeacher.last_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <h3 className="text-2xl font-bold text-gray-900">
+                          {viewingTeacher.first_name} {viewingTeacher.last_name}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">{viewingTeacher.qualification || 'N/A'}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant={viewingTeacher.status === 'active' ? 'default' : 'secondary'}>
+                            {viewingTeacher.status}
+                          </Badge>
+                          {viewingTeacher.specialization && (
+                            <Badge variant="outline" className="text-xs">
+                              {viewingTeacher.specialization}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Basic Information */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Basic Information</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Staff ID</Label>
+                          <p className="font-mono font-semibold text-gray-900 mt-1">{viewingTeacher.staff_id}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Email</Label>
+                          <p className="font-semibold text-gray-900 mt-1 text-sm break-all">{viewingTeacher.email}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Phone</Label>
+                          <p className="font-semibold text-gray-900 mt-1">{viewingTeacher.phone || 'N/A'}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Specialization</Label>
+                          <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.specialization || 'N/A'}</p>
+                        </div>
+                      </div>
+                      {viewingTeacher.address && (
+                        <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                          <Label className="text-xs text-gray-600 uppercase tracking-wider">Address</Label>
+                          <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.address}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Class Teacher Assignment */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Class Assignment</h4>
+                      {viewingTeacher.assignedClass ? (
+                        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                          <Badge variant="outline" className="text-base px-3 py-1.5 bg-white border-blue-300">
+                            {viewingTeacher.assignedClass}
+                          </Badge>
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 rounded-lg p-4 text-center">
+                          <p className="text-gray-500 text-sm">Not assigned to any class</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Subject Assignments */}
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Subject Teaching</h4>
+                      {viewingTeacher.subjectAssignmentsByClass && viewingTeacher.subjectAssignmentsByClass.length > 0 ? (
+                        <div className="space-y-3">
+                          {viewingTeacher.subjectAssignmentsByClass.map((assignment, classIdx) => (
+                            <div key={classIdx} className="bg-amber-50 rounded-lg border border-amber-200 overflow-hidden">
+                              <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
+                                <h5 className="font-semibold text-amber-900 text-sm">{assignment.className}</h5>
+                              </div>
+                              <div className="p-3 flex flex-wrap gap-2">
+                                {assignment.subjects.map((subject, subjIdx) => (
+                                  <Badge key={subjIdx} variant="secondary" className="bg-amber-200 text-amber-900 font-medium">
+                                    {subject.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 rounded-lg p-4 text-center">
+                          <p className="text-gray-500 text-sm">Not assigned to any subjects</p>
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-
-                {/* Basic Information */}
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Basic Information</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Staff ID</Label>
-                      <p className="font-mono font-semibold text-gray-900 mt-1">{viewingTeacher.staff_id}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Email</Label>
-                      <p className="font-semibold text-gray-900 mt-1 text-sm break-all">{viewingTeacher.email}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Phone</Label>
-                      <p className="font-semibold text-gray-900 mt-1">{viewingTeacher.phone || 'N/A'}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Specialization</Label>
-                      <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.specialization || 'N/A'}</p>
-                    </div>
-                  </div>
-                  {viewingTeacher.address && (
-                    <div className="bg-gray-50 rounded-lg p-3 mt-3">
-                      <Label className="text-xs text-gray-600 uppercase tracking-wider">Address</Label>
-                      <p className="font-semibold text-gray-900 mt-1 text-sm">{viewingTeacher.address}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Class Teacher Assignment */}
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Class Assignment</h4>
-                  {viewingTeacher.assignedClass ? (
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                      <Badge variant="outline" className="text-base px-3 py-1.5 bg-white border-blue-300">
-                        {viewingTeacher.assignedClass}
-                      </Badge>
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-gray-500 text-sm">Not assigned to any class</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Subject Assignments */}
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Subject Teaching</h4>
-                  {viewingTeacher.subjectAssignmentsByClass && viewingTeacher.subjectAssignmentsByClass.length > 0 ? (
-                    <div className="space-y-3">
-                      {viewingTeacher.subjectAssignmentsByClass.map((assignment, classIdx) => (
-                        <div key={classIdx} className="bg-amber-50 rounded-lg border border-amber-200 overflow-hidden">
-                          <div className="bg-amber-100 px-4 py-2 border-b border-amber-200">
-                            <h5 className="font-semibold text-amber-900 text-sm">{assignment.className}</h5>
-                          </div>
-                          <div className="p-3 flex flex-wrap gap-2">
-                            {assignment.subjects.map((subject, subjIdx) => (
-                              <Badge key={subjIdx} variant="secondary" className="bg-amber-200 text-amber-900 font-medium">
-                                {subject.name}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bg-gray-50 rounded-lg p-4 text-center">
-                      <p className="text-gray-500 text-sm">Not assigned to any subjects</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+                )}
               </div>
             </div>
           </DialogContent>

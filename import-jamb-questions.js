@@ -13,19 +13,6 @@ const REQUEST_TIMEOUT_MS = 30000;
 
 const JAMB_SUBJECTS = [
   { slug: 'english-language', name: 'Use of English' },
-  { slug: 'mathematics', name: 'Mathematics' },
-  { slug: 'physics', name: 'Physics' },
-  { slug: 'chemistry', name: 'Chemistry' },
-  { slug: 'biology', name: 'Biology' },
-  { slug: 'agricultural-science', name: 'Agricultural Science' },
-  { slug: 'physical-education', name: 'Physical & Health Education (PHE)' },
-  { slug: 'computer-studies', name: 'Computer Studies' },
-  { slug: 'home-economics', name: 'Home Economics' },
-  { slug: 'economics', name: 'Economics' },
-  { slug: 'geography', name: 'Geography' },
-  { slug: 'government', name: 'Government' },
-  { slug: 'commerce', name: 'Commerce' },
-  { slug: 'accounts-principles-of-accounts', name: 'Principles of Accounts' },
   { slug: 'civic-education', name: 'Civic Education' },
   { slug: 'literature-in-english', name: 'Literature-in-English' },
   { slug: 'christian-religious-knowledge-crk', name: 'Christian Religious Studies (CRS)' },
@@ -579,9 +566,9 @@ async function upsertQuestionsForPage(supabase, rows, context) {
   const externalIds = rows.map((row) => row.external_question_id);
   const { data: existingRows, error: existingError } = externalIds.length
     ? await supabase
-        .from('jamb_questions')
-        .select('id, external_question_id')
-        .in('external_question_id', externalIds)
+      .from('jamb_questions')
+      .select('id, external_question_id')
+      .in('external_question_id', externalIds)
     : { data: [], error: null };
 
   if (existingError) {
@@ -665,7 +652,18 @@ async function importSubjectYear(options) {
       totalPages,
       reason: `exceeds max allowed pages (${MAX_PAGES})`
     });
-    return;
+    return {
+      status: 'skipped',
+      subjectSlug,
+      subjectName,
+      year: String(options.year),
+      totalPages,
+      totalImportableQuestions: 0,
+      totalInserted: 0,
+      totalRefreshed: 0,
+      totalImagesUploaded: 0,
+      totalImageFailures: 0
+    };
   }
 
   console.log('[jamb-import] starting import', {
@@ -798,6 +796,19 @@ async function importSubjectYear(options) {
     totalImagesUploaded,
     totalImageFailures
   });
+
+  return {
+    status: 'completed',
+    subjectSlug,
+    subjectName,
+    year: String(options.year),
+    totalPages,
+    totalImportableQuestions: totalScraped,
+    totalInserted,
+    totalRefreshed,
+    totalImagesUploaded,
+    totalImageFailures
+  };
 }
 
 function parseYearRange(yearValue) {
@@ -815,37 +826,180 @@ function parseYearRange(yearValue) {
   return years;
 }
 
+function resolveSubjectQueue(subjectValue) {
+  const raw = String(subjectValue || '').trim();
+  if (!raw || raw === 'all' || raw === '*') {
+    return [...JAMB_SUBJECTS];
+  }
+
+  const seen = new Set();
+  const queue = [];
+
+  for (const token of raw.split(',')) {
+    const slug = sanitizePathSegment(token);
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+
+    const known = SUBJECT_BY_SLUG.get(slug);
+    queue.push({
+      slug,
+      name: known?.name || normalizeSubjectName(slug, '')
+    });
+  }
+
+  return queue;
+}
+
 async function importYears(options) {
   const years = parseYearRange(String(options.year || '')) || (options.year ? [String(options.year)] : []);
   if (years.length === 0) {
     throw new Error('The --year flag is required');
   }
 
+  const aggregate = {
+    subjectSlug: String(options.subject || '').trim(),
+    subjectName: normalizeSubjectName(String(options.subject || '').trim(), String(options.subjectName || '').trim()),
+    yearsRequested: years.length,
+    yearsCompleted: 0,
+    yearsSkipped: 0,
+    yearsFailed: 0,
+    totalImportableQuestions: 0,
+    totalInserted: 0,
+    totalRefreshed: 0,
+    totalImagesUploaded: 0,
+    totalImageFailures: 0
+  };
+
   for (const year of years) {
     console.log('[jamb-import] starting year', { year });
     try {
       // clone options and set the current year
       const opts = Object.assign({}, options, { year });
-      await importSubjectYear(opts);
+      const result = await importSubjectYear(opts);
+
+      if (result && result.status === 'completed') {
+        aggregate.yearsCompleted += 1;
+        aggregate.totalImportableQuestions += result.totalImportableQuestions || 0;
+        aggregate.totalInserted += result.totalInserted || 0;
+        aggregate.totalRefreshed += result.totalRefreshed || 0;
+        aggregate.totalImagesUploaded += result.totalImagesUploaded || 0;
+        aggregate.totalImageFailures += result.totalImageFailures || 0;
+      } else if (result && result.status === 'skipped') {
+        aggregate.yearsSkipped += 1;
+      }
     } catch (err) {
+      aggregate.yearsFailed += 1;
       console.error('[jamb-import] error importing year', { year, message: err?.message || String(err) });
     }
   }
+
+  return aggregate;
+}
+
+function printSubjectSummaryTable(subjectSummaries) {
+  if (!Array.isArray(subjectSummaries) || subjectSummaries.length === 0) {
+    console.log('[jamb-import] no subject summary rows to display');
+    return;
+  }
+
+  const rows = subjectSummaries.map((summary) => ({
+    subject: summary.subjectSlug,
+    status: summary.status,
+    yearsRequested: summary.yearsRequested,
+    yearsCompleted: summary.yearsCompleted,
+    yearsSkipped: summary.yearsSkipped,
+    yearsFailed: summary.yearsFailed,
+    importable: summary.totalImportableQuestions,
+    inserted: summary.totalInserted,
+    refreshed: summary.totalRefreshed,
+    imagesUploaded: summary.totalImagesUploaded,
+    imageFailures: summary.totalImageFailures
+  }));
+
+  console.log('[jamb-import] subject summary');
+  console.table(rows);
+}
+
+async function importSubjects(options) {
+  const subjects = resolveSubjectQueue(options.subject);
+  if (subjects.length === 0) {
+    throw new Error('No valid subject found. Provide --subject=<slug> or --subject=all');
+  }
+
+  const subjectSummaries = [];
+
+  for (let index = 0; index < subjects.length; index += 1) {
+    const subject = subjects[index];
+    const isSingleSubjectRun = subjects.length === 1;
+    const resolvedSubjectName = isSingleSubjectRun && options.subjectName
+      ? String(options.subjectName).trim() || subject.name
+      : subject.name;
+
+    console.log('[jamb-import] starting subject', {
+      subjectSlug: subject.slug,
+      subjectName: resolvedSubjectName
+    });
+
+    try {
+      const opts = Object.assign({}, options, {
+        subject: subject.slug,
+        subjectName: resolvedSubjectName
+      });
+
+      // Ensure a valid year is present for each subject run. Use global default when missing.
+      if (!opts.year || !String(opts.year).trim()) {
+        opts.year = String(options.year && String(options.year).trim() ? options.year : '1978-2025');
+        console.log('[jamb-import] using default year for subject', { subject: subject.slug, year: opts.year });
+      }
+
+      const summary = await importYears(opts);
+      subjectSummaries.push({
+        ...summary,
+        subjectName: resolvedSubjectName,
+        status: summary.yearsFailed > 0 || summary.yearsCompleted === 0 ? 'fail' : 'success'
+      });
+    } catch (err) {
+      console.error('[jamb-import] error importing subject', {
+        subjectSlug: subject.slug,
+        message: err?.message || String(err)
+      });
+
+      subjectSummaries.push({
+        subjectSlug: subject.slug,
+        subjectName: resolvedSubjectName,
+        status: 'fail',
+        yearsRequested: 0,
+        yearsCompleted: 0,
+        yearsSkipped: 0,
+        yearsFailed: 1,
+        totalImportableQuestions: 0,
+        totalInserted: 0,
+        totalRefreshed: 0,
+        totalImagesUploaded: 0,
+        totalImageFailures: 0
+      });
+    }
+  }
+
+  printSubjectSummaryTable(subjectSummaries);
+  return subjectSummaries;
 }
 
 async function main() {
+  const cliArgs = parseArgs(process.argv);
   const options = {
     detail: true,
     pageDelayMs: 250,
     bucket: DEFAULT_BUCKET,
-    subject: 'government',
+    subject: 'all',
     subjectName: '',
-    year: '1978-2025'
+    year: '1978-2025',
+    ...cliArgs
   };
-  
-  
+
+
   try {
-    await importYears(options);
+    await importSubjects(options);
   } catch (error) {
     console.error('[jamb-import] fatal error', {
       message: error?.message || String(error),

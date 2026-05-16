@@ -44,7 +44,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-// @ts-expect-error -- CSS side-effect import is resolved by Next.js at build time.
 import "katex/dist/katex.min.css";
 import useExamTimer from "@/hooks/use-exam-timer";
 import ExamTimerWidget from "@/components/jamb/exam-timer-widget";

@@ -18,7 +18,6 @@ const JAMB_SUBJECTS = [
   { slug: 'chemistry', name: 'Chemistry' },
   { slug: 'biology', name: 'Biology' },
   { slug: 'agricultural-science', name: 'Agricultural Science' },
-  { slug: 'further-mathematics', name: 'Further Mathematics' },
   { slug: 'physical-education', name: 'Physical & Health Education (PHE)' },
   { slug: 'computer-studies', name: 'Computer Studies' },
   { slug: 'home-economics', name: 'Home Economics' },
@@ -839,11 +838,12 @@ async function main() {
     detail: true,
     pageDelayMs: 250,
     bucket: DEFAULT_BUCKET,
-    subject: 'agricultural-science',
+    subject: 'government',
     subjectName: '',
     year: '1978-2025'
   };
-
+  
+  
   try {
     await importYears(options);
   } catch (error) {

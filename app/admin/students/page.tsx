@@ -228,6 +228,12 @@ export default function AdminStudentsPage() {
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
+  // Parent email verification state
+  const [parentEmailVerificationStatus, setParentEmailVerificationStatus] = useState<'idle' | 'sending' | 'sent' | 'verified'>('idle');
+  const [parentVerificationCode, setParentVerificationCode] = useState('');
+  const [isSendingParentCode, setIsSendingParentCode] = useState(false);
+  const [isVerifyingParentCode, setIsVerifyingParentCode] = useState(false);
+  const [parentResendCountdown, setParentResendCountdown] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
@@ -288,6 +294,12 @@ export default function AdminStudentsPage() {
     const id = setInterval(() => setResendCountdown((p) => Math.max(p - 1, 0)), 1000);
     return () => clearInterval(id);
   }, [resendCountdown]);
+
+  useEffect(() => {
+    if (parentResendCountdown <= 0) return;
+    const id = setInterval(() => setParentResendCountdown((p) => Math.max(p - 1, 0)), 1000);
+    return () => clearInterval(id);
+  }, [parentResendCountdown]);
 
   useEffect(() => { if (schoolId) loadData(); }, [schoolId]);
 
@@ -464,6 +476,12 @@ export default function AdminStudentsPage() {
     setResendCountdown(0);
     setIsSendingCode(false);
     setIsVerifyingCode(false);
+    // reset parent verification
+    setParentEmailVerificationStatus('idle');
+    setParentVerificationCode('');
+    setParentResendCountdown(0);
+    setIsSendingParentCode(false);
+    setIsVerifyingParentCode(false);
     closeCameraAndClear();
     setFormData(getDefaultFormData());
   }
@@ -519,6 +537,54 @@ export default function AdminStudentsPage() {
       toast.error(e.message || 'Verification failed');
     } finally { setIsVerifyingCode(false); }
   }
+
+    // ── Parent email verification handlers ─────────────────────────────────────
+    function handleParentEmailChange(value: string) {
+      setFormData((p) => ({ ...p, parent_email: value }));
+      setParentEmailVerificationStatus('idle');
+      setParentVerificationCode('');
+      setParentResendCountdown(0);
+    }
+
+    async function handleSendParentVerificationCode() {
+      const email = formData.parent_email.trim();
+      if (!email) { toast.error('Enter the parent email'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error('Enter a valid email address'); return; }
+      setIsSendingParentCode(true);
+      setParentEmailVerificationStatus('sending');
+      try {
+        const res = await fetch('/api/admin/parent-email-verification/send', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const result = await res.json();
+        if (!res.ok) { toast.error(result.error || 'Failed to send code'); setParentEmailVerificationStatus('idle'); return; }
+        setParentEmailVerificationStatus('sent');
+        setParentResendCountdown(30);
+        toast.success('Verification code sent to parent');
+      } catch (e: any) {
+        toast.error(e.message || 'Failed to send code');
+        setParentEmailVerificationStatus('idle');
+      } finally { setIsSendingParentCode(false); }
+    }
+
+    async function handleVerifyParentCode() {
+      if (!formData.parent_email.trim()) { toast.error('Enter the parent email'); return; }
+      if (parentVerificationCode.trim().length !== 6) { toast.error('Enter the 6-digit code'); return; }
+      setIsVerifyingParentCode(true);
+      try {
+        const res = await fetch('/api/admin/parent-email-verification/verify', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: formData.parent_email.trim(), code: parentVerificationCode.trim() }),
+        });
+        const result = await res.json();
+        if (!res.ok) { toast.error(result.error || 'Verification failed'); return; }
+        setParentEmailVerificationStatus('verified');
+        toast.success('Parent email verified');
+      } catch (e: any) {
+        toast.error(e.message || 'Verification failed');
+      } finally { setIsVerifyingParentCode(false); }
+    }
 
   function handleEditStudent(student: Student) { setSelectedStudent(student); setIsEditStudentOpen(true); }
   function handleTransferStudent(student: Student) { setSelectedStudent(student); setIsTransferStudentOpen(true); }
@@ -586,7 +652,10 @@ export default function AdminStudentsPage() {
       case 0: return !hasEmail || emailVerificationStatus === 'verified';
       case 1: return formData.first_name.trim().length > 0 && formData.last_name.trim().length > 0;
       case 2: return formData.admission_date.trim().length > 0;
-      case 3: return formData.parent_name.trim().length > 0 && formData.parent_email.trim().length > 0;
+      case 3: {
+        const hasParentEmail = formData.parent_email.trim().length > 0;
+        return formData.parent_name.trim().length > 0 && hasParentEmail && parentEmailVerificationStatus === 'verified';
+      }
       default: return true;
     }
   }
@@ -604,6 +673,7 @@ export default function AdminStudentsPage() {
     if (!formData.first_name.trim() || !formData.last_name.trim()) { toast.error('First and last name are required'); setIsCreating(false); return; }
     if (formData.email.trim() && emailVerificationStatus !== 'verified') { toast.error('Verify the student email first'); setIsCreating(false); return; }
     if (!formData.parent_name.trim() || !formData.parent_email.trim()) { toast.error('Parent name and email are required'); setIsCreating(false); return; }
+    if (formData.parent_email.trim() && parentEmailVerificationStatus !== 'verified') { toast.error('Verify the parent email first'); setIsCreating(false); return; }
     try {
       const tid = toast.loading('Creating student account…');
       const res = await fetch('/api/create-student', {
@@ -939,7 +1009,54 @@ export default function AdminStudentsPage() {
                               </FieldGroup>
                               <FieldGroup>
                                 <FieldLabel required>Parent Email</FieldLabel>
-                                <StyledInput type="email" value={formData.parent_email} onChange={(e) => setFormData({ ...formData, parent_email: e.target.value })} placeholder="parent@example.com" required />
+                                <StyledInput type="email" value={formData.parent_email} onChange={(e) => handleParentEmailChange(e.target.value)} placeholder="parent@example.com" required />
+
+                                <div className="flex flex-wrap items-center gap-3 mt-2">
+                                  <button
+                                    type="button"
+                                    onClick={handleSendParentVerificationCode}
+                                    disabled={!formData.parent_email.trim() || isSendingParentCode || parentResendCountdown > 0 || parentEmailVerificationStatus === 'verified'}
+                                    className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white transition-all hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <Mail className="h-3.5 w-3.5" />
+                                    {parentEmailVerificationStatus === 'verified'
+                                      ? 'Email Verified'
+                                      : isSendingParentCode ? 'Sending…'
+                                      : parentResendCountdown > 0 ? `Resend in ${parentResendCountdown}s`
+                                      : 'Send Code'}
+                                  </button>
+                                  {parentEmailVerificationStatus === 'verified' && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                                      <CheckCircle2 className="h-3.5 w-3.5" />Verified
+                                    </span>
+                                  )}
+                                </div>
+
+                                {formData.parent_email.trim() && parentEmailVerificationStatus !== 'idle' && (
+                                  <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 mt-3">
+                                    <FieldGroup>
+                                      <FieldLabel>6-Digit Code</FieldLabel>
+                                      <p className="text-xs text-slate-500 -mt-1">Sent to the parent's inbox</p>
+                                      <div className="mt-3">
+                                        <InputOTP maxLength={6} value={parentVerificationCode} onChange={setParentVerificationCode}>
+                                          <InputOTPGroup>
+                                            {Array.from({ length: 6 }).map((_, i) => (
+                                              <InputOTPSlot key={i} index={i} />
+                                            ))}
+                                          </InputOTPGroup>
+                                        </InputOTP>
+                                      </div>
+                                    </FieldGroup>
+                                    <button
+                                      type="button"
+                                      onClick={handleVerifyParentCode}
+                                      disabled={parentEmailVerificationStatus === 'verified' || isVerifyingParentCode}
+                                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition-all hover:bg-indigo-700 disabled:opacity-50"
+                                    >
+                                      {isVerifyingParentCode ? 'Verifying…' : 'Verify Code'}
+                                    </button>
+                                  </div>
+                                )}
                               </FieldGroup>
                               <FieldGroup>
                                 <FieldLabel>Parent Phone</FieldLabel>

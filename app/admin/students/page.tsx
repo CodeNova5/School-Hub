@@ -667,8 +667,8 @@ export default function AdminStudentsPage() {
 
   function handlePreviousStep() { setCreateStep((p) => Math.max(p - 1, 0)); }
 
-  async function handleCreateStudent(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleCreateStudent(e?: React.FormEvent) {
+    e?.preventDefault();
     setIsCreating(true);
     if (!formData.first_name.trim() || !formData.last_name.trim()) { toast.error('First and last name are required'); setIsCreating(false); return; }
     if (formData.email.trim() && emailVerificationStatus !== 'verified') { toast.error('Verify the student email first'); setIsCreating(false); return; }
@@ -687,6 +687,7 @@ export default function AdminStudentsPage() {
       if (result.student) setStudents((p) => [...p, result.student]);
       resetCreateWizard();
       setIsCreateDialogOpen(false);
+      window.location.reload();
     } catch (e: any) {
       toast.error(e.message || 'Failed to create student');
     } finally { setIsCreating(false); }
@@ -828,7 +829,7 @@ export default function AdminStudentsPage() {
 
                     {/* ── Main content panel ── */}
                     <form
-                      onSubmit={handleCreateStudent}
+                      onSubmit={(e) => e.preventDefault()}
                       className="flex flex-1 flex-col overflow-hidden"
                     >
                       {/* Step header */}
@@ -1216,7 +1217,8 @@ export default function AdminStudentsPage() {
                               </button>
                             ) : (
                               <button
-                                type="submit"
+                                type="button"
+                                onClick={handleCreateStudent}
                                 disabled={isCreating}
                                 className="inline-flex h-10 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 text-sm font-bold text-white shadow-md shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50"
                               >

@@ -4,7 +4,30 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Edit, Trash2, MoreVertical, Eye, UserCog, BookOpen, Camera, X } from 'lucide-react';
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  MoreVertical,
+  Eye,
+  UserCog,
+  BookOpen,
+  Camera,
+  X,
+  Users,
+  UserCheck,
+  UserX,
+  Sparkles,
+  ChevronRight,
+  CalendarDays,
+  Shield,
+  Briefcase,
+  ArrowLeft,
+  ArrowRight,
+  AlertTriangle,
+  CheckCircle2,
+} from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
@@ -27,6 +50,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { TeachersSkeleton } from '@/components/skeletons';
+import { exportToCSV } from '@/lib/student-utils';
 
 type SubjectAssignment = {
   classId: string;
@@ -66,10 +90,89 @@ type SubjectClass = {
   classes?: any;  // Changed to 'any' to fix type error
 };
 
+function FieldLabel({ children, required, htmlFor }: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
+  return (
+    <label htmlFor={htmlFor} className="block text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-1.5">
+      {children}
+      {required && <span className="ml-1 text-rose-400">*</span>}
+    </label>
+  );
+}
+
+function StyledInput(props: React.ComponentProps<typeof Input>) {
+  return (
+    <Input
+      {...props}
+      className={
+        'h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 placeholder:text-slate-400 ' +
+        'shadow-sm ring-0 transition-all focus-visible:border-indigo-400 focus-visible:ring-2 focus-visible:ring-indigo-200 focus-visible:outline-none ' +
+        (props.className ?? '')
+      }
+    />
+  );
+}
+
+function StyledSelect(props: React.ComponentProps<'select'>) {
+  return (
+    <select
+      {...props}
+      className={
+        'h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition-all appearance-none ' +
+        'focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 ' +
+        (props.className ?? '')
+      }
+    />
+  );
+}
+
+function FieldGroup({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={`space-y-1.5 ${className ?? ''}`}>{children}</div>;
+}
+
+function PremiumStatCard({
+  title,
+  value,
+  description,
+  icon: Icon,
+  accent,
+}: {
+  title: string;
+  value: number | string;
+  description: string;
+  icon: React.ElementType;
+  accent: string;
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg">
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent}`} />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{title}</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
+          <p className="mt-2 text-xs leading-relaxed text-slate-500">{description}</p>
+        </div>
+        <div className={`rounded-2xl p-3 shadow-sm ring-1 ${accent.includes('emerald') ? 'bg-emerald-50 ring-emerald-100' : accent.includes('rose') ? 'bg-rose-50 ring-rose-100' : accent.includes('amber') ? 'bg-amber-50 ring-amber-100' : 'bg-indigo-50 ring-indigo-100'}`}>
+          <Icon className="h-5 w-5 text-slate-700" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeacherFeatureChip({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
 export default function TeachersPage() {
   const { schoolId } = useSchoolContext();
   const [teachers, setTeachers] = useState<TeacherWithDetails[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
   const [viewingTeacher, setViewingTeacher] = useState<TeacherWithDetails | null>(null);
@@ -427,6 +530,24 @@ export default function TeachersPage() {
     }
   }
 
+  function handleExport() {
+    const data = filteredTeachers.map((teacher) => ({
+      'Staff ID': teacher.staff_id,
+      'First Name': teacher.first_name,
+      'Last Name': teacher.last_name,
+      Email: teacher.email,
+      Phone: teacher.phone,
+      Specialization: teacher.specialization || 'N/A',
+      Qualification: teacher.qualification || 'N/A',
+      Status: teacher.status,
+      'Class Teacher': teacher.assignedClass || 'Not assigned',
+      Subjects: teacher.subjectCount || 0,
+    }));
+
+    exportToCSV(data, `teachers_export_${new Date().toISOString().split('T')[0]}`);
+    toast.success('Teachers exported successfully');
+  }
+
 
   async function handleDelete(id: string, userId?: string) {
     setTeacherToDelete({
@@ -590,311 +711,454 @@ export default function TeachersPage() {
     `${teacher.first_name} ${teacher.last_name} ${teacher.staff_id}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase())
-  );
+  ).filter((teacher) => (statusFilter ? teacher.status === statusFilter : true));
+
+  const totalTeachers = teachers.length;
+  const activeTeachers = teachers.filter((teacher) => teacher.status === 'active').length;
+  const classTeachers = teachers.filter((teacher) => teacher.assignedClass).length;
+  const subjectAssignments = teachers.reduce((total, teacher) => total + (teacher.subjectCount || 0), 0);
+  const onboardingTeachers = teachers.filter((teacher) => teacher.status === 'inactive').length;
 
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Teachers</h1>
-            <p className="text-gray-600 mt-1">Manage teaching staff</p>
-          </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => {
-                setEditingTeacher(null);
-                setImagePreview(null);
-                setImageUrl('');
-              }}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Teacher
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingTeacher ? 'Edit Teacher' : 'Add New Teacher'}</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="first_name">First Name</Label>
-                    <Input
-                      id="first_name"
-                      name="first_name"
-                      defaultValue={editingTeacher?.first_name}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="last_name">Last Name</Label>
-                    <Input
-                      id="last_name"
-                      name="last_name"
-                      defaultValue={editingTeacher?.last_name}
-                      required
-                    />
-                  </div>
-                </div>
+      <div className="space-y-8">
+        <div className="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-slate-950 px-6 py-8 text-white shadow-2xl shadow-slate-900/10 sm:px-8 lg:px-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(129,140,248,0.35),_transparent_28%),radial-gradient(circle_at_bottom_left,_rgba(16,185,129,0.18),_transparent_26%)]" />
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-200 backdrop-blur">
+                <Sparkles className="h-3.5 w-3.5 text-indigo-300" />
+                Teaching Staff
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Teachers</h1>
+                <p className="max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                  Manage teaching staff, class assignments, subject coverage, and profile details from one polished control center.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <TeacherFeatureChip label="Active staff" value={activeTeachers} />
+                <TeacherFeatureChip label="Class teachers" value={classTeachers} />
+                <TeacherFeatureChip label="Subject links" value={subjectAssignments} />
+              </div>
+            </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {!editingTeacher && (
-                    <>
-                      <div>
-                        <Label htmlFor="email">Email Address</Label>
-                        <Input
-                          id="email"
-                          name="email"
-                          type="email"
-                          placeholder="teacher@school.com"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <Input
-                          id="phone"
-                          name="phone"
-                          type="tel"
-                          placeholder="+1234567890"
-                        />
-                      </div>
-                    </>
-                  )}
-                  {editingTeacher && (
-                    <>
-                      <div>
-                        <Label htmlFor="email">Email Address</Label>
-                        <Input
-                          id="email"
-                          name="email"
-                          type="email"
-                          placeholder="teacher@school.com"
-                          defaultValue={editingTeacher?.email}
-                          required
-                        />
-                        <p className="text-xs text-gray-500 mt-1">Changing email will require account reactivation</p>
-                      </div>
-                      <div>
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <Input
-                          id="phone"
-                          name="phone"
-                          type="tel"
-                          placeholder="+1234567890"
-                          defaultValue={editingTeacher?.phone || ''}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="qualification">Qualification</Label>
-                  <Input
-                    id="qualification"
-                    name="qualification"
-                    placeholder="e.g., B.Ed, M.Sc"
-                    defaultValue={editingTeacher?.qualification}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="specialization">Specialization</Label>
-                  <Input
-                    id="specialization"
-                    name="specialization"
-                    placeholder="e.g., Mathematics, English"
-                    defaultValue={editingTeacher?.specialization}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="address">Address</Label>
-                  <Input id="address" name="address" defaultValue={editingTeacher?.address} />
-                </div>
-
-                {/* Teacher Photo Section */}
-                <div className="border-t pt-4">
-                  <h3 className="font-semibold mb-3">Teacher Photo</h3>
-                  <div className="flex flex-col gap-4">
-                    {/* Image Preview */}
-                    {imagePreview && (
-                      <div className="relative">
-                        <img
-                          src={imagePreview}
-                          alt="Preview"
-                          className="w-full h-40 object-cover rounded-lg"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-2 right-2"
-                          onClick={() => {
-                            closeCameraAndClear();
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Camera View */}
-                    {isCameraOpen && cameraStream && (
-                      <div className="relative">
-                        <video
-                          ref={videoRef}
-                          autoPlay
-                          playsInline
-                          className="w-full h-40 object-cover rounded-lg bg-black"
-                        />
-                        <canvas ref={canvasRef} className="hidden" />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-2 right-2"
-                          onClick={() => {
-                            cameraStream.getTracks().forEach(track => track.stop());
-                            setCameraStream(null);
-                            setIsCameraOpen(false);
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Upload Options */}
-                    {!isCameraOpen && (
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => document.getElementById('teacher_photo_input')?.click()}
-                          disabled={uploadingImage}
-                        >
-                          Upload Photo
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={handleCameraCapture}
-                          disabled={uploadingImage}
-                        >
-                          <Camera className="h-4 w-4 mr-2" />
-                          Take Photo
-                        </Button>
-                        <input
-                          id="teacher_photo_input"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleImageFileSelect}
-                          disabled={uploadingImage}
-                        />
-                      </div>
-                    )}
-
-                    {/* Capture Button when camera is open */}
-                    {isCameraOpen && cameraStream && (
-                      <Button
-                        type="button"
-                        className="w-full"
-                        onClick={handleCameraCapture}
-                        disabled={uploadingImage}
-                      >
-                        {uploadingImage ? 'Uploading...' : 'Capture Photo'}
-                      </Button>
-                    )}
-
-                    {uploadingImage && (
-                      <p className="text-sm text-gray-600 text-center">Uploading image...</p>
-                    )}
-                  </div>
-                </div>
-
-                {!editingTeacher && (
-                  <div>
-                    <Label htmlFor="class_id">Assign as Class Teacher (Optional)</Label>
-                    <select
-                      id="class_id"
-                      name="class_id"
-                      className="w-full h-10 px-3 border rounded-md mt-1"
-                    >
-                      <option value="">Not assigned</option>
-                      {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <div>
-                  <Label htmlFor="status">Status</Label>
-                  <select
-                    id="status"
-                    name="status"
-                    className="w-full h-10 px-3 border rounded-md"
-                    defaultValue={editingTeacher?.status || 'inactive'}
+            <div className="flex flex-wrap items-center gap-3">
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setEditingTeacher(null);
+                      setImagePreview(null);
+                      setImageUrl('');
+                    }}
+                    className="h-11 rounded-xl bg-white px-5 text-sm font-semibold text-slate-950 shadow-lg shadow-black/10 transition hover:bg-slate-100"
                   >
-                    <option value="active">Active</option>
-                    <option value="on_leave">On Leave</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" className="flex-1" disabled={isSubmitting}>
-                    {isSubmitting ? 'Creating...' : editingTeacher ? 'Update' : 'Create'}
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Teacher
                   </Button>
-                  <Button type="button" variant="outline" onClick={closeDialog} disabled={isSubmitting}>
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                </DialogTrigger>
+                <DialogContent className="max-h-[92vh] overflow-hidden border-0 bg-transparent p-0 shadow-none sm:max-w-5xl [&>button]:hidden">
+                  <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/10">
+                    <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4 sm:px-7">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950">
+                          <Sparkles className="h-4 w-4 text-indigo-300" />
+                        </div>
+                        <div>
+                          <DialogTitle className="text-base font-bold text-slate-900 leading-none">
+                            {editingTeacher ? 'Edit Teacher Profile' : 'New Teacher Enrollment'}
+                          </DialogTitle>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            {editingTeacher ? 'Update staff details, photo, and assignments.' : 'Create a polished staff record with a premium workflow.'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={closeDialog}
+                        className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[1.25fr_0.95fr]">
+                        <div className="min-h-0 overflow-y-auto px-6 py-6 sm:px-7">
+                          <div className="space-y-6">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Profile</p>
+                                  <h3 className="mt-1 text-sm font-semibold text-slate-900">Basic teacher information</h3>
+                                </div>
+                                <Shield className="h-5 w-5 text-slate-400" />
+                              </div>
+                              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                <FieldGroup>
+                                  <FieldLabel required>First Name</FieldLabel>
+                                  <StyledInput
+                                    id="first_name"
+                                    name="first_name"
+                                    defaultValue={editingTeacher?.first_name}
+                                    required
+                                    placeholder="John"
+                                  />
+                                </FieldGroup>
+                                <FieldGroup>
+                                  <FieldLabel required>Last Name</FieldLabel>
+                                  <StyledInput
+                                    id="last_name"
+                                    name="last_name"
+                                    defaultValue={editingTeacher?.last_name}
+                                    required
+                                    placeholder="Doe"
+                                  />
+                                </FieldGroup>
+                              </div>
+                              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                <FieldGroup>
+                                  <FieldLabel required>Email Address</FieldLabel>
+                                  <StyledInput
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    placeholder="teacher@school.com"
+                                    defaultValue={editingTeacher?.email}
+                                    required
+                                  />
+                                  {editingTeacher && (
+                                    <p className="text-[11px] text-slate-400">Changing email will require account reactivation.</p>
+                                  )}
+                                </FieldGroup>
+                                <FieldGroup>
+                                  <FieldLabel>Phone Number</FieldLabel>
+                                  <StyledInput
+                                    id="phone"
+                                    name="phone"
+                                    type="tel"
+                                    placeholder="+1234567890"
+                                    defaultValue={editingTeacher?.phone || ''}
+                                  />
+                                </FieldGroup>
+                              </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Professional</p>
+                                  <h3 className="mt-1 text-sm font-semibold text-slate-900">Qualification and specialization</h3>
+                                </div>
+                                <Briefcase className="h-5 w-5 text-slate-400" />
+                              </div>
+                              <div className="mt-4 grid gap-4">
+                                <FieldGroup>
+                                  <FieldLabel>Qualification</FieldLabel>
+                                  <StyledInput
+                                    id="qualification"
+                                    name="qualification"
+                                    placeholder="e.g., B.Ed, M.Sc"
+                                    defaultValue={editingTeacher?.qualification}
+                                  />
+                                </FieldGroup>
+                                <FieldGroup>
+                                  <FieldLabel>Specialization</FieldLabel>
+                                  <StyledInput
+                                    id="specialization"
+                                    name="specialization"
+                                    placeholder="e.g., Mathematics, English"
+                                    defaultValue={editingTeacher?.specialization}
+                                  />
+                                </FieldGroup>
+                                <FieldGroup>
+                                  <FieldLabel>Address</FieldLabel>
+                                  <StyledInput id="address" name="address" defaultValue={editingTeacher?.address} placeholder="Street address" />
+                                </FieldGroup>
+                              </div>
+                            </div>
+
+                            {!editingTeacher && (
+                              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Optional assignment</p>
+                                    <h3 className="mt-1 text-sm font-semibold text-slate-900">Assign as class teacher</h3>
+                                  </div>
+                                  <CalendarDays className="h-5 w-5 text-slate-400" />
+                                </div>
+                                <div className="mt-4">
+                                  <FieldGroup>
+                                    <FieldLabel>Class Teacher Assignment</FieldLabel>
+                                    <StyledSelect id="class_id" name="class_id" defaultValue="">
+                                      <option value="">Not assigned</option>
+                                      {classes.map((cls) => (
+                                        <option key={cls.id} value={cls.id}>
+                                          {cls.name}
+                                        </option>
+                                      ))}
+                                    </StyledSelect>
+                                  </FieldGroup>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="min-h-0 overflow-y-auto border-t border-slate-100 bg-slate-50/60 px-6 py-6 lg:border-l lg:border-t-0 sm:px-7">
+                          <div className="space-y-5">
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Photo</p>
+                                  <h3 className="mt-1 text-sm font-semibold text-slate-900">Teacher photo and identity</h3>
+                                </div>
+                                <Camera className="h-5 w-5 text-slate-400" />
+                              </div>
+
+                              <div className="mt-4 space-y-4">
+                                {imagePreview && (
+                                  <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+                                    <img src={imagePreview} alt="Preview" className="h-56 w-full object-cover" />
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="icon"
+                                      className="absolute right-3 top-3 h-8 w-8 rounded-full"
+                                      onClick={closeCameraAndClear}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {isCameraOpen && cameraStream && (
+                                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-950 p-3">
+                                    <video ref={videoRef} autoPlay playsInline className="h-56 w-full rounded-xl bg-black object-cover" />
+                                    <canvas ref={canvasRef} className="hidden" />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        className="flex-1 rounded-xl bg-white text-slate-950 hover:bg-slate-100"
+                                        onClick={handleCameraCapture}
+                                        disabled={uploadingImage}
+                                      >
+                                        {uploadingImage ? 'Uploading...' : 'Capture Photo'}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="rounded-xl border-white/10 bg-white/5 text-white hover:bg-white/10"
+                                        onClick={() => {
+                                          cameraStream.getTracks().forEach((track) => track.stop());
+                                          setCameraStream(null);
+                                          setIsCameraOpen(false);
+                                        }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {!isCameraOpen && (
+                                  <div className="space-y-3">
+                                    <FieldGroup>
+                                      <FieldLabel>Upload from device</FieldLabel>
+                                      <input
+                                        id="teacher_photo_input"
+                                        type="file"
+                                        accept="image/*"
+                                        className="block w-full cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-950 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
+                                        onChange={handleImageFileSelect}
+                                        disabled={uploadingImage}
+                                      />
+                                      <p className="text-[11px] text-slate-400">JPG, PNG, WebP - max 5 MB</p>
+                                    </FieldGroup>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      className="h-11 w-full rounded-xl border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                      onClick={handleCameraCapture}
+                                      disabled={uploadingImage}
+                                    >
+                                      <Camera className="mr-2 h-4 w-4" />
+                                      Open Camera
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {uploadingImage && (
+                                  <div className="flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-700">
+                                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-sky-300 border-t-sky-600" />
+                                    Uploading image...
+                                  </div>
+                                )}
+
+                                {imageUrl && (
+                                  <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-700">
+                                    <UserCheck className="h-3.5 w-3.5" /> Uploaded successfully
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Status</p>
+                                  <h3 className="mt-1 text-sm font-semibold text-slate-900">Employment state</h3>
+                                </div>
+                                <UserCheck className="h-5 w-5 text-slate-400" />
+                              </div>
+                              <div className="mt-4">
+                                <FieldGroup>
+                                  <FieldLabel>Current Status</FieldLabel>
+                                  <StyledSelect id="status" name="status" defaultValue={editingTeacher?.status || 'inactive'}>
+                                    <option value="active">Active</option>
+                                    <option value="on_leave">On Leave</option>
+                                    <option value="inactive">Inactive</option>
+                                  </StyledSelect>
+                                </FieldGroup>
+                              </div>
+
+                              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+                                <div className="flex items-start gap-2">
+                                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                  Updates to email or photo are applied immediately to the teacher profile.
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 border-t border-slate-100 bg-slate-50/80 px-6 py-4 sm:px-7">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="text-xs text-slate-500">
+                            Staff records are created with the same premium workflow used across the admin console.
+                          </div>
+                          <div className="flex gap-2 sm:justify-end">
+                            <Button type="button" variant="outline" onClick={closeDialog} disabled={isSubmitting} className="rounded-xl">
+                              Cancel
+                            </Button>
+                            <Button type="submit" className="rounded-xl bg-slate-950 px-5 text-white hover:bg-slate-800" disabled={isSubmitting}>
+                              {isSubmitting ? 'Saving...' : editingTeacher ? 'Update Teacher' : 'Create Teacher'}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                className="h-11 rounded-xl border-white/10 bg-white/5 px-5 text-sm font-semibold text-white shadow-none hover:bg-white/10 hover:text-white"
+              >
+                <ChevronRight className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </div>
+          </div>
         </div>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search teachers..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <PremiumStatCard
+            title="Total Teachers"
+            value={totalTeachers}
+            description="Every staff profile currently in the school roster."
+            icon={Users}
+            accent="from-slate-900 via-slate-700 to-slate-500"
+          />
+          <PremiumStatCard
+            title="Active Staff"
+            value={activeTeachers}
+            description="Teachers available for classes and assignments."
+            icon={UserCheck}
+            accent="from-emerald-500 via-emerald-400 to-lime-300"
+          />
+          <PremiumStatCard
+            title="Class Teachers"
+            value={classTeachers}
+            description="Staff currently leading a class as class teacher."
+            icon={Briefcase}
+            accent="from-indigo-500 via-violet-500 to-fuchsia-500"
+          />
+          <PremiumStatCard
+            title="Inactive"
+            value={onboardingTeachers}
+            description="Teachers waiting for activation or onboarding."
+            icon={UserX}
+            accent="from-rose-500 via-rose-400 to-orange-300"
           />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>All Teachers ({filteredTeachers.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="border rounded-md overflow-hidden">
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Search & Filters</p>
+              <h2 className="mt-1 text-lg font-bold text-slate-900">Find staff quickly</h2>
+              <p className="mt-1 text-sm text-slate-500">Search by name or staff ID, then narrow the list by employment status.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[420px] lg:grid-cols-2">
+              <div className="relative">
+                <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <StyledInput
+                  placeholder="Search teachers..."
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <StyledSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="">All Status</option>
+                <option value="active">Active</option>
+                <option value="on_leave">On Leave</option>
+                <option value="inactive">Inactive</option>
+              </StyledSelect>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">All Teachers</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Showing {filteredTeachers.length} of {totalTeachers} teachers</p>
+              </div>
+              <div className="hidden items-center gap-2 md:flex">
+                <Badge variant="secondary" className="rounded-full px-3 py-1 text-[11px] font-semibold">
+                  {activeTeachers} active
+                </Badge>
+                <Badge variant="outline" className="rounded-full px-3 py-1 text-[11px] font-semibold text-slate-500">
+                  {subjectAssignments} subject links
+                </Badge>
+              </div>
+            </div>
+            <div className="overflow-x-auto bg-white">
               <table className="w-full">
                 <thead className="bg-muted">
                   <tr>
-                    <th className="text-left p-3 w-12">#</th>
-                    <th className="text-left p-3">Teacher</th>
-                    <th className="text-left p-3">Staff ID</th>
-                    <th className="text-left p-3">Specialization</th>
-                    <th className="text-left p-3">Class Teacher</th>
-                    <th className="text-left p-3">Subjects</th>
-                    <th className="text-left p-3">Status</th>
-                    <th className="text-right p-3 w-16">Actions</th>
+                    <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400 w-12">#</th>
+                    <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Teacher</th>
+                    <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Staff ID</th>
+                    <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Specialization</th>
+                    <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Class Teacher</th>
+                    <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Subjects</th>
+                    <th className="text-left p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">Status</th>
+                    <th className="text-right p-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400 w-16">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTeachers.map((teacher, index) => (
-                    <tr key={teacher.id} className="border-t hover:bg-muted/50">
-                      <td className="p-3">{index + 1}</td>
-                      <td className="p-3">
+                    <tr key={teacher.id} className="border-t border-slate-100 transition-colors hover:bg-slate-50/80">
+                      <td className="p-4 text-sm text-slate-500">{index + 1}</td>
+                      <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <Avatar>
+                          <Avatar className="h-11 w-11 ring-2 ring-white shadow-sm">
                             {(teacher as any).photo_url && (
                               <img
                                 src={(teacher as any).photo_url}
@@ -902,49 +1166,50 @@ export default function TeachersPage() {
                                 className="w-full h-full object-cover"
                               />
                             )}
-                            <AvatarFallback className="bg-green-100 text-green-700 font-semibold">
+                            <AvatarFallback className="bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700 font-semibold">
                               {getInitials(teacher.first_name, teacher.last_name)}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-semibold">
+                            <p className="font-semibold text-slate-900">
                               {teacher.first_name} {teacher.last_name}
                             </p>
-                            <p className="text-xs text-gray-500">{teacher.qualification || 'N/A'}</p>
+                            <p className="text-xs text-slate-500">{teacher.qualification || 'N/A'}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-3">
-                        <code className="text-xs bg-gray-100 px-2 py-1 rounded">{teacher.staff_id}</code>
+                      <td className="p-4">
+                        <code className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{teacher.staff_id}</code>
                       </td>
-                      <td className="p-3">{teacher.specialization || 'N/A'}</td>
-                      <td className="p-3">
+                      <td className="p-4 text-sm text-slate-700">{teacher.specialization || 'N/A'}</td>
+                      <td className="p-4">
                         {teacher.assignedClass ? (
-                          <Badge variant="outline">{teacher.assignedClass}</Badge>
+                          <Badge variant="outline" className="rounded-full border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">{teacher.assignedClass}</Badge>
                         ) : (
-                          <span className="text-gray-400 text-sm">Not assigned</span>
+                          <span className="text-sm text-slate-400">Not assigned</span>
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="p-4">
                         {teacher.subjectCount && teacher.subjectCount > 0 ? (
-                          <Badge variant="secondary">
+                          <Badge variant="secondary" className="rounded-full px-3 py-1 font-semibold">
                             {teacher.subjectCount} {teacher.subjectCount === 1 ? 'Subject' : 'Subjects'}
                           </Badge>
                         ) : (
-                          <span className="text-gray-400 text-sm">Not assigned</span>
+                          <span className="text-sm text-slate-400">Not assigned</span>
                         )}
                       </td>
-                      <td className="p-3">
+                      <td className="p-4">
                         <Badge
                           variant={teacher.status === 'active' ? 'default' : 'secondary'}
+                          className={`rounded-full px-3 py-1 font-semibold ${teacher.status === 'active' ? 'bg-emerald-600 text-white' : teacher.status === 'on_leave' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'}`}
                         >
                           {teacher.status}
                         </Badge>
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-4 text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900">
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -982,24 +1247,35 @@ export default function TeachersPage() {
 
               {filteredTeachers.length === 0 && (
                 <div className="p-12 text-center">
-                  <p className="text-gray-500">No teachers found</p>
+                  <p className="text-sm text-slate-500">No teachers found</p>
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* View Teacher Details Dialog */}
         <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-h-[92vh] overflow-hidden border-0 bg-transparent p-0 shadow-none sm:max-w-4xl [&>button]:hidden">
+            <div className="flex max-h-[92vh] flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/10">
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4 sm:px-7">
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900">Teacher Details</DialogTitle>
+                  <p className="mt-1 text-[11px] text-slate-400">Profile, assignments, and subject coverage at a glance.</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setIsViewDialogOpen(false)} className="rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="max-h-[calc(92vh-72px)] overflow-y-auto px-6 py-6 sm:px-7">
             <DialogHeader>
-              <DialogTitle>Teacher Details</DialogTitle>
+              <DialogTitle className="sr-only">Teacher Details</DialogTitle>
             </DialogHeader>
             {viewingTeacher && (
               <div className="space-y-6">
                 {/* Header with Avatar */}
-                <div className="flex items-center gap-4 pb-4 border-b">
-                  <Avatar className="h-20 w-20">
+                <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <Avatar className="h-20 w-20 ring-4 ring-white shadow-sm">
                     {(viewingTeacher as any).photo_url && (
                       <img
                         src={(viewingTeacher as any).photo_url}
@@ -1102,26 +1378,28 @@ export default function TeachersPage() {
                 </div>
               </div>
             )}
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 
         {/* Assign Class Teacher Dialog */}
         <Dialog open={isAssignClassDialogOpen} onOpenChange={setIsAssignClassDialogOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-[2rem] border-0 shadow-2xl sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Assign Class Teacher</DialogTitle>
+              <DialogTitle className="text-base font-bold text-slate-900">Assign Class Teacher</DialogTitle>
             </DialogHeader>
             {assigningTeacher && (
               <form onSubmit={handleAssignClass} className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600 mb-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-600 mb-4">
                     Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> as class teacher
                   </p>
                   <Label htmlFor="class_id">Select Class</Label>
-                  <select
+                  <StyledSelect
                     id="class_id"
                     name="class_id"
-                    className="w-full h-10 px-3 border rounded-md mt-1"
+                    className="mt-1"
                     required
                   >
                     <option value="">Choose a class...</option>
@@ -1130,19 +1408,20 @@ export default function TeachersPage() {
                         {cls.name}
                       </option>
                     ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-2">
+                  </StyledSelect>
+                  <p className="text-xs text-slate-500 mt-2">
                     Note: This will replace any existing class teacher assignment for both the teacher and the class.
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
+                  <Button type="submit" className="flex-1 rounded-xl bg-slate-950 text-white hover:bg-slate-800">
                     Assign Class
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setIsAssignClassDialogOpen(false)}
+                    className="rounded-xl"
                   >
                     Cancel
                   </Button>
@@ -1154,24 +1433,24 @@ export default function TeachersPage() {
 
         {/* Assign Subject Class Dialog */}
         <Dialog open={isAssignSubjectDialogOpen} onOpenChange={setIsAssignSubjectDialogOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-[2rem] border-0 shadow-2xl sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Assign Subject</DialogTitle>
+              <DialogTitle className="text-base font-bold text-slate-900">Assign Subject</DialogTitle>
             </DialogHeader>
             {assigningTeacher && (
               <form onSubmit={handleAssignSubject} className="space-y-4">
-                <div>
-                  <p className="text-sm text-gray-600 mb-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-600 mb-4">
                     Assigning <span className="font-semibold">{assigningTeacher.first_name} {assigningTeacher.last_name}</span> to a subject
                   </p>
 
                   <div className="space-y-4">
                     <div>
                       <Label htmlFor="class_id">Select Class</Label>
-                      <select
+                      <StyledSelect
                         id="class_id"
                         name="class_id"
-                        className="w-full h-10 px-3 border rounded-md mt-1"
+                        className="mt-1"
                         value={selectedClassForSubject}
                         onChange={(e) => setSelectedClassForSubject(e.target.value)}
                         required
@@ -1182,16 +1461,16 @@ export default function TeachersPage() {
                             {cls.name}
                           </option>
                         ))}
-                      </select>
+                      </StyledSelect>
                     </div>
 
                     {selectedClassForSubject && (
                       <div>
                         <Label htmlFor="subject_id">Select Subject</Label>
-                        <select
+                        <StyledSelect
                           id="subject_id"
                           name="subject_id"
-                          className="w-full h-10 px-3 border rounded-md mt-1"
+                          className="mt-1"
                           required
                         >
                           <option value="">Choose a subject...</option>
@@ -1202,17 +1481,17 @@ export default function TeachersPage() {
                                 {sc.subjects?.name}
                               </option>
                             ))}
-                        </select>
+                        </StyledSelect>
                       </div>
                     )}
                   </div>
 
-                  <p className="text-xs text-gray-500 mt-3">
+                  <p className="text-xs text-slate-500 mt-3">
                     Note: This will replace any existing teacher assignment for this subject.
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button type="submit" className="flex-1" disabled={!selectedClassForSubject}>
+                  <Button type="submit" className="flex-1 rounded-xl bg-slate-950 text-white hover:bg-slate-800" disabled={!selectedClassForSubject}>
                     Assign Subject
                   </Button>
                   <Button
@@ -1222,6 +1501,7 @@ export default function TeachersPage() {
                       setIsAssignSubjectDialogOpen(false);
                       setSelectedClassForSubject('');
                     }}
+                    className="rounded-xl"
                   >
                     Cancel
                   </Button>
@@ -1233,23 +1513,23 @@ export default function TeachersPage() {
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-[2rem] border-0 shadow-2xl sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Delete Teacher</DialogTitle>
+              <DialogTitle className="text-base font-bold text-slate-900">Delete Teacher</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-sm text-gray-700">
-                  Are you sure you want to delete <span className="font-semibold text-red-600">{teacherToDelete?.name}</span>?
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                <p className="text-sm text-slate-700">
+                  Are you sure you want to delete <span className="font-semibold text-rose-700">{teacherToDelete?.name}</span>?
                 </p>
-                <p className="text-xs text-gray-600 mt-2">
+                <p className="text-xs text-slate-500 mt-2">
                   This action will permanently remove the teacher and their user account. This cannot be undone.
                 </p>
               </div>
               <div className="flex gap-2">
                 <Button
                   variant="destructive"
-                  className="flex-1"
+                  className="flex-1 rounded-xl"
                   onClick={confirmDelete}
                 >
                   Delete
@@ -1257,7 +1537,7 @@ export default function TeachersPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 rounded-xl"
                   onClick={() => {
                     setIsDeleteConfirmOpen(false);
                     setTeacherToDelete(null);

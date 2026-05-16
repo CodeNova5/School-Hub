@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,10 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+// @ts-expect-error -- CSS side-effect import is resolved by Next.js at build time.
 import "katex/dist/katex.min.css";
+import useExamTimer from "@/hooks/use-exam-timer";
+import ExamTimerWidget from "@/components/jamb/exam-timer-widget";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -200,6 +203,7 @@ export default function StudentJambPage() {
   const [showPreSubmitReview, setShowPreSubmitReview] = useState(false);
   const [pendingSession, setPendingSession] = useState<{ subject: string; year: string } | null>(null);
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
+  const [timerInitialSeconds, setTimerInitialSeconds] = useState<number | null>(null);
 
   /* ── MathText ── */
   const MathText = ({ content }: { content: string }) => {
@@ -254,6 +258,25 @@ export default function StudentJambPage() {
     const y = year || selectedYear || "";
     const sid = schoolId || "global";
     return `jamb_draft:${sid}:${s}:${y}`;
+  }
+  function getExamSessionKey() {
+    return `jamb_session:${schoolId || "global"}`;
+  }
+  function saveExamSessionStart(subject: string, year: string, startTime: number, durationMinutes: number) {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(getExamSessionKey(), JSON.stringify({ subject, year, startTime, durationMinutes }));
+    } catch (e) { }
+  }
+  function loadExamSessionStart() {
+    try {
+      if (typeof window === "undefined") return null;
+      const raw = window.localStorage.getItem(getExamSessionKey());
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function clearExamSessionStart() {
+    try { if (typeof window !== "undefined") window.localStorage.removeItem(getExamSessionKey()); } catch (e) { }
   }
   function getSessionKey() {
     return `jamb_session:${schoolId || "global"}`;
@@ -524,6 +547,25 @@ export default function StudentJambPage() {
       setQuestionDebug({ page, totalPages: totalPages || 1, count: loadedQuestions.length, hasMore });
       setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
       if (loadedQuestions.length > 0) { setIsSessionActive(true); }
+      // initialize exam timer session (start_time + duration)
+      try {
+        const durationMinutes = filteredSubjectLabel.toLowerCase().includes("english") ? 60 : 40;
+        const sess = loadExamSessionStart();
+        const now = Date.now();
+        if (sess && sess.startTime && sess.durationMinutes) {
+          const elapsed = Math.floor((now - sess.startTime) / 1000);
+          const remaining = Math.max(0, (sess.durationMinutes * 60) - elapsed);
+          setTimerInitialSeconds(remaining);
+          if (remaining <= 0) {
+            // expired - auto-submit
+            void submitAttempt();
+          }
+        } else {
+          // start a fresh timed session
+          saveExamSessionStart(selectedSubject, selectedYear, now, durationMinutes);
+          setTimerInitialSeconds(durationMinutes * 60);
+        }
+      } catch (e) { }
     } catch (error: any) {
       toast.error(error.message || "Failed to load questions");
     } finally {
@@ -615,6 +657,7 @@ export default function StudentJambPage() {
       const prevResult = prevResponse.ok ? await prevResponse.json() : null;
       setAttemptResult({ ...result.data, previousAttempt: prevResult?.data });
       setShowResultWizard(true); setIsSessionActive(false); clearSessionState();
+      clearExamSessionStart();
       toast.success("Attempt submitted successfully");
     } catch (error: any) {
       toast.error(error.message || "Unable to save attempt");
@@ -622,6 +665,15 @@ export default function StudentJambPage() {
       setSubmitting(false);
     }
   }
+
+  // start/restore timer hook
+  const onExpire = useCallback(() => {
+    toast.info("Time's up — submitting your attempt...");
+    void submitAttempt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSubject, selectedYear, answers]);
+
+  const { timeRemaining, formatted, isRunning, isWarning, isCritical, start, stop } = useExamTimer(timerInitialSeconds, onExpire as any);
 
   /* ── Loading state ── */
   if (loading || schoolLoading) {
@@ -904,6 +956,7 @@ export default function StudentJambPage() {
             {/* Right: sticky sidebar */}
             <aside className="hidden lg:block">
               <div className="sticky top-6 space-y-4">
+                <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={filteredSubjectLabel} />
 
                 {/* Summary card */}
                 <div className="rounded-2xl border bg-white p-5 shadow-sm space-y-4">

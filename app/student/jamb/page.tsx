@@ -260,6 +260,7 @@ export default function StudentJambPage() {
   const isRestoringDraftRef = useRef(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
+  const hasAutoSubmittedRef = useRef(false);
 
   function getDraftKey(subject?: string, year?: string) {
     const s = subject || selectedSubject || "";
@@ -288,6 +289,7 @@ export default function StudentJambPage() {
     setSessionId(null);
     setServerStartTime(null);
     setMaxDurationSeconds(null);
+    hasAutoSubmittedRef.current = false;
     toast.success("Started fresh session");
   }
   function loadDraftFromLocalStorage(key?: string) {
@@ -510,6 +512,9 @@ export default function StudentJambPage() {
       setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
       if (loadedQuestions.length > 0) { setIsSessionActive(true); }
       
+      // Reset auto-submit flag for this new session
+      hasAutoSubmittedRef.current = false;
+      
       // Initialize server-side exam session
       try {
         const sessionResponse = await fetch(
@@ -609,6 +614,7 @@ export default function StudentJambPage() {
       setSessionId(null);
       setServerStartTime(null);
       setMaxDurationSeconds(null);
+      hasAutoSubmittedRef.current = false;
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
       setPendingFilterChange(null);
       setShowTerminationDialog(false);
@@ -755,11 +761,17 @@ export default function StudentJambPage() {
     // This prevents immediate submission when `timerInitialSeconds` is null/0
     // (e.g., session start returned 0 remaining seconds or timer not started yet).
     if (timerInitialSeconds == null || timerInitialSeconds === 0) return;
+    
+    // Guard: only auto-submit once per session
+    if (hasAutoSubmittedRef.current) return;
 
-    if (timeRemaining === 0 && isRunning === false && isSessionActive && sessionToken) {
+    // Only auto-submit if timer has actually been running (isRunning was/is true)
+    // and now time has expired (timeRemaining === 0 and isRunning === false)
+    if (timeRemaining === 0 && isRunning === false && isSessionActive && sessionToken && timerInitialSeconds > 0) {
+      hasAutoSubmittedRef.current = true;
       void submitAttempt();
     }
-  }, [timeRemaining, isRunning, isSessionActive, sessionToken]);
+  }, [timeRemaining, isRunning, isSessionActive, sessionToken, timerInitialSeconds]);
 
   /* ── Loading state ── */
   if (loading || schoolLoading) {

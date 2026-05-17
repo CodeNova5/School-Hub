@@ -206,7 +206,6 @@ export default function StudentJambPage() {
   const [previewData, setPreviewData] = useState<{ totalQuestions: number | null; previousAttempt: any | null; durationSeconds: number | null }>(
     { totalQuestions: null, previousAttempt: null, durationSeconds: null }
   );
-  const [autoStartSession, setAutoStartSession] = useState(false);
   
   // Server-side session management (stored in memory, not localStorage)
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -649,16 +648,6 @@ export default function StudentJambPage() {
     if (typeof window !== "undefined") window.addEventListener("beforeunload", handleBeforeUnload);
     return () => { if (typeof window !== "undefined") window.removeEventListener("beforeunload", handleBeforeUnload); };
   }, [answers, selectedSubject, selectedYear]);
-
-  useEffect(() => {
-    if (selectedSubject && selectedYear && autoStartSession) {
-      // Load questions and initialize server-side session when the user explicitly starts
-      void loadQuestions(1, 0);
-      // reset flag so it doesn't auto-run again
-      setAutoStartSession(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSubject, selectedYear]);
 
   async function submitAttempt() {
     if (!allQuestionIds.length && !questions.length) return;
@@ -1176,7 +1165,13 @@ export default function StudentJambPage() {
             </div>
             <div className="flex gap-3 justify-end">
               <Button variant="outline" onClick={() => { setShowStartModal(false); setSelectedYear(""); }}>Cancel</Button>
-              <Button onClick={() => { setShowStartModal(false); setAutoStartSession(true); }} className="bg-blue-600 hover:bg-blue-700">
+              <Button
+                onClick={() => {
+                  setShowStartModal(false);
+                  void loadQuestions(1, 0);
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
                 Start Exam
               </Button>
             </div>

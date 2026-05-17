@@ -200,9 +200,14 @@ export default function StudentJambPage() {
   const [showResultWizard, setShowResultWizard] = useState(false);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [showPreSubmitReview, setShowPreSubmitReview] = useState(false);
-  const [pendingSession, setPendingSession] = useState<{ subject: string; year: string } | null>(null);
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
   const [timerInitialSeconds, setTimerInitialSeconds] = useState<number | null>(null);
+  
+  // Server-side session management (stored in memory, not localStorage)
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [serverStartTime, setServerStartTime] = useState<Date | null>(null);
+  const [maxDurationSeconds, setMaxDurationSeconds] = useState<number | null>(null);
 
   /* ── MathText ── */
   const MathText = ({ content }: { content: string }) => {
@@ -258,61 +263,14 @@ export default function StudentJambPage() {
     const sid = schoolId || "global";
     return `jamb_draft:${sid}:${s}:${y}`;
   }
-  function getExamSessionKey() {
-    return `jamb_session:${schoolId || "global"}`;
-  }
-  function saveExamSessionStart(subject: string, year: string, startTime: number, durationMinutes: number) {
-    try {
-      if (typeof window === "undefined") return;
-      window.localStorage.setItem(getExamSessionKey(), JSON.stringify({ subject, year, startTime, durationMinutes }));
-    } catch (e) { }
-  }
-  function loadExamSessionStart() {
-    try {
-      if (typeof window === "undefined") return null;
-      const raw = window.localStorage.getItem(getExamSessionKey());
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) { return null; }
-  }
-  function clearExamSessionStart() {
-    try { if (typeof window !== "undefined") window.localStorage.removeItem(getExamSessionKey()); } catch (e) { }
-  }
+
   function getSessionKey() {
     return `jamb_session:${schoolId || "global"}`;
   }
-  function saveSessionState(subject: string, year: string) {
-    try {
-      if (typeof window === "undefined") return;
-      window.localStorage.setItem(getSessionKey(), JSON.stringify({ subject, year, timestamp: Date.now() }));
-    } catch (e) {
-      console.error(e);
-    }
-  }
-  function loadSessionState() {
-    try {
-      if (typeof window === "undefined") return null;
-      const raw = window.localStorage.getItem(getSessionKey());
-      return raw ? JSON.parse(raw) : null;
-    } catch (e) {
-      return null;
-    }
-  }
-  function clearSessionState() {
-    try {
-      if (typeof window !== "undefined") window.localStorage.removeItem(getSessionKey());
-    } catch (e) { }
-  }
-  function handleRestoreSession() {
-    if (pendingSession) {
-      isRestoringDraftRef.current = true;
-      setSelectedSubject(pendingSession.subject);
-      setSelectedYear(pendingSession.year);
-      setShowRestoreDialog(false);
-    }
-  }
+  // No longer using localStorage for session timing - moved to server-side
+  // Draft persistence is still in localStorage for answer recovery
   function handleStartFresh() {
     isRestoringDraftRef.current = false;
-    clearSessionState();
     setSelectedSubject("");
     setSelectedYear("");
     setAnswers({});
@@ -321,6 +279,11 @@ export default function StudentJambPage() {
     setTotalQuestionCount(0);
     setPageCompletion({});
     setShowRestoreDialog(false);
+    // Clear session state from memory
+    setSessionToken(null);
+    setSessionId(null);
+    setServerStartTime(null);
+    setMaxDurationSeconds(null);
     toast.success("Started fresh session");
   }
   function loadDraftFromLocalStorage(key?: string) {
@@ -368,11 +331,7 @@ export default function StudentJambPage() {
         .eq("student_id", student.id).eq("school_id", schoolId).eq("is_active", true).maybeSingle();
       if (!jambAccess) { setHasAccess(false); return; }
       setHasAccess(true);
-      const savedSession = loadSessionState();
-      if (savedSession?.subject && savedSession?.year) {
-        setPendingSession(savedSession);
-        setShowRestoreDialog(true);
-      }
+      // Resume session is now handled server-side in loadQuestions() -> session/start API
       await fetchSubjects();
     } catch (error: any) {
       toast.error(error.message || "Failed to load JAMB data");
@@ -409,10 +368,10 @@ export default function StudentJambPage() {
       setPageCompletion({});
       return;
     }
-    if (!(pendingSession && pendingSession.subject === selectedSubject)) setSelectedYear("");
+    setSelectedYear("");
     setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0); setPageCompletion({});
     void loadAvailableFilters(selectedSubject).catch((err: any) => toast.error(err.message || "Failed to load years"));
-  }, [selectedSubject, pendingSession]);
+  }, [selectedSubject]);
 
   const filteredSubjectLabel = useMemo(
     () => subjects.find((s) => s.slug === selectedSubject)?.name || "JAMB",
@@ -546,25 +505,40 @@ export default function StudentJambPage() {
       setQuestionDebug({ page, totalPages: totalPages || 1, count: loadedQuestions.length, hasMore });
       setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
       if (loadedQuestions.length > 0) { setIsSessionActive(true); }
-      // initialize exam timer session (start_time + duration)
+      
+      // Initialize server-side exam session
       try {
-        const durationMinutes = filteredSubjectLabel.toLowerCase().includes("english") ? 60 : 40;
-        const sess = loadExamSessionStart();
-        const now = Date.now();
-        if (sess && sess.startTime && sess.durationMinutes) {
-          const elapsed = Math.floor((now - sess.startTime) / 1000);
-          const remaining = Math.max(0, (sess.durationMinutes * 60) - elapsed);
-          setTimerInitialSeconds(remaining);
-          if (remaining <= 0) {
-            // expired - auto-submit
-            void submitAttempt();
-          }
-        } else {
-          // start a fresh timed session
-          saveExamSessionStart(selectedSubject, selectedYear, now, durationMinutes);
-          setTimerInitialSeconds(durationMinutes * 60);
+        const sessionResponse = await fetch(
+          `/api/student/jamb/session/start?subject_slug=${encodeURIComponent(selectedSubject)}&exam_year=${selectedYear}`,
+          { method: "GET" }
+        );
+
+        if (!sessionResponse.ok) {
+          const errorData = await sessionResponse.json();
+          throw new Error(errorData.error || "Failed to start exam session");
         }
-      } catch (e) { }
+
+        const sessionData = await sessionResponse.json();
+        const { data } = sessionData;
+
+        setSessionToken(data.sessionToken);
+        setSessionId(data.sessionId);
+        setServerStartTime(new Date(data.startedAt));
+        setMaxDurationSeconds(data.durationSeconds);
+
+        // Set timer with remaining time (handles resume)
+        setTimerInitialSeconds(data.remainingSeconds);
+
+        if (data.isExpired) {
+          toast.error("Exam time has expired");
+          void submitAttempt();
+        } else if (data.isResume) {
+          toast.info(`Resuming session (${data.remainingSeconds} seconds remaining)`);
+        }
+      } catch (e: any) {
+        console.error("Session initialization error:", e);
+        toast.error(e.message || "Failed to initialize exam session");
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to load questions");
     } finally {
@@ -588,15 +562,28 @@ export default function StudentJambPage() {
   }
   function handleConfirmTermination() {
     if (pendingFilterChange) {
-      setAnswers({}); setQuestions([]); setAllQuestionIds([]); setAttemptResult(null); setTotalQuestionCount(0);
+      setAnswers({});
+      setQuestions([]);
+      setAllQuestionIds([]);
+      setAttemptResult(null);
+      setTotalQuestionCount(0);
       setPageCompletion({});
-      setIsSessionActive(false); clearSessionState();
+      setIsSessionActive(false);
+      // Clear session state from memory
+      setSessionToken(null);
+      setSessionId(null);
+      setServerStartTime(null);
+      setMaxDurationSeconds(null);
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
-      setPendingFilterChange(null); setShowTerminationDialog(false);
+      setPendingFilterChange(null);
+      setShowTerminationDialog(false);
       toast.success("Session terminated. Starting fresh.");
     }
   }
-  function handleSaveAndExit() { clearSessionState(); toast.success("Progress saved."); window.location.href = "/student"; }
+  function handleSaveAndExit() {
+    toast.success("Progress saved.");
+    window.location.href = "/student";
+  }
 
   function recordAnswer(id: string, option: string) {
     setAnswers((prev) => ({ ...prev, [id]: option }));
@@ -628,51 +615,119 @@ export default function StudentJambPage() {
   }, [answers, selectedSubject, selectedYear]);
 
   useEffect(() => {
-    if (selectedSubject && selectedYear) { saveSessionState(selectedSubject, selectedYear); void loadQuestions(1, 0); }
+    if (selectedSubject && selectedYear) {
+      // Load questions and initialize server-side session
+      void loadQuestions(1, 0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSubject, selectedYear]);
 
   async function submitAttempt() {
     if (!allQuestionIds.length && !questions.length) return;
+    if (!sessionToken || !serverStartTime || !maxDurationSeconds) {
+      toast.error("Session not initialized. Please reload the page.");
+      return;
+    }
+
     try {
-      setSubmitting(true); setShowPreSubmitReview(false);
-      const questionIdsToSubmit = allQuestionIds.length > 0 ? allQuestionIds.map((q) => q.id) : questions.map((q) => q.id);
-      const answersPayload = questionIdsToSubmit.map((questionId) => ({ questionId, selectedOption: answers[questionId] || null }));
+      setSubmitting(true);
+      setShowPreSubmitReview(false);
+
+      // Calculate elapsed seconds on client
+      const now = new Date();
+      const elapsedSeconds = Math.floor(
+        (now.getTime() - serverStartTime.getTime()) / 1000
+      );
+
+      // Validate session with server
+      const validationResponse = await fetch("/api/student/jamb/session/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionToken,
+          elapsedSeconds,
+        }),
+      });
+
+      if (!validationResponse.ok) {
+        const validationError = await validationResponse.json();
+        throw new Error(
+          validationError.error || "Session validation failed"
+        );
+      }
+
+      const validationData = await validationResponse.json();
+      const { data: sessionValidation } = validationData;
+
+      // Proceed with submission
+      const questionIdsToSubmit = allQuestionIds.length > 0
+        ? allQuestionIds.map((q) => q.id)
+        : questions.map((q) => q.id);
+      const answersPayload = questionIdsToSubmit.map((questionId) => ({
+        questionId,
+        selectedOption: answers[questionId] || null,
+      }));
+
       const response = await fetch("/api/student/jamb/attempts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subjectSlug: selectedSubject, subjectName: filteredSubjectLabel,
-          examYear: Number(selectedYear), answers: answersPayload,
-          totalQuestions, totalPages: questionTotalPages, questionsPerPage: QUESTIONS_PER_PAGE,
+          subjectSlug: selectedSubject,
+          subjectName: filteredSubjectLabel,
+          examYear: Number(selectedYear),
+          answers: answersPayload,
+          totalQuestions,
+          totalPages: questionTotalPages,
+          questionsPerPage: QUESTIONS_PER_PAGE,
+          sessionId, // Include for audit
+          sessionToken, // Include for verification
+          serverElapsedSeconds: sessionValidation.serverElapsedSeconds,
         }),
       });
+
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Failed to submit attempt");
+
       const prevResponse = await fetch(
-        `/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${selectedYear}`,
+        `/api/student/jamb/previous-attempt?subject=${encodeURIComponent(
+          selectedSubject
+        )}&year=${selectedYear}`,
         { cache: "no-store" }
       );
       const prevResult = prevResponse.ok ? await prevResponse.json() : null;
+
       setAttemptResult({ ...result.data, previousAttempt: prevResult?.data });
-      setShowResultWizard(true); setIsSessionActive(false); clearSessionState();
-      clearExamSessionStart();
+      setShowResultWizard(true);
+      setIsSessionActive(false);
+
+      // Clear session memory
+      setSessionToken(null);
+      setSessionId(null);
+      setServerStartTime(null);
+      setMaxDurationSeconds(null);
+
       toast.success("Attempt submitted successfully");
     } catch (error: any) {
+      console.error("Submit error:", error);
       toast.error(error.message || "Unable to save attempt");
     } finally {
       setSubmitting(false);
     }
   }
 
-  // start/restore timer hook
+  // Timer expiration handler
   const onExpire = useCallback(() => {
     toast.info("Time's up — submitting your attempt...");
-    void submitAttempt();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSubject, selectedYear, answers]);
+  }, []);
 
   const { timeRemaining, formatted, isRunning, isWarning, isCritical, start, stop } = useExamTimer(timerInitialSeconds, onExpire as any);
+
+  // Submit attempt when timer expires
+  useEffect(() => {
+    if (timeRemaining === 0 && isRunning === false && isSessionActive && sessionToken) {
+      void submitAttempt();
+    }
+  }, [timeRemaining, isRunning, isSessionActive, sessionToken]);
 
   /* ── Loading state ── */
   if (loading || schoolLoading) {
@@ -712,25 +767,6 @@ export default function StudentJambPage() {
   return (
     <DashboardLayout role="student">
       {/* ── Dialogs ── */}
-      <AlertDialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
-        <AlertDialogContent>
-          <AlertDialogTitle>Resume previous session?</AlertDialogTitle>
-          <AlertDialogDescription>
-            We found a saved practice session. Would you like to pick up where you left off?
-            {pendingSession && (
-              <div className="mt-3 rounded-lg bg-slate-100 p-3 text-sm space-y-1">
-                <div><span className="font-medium text-gray-700">Subject:</span> {subjects.find((s) => s.slug === pendingSession.subject)?.name || pendingSession.subject}</div>
-                <div><span className="font-medium text-gray-700">Year:</span> {pendingSession.year}</div>
-              </div>
-            )}
-          </AlertDialogDescription>
-          <div className="flex gap-3 justify-end mt-2">
-            <AlertDialogCancel onClick={handleStartFresh}>Start Fresh</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestoreSession}>Resume Session</AlertDialogAction>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <AlertDialog open={showTerminationDialog} onOpenChange={setShowTerminationDialog}>
         <AlertDialogContent>
           <AlertDialogTitle>End current session?</AlertDialogTitle>

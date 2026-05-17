@@ -202,6 +202,11 @@ export default function StudentJambPage() {
   const [showPreSubmitReview, setShowPreSubmitReview] = useState(false);
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
   const [timerInitialSeconds, setTimerInitialSeconds] = useState<number | null>(null);
+  const [showStartModal, setShowStartModal] = useState(false);
+  const [previewData, setPreviewData] = useState<{ totalQuestions: number | null; previousAttempt: any | null; durationSeconds: number | null }>(
+    { totalQuestions: null, previousAttempt: null, durationSeconds: null }
+  );
+  const [autoStartSession, setAutoStartSession] = useState(false);
   
   // Server-side session management (stored in memory, not localStorage)
   const [sessionToken, setSessionToken] = useState<string | null>(null);
@@ -558,7 +563,38 @@ export default function StudentJambPage() {
       setShowTerminationDialog(true);
       return;
     }
-    applyFilterChange(type, value);
+    // When the user selects a year (and a subject is already chosen), show a preview modal
+    // instead of immediately starting the session. The modal displays counts, previous attempts
+    // and lets the user explicitly start the exam.
+    (async () => {
+      if (type === "year" && selectedSubject) {
+        // set the year so UI reflects the selection in the modal
+        setSelectedYear(value);
+        try {
+          const offset = 0;
+          // fetch question count
+          const { count: totalCount, error: countError } = await supabase
+            .from("jamb_questions").select("id", { count: "exact", head: true })
+            .eq("subject_slug", selectedSubject).eq("exam_year", Number(value));
+          if (countError) throw countError;
+
+          // fetch previous attempt (if any)
+          let prev: any = null;
+          try {
+            const prevResponse = await fetch(`/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${value}`, { cache: "no-store" });
+            if (prevResponse.ok) prev = await prevResponse.json();
+          } catch (e) { /* ignore */ }
+
+          setPreviewData({ totalQuestions: totalCount || 0, previousAttempt: prev?.data || null, durationSeconds: null });
+          setShowStartModal(true);
+        } catch (err: any) {
+          toast.error(err.message || "Failed to load preview");
+          applyFilterChange(type, value);
+        }
+      } else {
+        applyFilterChange(type, value);
+      }
+    })();
   }
   function handleConfirmTermination() {
     if (pendingFilterChange) {
@@ -615,9 +651,11 @@ export default function StudentJambPage() {
   }, [answers, selectedSubject, selectedYear]);
 
   useEffect(() => {
-    if (selectedSubject && selectedYear) {
-      // Load questions and initialize server-side session
+    if (selectedSubject && selectedYear && autoStartSession) {
+      // Load questions and initialize server-side session when the user explicitly starts
       void loadQuestions(1, 0);
+      // reset flag so it doesn't auto-run again
+      setAutoStartSession(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSubject, selectedYear]);
@@ -724,6 +762,11 @@ export default function StudentJambPage() {
 
   // Submit attempt when timer expires
   useEffect(() => {
+    // Guard: ensure we had a valid timer initialized before auto-submitting.
+    // This prevents immediate submission when `timerInitialSeconds` is null/0
+    // (e.g., session start returned 0 remaining seconds or timer not started yet).
+    if (timerInitialSeconds == null || timerInitialSeconds === 0) return;
+
     if (timeRemaining === 0 && isRunning === false && isSessionActive && sessionToken) {
       void submitAttempt();
     }
@@ -1101,6 +1144,45 @@ export default function StudentJambPage() {
       </div>
 
       {/* ── Question grid modal ── */}
+      <Dialog open={showStartModal} onOpenChange={setShowStartModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">Start Exam</DialogTitle>
+            <DialogDescription>Review exam details before starting. Once started the timer will begin.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border bg-white p-4">
+              <p className="text-sm text-gray-600">Subject</p>
+              <p className="text-lg font-semibold text-gray-900">{filteredSubjectLabel}</p>
+              <p className="text-sm text-gray-600 mt-2">Year</p>
+              <p className="text-base font-medium text-gray-800">{selectedYear}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="rounded-md bg-slate-50 border p-3 text-center">
+                  <p className="text-xs text-gray-500">Questions</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900">{previewData.totalQuestions ?? "—"}</p>
+                </div>
+                <div className="rounded-md bg-slate-50 border p-3 text-center">
+                  <p className="text-xs text-gray-500">Duration</p>
+                  <p className="mt-1 text-lg font-bold text-gray-900">{previewData.durationSeconds ? `${Math.ceil(previewData.durationSeconds / 60)} min` : "—"}</p>
+                </div>
+              </div>
+              {previewData.previousAttempt && (
+                <div className="mt-3 rounded-md bg-emerald-50 border p-3">
+                  <p className="text-xs text-emerald-700 font-medium">Previous Attempt</p>
+                  <p className="text-sm text-emerald-900 font-semibold mt-1">Score: {previewData.previousAttempt.score ?? previewData.previousAttempt.score_percent ?? "—"}%</p>
+                </div>
+              )}
+              <p className="mt-3 text-sm text-gray-500">Make sure you're ready — starting will begin the timer and lock the session.</p>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" onClick={() => { setShowStartModal(false); setSelectedYear(""); }}>Cancel</Button>
+              <Button onClick={() => { setShowStartModal(false); setAutoStartSession(true); }} className="bg-blue-600 hover:bg-blue-700">
+                Start Exam
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={showQuestionGrid} onOpenChange={setShowQuestionGrid}>
         <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>

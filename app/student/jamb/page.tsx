@@ -31,6 +31,8 @@ import {
   HelpCircle,
   BookOpen,
   LayoutGrid,
+  AlertCircle,
+  Check,
 } from "lucide-react";
 import {
   Dialog,
@@ -1165,42 +1167,85 @@ export default function StudentJambPage() {
       <Dialog open={showStartModal} onOpenChange={setShowStartModal}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">Start Exam</DialogTitle>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                <BookOpen className="h-4 w-4" />
+              </span>
+              Start Exam
+            </DialogTitle>
             <DialogDescription>Review exam details before starting. Once started the timer will begin.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="rounded-lg border bg-white p-4">
-              <p className="text-sm text-gray-600">Subject</p>
-              <p className="text-lg font-semibold text-gray-900">{filteredSubjectLabel}</p>
-              <p className="text-sm text-gray-600 mt-2">Year</p>
-              <p className="text-base font-medium text-gray-800">{selectedYear}</p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="rounded-md bg-slate-50 border p-3 text-center">
-                  <p className="text-xs text-gray-500">Questions</p>
-                  <p className="mt-1 text-lg font-bold text-gray-900">{previewData.totalQuestions ?? "—"}</p>
+          <div className="space-y-5 py-2">
+            {/* Exam overview card */}
+            <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
+              <div className="space-y-4">
+                {/* Subject */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-blue-600">Subject</p>
+                  <p className="mt-1.5 text-2xl font-bold text-gray-900">{filteredSubjectLabel}</p>
                 </div>
-                <div className="rounded-md bg-slate-50 border p-3 text-center">
-                  <p className="text-xs text-gray-500">Duration</p>
-                  <p className="mt-1 text-lg font-bold text-gray-900">{previewData.durationSeconds ? `${Math.ceil(previewData.durationSeconds / 60)} min` : "—"}</p>
+
+                {/* Year */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wider text-blue-600">Exam Year</p>
+                  <p className="mt-1.5 text-lg font-semibold text-gray-800">{selectedYear}</p>
+                </div>
+
+                {/* Divider */}
+                <div className="my-2 h-px bg-gradient-to-r from-blue-100 via-indigo-100 to-blue-100" />
+
+                {/* Key stats */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-blue-200 bg-white/80 p-4 text-center backdrop-blur-sm transition-all hover:shadow-md">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Questions</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900">{previewData.totalQuestions ?? "—"}</p>
+                  </div>
+                  <div className="rounded-xl border border-indigo-200 bg-white/80 p-4 text-center backdrop-blur-sm transition-all hover:shadow-md">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Duration</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-900">{previewData.durationSeconds ? `${Math.ceil(previewData.durationSeconds / 60)}` : "—"}</p>
+                    <p className="text-xs text-gray-500 mt-1">minutes</p>
+                  </div>
                 </div>
               </div>
-              {previewData.previousAttempt && (
-                <div className="mt-3 rounded-md bg-emerald-50 border p-3">
-                  <p className="text-xs text-emerald-700 font-medium">Previous Attempt</p>
-                  <p className="text-sm text-emerald-900 font-semibold mt-1">Score: {previewData.previousAttempt.score ?? previewData.previousAttempt.score_percent ?? "—"}%</p>
-                </div>
-              )}
-              <p className="mt-3 text-sm text-gray-500">Make sure you're ready — starting will begin the timer and lock the session.</p>
             </div>
-            <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => { setShowStartModal(false); setSelectedYear(""); }}>Cancel</Button>
+
+            {/* Previous attempt card - if exists */}
+            {previewData.previousAttempt && (
+              <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-emerald-900">Previous Attempt</p>
+                    <p className="mt-1 text-2xl font-bold text-emerald-700">{previewData.previousAttempt.score ?? previewData.previousAttempt.score_percent ?? "—"}%</p>
+                    <p className="text-xs text-emerald-600 mt-1">Try to improve your score!</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Ready status */}
+            <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+              <p className="text-sm text-amber-800"><span className="font-semibold">Important:</span> Once you start, the timer will lock and you cannot pause the session.</p>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 justify-end border-t pt-5">
+              <Button
+                variant="outline"
+                onClick={() => { setShowStartModal(false); setSelectedYear(""); }}
+                className="px-6"
+              >
+                Cancel
+              </Button>
               <Button
                 onClick={() => {
                   setShowStartModal(false);
                   void loadQuestions(1, 0);
                 }}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-8 text-white shadow-lg"
               >
+                <Check className="h-4 w-4" />
                 Start Exam
               </Button>
             </div>

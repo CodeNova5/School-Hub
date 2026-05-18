@@ -50,6 +50,7 @@ import "katex/dist/katex.min.css";
 import useExamTimer from "@/hooks/use-exam-timer";
 import ExamTimerWidget from "@/components/jamb/exam-timer-widget";
 import { getJambExamConfig, shuffleArray } from "@/lib/jamb-exam-config";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -177,6 +178,9 @@ export default function StudentJambPage() {
   const [years, setYears] = useState<number[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
+  const [mode, setMode] = useState<"study" | "practice" | "exam">("practice");
+  // For exam mode: list of additional subject slugs (english is always included)
+  const [examSubjects, setExamSubjects] = useState<string[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [, setHasMoreQuestions] = useState(false);
   const [, setQuestionDebug] = useState<{
@@ -472,34 +476,80 @@ export default function StudentJambPage() {
   }
 
   async function loadQuestions(page = 1, targetIndex = 0) {
-    if (!selectedSubject || !selectedYear) { toast.error("Please select a subject and year"); return; }
+    if (mode === "exam") {
+      if (!selectedYear || !(examSubjects && examSubjects.length)) { toast.error("Please select a year and exam subjects"); return; }
+    } else {
+      if (!selectedSubject || !selectedYear) { toast.error("Please select a subject and year"); return; }
+    }
     try {
       setLoadingQuestions(true);
-      const examConfig = getJambExamConfig(selectedSubject);
+      // Choose exam pool depending on mode
+      const examConfig = mode === "exam" ? { questionCount: 0, durationMinutes: 120, isEnglish: false } : getJambExamConfig(selectedSubject);
       const poolMatches =
-        examPoolRef.current?.subjectSlug === selectedSubject &&
-        examPoolRef.current?.examYear === selectedYear &&
+        examPoolRef.current &&
+        examPoolRef.current.examYear === selectedYear &&
         Array.isArray(examPoolRef.current.questionIds) &&
         examPoolRef.current.questionIds.length > 0;
 
       if (!poolMatches) {
-        const { data: idRows, error: idError } = await supabase
-          .from("jamb_questions")
-          .select("id")
-          .eq("subject_slug", selectedSubject)
-          .eq("exam_year", Number(selectedYear))
-          .order("id", { ascending: true });
-        if (idError) throw idError;
+        // Build pool per mode
+        let selectedIds: string[] = [];
+        if (mode === "study") {
+          // all questions for the subject/year
+          const { data: idRows, error: idError } = await supabase
+            .from("jamb_questions")
+            .select("id")
+            .eq("subject_slug", selectedSubject)
+            .eq("exam_year", Number(selectedYear))
+            .order("id", { ascending: true });
+          if (idError) throw idError;
+          selectedIds = shuffleArray((idRows || []).map((r: any) => r.id));
+        } else if (mode === "practice") {
+          const { data: idRows, error: idError } = await supabase
+            .from("jamb_questions")
+            .select("id")
+            .eq("subject_slug", selectedSubject)
+            .eq("exam_year", Number(selectedYear))
+            .order("id", { ascending: true });
+          if (idError) throw idError;
+          const questionIdRows = (idRows || []) as Array<{ id: string }>;
+          const shuffledIds = shuffleArray(questionIdRows.map((row) => row.id));
+          selectedIds = shuffledIds.slice(0, Math.min(shuffledIds.length, examConfig.questionCount));
+        } else if (mode === "exam") {
+          // Exam mode: english (60) + 40 from the rest combined
+          const englishSlug = "english-language";
+          const otherSlugs = Array.from(new Set([englishSlug, ...examSubjects]));
+          // ensure english is present
+          if (!otherSlugs.includes(englishSlug)) otherSlugs.unshift(englishSlug);
 
-        const questionIdRows = (idRows || []) as Array<{ id: string }>;
-        const shuffledIds = shuffleArray(questionIdRows.map((row) => row.id));
-        const selectedIds = shuffledIds.slice(0, Math.min(shuffledIds.length, examConfig.questionCount));
+          // fetch ids per subject
+          const perSubjectIds: Record<string, string[]> = {};
+          for (const slug of otherSlugs) {
+            const { data: idRows, error: idError } = await supabase
+              .from("jamb_questions")
+              .select("id")
+              .eq("subject_slug", slug)
+              .eq("exam_year", Number(selectedYear))
+              .order("id", { ascending: true });
+            if (idError) throw idError;
+            perSubjectIds[slug] = shuffleArray((idRows || []).map((r: any) => r.id));
+          }
+
+          const englishIds = perSubjectIds[englishSlug] || [];
+          const pickEnglish = englishIds.slice(0, Math.min(englishIds.length, 60));
+          // combine other subjects and pick 40 total
+          const others = otherSlugs.filter((s) => s !== englishSlug).flatMap((s) => perSubjectIds[s] || []);
+          const pickOthers = shuffleArray(others).slice(0, Math.min(others.length, 40));
+
+          selectedIds = shuffleArray([...pickEnglish, ...pickOthers]);
+        }
+
         examPoolRef.current = {
-          subjectSlug: selectedSubject,
+          subjectSlug: mode === "exam" ? "exam-multi" : selectedSubject,
           examYear: selectedYear,
           questionIds: selectedIds,
-        };
-        setAllQuestionIds(selectedIds.map((id, index) => ({ id, pageNum: getQuestionPageNumber(index) })));
+        } as any;
+        setAllQuestionIds(((examPoolRef.current?.questionIds) || []).map((id: string, index: number) => ({ id, pageNum: getQuestionPageNumber(index) })));
       }
 
       const questionIds = examPoolRef.current?.questionIds || [];
@@ -511,7 +561,7 @@ export default function StudentJambPage() {
 
       const { data, error } = await supabase
         .from("jamb_questions")
-        .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url")
+        .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url, correct_answer, explanation")
         .in("id", pageQuestionIds);
       if (error) throw error;
       const orderedRows = (data || []).sort(
@@ -552,10 +602,20 @@ export default function StudentJambPage() {
       
       // Initialize server-side exam session
       try {
-        const sessionResponse = await fetch(
-          `/api/student/jamb/session/start?subject_slug=${encodeURIComponent(selectedSubject)}&exam_year=${selectedYear}`,
-          { method: "GET" }
-        );
+        // For exam mode include mode and duration; pass a subjects list when available
+        const params = new URLSearchParams();
+        if (mode === "exam") {
+          params.set("mode", "exam");
+          params.set("duration_minutes", String(120));
+          params.set("subjects", examSubjects.join(","));
+          // use a placeholder subject_slug so backend can create a session record
+          params.set("subject_slug", "exam-multi");
+        } else {
+          params.set("subject_slug", selectedSubject);
+        }
+        params.set("exam_year", selectedYear);
+
+        const sessionResponse = await fetch(`/api/student/jamb/session/start?${params.toString()}`, { method: "GET" });
 
         if (!sessionResponse.ok) {
           const errorData = await sessionResponse.json();
@@ -606,30 +666,64 @@ export default function StudentJambPage() {
     // instead of immediately starting the session. The modal displays counts, previous attempts
     // and lets the user explicitly start the exam.
     (async () => {
-      if (type === "year" && selectedSubject) {
+      if (type === "year" && (selectedSubject || mode === "exam")) {
         // set the year so UI reflects the selection in the modal
         setSelectedYear(value);
         try {
-          const examConfig = getJambExamConfig(selectedSubject);
-          // fetch question count
-          const { count: totalCount, error: countError } = await supabase
-            .from("jamb_questions").select("id", { count: "exact", head: true })
-            .eq("subject_slug", selectedSubject).eq("exam_year", Number(value));
-          if (countError) throw countError;
+          if (mode === "exam") {
+            // compute counts across selected exam subjects (english + chosen)
+            const englishSlug = "english-language";
+            const otherSlugs = Array.from(new Set([englishSlug, ...examSubjects]));
+            // fetch counts per subject
+            let englishCount = 0;
+            let othersCount = 0;
+            try {
+              const { count: engCount, error: engErr } = await supabase
+                .from("jamb_questions").select("id", { count: "exact", head: true })
+                .eq("subject_slug", englishSlug).eq("exam_year", Number(value));
+              if (engErr) throw engErr;
+              englishCount = engCount || 0;
+            } catch (e) { englishCount = 0; }
 
-          // fetch previous attempt (if any)
-          let prev: any = null;
-          try {
-            const prevResponse = await fetch(`/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${value}`, { cache: "no-store" });
-            if (prevResponse.ok) prev = await prevResponse.json();
-          } catch (e) { /* ignore */ }
+            for (const slug of otherSlugs.filter(s => s !== englishSlug)) {
+              try {
+                const { count: c, error: err } = await supabase
+                  .from("jamb_questions").select("id", { count: "exact", head: true })
+                  .eq("subject_slug", slug).eq("exam_year", Number(value));
+                if (err) throw err;
+                othersCount += c || 0;
+              } catch (e) { /* ignore individual errors */ }
+            }
 
-          setPreviewData({
-            totalQuestions: Math.min(totalCount || 0, examConfig.questionCount),
-            previousAttempt: prev?.data || null,
-            durationSeconds: examConfig.durationMinutes * 60,
-          });
-          setShowStartModal(true);
+            const totalAvailable = Math.min(englishCount, 60) + Math.min(othersCount, 40);
+            setPreviewData({
+              totalQuestions: totalAvailable,
+              previousAttempt: null,
+              durationSeconds: 120 * 60,
+            });
+            setShowStartModal(true);
+          } else {
+            const examConfig = getJambExamConfig(selectedSubject);
+            // fetch question count
+            const { count: totalCount, error: countError } = await supabase
+              .from("jamb_questions").select("id", { count: "exact", head: true })
+              .eq("subject_slug", selectedSubject).eq("exam_year", Number(value));
+            if (countError) throw countError;
+
+            // fetch previous attempt (if any)
+            let prev: any = null;
+            try {
+              const prevResponse = await fetch(`/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${value}`, { cache: "no-store" });
+              if (prevResponse.ok) prev = await prevResponse.json();
+            } catch (e) { /* ignore */ }
+
+            setPreviewData({
+              totalQuestions: Math.min(totalCount || 0, examConfig.questionCount),
+              previousAttempt: prev?.data || null,
+              durationSeconds: examConfig.durationMinutes * 60,
+            });
+            setShowStartModal(true);
+          }
         } catch (err: any) {
           toast.error(err.message || "Failed to load preview");
           applyFilterChange(type, value);
@@ -749,6 +843,8 @@ export default function StudentJambPage() {
           subjectSlug: selectedSubject,
           subjectName: filteredSubjectLabel,
           examYear: Number(selectedYear),
+          mode,
+          subjects: mode === "exam" ? ["english-language", ...examSubjects] : [selectedSubject],
           answers: answersPayload,
           totalQuestions,
           totalPages: questionTotalPages,
@@ -902,6 +998,21 @@ export default function StudentJambPage() {
 
         {/* ── Filters ── */}
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          {/* Mode selector */}
+          <div className="mb-4">
+            <label className="text-sm font-medium text-gray-700">Mode</label>
+            <div className="mt-2 flex items-center gap-2">
+              {(["study", "practice", "exam"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setExamSubjects([]); setSelectedSubject(""); setSelectedYear(""); }}
+                  className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${mode === m ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                >
+                  {m[0].toUpperCase() + m.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Subject */}
             <div className="space-y-1.5">
@@ -909,7 +1020,7 @@ export default function StudentJambPage() {
                 <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">1</span>
                 Subject
               </label>
-              <Select value={selectedSubject} onValueChange={(v) => handleFilterChange("subject", v)}>
+              <Select value={selectedSubject} onValueChange={(v) => handleFilterChange("subject", v)} disabled={mode === "exam"}>
                 <SelectTrigger><SelectValue placeholder="Choose a subject" /></SelectTrigger>
                 <SelectContent>
                   {subjects.map((s) => <SelectItem key={s.slug} value={s.slug}>{s.name}</SelectItem>)}
@@ -922,9 +1033,9 @@ export default function StudentJambPage() {
                 <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${selectedSubject ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"}`}>2</span>
                 Exam Year
               </label>
-              <Select value={selectedYear} onValueChange={(v) => handleFilterChange("year", v)} disabled={!selectedSubject}>
-                <SelectTrigger className={!selectedSubject ? "opacity-50 cursor-not-allowed" : ""}>
-                  <SelectValue placeholder={selectedSubject ? "Choose a year" : "Select subject first"} />
+              <Select value={selectedYear} onValueChange={(v) => handleFilterChange("year", v)} disabled={mode === "exam" ? (examSubjects.length === 0) : !selectedSubject}>
+                <SelectTrigger className={mode === "exam" ? (examSubjects.length === 0 ? "opacity-50 cursor-not-allowed" : "") : (!selectedSubject ? "opacity-50 cursor-not-allowed" : "")}>
+                  <SelectValue placeholder={mode === "exam" ? (examSubjects.length === 0 ? "Select exam subjects first" : "Choose a year") : (selectedSubject ? "Choose a year" : "Select subject first")} />
                 </SelectTrigger>
                 <SelectContent>
                   {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
@@ -932,6 +1043,32 @@ export default function StudentJambPage() {
               </Select>
             </div>
           </div>
+          {/* Exam subject multiselect */}
+          {mode === "exam" && (
+            <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
+              <p className="text-sm font-medium text-gray-700 mb-2">Exam subjects (English is always included). Choose up to 3 other subjects.</p>
+              <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto">
+                {subjects.filter(s => s.slug !== "english-language").map((s) => {
+                  const checked = examSubjects.includes(s.slug);
+                  return (
+                    <label key={s.slug} className="flex items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => {
+                          setExamSubjects((prev) => {
+                            if (prev.includes(s.slug)) return prev.filter((p) => p !== s.slug);
+                            if (prev.length >= 3) return prev; // max 3
+                            return [...prev, s.slug];
+                          });
+                        }}
+                      />
+                      <span>{s.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {selectedSubject && selectedYear && (
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
               <BookOpen className="h-4 w-4 text-blue-500 shrink-0" />

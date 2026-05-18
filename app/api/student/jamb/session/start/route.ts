@@ -52,6 +52,9 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const subjectSlug = url.searchParams.get("subject_slug");
     const examYear = url.searchParams.get("exam_year");
+    const mode = url.searchParams.get("mode") || "";
+    const durationMinutesParam = url.searchParams.get("duration_minutes");
+    const subjectsParam = url.searchParams.get("subjects");
 
     if (!subjectSlug || !examYear) {
       return NextResponse.json(
@@ -132,11 +135,16 @@ export async function GET(req: NextRequest) {
 
     // Get duration based on subject slug (database-driven)
     let durationMinutes = 40;
-    try {
-      const examConfig = getJambExamConfig(subjectSlug);
-      durationMinutes = examConfig.durationMinutes;
-    } catch (e) {
-      // Fallback to default if query fails
+    if (durationMinutesParam) {
+      const parsed = Number(durationMinutesParam);
+      if (Number.isFinite(parsed) && parsed > 0) durationMinutes = parsed;
+    } else {
+      try {
+        const examConfig = getJambExamConfig(subjectSlug);
+        durationMinutes = examConfig.durationMinutes;
+      } catch (e) {
+        // Fallback
+      }
     }
 
     const serverNow = new Date();
@@ -146,7 +154,7 @@ export async function GET(req: NextRequest) {
         {
           student_id: student.id,
           school_id: student.school_id,
-          subject_slug: subjectSlug,
+          subject_slug: subjectsParam || subjectSlug,
           exam_year: Number(examYear),
           duration_minutes: durationMinutes,
           session_token: sessionToken,

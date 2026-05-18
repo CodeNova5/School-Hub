@@ -33,6 +33,9 @@ import {
   LayoutGrid,
   AlertCircle,
   Check,
+  BrainCircuit,
+  Timer,
+  GraduationCap
 } from "lucide-react";
 import {
   Dialog,
@@ -179,7 +182,6 @@ export default function StudentJambPage() {
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [mode, setMode] = useState<"study" | "practice" | "exam">("practice");
-  // For exam mode: list of additional subject slugs (english is always included)
   const [examSubjects, setExamSubjects] = useState<string[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [, setHasMoreQuestions] = useState(false);
@@ -190,13 +192,11 @@ export default function StudentJambPage() {
     hasMore: boolean;
   } | null>(null);
 
-  // Page-level pagination (each "page" has QUESTIONS_PER_PAGE questions)
   const [questionPage, setQuestionPage] = useState(1);
   const [questionTotalPages, setQuestionTotalPages] = useState(1);
   const [totalQuestionCount, setTotalQuestionCount] = useState(0);
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
 
-  // Index of the active question within the current page (0-based)
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -218,7 +218,6 @@ export default function StudentJambPage() {
     { totalQuestions: null, previousAttempt: null, durationSeconds: null }
   );
   
-  // Server-side session management (stored in memory, not localStorage)
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [serverStartTime, setServerStartTime] = useState<Date | null>(null);
@@ -273,11 +272,6 @@ export default function StudentJambPage() {
     return `jamb_draft:${sid}:${s}:${y}`;
   }
 
-  function getSessionKey() {
-    return `jamb_session:${schoolId || "global"}`;
-  }
-  // No longer using localStorage for session timing - moved to server-side
-  // Draft persistence is still in localStorage for answer recovery
   function handleStartFresh() {
     isRestoringDraftRef.current = false;
     setSelectedSubject("");
@@ -288,7 +282,6 @@ export default function StudentJambPage() {
     setTotalQuestionCount(0);
     setPageCompletion({});
     setShowRestoreDialog(false);
-    // Clear session state from memory
     setSessionToken(null);
     setSessionId(null);
     setServerStartTime(null);
@@ -298,6 +291,7 @@ export default function StudentJambPage() {
     clearExamPool();
     toast.success("Started fresh session");
   }
+
   function loadDraftFromLocalStorage(key?: string) {
     try {
       const k = key || getDraftKey();
@@ -308,6 +302,7 @@ export default function StudentJambPage() {
       return {} as Record<string, string>;
     }
   }
+
   function saveDraftToLocalStorage(data?: Record<string, string>) {
     try {
       const k = getDraftKey();
@@ -343,7 +338,6 @@ export default function StudentJambPage() {
         .eq("student_id", student.id).eq("school_id", schoolId).eq("is_active", true).maybeSingle();
       if (!jambAccess) { setHasAccess(false); return; }
       setHasAccess(true);
-      // Resume session is now handled server-side in loadQuestions() -> session/start API
       await fetchSubjects();
     } catch (error: any) {
       toast.error(error.message || "Failed to load JAMB data");
@@ -408,7 +402,6 @@ export default function StudentJambPage() {
   const getPageAnsweredCount = (p: number) =>
     p === questionPage ? answeredOnPage : pageCompletion[p] ? QUESTIONS_PER_PAGE : 0;
 
-  /* ── Global question number helpers ── */
   const globalQuestionNumber = (pageNum: number, indexOnPage: number) =>
     (pageNum - 1) * QUESTIONS_PER_PAGE + indexOnPage + 1;
 
@@ -419,7 +412,10 @@ export default function StudentJambPage() {
     if (typeof window === "undefined") return;
     const card = document.getElementById(QUESTION_CARD_ID);
     if (card) {
-      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      const topOffset = 80; 
+      const elementPosition = card.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - topOffset;
+      window.scrollTo({ top: offsetPosition, behavior: "smooth" });
       return;
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -429,7 +425,7 @@ export default function StudentJambPage() {
   function goToQuestion(pageNum: number, indexOnPage: number) {
     if (pageNum === questionPage) {
       setActiveQuestionIndex(indexOnPage);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      requestAnimationFrame(() => scrollToQuestionCard());
     } else {
       loadQuestions(pageNum, indexOnPage);
     }
@@ -483,7 +479,6 @@ export default function StudentJambPage() {
     }
     try {
       setLoadingQuestions(true);
-      // Choose exam pool depending on mode
       const examConfig = mode === "exam" ? { questionCount: 0, durationMinutes: 120, isEnglish: false } : getJambExamConfig(selectedSubject);
       const poolMatches =
         examPoolRef.current &&
@@ -492,10 +487,8 @@ export default function StudentJambPage() {
         examPoolRef.current.questionIds.length > 0;
 
       if (!poolMatches) {
-        // Build pool per mode
         let selectedIds: string[] = [];
         if (mode === "study") {
-          // all questions for the subject/year
           const { data: idRows, error: idError } = await supabase
             .from("jamb_questions")
             .select("id")
@@ -516,13 +509,10 @@ export default function StudentJambPage() {
           const shuffledIds = shuffleArray(questionIdRows.map((row) => row.id));
           selectedIds = shuffledIds.slice(0, Math.min(shuffledIds.length, examConfig.questionCount));
         } else if (mode === "exam") {
-          // Exam mode: english (60) + 40 from the rest combined
           const englishSlug = "english-language";
           const otherSlugs = Array.from(new Set([englishSlug, ...examSubjects]));
-          // ensure english is present
           if (!otherSlugs.includes(englishSlug)) otherSlugs.unshift(englishSlug);
 
-          // fetch ids per subject
           const perSubjectIds: Record<string, string[]> = {};
           for (const slug of otherSlugs) {
             const { data: idRows, error: idError } = await supabase
@@ -537,7 +527,6 @@ export default function StudentJambPage() {
 
           const englishIds = perSubjectIds[englishSlug] || [];
           const pickEnglish = englishIds.slice(0, Math.min(englishIds.length, 60));
-          // combine other subjects and pick 40 total
           const others = otherSlugs.filter((s) => s !== englishSlug).flatMap((s) => perSubjectIds[s] || []);
           const pickOthers = shuffleArray(others).slice(0, Math.min(others.length, 40));
 
@@ -587,7 +576,6 @@ export default function StudentJambPage() {
         if (raw) { const parsed = JSON.parse(raw); if (parsed.pageCompletion) setPageCompletion(parsed.pageCompletion); }
       } catch (e) { }
       setAttemptResult(null);
-      window.scrollTo({ top: 0, behavior: "smooth" });
       isRestoringDraftRef.current = false;
       setQuestionPage(safePage);
       setQuestionTotalPages(totalPages || 1);
@@ -596,19 +584,15 @@ export default function StudentJambPage() {
       setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
       if (loadedQuestions.length > 0) { setIsSessionActive(true); }
       
-      // Reset auto-submit flag for this new session
       hasAutoSubmittedRef.current = false;
       hasTimerStartedRef.current = false;
       
-      // Initialize server-side exam session
       try {
-        // For exam mode include mode and duration; pass a subjects list when available
         const params = new URLSearchParams();
         if (mode === "exam") {
           params.set("mode", "exam");
           params.set("duration_minutes", String(120));
           params.set("subjects", examSubjects.join(","));
-          // use a placeholder subject_slug so backend can create a session record
           params.set("subject_slug", "exam-multi");
         } else {
           params.set("subject_slug", selectedSubject);
@@ -629,8 +613,6 @@ export default function StudentJambPage() {
         setSessionId(data.sessionId);
         setServerStartTime(new Date(data.startedAt));
         setMaxDurationSeconds(data.durationSeconds);
-
-        // Set timer with remaining time (handles resume)
         setTimerInitialSeconds(data.remainingSeconds);
 
         if (data.isExpired) {
@@ -643,6 +625,8 @@ export default function StudentJambPage() {
         console.error("Session initialization error:", e);
         toast.error(e.message || "Failed to initialize exam session");
       }
+      
+      requestAnimationFrame(() => scrollToQuestionCard());
     } catch (error: any) {
       toast.error(error.message || "Failed to load questions");
     } finally {
@@ -654,6 +638,7 @@ export default function StudentJambPage() {
     if (type === "subject") setSelectedSubject(value);
     else setSelectedYear(value);
   }
+
   function handleFilterChange(type: "subject" | "year", value: string) {
     const currentValue = type === "subject" ? selectedSubject : selectedYear;
     if (value === currentValue) return;
@@ -662,19 +647,13 @@ export default function StudentJambPage() {
       setShowTerminationDialog(true);
       return;
     }
-    // When the user selects a year (and a subject is already chosen), show a preview modal
-    // instead of immediately starting the session. The modal displays counts, previous attempts
-    // and lets the user explicitly start the exam.
     (async () => {
       if (type === "year" && (selectedSubject || mode === "exam")) {
-        // set the year so UI reflects the selection in the modal
         setSelectedYear(value);
         try {
           if (mode === "exam") {
-            // compute counts across selected exam subjects (english + chosen)
             const englishSlug = "english-language";
             const otherSlugs = Array.from(new Set([englishSlug, ...examSubjects]));
-            // fetch counts per subject
             let englishCount = 0;
             let othersCount = 0;
             try {
@@ -692,7 +671,7 @@ export default function StudentJambPage() {
                   .eq("subject_slug", slug).eq("exam_year", Number(value));
                 if (err) throw err;
                 othersCount += c || 0;
-              } catch (e) { /* ignore individual errors */ }
+              } catch (e) { }
             }
 
             const totalAvailable = Math.min(englishCount, 60) + Math.min(othersCount, 40);
@@ -704,18 +683,16 @@ export default function StudentJambPage() {
             setShowStartModal(true);
           } else {
             const examConfig = getJambExamConfig(selectedSubject);
-            // fetch question count
             const { count: totalCount, error: countError } = await supabase
               .from("jamb_questions").select("id", { count: "exact", head: true })
               .eq("subject_slug", selectedSubject).eq("exam_year", Number(value));
             if (countError) throw countError;
 
-            // fetch previous attempt (if any)
             let prev: any = null;
             try {
               const prevResponse = await fetch(`/api/student/jamb/previous-attempt?subject=${encodeURIComponent(selectedSubject)}&year=${value}`, { cache: "no-store" });
               if (prevResponse.ok) prev = await prevResponse.json();
-            } catch (e) { /* ignore */ }
+            } catch (e) { }
 
             setPreviewData({
               totalQuestions: Math.min(totalCount || 0, examConfig.questionCount),
@@ -733,6 +710,7 @@ export default function StudentJambPage() {
       }
     })();
   }
+
   function handleConfirmTermination() {
     if (pendingFilterChange) {
       setAnswers({});
@@ -742,7 +720,6 @@ export default function StudentJambPage() {
       setTotalQuestionCount(0);
       setPageCompletion({});
       setIsSessionActive(false);
-      // Clear session state from memory
       setSessionToken(null);
       setSessionId(null);
       setServerStartTime(null);
@@ -756,6 +733,7 @@ export default function StudentJambPage() {
       toast.success("Session terminated. Starting fresh.");
     }
   }
+
   function handleSaveAndExit() {
     toast.success("Progress saved.");
     window.location.href = "/student";
@@ -801,13 +779,11 @@ export default function StudentJambPage() {
       setSubmitting(true);
       setShowPreSubmitReview(false);
 
-      // Calculate elapsed seconds on client
       const now = new Date();
       const elapsedSeconds = Math.floor(
         (now.getTime() - serverStartTime.getTime()) / 1000
       );
 
-      // Validate session with server
       const validationResponse = await fetch("/api/student/jamb/session/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -827,7 +803,6 @@ export default function StudentJambPage() {
       const validationData = await validationResponse.json();
       const { data: sessionValidation } = validationData;
 
-      // Proceed with submission
       const questionIdsToSubmit = allQuestionIds.length > 0
         ? allQuestionIds.map((q) => q.id)
         : questions.map((q) => q.id);
@@ -849,8 +824,8 @@ export default function StudentJambPage() {
           totalQuestions,
           totalPages: questionTotalPages,
           questionsPerPage: QUESTIONS_PER_PAGE,
-          sessionId, // Include for audit
-          sessionToken, // Include for verification
+          sessionId, 
+          sessionToken, 
           serverElapsedSeconds: sessionValidation.serverElapsedSeconds,
         }),
       });
@@ -870,7 +845,6 @@ export default function StudentJambPage() {
       setShowResultWizard(true);
       setIsSessionActive(false);
 
-      // Clear session memory
       setSessionToken(null);
       setSessionId(null);
       setServerStartTime(null);
@@ -887,14 +861,12 @@ export default function StudentJambPage() {
     }
   }
 
-  // Timer expiration handler
   const onExpire = useCallback(() => {
     toast.info("Time's up — submitting your attempt...");
   }, []);
 
   const { timeRemaining, formatted, isRunning, isWarning, isCritical, start, stop } = useExamTimer(timerInitialSeconds, onExpire as any);
 
-  // Ensure expiry auto-submit only runs after the timer has genuinely started.
   useEffect(() => {
     if (!isSessionActive) return;
     if (typeof timerInitialSeconds !== "number" || timerInitialSeconds <= 0) return;
@@ -903,21 +875,11 @@ export default function StudentJambPage() {
     }
   }, [isSessionActive, timerInitialSeconds, isRunning, timeRemaining]);
 
-  // Submit attempt when timer expires
   useEffect(() => {
-    // Guard: ensure we had a valid timer initialized before auto-submitting.
-    // This prevents immediate submission when `timerInitialSeconds` is null/0
-    // (e.g., session start returned 0 remaining seconds or timer not started yet).
     if (timerInitialSeconds == null || timerInitialSeconds <= 0) return;
-    
-    // Guard: only auto-submit once per session
     if (hasAutoSubmittedRef.current) return;
-
-    // Guard: don't auto-submit during timer bootstrapping/race conditions.
     if (!hasTimerStartedRef.current) return;
 
-    // Only auto-submit if timer has actually been running (isRunning was/is true)
-    // and now time has expired (timeRemaining === 0 and isRunning === false)
     if (timeRemaining === 0 && isRunning === false && isSessionActive && sessionToken && timerInitialSeconds > 0) {
       hasAutoSubmittedRef.current = true;
       void submitAttempt();
@@ -953,14 +915,28 @@ export default function StudentJambPage() {
     );
   }
 
-  /* ─────────────────────────────────────────────────────────────────────── */
-  /* Main render                                                             */
-  /* ─────────────────────────────────────────────────────────────────────── */
-
   const hasQuestions = questions.length > 0;
 
   return (
     <DashboardLayout role="student">
+      
+      {/* ── Mobile Sticky Top Bar (Only visible during active session) ── */}
+      {isSessionActive && (
+        <div className="lg:hidden sticky top-0 z-40 -mx-4 mb-6 bg-white border-b border-slate-200 shadow-sm px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+             <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={filteredSubjectLabel} />
+          </div>
+          <div className="flex gap-2">
+             <Button size="sm" variant="outline" onClick={() => setShowQuestionGrid(true)} className="h-9 w-9 p-0">
+               <LayoutGrid className="h-4 w-4 text-slate-600" />
+             </Button>
+             <Button size="sm" onClick={() => setShowPreSubmitReview(true)} className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3">
+               Submit
+             </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── Dialogs ── */}
       <AlertDialog open={showTerminationDialog} onOpenChange={setShowTerminationDialog}>
         <AlertDialogContent>
@@ -982,59 +958,76 @@ export default function StudentJambPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <Badge variant="success" className="gap-1.5 text-xs">
+              <Badge variant="success" className="gap-1.5 text-xs bg-emerald-100 text-emerald-800 border-emerald-200">
                 <ShieldCheck className="h-3 w-3" />
                 Access enabled
               </Badge>
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">JAMB CBT Practice</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Welcome, {studentName}. Select a subject and year to begin.</p>
-          </div>
-          <div className="rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 px-5 py-3 text-white shadow-md">
-            <p className="text-xs text-blue-200 leading-none mb-1">Exam type</p>
-            <p className="text-xl font-bold leading-none">JAMB</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">JAMB CBT Practice</h1>
+            <p className="mt-1 text-sm text-slate-500">Welcome back, {studentName}. Choose your preferred mode to begin.</p>
           </div>
         </div>
 
-        {/* ── Filters ── */}
-        <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          {/* Mode selector */}
-          <div className="mb-4">
-            <label className="text-sm font-medium text-gray-700">Mode</label>
-            <div className="mt-2 flex items-center gap-2">
-              {(["study", "practice", "exam"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => { setMode(m); setExamSubjects([]); setSelectedSubject(""); setSelectedYear(""); }}
-                  className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${mode === m ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-                >
-                  {m[0].toUpperCase() + m.slice(1)}
-                </button>
-              ))}
+        {/* ── Filter / Setup Card ── */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          
+          {/* Mode Selector - Redesigned */}
+          <div className="mb-6">
+            <label className="text-sm font-bold text-slate-800 mb-3 block">1. Select Mode</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {[
+                { id: "study", icon: BrainCircuit, title: "Study", desc: "No timer, learn at your pace" },
+                { id: "practice", icon: Timer, title: "Practice", desc: "Timed subset of questions" },
+                { id: "exam", icon: GraduationCap, title: "Exam", desc: "Full 120-min simulation" }
+              ].map((m) => {
+                const Icon = m.icon;
+                const isActive = mode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => { setMode(m.id as any); setExamSubjects([]); setSelectedSubject(""); setSelectedYear(""); }}
+                    className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all text-left ${
+                      isActive 
+                      ? "border-blue-600 bg-blue-50/50 shadow-sm" 
+                      : "border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/30"
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg ${isActive ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-200"}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className={`font-bold ${isActive ? "text-blue-900" : "text-slate-700"}`}>{m.title}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{m.desc}</p>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {/* Subject */}
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">1</span>
-                Subject
+
+          <div className="grid gap-6 sm:grid-cols-2">
+            {/* Subject Dropdown */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-800">
+                2. {mode === "exam" ? "Primary Subject" : "Select Subject"}
               </label>
               <Select value={selectedSubject} onValueChange={(v) => handleFilterChange("subject", v)} disabled={mode === "exam"}>
-                <SelectTrigger><SelectValue placeholder="Choose a subject" /></SelectTrigger>
+                <SelectTrigger className="h-12 bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Choose a subject" />
+                </SelectTrigger>
                 <SelectContent>
                   {subjects.map((s) => <SelectItem key={s.slug} value={s.slug}>{s.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            {/* Year */}
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${selectedSubject ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"}`}>2</span>
-                Exam Year
+            
+            {/* Year Dropdown */}
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-800">
+                3. Exam Year
               </label>
               <Select value={selectedYear} onValueChange={(v) => handleFilterChange("year", v)} disabled={mode === "exam" ? (examSubjects.length === 0) : !selectedSubject}>
-                <SelectTrigger className={mode === "exam" ? (examSubjects.length === 0 ? "opacity-50 cursor-not-allowed" : "") : (!selectedSubject ? "opacity-50 cursor-not-allowed" : "")}>
+                <SelectTrigger className={`h-12 bg-slate-50 border-slate-200 ${mode === "exam" ? (examSubjects.length === 0 ? "opacity-50" : "") : (!selectedSubject ? "opacity-50" : "")}`}>
                   <SelectValue placeholder={mode === "exam" ? (examSubjects.length === 0 ? "Select exam subjects first" : "Choose a year") : (selectedSubject ? "Choose a year" : "Select subject first")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -1043,36 +1036,60 @@ export default function StudentJambPage() {
               </Select>
             </div>
           </div>
-          {/* Exam subject multiselect */}
+
+          {/* Exam Mode Subject Picker - Redesigned */}
           {mode === "exam" && (
-            <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
-              <p className="text-sm font-medium text-gray-700 mb-2">Exam subjects (English is always included). Choose up to 3 other subjects.</p>
-              <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto">
+            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-800">Select Exam Subjects</p>
+                <Badge variant="secondary" className="bg-slate-200 text-slate-700">
+                  {examSubjects.length}/3 selected
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">English is automatically included. Select up to 3 additional subjects to complete your exam combination.</p>
+              
+              <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
                 {subjects.filter(s => s.slug !== "english-language").map((s) => {
-                  const checked = examSubjects.includes(s.slug);
+                  const isChecked = examSubjects.includes(s.slug);
+                  const isDisabled = !isChecked && examSubjects.length >= 3;
+                  
                   return (
-                    <label key={s.slug} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() => {
-                          setExamSubjects((prev) => {
-                            if (prev.includes(s.slug)) return prev.filter((p) => p !== s.slug);
-                            if (prev.length >= 3) return prev; // max 3
-                            return [...prev, s.slug];
-                          });
-                        }}
-                      />
-                      <span>{s.name}</span>
-                    </label>
+                    <button
+                      key={s.slug}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => {
+                        setExamSubjects((prev) => {
+                          if (prev.includes(s.slug)) return prev.filter((p) => p !== s.slug);
+                          if (prev.length >= 3) return prev; 
+                          return [...prev, s.slug];
+                        });
+                      }}
+                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
+                        isChecked 
+                          ? "bg-blue-600 border-blue-600 text-white shadow-sm" 
+                          : isDisabled 
+                            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed" 
+                            : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50"
+                      }`}
+                    >
+                      {s.name}
+                    </button>
                   );
                 })}
               </div>
             </div>
           )}
+
           {selectedSubject && selectedYear && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-800">
-              <BookOpen className="h-4 w-4 text-blue-500 shrink-0" />
-              <span>{filteredSubjectLabel} · {selectedYear} · {totalQuestions} questions</span>
+            <div className="mt-6 flex items-center gap-3 rounded-xl bg-blue-50 border border-blue-100 p-4 text-blue-900">
+              <div className="p-2 bg-blue-100 rounded-full shrink-0">
+                <BookOpen className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold">{filteredSubjectLabel} <span className="mx-1 text-blue-300">•</span> {selectedYear}</p>
+                <p className="text-xs text-blue-700 mt-0.5">Session configured for {totalQuestions} questions.</p>
+              </div>
             </div>
           )}
         </div>
@@ -1080,81 +1097,75 @@ export default function StudentJambPage() {
         {/* ── Loading skeleton ── */}
         {loadingQuestions && (
           <div className="flex items-center justify-center py-24">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-              <p className="text-sm text-gray-500">Loading questions…</p>
+            <div className="flex flex-col items-center gap-4">
+              <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              </div>
+              <p className="text-sm font-medium text-slate-500 animate-pulse">Preparing your session…</p>
             </div>
           </div>
         )}
 
         {/* ── Question View ── */}
         {!loadingQuestions && hasQuestions && activeQuestion && (
-          <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+          <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
 
             {/* Left: question card */}
             <div className="space-y-4">
 
               {/* Progress bar */}
-              <div className="rounded-2xl border bg-white px-5 py-4 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    Question <span className="text-blue-600 font-bold">{activeGlobalNumber}</span> of {totalQuestions}
+              <div className="hidden lg:block rounded-2xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-bold text-slate-700">
+                    Question <span className="text-blue-600 text-lg mx-1">{activeGlobalNumber}</span> of {totalQuestions}
                   </span>
-                  <span className="text-sm text-gray-500">{progressPercent}% complete</span>
+                  <span className="text-sm font-medium text-slate-500">{progressPercent}% Completed</span>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
+                    className="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out"
                     style={{ width: `${progressPercent}%` }}
                   />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
-                  <span>{totalAnsweredCount} answered</span>
-                  <span>{totalQuestions - totalAnsweredCount} remaining</span>
                 </div>
               </div>
 
               {/* Question card */}
-              <div id={QUESTION_CARD_ID} className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+              <div id={QUESTION_CARD_ID} className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
                 {/* Card header */}
-                <div className="flex items-center justify-between gap-4 border-b bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-4">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-widest text-blue-500">
-                      {activeQuestion.subject_name} · {activeQuestion.exam_year}
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                      {activeQuestion.subject_name} <span className="mx-1">•</span> {activeQuestion.exam_year}
                     </p>
-                    <h2 className="mt-0.5 text-lg font-semibold text-gray-900">
-                      Question {activeGlobalNumber}
-                    </h2>
                   </div>
                   <div className="flex items-center gap-2">
                     {answers[activeQuestion.id] ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                        <CheckCircle2 className="h-3 w-3" /> Answered
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Answered
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
-                        <HelpCircle className="h-3 w-3" /> Unanswered
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
+                        <HelpCircle className="h-3.5 w-3.5" /> Pending
                       </span>
                     )}
-                    <Badge variant="outline" className="text-xs">JAMB CBT</Badge>
                   </div>
                 </div>
 
-                <div className="space-y-6 p-6">
+                <div className="space-y-8 p-6 sm:p-8">
                   {/* Image */}
                   {activeQuestion.image_url && (
-                    <div className="flex justify-center rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex justify-center rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
                       <img
                         src={activeQuestion.image_url}
                         alt={`Question ${activeGlobalNumber}`}
-                        className="max-h-64 max-w-full object-contain"
+                        className="max-h-72 max-w-full object-contain rounded-lg"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                       />
                     </div>
                   )}
 
                   {/* Question text */}
-                  <div className="text-base font-medium leading-relaxed text-gray-900">
+                  <div className="text-lg font-medium leading-relaxed text-slate-900">
                     <MathText content={activeQuestion.question_text} />
                   </div>
 
@@ -1168,19 +1179,22 @@ export default function StudentJambPage() {
                           key={`${activeQuestion.id}-${idx}`}
                           type="button"
                           onClick={() => recordAnswer(activeQuestion.id, option)}
-                          className={`group w-full flex items-start gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-150 ${selected
-                              ? "border-blue-500 bg-blue-50 shadow-sm"
-                              : "border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30"
+                          className={`group w-full flex items-center gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-200 ${
+                            selected
+                              ? "border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600/20"
+                              : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-sm"
                             }`}
                         >
-                          <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${selected ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-700"
+                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${
+                            selected 
+                              ? "border-blue-600 bg-blue-600 text-white" 
+                              : "border-slate-300 bg-slate-50 text-slate-500 group-hover:border-blue-400 group-hover:text-blue-600 group-hover:bg-blue-100"
                             }`}>
                             {OPTION_LABELS[idx]}
-                          </span>
-                          <span className="flex-1 text-base text-gray-800">
+                          </div>
+                          <span className={`flex-1 text-base ${selected ? "text-blue-950 font-medium" : "text-slate-700"}`}>
                             <MathText content={displayText} />
                           </span>
-                          {selected && <CheckCircle2 className="h-5 w-5 shrink-0 text-blue-500 mt-0.5" />}
                         </button>
                       );
                     })}
@@ -1189,36 +1203,35 @@ export default function StudentJambPage() {
               </div>
 
               {/* Question navigation */}
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 pt-2">
                 <Button
                   variant="outline"
+                  size="lg"
                   onClick={handlePrevQuestion}
                   disabled={isFirstQuestion || loadingQuestions}
-                  className="gap-2"
+                  className="gap-2 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 border-slate-200"
                 >
-                  <ChevronLeft className="h-4 w-4" /> Previous
+                  <ChevronLeft className="h-5 w-5" /> Prev
                 </Button>
-
-                <button
-                  onClick={() => setShowQuestionGrid(true)}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-slate-100 transition-colors"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                  Jump to question
-                </button>
 
                 {isLastQuestion ? (
                   <Button
+                    size="lg"
                     onClick={() => setShowPreSubmitReview(true)}
                     disabled={submitting}
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm font-bold px-8"
                   >
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-                    Submit Attempt
+                    {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                    Finish Test
                   </Button>
                 ) : (
-                  <Button onClick={handleNextQuestion} disabled={loadingQuestions} className="gap-2">
-                    Next <ChevronRight className="h-4 w-4" />
+                  <Button 
+                    size="lg" 
+                    onClick={handleNextQuestion} 
+                    disabled={loadingQuestions} 
+                    className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm px-8"
+                  >
+                    Next <ChevronRight className="h-5 w-5" />
                   </Button>
                 )}
               </div>
@@ -1226,59 +1239,38 @@ export default function StudentJambPage() {
 
             {/* Right: sticky sidebar */}
             <aside className="hidden lg:block">
-              <div className="sticky top-6 space-y-4">
+              <div className="sticky top-6 space-y-5">
                 <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={filteredSubjectLabel} />
 
                 {/* Summary card */}
-                <div className="rounded-2xl border bg-white p-5 shadow-sm space-y-4">
-                  <p className="text-sm font-semibold text-gray-700">Session Summary</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
-                      <p className="text-xs text-emerald-600 font-medium">Answered</p>
-                      <p className="text-2xl font-bold text-emerald-700">{totalAnsweredCount}</p>
-                    </div>
-                    <div className="rounded-xl bg-amber-50 border border-amber-100 p-3 text-center">
-                      <p className="text-xs text-amber-600 font-medium">Remaining</p>
-                      <p className="text-2xl font-bold text-amber-700">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p>
-                    </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-slate-800">Session Status</p>
+                    <button
+                      onClick={() => setShowQuestionGrid(true)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md"
+                    >
+                      <LayoutGrid className="h-3 w-3" /> View Grid
+                    </button>
                   </div>
-
-                  {/* Page pills */}
-                  <div>
-                    <p className="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">Pages</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {Array.from({ length: questionTotalPages }, (_, i) => i + 1).map((pn) => {
-                        const complete = isPageComplete(pn);
-                        const current = pn === questionPage;
-                        const partial = getPageAnsweredCount(pn) > 0 && !complete;
-                        return (
-                          <button
-                            key={pn}
-                            onClick={() => loadQuestions(pn, 0)}
-                            disabled={loadingQuestions}
-                            title={`Page ${pn}: Q${(pn - 1) * QUESTIONS_PER_PAGE + 1}–${Math.min(pn * QUESTIONS_PER_PAGE, totalQuestions)}`}
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold transition-colors ${current
-                                ? "bg-blue-600 text-white"
-                                : complete
-                                  ? "bg-emerald-500 text-white"
-                                  : partial
-                                    ? "bg-amber-200 text-amber-900"
-                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                              }`}
-                          >
-                            {pn}
-                          </button>
-                        );
-                      })}
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col items-center justify-center">
+                      <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Answered</p>
+                      <p className="text-2xl font-black text-slate-800 mt-1">{totalAnsweredCount}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col items-center justify-center">
+                      <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Pending</p>
+                      <p className="text-2xl font-black text-slate-800 mt-1">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p>
                     </div>
                   </div>
 
                   {/* Question dots for current page */}
                   <div>
-                    <p className="mb-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Page {questionPage} questions
+                    <p className="mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider border-t border-slate-100 pt-4">
+                      Current Page ({questionPage}/{questionTotalPages})
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {questions.map((q, idx) => {
                         const answered = !!answers[q.id];
                         const active = idx === activeQuestionIndex;
@@ -1288,11 +1280,12 @@ export default function StudentJambPage() {
                             key={q.id}
                             onClick={() => setActiveQuestionIndex(idx)}
                             title={`Q${gNum}${answered ? " (answered)" : ""}`}
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold border-2 transition-all ${active
-                                ? "border-blue-500 bg-blue-50 text-blue-700"
+                            className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold border-2 transition-all shadow-sm ${
+                              active
+                                ? "border-blue-600 bg-blue-600 text-white scale-110"
                                 : answered
-                                  ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
                               }`}
                           >
                             {gNum}
@@ -1304,17 +1297,17 @@ export default function StudentJambPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <Button
                     type="button"
                     onClick={() => setShowPreSubmitReview(true)}
                     disabled={submitting}
-                    className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
+                    className="w-full h-12 gap-2 bg-slate-900 hover:bg-slate-800 text-white text-base font-bold shadow-md"
                   >
-                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                    {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trophy className="h-5 w-5 text-yellow-400" />}
                     Submit Attempt
                   </Button>
-                  <Button type="button" variant="outline" onClick={handleSaveAndExit} className="w-full">
+                  <Button type="button" variant="outline" onClick={handleSaveAndExit} className="w-full h-12 font-bold text-slate-600 border-slate-200 hover:bg-slate-50">
                     Save & Exit
                   </Button>
                 </div>
@@ -1323,91 +1316,57 @@ export default function StudentJambPage() {
           </div>
         )}
 
-        {/* ── Result card ── */}
-        {attemptResult && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-emerald-700">Attempt saved</p>
-              <h2 className="text-2xl font-bold text-emerald-900">{attemptResult.correctCount} / {attemptResult.totalQuestions} correct</h2>
-              <p className="text-emerald-700">Score: {attemptResult.score}%</p>
-            </div>
-            <Button variant="outline" asChild><Link href="/student">Back to dashboard</Link></Button>
-          </div>
-        )}
       </div>
 
-      {/* ── Question grid modal ── */}
+      {/* ── Start Modal ── */}
       <Dialog open={showStartModal} onOpenChange={setShowStartModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-2xl">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                <BookOpen className="h-4 w-4" />
-              </span>
-              Start Exam
-            </DialogTitle>
-            <DialogDescription>Review exam details before starting. Once started the timer will begin.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5 py-2">
-            {/* Exam overview card */}
-            <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
-              <div className="space-y-4">
-                {/* Subject */}
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-blue-600">Subject</p>
-                  <p className="mt-1.5 text-2xl font-bold text-gray-900">{filteredSubjectLabel}</p>
-                </div>
-
-                {/* Year */}
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-blue-600">Exam Year</p>
-                  <p className="mt-1.5 text-lg font-semibold text-gray-800">{selectedYear}</p>
-                </div>
-
-                {/* Divider */}
-                <div className="my-2 h-px bg-gradient-to-r from-blue-100 via-indigo-100 to-blue-100" />
-
-                {/* Key stats */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-blue-200 bg-white/80 p-4 text-center backdrop-blur-sm transition-all hover:shadow-md">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Questions</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{previewData.totalQuestions ?? "—"}</p>
-                  </div>
-                  <div className="rounded-xl border border-indigo-200 bg-white/80 p-4 text-center backdrop-blur-sm transition-all hover:shadow-md">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Duration</p>
-                    <p className="mt-2 text-3xl font-bold text-gray-900">{previewData.durationSeconds ? `${Math.ceil(previewData.durationSeconds / 60)}` : "—"}</p>
-                    <p className="text-xs text-gray-500 mt-1">minutes</p>
-                  </div>
-                </div>
+        <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl">
+          <div className="bg-blue-600 p-6 text-white text-center relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-4 opacity-10">
+               <BrainCircuit className="w-32 h-32" />
+             </div>
+             <DialogTitle className="text-2xl font-bold relative z-10">Ready to Start?</DialogTitle>
+             <DialogDescription className="text-blue-100 mt-2 relative z-10 text-base">
+               Your session environment is prepared.
+             </DialogDescription>
+          </div>
+          
+          <div className="p-6 space-y-6 bg-white">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <span className="text-slate-500 font-medium text-sm">Target Subject</span>
+                <span className="font-bold text-slate-800">{filteredSubjectLabel}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                <span className="text-slate-500 font-medium text-sm">Exam Year</span>
+                <span className="font-bold text-slate-800">{selectedYear}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-xs font-bold text-slate-400 uppercase">Questions</p>
+                    <p className="text-xl font-black text-slate-800 mt-0.5">{previewData.totalQuestions ?? "—"}</p>
+                 </div>
+                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <p className="text-xs font-bold text-slate-400 uppercase">Time Limit</p>
+                    <p className="text-xl font-black text-slate-800 mt-0.5">{previewData.durationSeconds ? `${Math.ceil(previewData.durationSeconds / 60)}m` : "—"}</p>
+                 </div>
               </div>
             </div>
 
-            {/* Previous attempt card - if exists */}
-            {previewData.previousAttempt && (
-              <div className="rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-emerald-900">Previous Attempt</p>
-                    <p className="mt-1 text-2xl font-bold text-emerald-700">{previewData.previousAttempt.score ?? previewData.previousAttempt.score_percent ?? "—"}%</p>
-                    <p className="text-xs text-emerald-600 mt-1">Try to improve your score!</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Ready status */}
-            <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
-              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
-              <p className="text-sm text-amber-800"><span className="font-semibold">Important:</span> Once you start, the timer will lock and you cannot pause the session.</p>
+            <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-4">
+              <Timer className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-900 font-medium leading-relaxed">
+                Once initiated, the timer cannot be paused. Ensure you have a stable connection.
+              </p>
             </div>
 
             {/* Action buttons */}
-            <div className="flex gap-3 justify-end border-t pt-5">
+            <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
                 onClick={() => { setShowStartModal(false); setSelectedYear(""); }}
-                className="px-6"
+                className="flex-1 h-12 font-bold border-slate-200 text-slate-600"
               >
                 Cancel
               </Button>
@@ -1416,28 +1375,29 @@ export default function StudentJambPage() {
                   setShowStartModal(false);
                   void loadQuestions(1, 0);
                 }}
-                className="gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-8 text-white shadow-lg"
+                className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md"
               >
-                <Check className="h-4 w-4" />
-                Start Exam
+                Begin Test
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* ── Question grid modal ── */}
       <Dialog open={showQuestionGrid} onOpenChange={setShowQuestionGrid}>
-        <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Jump to Question</DialogTitle>
-            <DialogDescription>Select any question to navigate directly to it.</DialogDescription>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="pb-4 border-b border-slate-100">
+            <DialogTitle className="text-xl">Question Navigator</DialogTitle>
+            <DialogDescription>Jump directly to any question in the set.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-6 py-4">
             {Array.from({ length: questionTotalPages }, (_, pi) => pi + 1).map((pn) => (
-              <div key={pn}>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Page {pn} · Q{(pn - 1) * QUESTIONS_PER_PAGE + 1}–{Math.min(pn * QUESTIONS_PER_PAGE, totalQuestions)}
+              <div key={pn} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Page {pn}
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2.5">
                   {Array.from({ length: pn < questionTotalPages ? QUESTIONS_PER_PAGE : (totalQuestions - (questionTotalPages - 1) * QUESTIONS_PER_PAGE) }, (_, qi) => qi).map((qi) => {
                     const gNum = (pn - 1) * QUESTIONS_PER_PAGE + qi + 1;
                     const qId = pn === questionPage ? questions[qi]?.id : null;
@@ -1447,10 +1407,10 @@ export default function StudentJambPage() {
                       <button
                         key={gNum}
                         onClick={() => { goToQuestion(pn, qi); setShowQuestionGrid(false); }}
-                        className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-semibold border-2 transition-all ${isActive
-                            ? "border-blue-500 bg-blue-100 text-blue-700"
+                        className={`flex h-11 w-11 items-center justify-center rounded-lg text-sm font-bold border-2 transition-all ${isActive
+                            ? "border-blue-600 bg-blue-100 text-blue-700 ring-2 ring-blue-600/20"
                             : answered
-                              ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                       >
@@ -1461,72 +1421,64 @@ export default function StudentJambPage() {
                 </div>
               </div>
             ))}
-            <div className="flex items-center gap-4 pt-2 border-t text-xs text-gray-500">
-              <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-blue-500 bg-blue-100 inline-block" /> Current</span>
-              <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-emerald-400 bg-emerald-50 inline-block" /> Answered</span>
-              <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded border-2 border-slate-200 bg-white inline-block" /> Unanswered</span>
-            </div>
+          </div>
+          <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-xs font-medium text-slate-500 bg-white sticky bottom-0">
+             <div className="flex items-center gap-4">
+                <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-blue-600 bg-blue-100 inline-block" /> Current</span>
+                <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-emerald-500 bg-emerald-50 inline-block" /> Answered</span>
+                <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-slate-200 bg-white inline-block" /> Pending</span>
+             </div>
+             <Button variant="ghost" size="sm" onClick={() => setShowQuestionGrid(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* ── Pre-submit review ── */}
       <Dialog open={showPreSubmitReview} onOpenChange={setShowPreSubmitReview}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-emerald-600" />
-              Review Before Submitting
-            </DialogTitle>
-            <DialogDescription>
-              Check your progress across all pages. Unanswered questions will be marked incorrect.
+        <DialogContent className="max-w-lg p-6">
+          <div className="text-center mb-6">
+             <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                <ShieldCheck className="h-8 w-8 text-blue-600" />
+             </div>
+            <DialogTitle className="text-2xl font-bold">Review Submission</DialogTitle>
+            <DialogDescription className="mt-2 text-base">
+              You are about to complete this session. Unanswered questions will receive 0 points.
             </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-2">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-xl border bg-emerald-50 p-4 text-center">
-                <p className="text-xs text-emerald-700 font-medium uppercase tracking-wide">Answered</p>
-                <p className="mt-1 text-3xl font-bold text-emerald-800">{totalAnsweredCount}</p>
+          </div>
+          
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
+                <p className="text-xs text-emerald-700 font-bold uppercase tracking-wide">Answered</p>
+                <p className="mt-1 text-4xl font-black text-emerald-800">{totalAnsweredCount}</p>
               </div>
-              <div className="rounded-xl border bg-amber-50 p-4 text-center">
-                <p className="text-xs text-amber-700 font-medium uppercase tracking-wide">Unanswered</p>
-                <p className="mt-1 text-3xl font-bold text-amber-800">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p>
-              </div>
-              <div className="rounded-xl border bg-blue-50 p-4 text-center">
-                <p className="text-xs text-blue-700 font-medium uppercase tracking-wide">Total</p>
-                <p className="mt-1 text-3xl font-bold text-blue-800">{totalQuestions}</p>
+              <div className="rounded-xl border border-amber-100 bg-amber-50 p-4 text-center">
+                <p className="text-xs text-amber-700 font-bold uppercase tracking-wide">Pending</p>
+                <p className="mt-1 text-4xl font-black text-amber-800">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p>
               </div>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium text-gray-700">Overall Completion</p>
-                <p className="text-sm font-semibold text-gray-900">{progressPercent}%</p>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{ width: `${progressPercent}%` }} />
-              </div>
-            </div>
+            
             {totalAnsweredCount < totalQuestions ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
-                  <HelpCircle className="h-4 w-4" />
-                  You have {Math.max(totalQuestions - totalAnsweredCount, 0)} unanswered question(s). They will count as incorrect.
-                </p>
+              <div className="rounded-xl border border-amber-200 bg-white p-4 flex gap-3 items-start shadow-sm">
+                 <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                 <p className="text-sm font-medium text-slate-700 leading-relaxed">
+                   You have <strong className="text-amber-600">{Math.max(totalQuestions - totalAnsweredCount, 0)} unanswered</strong> questions. Are you sure you want to submit now?
+                 </p>
               </div>
             ) : (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4" />
-                  All questions answered — you're ready to submit!
+              <div className="rounded-xl border border-emerald-200 bg-white p-4 flex gap-3 items-start shadow-sm">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+                <p className="text-sm font-medium text-slate-700 leading-relaxed">
+                  Excellent! You've answered all questions. You're ready to submit.
                 </p>
               </div>
             )}
           </div>
-          <div className="flex gap-3 justify-end border-t pt-4">
-            <Button variant="outline" onClick={() => setShowPreSubmitReview(false)}>Go Back & Review</Button>
-            <Button onClick={submitAttempt} disabled={submitting} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
-              Confirm & Submit
+          
+          <div className="flex gap-3 justify-end pt-6 mt-4 border-t border-slate-100">
+            <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => setShowPreSubmitReview(false)}>Return to Test</Button>
+            <Button onClick={submitAttempt} disabled={submitting} className="flex-1 h-12 gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold">
+              {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : "Confirm Submission"}
             </Button>
           </div>
         </DialogContent>
@@ -1534,82 +1486,104 @@ export default function StudentJambPage() {
 
       {/* ── Results wizard ── */}
       <Dialog open={showResultWizard} onOpenChange={setShowResultWizard}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Your Results</DialogTitle>
-            <DialogDescription>Your score and missed questions</DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl">
+          <div className="bg-slate-900 p-8 text-center relative shrink-0">
+             <Trophy className="h-16 w-16 text-yellow-400 mx-auto mb-4 opacity-90" />
+             <DialogTitle className="text-3xl font-bold text-white mb-2">Session Complete</DialogTitle>
+             <DialogDescription className="text-slate-300 text-base">Here is a breakdown of your performance.</DialogDescription>
+          </div>
+          
           {attemptResult && (
-            <div className="space-y-6">
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-                <p className="text-sm font-medium text-emerald-700">Your Score</p>
-                <h2 className="mt-1 text-5xl font-bold text-emerald-900">{attemptResult.score}%</h2>
-                <p className="mt-2 text-sm text-emerald-700">{attemptResult.correctCount} out of {attemptResult.totalQuestions} correct</p>
-              </div>
-              {attemptResult.previousAttempt && (
-                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <p className="text-sm font-semibold text-blue-700 mb-3">vs. Previous Attempt</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs text-blue-600">Previous score</p>
-                      <p className="text-2xl font-bold text-blue-900">{attemptResult.previousAttempt.score}%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600">Change</p>
-                      <p className={`text-2xl font-bold ${attemptResult.score >= attemptResult.previousAttempt.score ? "text-emerald-600" : "text-red-600"}`}>
-                        {attemptResult.score > attemptResult.previousAttempt.score ? "+" : ""}{(attemptResult.score - attemptResult.previousAttempt.score).toFixed(1)}%
-                      </p>
-                    </div>
+            <div className="overflow-y-auto p-6 space-y-8 bg-slate-50 flex-1">
+              
+              {/* Score Card */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                <div className="text-center md:text-left z-10">
+                  <p className="text-sm font-bold text-slate-500 uppercase tracking-wide">Final Score</p>
+                  <div className="flex items-baseline justify-center md:justify-start gap-2 mt-1">
+                    <h2 className="text-6xl font-black text-slate-900">{attemptResult.score}<span className="text-3xl text-slate-400">%</span></h2>
                   </div>
-                </div>
-              )}
-              {(attemptResult.unansweredCount ?? 0) > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <HelpCircle className="h-4 w-4 text-amber-600" />
-                    Unanswered ({attemptResult.unansweredCount ?? 0})
+                  <p className="mt-2 text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1 rounded-full inline-block">
+                    {attemptResult.correctCount} / {attemptResult.totalQuestions} Correct
                   </p>
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
-                    {attemptResult.unansweredQuestions?.join(", ") || `${attemptResult.unansweredCount ?? 0} questions`}
-                  </div>
                 </div>
-              )}
-              {(attemptResult.missedCount ?? 0) > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    Incorrect Answers ({attemptResult.missedCount ?? 0})
-                  </p>
-                  <div className="space-y-3">
-                    {attemptResult.missedQuestions?.map((item: any, idx: number) => (
-                      <div key={idx} className="rounded-xl border bg-white p-4 space-y-3">
-                        <p className="text-sm font-semibold text-gray-900">Question {item.questionNumber || idx + 1}</p>
-                        {item.questionText && <div className="text-sm text-gray-700"><MathText content={item.questionText} /></div>}
-                        <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm">
-                          <p className="text-red-700 font-medium text-xs mb-0.5">Your answer</p>
-                          <p className="text-red-900"><MathText content={item.userAnswer} /></p>
-                        </div>
-                        <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm">
-                          <p className="text-emerald-700 font-medium text-xs mb-0.5">Correct answer</p>
-                          <p className="text-emerald-900">{item.correctAnswer}</p>
-                        </div>
-                        {item.explanation && (
-                          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm">
-                            <p className="text-blue-700 font-medium text-xs mb-0.5">Explanation</p>
-                            <div className="text-blue-900"><MathText content={item.explanation} /></div>
-                          </div>
-                        )}
+                
+                {attemptResult.previousAttempt && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 min-w-[200px] z-10">
+                    <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">Vs Previous Attempt</p>
+                    <div className="flex justify-between items-end">
+                      <div>
+                         <p className="text-2xl font-black text-blue-900">{attemptResult.previousAttempt.score}%</p>
                       </div>
-                    ))}
+                      <div className={`px-2 py-1 rounded font-bold text-sm ${attemptResult.score >= attemptResult.previousAttempt.score ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                        {attemptResult.score > attemptResult.previousAttempt.score ? "+" : ""}{(attemptResult.score - attemptResult.previousAttempt.score).toFixed(1)}%
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
-              <div className="flex gap-3 justify-end border-t pt-4">
-                <Button variant="outline" onClick={() => setShowResultWizard(false)}>Close</Button>
-                <Button asChild><Link href="/student">Back to dashboard</Link></Button>
+                )}
+              </div>
+
+              {/* Review Section */}
+              <div className="space-y-6">
+                <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">Detailed Review</h3>
+                
+                {(attemptResult.unansweredCount ?? 0) > 0 && (
+                  <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
+                    <p className="font-bold text-amber-900 flex items-center gap-2 mb-2">
+                      <HelpCircle className="h-5 w-5 text-amber-600" />
+                      Unanswered Questions ({attemptResult.unansweredCount})
+                    </p>
+                    <p className="text-sm text-amber-800">
+                      Questions skipped: {attemptResult.unansweredQuestions?.join(", ")}
+                    </p>
+                  </div>
+                )}
+
+                {(attemptResult.missedCount ?? 0) > 0 && (
+                  <div className="space-y-4">
+                    <p className="font-bold text-slate-800 flex items-center gap-2">
+                      <XCircle className="h-5 w-5 text-red-500" />
+                      Corrections ({attemptResult.missedCount})
+                    </p>
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                      {attemptResult.missedQuestions?.map((item: any, idx: number) => (
+                        <div key={idx} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+                          <p className="text-sm font-bold text-slate-500 uppercase">Question {item.questionNumber || idx + 1}</p>
+                          {item.questionText && <div className="text-base font-medium text-slate-900"><MathText content={item.questionText} /></div>}
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="rounded-lg bg-red-50 border border-red-100 p-3">
+                              <p className="text-red-700 font-bold text-xs uppercase mb-1">Your Answer</p>
+                              <p className="text-red-900 text-sm font-medium"><MathText content={item.userAnswer || "None"} /></p>
+                            </div>
+                            <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
+                              <p className="text-emerald-700 font-bold text-xs uppercase mb-1">Correct Answer</p>
+                              <p className="text-emerald-900 text-sm font-medium"><MathText content={item.correctAnswer} /></p>
+                            </div>
+                          </div>
+
+                          {item.explanation && (
+                            <div className="rounded-lg bg-blue-50/50 border border-blue-100 p-4">
+                              <p className="text-blue-800 font-bold text-xs uppercase mb-1">Explanation</p>
+                              <div className="text-blue-900 text-sm"><MathText content={item.explanation} /></div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
+          
+          {/* Footer Actions */}
+          <div className="p-4 bg-white border-t border-slate-200 shrink-0 flex gap-3 justify-end">
+             <Button variant="outline" className="font-bold h-11" onClick={() => setShowResultWizard(false)}>Close Review</Button>
+             <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-11 px-6">
+                <Link href="/student">Return to Dashboard</Link>
+             </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

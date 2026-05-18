@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { randomBytes } from "crypto";
+import { getJambExamConfig } from "@/lib/jamb-exam-config";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -129,18 +130,11 @@ export async function GET(req: NextRequest) {
     // Create new session
     const sessionToken = randomBytes(32).toString("hex");
 
-    // Get duration from jamb_subjects table
+    // Get duration based on subject slug (database-driven)
     let durationMinutes = 40;
     try {
-      const { data: subjectData } = await supabaseAdmin
-        .from("jamb_subjects")
-        .select("duration_minutes")
-        .eq("slug", subjectSlug)
-        .single();
-
-      if (subjectData?.duration_minutes) {
-        durationMinutes = subjectData.duration_minutes;
-      }
+      const examConfig = getJambExamConfig(subjectSlug);
+      durationMinutes = examConfig.durationMinutes;
     } catch (e) {
       // Fallback to default if query fails
     }

@@ -49,6 +49,7 @@ import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import useExamTimer from "@/hooks/use-exam-timer";
 import ExamTimerWidget from "@/components/jamb/exam-timer-widget";
+import { getJambExamConfig, shuffleArray } from "@/lib/jamb-exam-config";
 
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
@@ -158,6 +159,10 @@ function normalizeMathContent(input: string): string {
 
 const OPTION_LABELS = ["A", "B", "C", "D", "E"];
 
+function getQuestionPageNumber(index: number) {
+  return Math.floor(index / QUESTIONS_PER_PAGE) + 1;
+}
+
 /* ─── Component ──────────────────────────────────────────────────────────── */
 
 export default function StudentJambPage() {
@@ -244,26 +249,18 @@ export default function StudentJambPage() {
   /* ── Question ID tracking ── */
   const [allQuestionIds, setAllQuestionIds] = useState<{ id: string; pageNum: number }[]>([]);
 
-  useEffect(() => {
-    if (questions.length > 0 && questionPage) {
-      setAllQuestionIds((prev) => {
-        const filtered = prev.filter((q) => q.pageNum !== questionPage);
-        const newEntries = questions.map((q) => ({ id: q.id, pageNum: questionPage }));
-        return [...filtered, ...newEntries];
-      });
-    }
-  }, [questions, questionPage]);
-
-  useEffect(() => {
-    if (!selectedSubject || !selectedYear) setAllQuestionIds([]);
-  }, [selectedSubject, selectedYear]);
-
   /* ── Draft persistence ── */
   const isRestoringDraftRef = useRef(false);
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
   const hasAutoSubmittedRef = useRef(false);
   const hasTimerStartedRef = useRef(false);
+  const examPoolRef = useRef<{ subjectSlug: string; examYear: string; questionIds: string[] } | null>(null);
+
+  function clearExamPool() {
+    examPoolRef.current = null;
+    setAllQuestionIds([]);
+  }
 
   function getDraftKey(subject?: string, year?: string) {
     const s = subject || selectedSubject || "";
@@ -294,6 +291,7 @@ export default function StudentJambPage() {
     setMaxDurationSeconds(null);
     hasAutoSubmittedRef.current = false;
     hasTimerStartedRef.current = false;
+    clearExamPool();
     toast.success("Started fresh session");
   }
   function loadDraftFromLocalStorage(key?: string) {
@@ -376,10 +374,12 @@ export default function StudentJambPage() {
     if (!selectedSubject) {
       setYears([]); setSelectedYear(""); setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0);
       setPageCompletion({});
+      clearExamPool();
       return;
     }
     setSelectedYear("");
     setQuestions([]); setAnswers({}); setAttemptResult(null); setQuestionDebug(null); setTotalQuestionCount(0); setPageCompletion({});
+    clearExamPool();
     void loadAvailableFilters(selectedSubject).catch((err: any) => toast.error(err.message || "Failed to load years"));
   }, [selectedSubject]);
 
@@ -475,18 +475,49 @@ export default function StudentJambPage() {
     if (!selectedSubject || !selectedYear) { toast.error("Please select a subject and year"); return; }
     try {
       setLoadingQuestions(true);
-      const offset = (page - 1) * QUESTIONS_PER_PAGE;
-      const { count: totalCount, error: countError } = await supabase
-        .from("jamb_questions").select("id", { count: "exact", head: true })
-        .eq("subject_slug", selectedSubject).eq("exam_year", Number(selectedYear));
-      if (countError) throw countError;
+      const examConfig = getJambExamConfig(selectedSubject);
+      const poolMatches =
+        examPoolRef.current?.subjectSlug === selectedSubject &&
+        examPoolRef.current?.examYear === selectedYear &&
+        Array.isArray(examPoolRef.current.questionIds) &&
+        examPoolRef.current.questionIds.length > 0;
+
+      if (!poolMatches) {
+        const { data: idRows, error: idError } = await supabase
+          .from("jamb_questions")
+          .select("id")
+          .eq("subject_slug", selectedSubject)
+          .eq("exam_year", Number(selectedYear))
+          .order("id", { ascending: true });
+        if (idError) throw idError;
+
+        const questionIdRows = (idRows || []) as Array<{ id: string }>;
+        const shuffledIds = shuffleArray(questionIdRows.map((row) => row.id));
+        const selectedIds = shuffledIds.slice(0, Math.min(shuffledIds.length, examConfig.questionCount));
+        examPoolRef.current = {
+          subjectSlug: selectedSubject,
+          examYear: selectedYear,
+          questionIds: selectedIds,
+        };
+        setAllQuestionIds(selectedIds.map((id, index) => ({ id, pageNum: getQuestionPageNumber(index) })));
+      }
+
+      const questionIds = examPoolRef.current?.questionIds || [];
+      const totalCount = questionIds.length;
+      const totalPages = Math.max(1, Math.ceil(totalCount / QUESTIONS_PER_PAGE));
+      const safePage = Math.min(Math.max(page, 1), totalPages);
+      const offset = (safePage - 1) * QUESTIONS_PER_PAGE;
+      const pageQuestionIds = questionIds.slice(offset, offset + QUESTIONS_PER_PAGE);
+
       const { data, error } = await supabase
         .from("jamb_questions")
         .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url")
-        .eq("subject_slug", selectedSubject).eq("exam_year", Number(selectedYear))
-        .order("id", { ascending: true }).range(offset, offset + QUESTIONS_PER_PAGE - 1);
+        .in("id", pageQuestionIds);
       if (error) throw error;
-      const loadedQuestions: QuestionRow[] = (data || []).map((row: any) => ({
+      const orderedRows = (data || []).sort(
+        (left: any, right: any) => pageQuestionIds.indexOf(left.id) - pageQuestionIds.indexOf(right.id)
+      );
+      const loadedQuestions: QuestionRow[] = orderedRows.map((row: any) => ({
         id: row.id,
         question_text: row.question_text,
         options: Array.isArray(row.options) ? row.options : [],
@@ -495,10 +526,9 @@ export default function StudentJambPage() {
         exam_year: row.exam_year,
         image_url: row.image_url || null,
       }));
-      const totalPages = Math.ceil((totalCount || 0) / QUESTIONS_PER_PAGE);
-      const hasMore = page < totalPages;
-      if (loadedQuestions.length === 0 && page === 1) toast.info("No questions matched the selected filters");
-      setTotalQuestionCount(totalCount || 0);
+      const hasMore = safePage < totalPages;
+      if (loadedQuestions.length === 0 && safePage === 1) toast.info("No questions matched the selected filters");
+      setTotalQuestionCount(totalCount);
       setQuestions(loadedQuestions);
       try {
         const saved = loadDraftFromLocalStorage();
@@ -509,10 +539,10 @@ export default function StudentJambPage() {
       setAttemptResult(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
       isRestoringDraftRef.current = false;
-      setQuestionPage(page);
+      setQuestionPage(safePage);
       setQuestionTotalPages(totalPages || 1);
       setHasMoreQuestions(hasMore);
-      setQuestionDebug({ page, totalPages: totalPages || 1, count: loadedQuestions.length, hasMore });
+      setQuestionDebug({ page: safePage, totalPages: totalPages || 1, count: loadedQuestions.length, hasMore });
       setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
       if (loadedQuestions.length > 0) { setIsSessionActive(true); }
       
@@ -580,7 +610,7 @@ export default function StudentJambPage() {
         // set the year so UI reflects the selection in the modal
         setSelectedYear(value);
         try {
-          const offset = 0;
+          const examConfig = getJambExamConfig(selectedSubject);
           // fetch question count
           const { count: totalCount, error: countError } = await supabase
             .from("jamb_questions").select("id", { count: "exact", head: true })
@@ -594,7 +624,11 @@ export default function StudentJambPage() {
             if (prevResponse.ok) prev = await prevResponse.json();
           } catch (e) { /* ignore */ }
 
-          setPreviewData({ totalQuestions: totalCount || 0, previousAttempt: prev?.data || null, durationSeconds: null });
+          setPreviewData({
+            totalQuestions: Math.min(totalCount || 0, examConfig.questionCount),
+            previousAttempt: prev?.data || null,
+            durationSeconds: examConfig.durationMinutes * 60,
+          });
           setShowStartModal(true);
         } catch (err: any) {
           toast.error(err.message || "Failed to load preview");
@@ -621,6 +655,7 @@ export default function StudentJambPage() {
       setMaxDurationSeconds(null);
       hasAutoSubmittedRef.current = false;
       hasTimerStartedRef.current = false;
+      clearExamPool();
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
       setPendingFilterChange(null);
       setShowTerminationDialog(false);
@@ -745,6 +780,7 @@ export default function StudentJambPage() {
       setServerStartTime(null);
       setMaxDurationSeconds(null);
       hasTimerStartedRef.current = false;
+      clearExamPool();
 
       toast.success("Attempt submitted successfully");
     } catch (error: any) {

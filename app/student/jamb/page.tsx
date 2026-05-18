@@ -82,7 +82,7 @@ type AttemptResult = {
     questionNumber: number;
     questionText: string;
     userAnswer: string;
-    correctAnswer: string;
+    correctOption: string;
     explanation?: string;
   }>;
   previousAttempt?: { score: number; correctCount: number; totalQuestions: number };
@@ -550,7 +550,7 @@ export default function StudentJambPage() {
 
       const { data, error } = await supabase
         .from("jamb_questions")
-        .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url, correct_answer, explanation")
+        .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url, correct_option, explanation")
         .in("id", pageQuestionIds);
       if (error) throw error;
       const orderedRows = (data || []).sort(
@@ -564,6 +564,7 @@ export default function StudentJambPage() {
         subject_name: row.subject_name,
         exam_year: row.exam_year,
         image_url: row.image_url || null,
+        correct_option: row.correct_option,
       }));
       const hasMore = safePage < totalPages;
       if (loadedQuestions.length === 0 && safePage === 1) toast.info("No questions matched the selected filters");
@@ -1558,7 +1559,7 @@ export default function StudentJambPage() {
                             </div>
                             <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
                               <p className="text-emerald-700 font-bold text-xs uppercase mb-1">Correct Answer</p>
-                              <p className="text-emerald-900 text-sm font-medium"><MathText content={item.correctAnswer} /></p>
+                              <p className="text-emerald-900 text-sm font-medium"><MathText content={item.correctOption} /></p>
                             </div>
                           </div>
 

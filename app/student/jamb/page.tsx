@@ -261,6 +261,7 @@ export default function StudentJambPage() {
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [pageCompletion, setPageCompletion] = useState<Record<number, boolean>>({});
   const hasAutoSubmittedRef = useRef(false);
+  const hasTimerStartedRef = useRef(false);
 
   function getDraftKey(subject?: string, year?: string) {
     const s = subject || selectedSubject || "";
@@ -290,6 +291,7 @@ export default function StudentJambPage() {
     setServerStartTime(null);
     setMaxDurationSeconds(null);
     hasAutoSubmittedRef.current = false;
+    hasTimerStartedRef.current = false;
     toast.success("Started fresh session");
   }
   function loadDraftFromLocalStorage(key?: string) {
@@ -514,6 +516,7 @@ export default function StudentJambPage() {
       
       // Reset auto-submit flag for this new session
       hasAutoSubmittedRef.current = false;
+      hasTimerStartedRef.current = false;
       
       // Initialize server-side exam session
       try {
@@ -615,6 +618,7 @@ export default function StudentJambPage() {
       setServerStartTime(null);
       setMaxDurationSeconds(null);
       hasAutoSubmittedRef.current = false;
+      hasTimerStartedRef.current = false;
       applyFilterChange(pendingFilterChange.type, pendingFilterChange.value);
       setPendingFilterChange(null);
       setShowTerminationDialog(false);
@@ -738,6 +742,7 @@ export default function StudentJambPage() {
       setSessionId(null);
       setServerStartTime(null);
       setMaxDurationSeconds(null);
+      hasTimerStartedRef.current = false;
 
       toast.success("Attempt submitted successfully");
     } catch (error: any) {
@@ -755,15 +760,27 @@ export default function StudentJambPage() {
 
   const { timeRemaining, formatted, isRunning, isWarning, isCritical, start, stop } = useExamTimer(timerInitialSeconds, onExpire as any);
 
+  // Ensure expiry auto-submit only runs after the timer has genuinely started.
+  useEffect(() => {
+    if (!isSessionActive) return;
+    if (typeof timerInitialSeconds !== "number" || timerInitialSeconds <= 0) return;
+    if (isRunning || timeRemaining > 0) {
+      hasTimerStartedRef.current = true;
+    }
+  }, [isSessionActive, timerInitialSeconds, isRunning, timeRemaining]);
+
   // Submit attempt when timer expires
   useEffect(() => {
     // Guard: ensure we had a valid timer initialized before auto-submitting.
     // This prevents immediate submission when `timerInitialSeconds` is null/0
     // (e.g., session start returned 0 remaining seconds or timer not started yet).
-    if (timerInitialSeconds == null || timerInitialSeconds === 0) return;
+    if (timerInitialSeconds == null || timerInitialSeconds <= 0) return;
     
     // Guard: only auto-submit once per session
     if (hasAutoSubmittedRef.current) return;
+
+    // Guard: don't auto-submit during timer bootstrapping/race conditions.
+    if (!hasTimerStartedRef.current) return;
 
     // Only auto-submit if timer has actually been running (isRunning was/is true)
     // and now time has expired (timeRemaining === 0 and isRunning === false)

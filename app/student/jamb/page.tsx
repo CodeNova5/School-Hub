@@ -403,7 +403,7 @@ export default function StudentJambPage() {
                         mode,
                         examSubjects
                       });
-                      const target = mode === "exam" ? "/student/jamb/exam" : "/student/jamb/practice";
+                      const target = mode === "exam" ? "/student/jamb/exam" : "/student/jamb/exam";
                       window.location.href = target;
                     } catch (error: any) {
                       setStarting(false);

@@ -41,8 +41,6 @@ const QUESTIONS_PER_PAGE = 5;
 const QUESTION_CARD_ID = "jamb-question-card";
 const OPTION_LABELS = ["A", "B", "C", "D", "E"];
 
-const EXAM_SETUP_FALLBACK = "jamb_exam_setup_v1";
-
 function stripLeadingOptionLabel(input: string) {
   if (!input) return "";
   return input.replace(/^\s*(?:[A-Ea-e])\s*(?:[\.\)\-:\u2014])?\s*/i, "").trim();
@@ -165,17 +163,17 @@ export default function StudentJambExamPage() {
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeKatex, { strict: "ignore" }]]}
         components={{
-          p: ({ node, ...props }) => <span {...props} />,
+          p: ({ node, ...props }) => <span className="leading-relaxed" {...props} />,
           table: ({ node, ...props }) => (
-            <div className="my-3 overflow-x-auto rounded-lg border border-slate-200">
+            <div className="my-4 overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
               <table className="min-w-full border-collapse text-sm" {...props} />
             </div>
           ),
-          thead: ({ node, ...props }) => <thead className="bg-slate-100" {...props} />,
+          thead: ({ node, ...props }) => <thead className="bg-slate-50/70 border-b border-slate-200" {...props} />,
           th: ({ node, ...props }) => (
-            <th className="border border-slate-200 px-3 py-2 text-left font-semibold text-slate-700" {...props} />
+            <th className="px-4 py-2.5 text-left font-semibold text-slate-700" {...props} />
           ),
-          td: ({ node, ...props }) => <td className="border border-slate-200 px-3 py-2" {...props} />,
+          td: ({ node, ...props }) => <td className="border-t border-slate-100 px-4 py-2.5 text-slate-600" {...props} />,
         }}
       >
         {normalized}
@@ -202,7 +200,7 @@ export default function StudentJambExamPage() {
     if (typeof window === "undefined") return;
     const card = questionCardRef.current || document.getElementById(QUESTION_CARD_ID);
     if (card) {
-      const topOffset = 80;
+      const topOffset = 100;
       const elementPosition = card.getBoundingClientRect().top;
       const offsetPosition = elementPosition + window.pageYOffset - topOffset;
       window.scrollTo({ top: offsetPosition, behavior: "smooth" });
@@ -370,7 +368,6 @@ export default function StudentJambExamPage() {
 
     (async () => {
       try {
-        // For study mode we don't start a timed session or set a question limit.
         if (savedSetup.mode === "study") {
           await loadQuestions(1, 0, savedSetup);
         } else {
@@ -527,7 +524,6 @@ export default function StudentJambExamPage() {
         examYear: Number(setup?.examYear),
         mode: setup?.mode,
       };
-      // mode may be a string here; cast to satisfy CachedJambResult type
       saveJambExamResult(cachedResult as any);
       clearJambExamSetup();
       router.replace(`/student/jamb/results?attemptId=${encodeURIComponent(String(cachedResult.attemptId || ""))}`);
@@ -543,13 +539,14 @@ export default function StudentJambExamPage() {
   if (bootstrapping) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="rounded-full border border-white/10 bg-white/5 p-4 shadow-2xl shadow-slate-950/40">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-300" />
+        <div className="flex flex-col items-center gap-5 text-center max-w-sm">
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 shadow-2xl">
+            <Loader2 className="h-7 w-7 animate-spin text-blue-400" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-2xl bg-blue-400/10 opacity-75" />
           </div>
-          <div>
-            <p className="text-lg font-semibold">Preparing your exam</p>
-            <p className="text-sm text-slate-300">Loading the session, timer, and question pool.</p>
+          <div className="space-y-1">
+            <p className="text-lg font-semibold tracking-tight">Preparing Exam Environment</p>
+            <p className="text-sm text-slate-400">Synchronizing session parameters and questions safely.</p>
           </div>
         </div>
       </div>
@@ -559,19 +556,19 @@ export default function StudentJambExamPage() {
   if (startError || !setup) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6">
-        <div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-slate-950/40">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-200">
-            <AlertCircle className="h-7 w-7" />
+        <div className="max-w-md rounded-3xl border border-white/10 bg-slate-900/50 p-7 shadow-2xl backdrop-blur-xl">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+            <AlertCircle className="h-6 w-6" />
           </div>
-          <h1 className="text-2xl font-bold">Exam setup unavailable</h1>
-          <p className="mt-2 text-sm leading-relaxed text-slate-300">
+          <h1 className="text-2xl font-bold tracking-tight">Exam setup unavailable</h1>
+          <p className="mt-2.5 text-sm leading-relaxed text-slate-400">
             {startError || "Open the JAMB launcher page first so the subject, year, and mode can be prepared."}
           </p>
-          <div className="mt-6 flex gap-3">
-            <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Link href="/student/jamb">Back to JAMB setup</Link>
+          <div className="mt-7 flex items-center gap-3">
+            <Button asChild className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl h-11 transition-all shadow-lg shadow-blue-600/15">
+              <Link href="/student/jamb">Return to Dashboard</Link>
             </Button>
-            <Button variant="outline" onClick={clearAndExit} className="border-white/15 bg-transparent text-white hover:bg-white/10">
+            <Button variant="outline" onClick={clearAndExit} className="border-white/10 bg-transparent text-slate-300 hover:bg-white/5 hover:text-white rounded-xl h-11">
               Exit
             </Button>
           </div>
@@ -580,92 +577,102 @@ export default function StudentJambExamPage() {
     );
   }
 
-  const currentLabel = setup.mode === "exam" ? "Exam focus mode" : setup.mode === "study" ? "Study mode" : "Practice mode";
+  const currentLabel = setup.mode === "exam" ? "Exam Focus Mode" : setup.mode === "study" ? "Study Mode" : "Practice Mode";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.22),_transparent_32%),linear-gradient(180deg,_#020617_0%,_#0f172a_46%,_#f8fafc_46%,_#f8fafc_100%)] text-slate-900">
-      <div className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/90 backdrop-blur-xl text-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-200 ring-1 ring-inset ring-blue-400/20">
-              <GraduationCap className="h-6 w-6" />
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/50 via-slate-50 to-slate-50 text-slate-900 antialiased selection:bg-blue-100 selection:text-blue-900">
+      {/* Sticky High-Performance Sticky Nav */}
+      <div className="sticky top-0 z-40 border-b border-slate-900/10 bg-slate-950 text-white shadow-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-inner">
+              <GraduationCap className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{setupLabel}</p>
-              <div className="flex items-center gap-2 text-xs text-slate-300">
-                <span>{setupYear}</span>
-                <span className="text-slate-500">•</span>
-                <span>{currentLabel}</span>
+              <p className="truncate text-base font-semibold tracking-tight text-white">{setupLabel}</p>
+              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
+                <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">{setupYear}</span>
+                <span className="text-slate-600">•</span>
+                <span className="text-blue-400">{currentLabel}</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-3">
             {setupMode !== "study" ? (
               <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={setupLabel} />
             ) : null}
-            <Button variant="outline" onClick={clearAndExit} className="hidden border-white/15 bg-transparent text-white hover:bg-white/10 sm:inline-flex">
-              Exit
+            <Button variant="ghost" onClick={clearAndExit} className="hidden h-9 px-4 font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-lg sm:inline-flex">
+              Exit Exam
             </Button>
           </div>
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8 lg:pt-8">
+      <main className="mx-auto w-full max-w-7xl px-4 pb-20 pt-6 sm:px-6 lg:px-8 lg:pt-8">
         {loadingQuestions ? (
-          <div className="flex min-h-[65vh] items-center justify-center rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col items-center gap-4">
-              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4 shadow-sm">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <div className="flex min-h-[60vh] items-center justify-center rounded-3xl border border-slate-200/80 bg-white shadow-sm/50 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3.5 text-center">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 shadow-sm">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
               </div>
-              <p className="text-sm font-medium text-slate-500">Preparing your question set…</p>
+              <p className="text-sm font-medium text-slate-500 tracking-tight">Fetching next question block...</p>
             </div>
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="space-y-4">
-              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="grid gap-8 lg:grid-cols-[1fr_310px]">
+            {/* Main Interactive Interface Area */}
+            <div className="space-y-5">
+              {/* Modern Linear Dynamic Progress Tracking Module */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Progress</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-700">
-                      Question <span className="mx-1 text-blue-600">{activeGlobalNumber}</span> of {totalQuestionCount}
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Overall Progress</p>
+                    <p className="mt-0.5 text-sm font-semibold text-slate-700">
+                      Question <span className="text-blue-600 font-bold">{activeGlobalNumber}</span> of {totalQuestionCount}
                     </p>
                   </div>
-                  <Badge className="border-blue-100 bg-blue-50 text-blue-700">{progressPercent}% completed</Badge>
+                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-50 border-none px-2.5 py-1 text-xs font-semibold">
+                    {progressPercent}% Complete
+                  </Badge>
                 </div>
-                <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out" style={{ width: `${progressPercent}%` }} />
+                <div className="mt-3.5 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.4)] transition-all duration-300 ease-out" style={{ width: `${progressPercent}%` }} />
                 </div>
               </div>
 
-              <div id={QUESTION_CARD_ID} ref={questionCardRef} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-                      {activeQuestion?.subject_name || setupLabel} <span className="mx-1">•</span> {activeQuestion?.exam_year || setupYear}
-                    </p>
+              {/* Comprehensive Structured Exam Card Layout */}
+              <div id={QUESTION_CARD_ID} ref={questionCardRef} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/50 px-5 py-4 sm:px-6">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      {activeQuestion?.subject_name || setupLabel}
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                      {activeQuestion?.exam_year || setupYear}
+                    </span>
                   </div>
                   <div>
                     {answers[activeQuestion?.id || ""] ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Answered
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Saved
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">
-                        <HelpCircle className="h-3.5 w-3.5" /> Pending
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/60 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                        <HelpCircle className="h-3.5 w-3.5" /> Unanswered
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="space-y-7 p-5 sm:p-8">
+                <div className="space-y-6 p-5 sm:p-7">
                   {activeQuestion?.image_url ? (
-                    <div className="flex justify-center rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                    <div className="flex justify-center rounded-2xl border border-slate-100 bg-slate-50/50 p-3 shadow-inner">
                       <img
                         src={activeQuestion.image_url}
-                        alt={`Question ${activeGlobalNumber}`}
-                        className="max-h-72 max-w-full rounded-xl object-contain"
+                        alt={`Question Display Context ${activeGlobalNumber}`}
+                        className="max-h-64 max-w-full rounded-xl object-contain mix-blend-multiply"
                         onError={(event) => {
                           (event.currentTarget as HTMLImageElement).style.display = "none";
                         }}
@@ -673,11 +680,12 @@ export default function StudentJambExamPage() {
                     </div>
                   ) : null}
 
-                  <div className="text-lg font-medium leading-relaxed text-slate-900">
+                  <div className="text-[17px] font-medium leading-relaxed text-slate-800">
                     {activeQuestion ? <MathText content={activeQuestion.question_text} /> : null}
                   </div>
 
-                  <div className="space-y-3">
+                  {/* Interactive Option Select Matrix */}
+                  <div className="space-y-2.5">
                     {activeQuestion?.options?.map((option, index) => {
                       const selected = answers[activeQuestion.id] === option;
                       const displayText = stripLeadingOptionLabel(option);
@@ -686,63 +694,68 @@ export default function StudentJambExamPage() {
                       const optionLabel = OPTION_LABELS[index];
                       const isCorrectOption = isStudy && correctLabel && optionLabel === correctLabel;
                       const revealed = !!revealedAnswers[activeQuestion.id];
+                      
                       return (
                         <button
                           key={`${activeQuestion.id}-${index}`}
                           type="button"
                           onClick={() => recordAnswer(activeQuestion.id, option)}
-                          className={`group flex w-full items-center gap-4 rounded-2xl border-2 px-5 py-4 text-left transition-all duration-200 ${revealed && isCorrectOption
-                              ? "border-emerald-600 bg-emerald-50 shadow-sm"
+                          className={`group flex w-full items-start gap-4 rounded-xl border-2 p-4 text-left transition-all duration-150 active:scale-[0.995] ${
+                            revealed && isCorrectOption
+                              ? "border-emerald-500 bg-emerald-50/40 shadow-sm"
                               : revealed && selected && !isCorrectOption
-                                ? "border-rose-600 bg-rose-50 shadow-sm"
+                                ? "border-rose-500 bg-rose-50/40 shadow-sm"
                                 : selected
-                                  ? "border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600/20"
-                                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60 hover:shadow-sm"
-                            }`}
+                                  ? "border-blue-600 bg-blue-50/50 shadow-sm ring-1 ring-blue-600/10"
+                                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/40"
+                          }`}
                         >
                           <div
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${revealed && isCorrectOption
+                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-xs font-bold transition-all mt-0.5 ${
+                              revealed && isCorrectOption
                                 ? "border-emerald-600 bg-emerald-600 text-white"
                                 : revealed && selected && !isCorrectOption
                                   ? "border-rose-600 bg-rose-600 text-white"
                                   : selected
                                     ? "border-blue-600 bg-blue-600 text-white"
-                                    : "border-slate-300 bg-slate-50 text-slate-500 group-hover:border-blue-400 group-hover:bg-blue-100 group-hover:text-blue-600"
-                              }`}
+                                    : "border-slate-200 bg-slate-50 text-slate-500 group-hover:border-slate-300 group-hover:bg-white"
+                            }`}
                           >
                             {OPTION_LABELS[index]}
                           </div>
-                          <span className={`flex-1 text-base ${selected ? "font-medium text-blue-950" : "text-slate-700"}`}>
+                          <span className={`flex-1 text-[15px] leading-relaxed pt-0.5 ${selected ? "font-medium text-slate-900" : "text-slate-600"}`}>
                             <MathText content={displayText} />
                           </span>
                         </button>
                       );
                     })}
+                    
                     {setupMode === "study" ? (
-                      <div className="pt-3">
+                      <div className="pt-3 border-t border-slate-100 mt-4">
                         <Button
-                          variant="outline"
+                          variant="secondary"
                           size="sm"
+                          className="h-8 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border-none rounded-lg"
                           onClick={() => setRevealedAnswers((s) => ({ ...s, [activeQuestion!.id]: !s[activeQuestion!.id] }))}
                         >
-                          {revealedAnswers[activeQuestion!.id] ? "Hide answer & explanation" : "Show answer & explanation"}
+                          {revealedAnswers[activeQuestion!.id] ? "Hide Answer & Explanation" : "Reveal Answer & Explanation"}
                         </Button>
                       </div>
                     ) : null}
 
                     {setupMode === "study" && revealedAnswers[activeQuestion?.id || ""] ? (
-                      <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
-                        <p className="mb-2 font-bold">Correct answer</p>
-                        <p className="mb-3 text-base font-semibold text-emerald-800">
+                      <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 text-sm animate-in fade-in duration-200">
+                        <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Correct Solution</p>
+                        <p className="mt-1 text-base font-bold text-emerald-900">
                           {(() => {
                             const lbl = (activeQuestion?.correct_option || "").toUpperCase();
                             const idx = OPTION_LABELS.indexOf(lbl);
                             const text = idx >= 0 ? stripLeadingOptionLabel(activeQuestion?.options?.[idx] || "") : activeQuestion?.correct_option || "";
-                            return `${lbl} — ${text}`;
+                            return `Option ${lbl}: ${text}`;
                           })()}
                         </p>
                         {activeQuestion?.explanation ? (
-                          <div className="prose max-w-none text-slate-800">
+                          <div className="mt-2.5 pt-2.5 border-t border-emerald-200/40 text-slate-700 leading-relaxed">
                             <MathText content={activeQuestion.explanation} />
                           </div>
                         ) : null}
@@ -752,31 +765,32 @@ export default function StudentJambExamPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <Button variant="outline" size="lg" onClick={handlePrevQuestion} disabled={isFirstQuestion || loadingQuestions} className="gap-2 border-slate-200 bg-white text-slate-700 hover:bg-slate-50">
-                  <ChevronLeft className="h-5 w-5" /> Prev
+              {/* Action Toolbar Control Area */}
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button variant="outline" size="lg" onClick={handlePrevQuestion} disabled={isFirstQuestion || loadingQuestions} className="h-11 gap-1.5 border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm shadow-sm">
+                  <ChevronLeft className="h-4 w-4" /> Previous
                 </Button>
 
                 <button
                   onClick={() => setShowQuestionGrid(true)}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-100"
+                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  <LayoutGrid className="h-4 w-4" /> Jump to question
+                  <LayoutGrid className="h-3.5 w-3.5" /> Grid View
                 </button>
 
                 {setupMode === "study" ? (
                   isLastQuestion ? (
-                    <Button size="lg" onClick={clearAndExit} className="gap-2 bg-slate-700 px-8 text-white shadow-sm hover:bg-slate-800">
-                      Exit Study
+                    <Button size="lg" onClick={clearAndExit} className="h-11 gap-2 bg-slate-800 px-6 font-medium text-white shadow-md hover:bg-slate-900 rounded-xl text-sm transition-all">
+                      End Session
                     </Button>
                   ) : (
                     <Button
                       size="lg"
                       onClick={handleNextQuestion}
                       disabled={loadingQuestions}
-                      className="gap-2 bg-blue-600 px-8 text-white shadow-sm hover:bg-blue-700"
+                      className="h-11 gap-1.5 bg-blue-600 px-6 font-medium text-white shadow-md hover:bg-blue-700 rounded-xl text-sm transition-all shadow-blue-600/10"
                     >
-                      Next <ChevronRight className="h-5 w-5" />
+                      Next <ChevronRight className="h-4 w-4" />
                     </Button>
                   )
                 ) : isLastQuestion ? (
@@ -784,56 +798,57 @@ export default function StudentJambExamPage() {
                     size="lg"
                     onClick={submitAttempt}
                     disabled={submitting}
-                    className="gap-2 bg-emerald-600 px-8 font-bold text-white shadow-sm hover:bg-emerald-700"
+                    className="h-11 gap-2 bg-emerald-600 px-7 font-bold text-white shadow-md hover:bg-emerald-700 rounded-xl text-sm transition-all shadow-emerald-600/10"
                   >
-                    {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trophy className="h-5 w-5" />}
-                    Submit Attempt
+                    {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                    Finish Attempt
                   </Button>
                 ) : (
                   <Button
                     size="lg"
                     onClick={handleNextQuestion}
                     disabled={loadingQuestions}
-                    className="gap-2 bg-blue-600 px-8 text-white shadow-sm hover:bg-blue-700"
+                    className="h-11 gap-1.5 bg-blue-600 px-6 font-medium text-white shadow-md hover:bg-blue-700 rounded-xl text-sm transition-all shadow-blue-600/10"
                   >
-                    Next <ChevronRight className="h-5 w-5" />
+                    Next <ChevronRight className="h-4 w-4" />
                   </Button>
                 )}
               </div>
             </div>
 
+            {/* Sidebar Diagnostic and Jump Matrix Column */}
             <aside className="hidden lg:block">
-              <div className="sticky top-24 space-y-5">
-                <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm space-y-5">
-                  <div className="flex items-center justify-between gap-3">
+              <div className="sticky top-24 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4.5">
+                  <div className="flex items-center justify-between gap-3 border-b border-slate-50 pb-3">
                     <div>
-                      <p className="text-sm font-bold text-slate-800">Session status</p>
-                      <p className="text-xs text-slate-500">Answer all questions before submitting.</p>
+                      <p className="text-xs font-bold text-slate-800">Session Status</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Realtime data check</p>
                     </div>
                     <button
                       onClick={() => setShowQuestionGrid(true)}
-                      className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-100"
+                      className="inline-flex items-center gap-1 rounded-lg bg-slate-50 border border-slate-200/60 px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
                     >
-                      <LayoutGrid className="h-3.5 w-3.5" /> Grid
+                      <LayoutGrid className="h-3.5 w-3.5" /> Full Grid
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Answered</p>
-                      <p className="mt-1 text-2xl font-black text-slate-800">{totalAnsweredCount}</p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-center">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Answered</p>
+                      <p className="mt-0.5 text-xl font-bold text-slate-800">{totalAnsweredCount}</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Pending</p>
-                      <p className="mt-1 text-2xl font-black text-slate-800">{Math.max(totalQuestionCount - totalAnsweredCount, 0)}</p>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-3 text-center">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Remaining</p>
+                      <p className="mt-0.5 text-xl font-bold text-slate-800">{Math.max(totalQuestionCount - totalAnsweredCount, 0)}</p>
                     </div>
                   </div>
 
-                  <div>
-                    <p className="mb-3 border-t border-slate-100 pt-4 text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
-                      Current page ({questionPage}/{questionTotalPages})
+                  <div className="pt-3 border-t border-slate-50">
+                    <p className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Page Context ({questionPage} of {questionTotalPages})
                     </p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-5 gap-1.5">
                       {questions.map((question, index) => {
                         const answered = !!answers[question.id];
                         const active = index === activeQuestionIndex;
@@ -842,13 +857,14 @@ export default function StudentJambExamPage() {
                           <button
                             key={question.id}
                             onClick={() => setActiveQuestionIndex(index)}
-                            title={`Q${questionNumber}${answered ? " (answered)" : ""}`}
-                            className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-bold shadow-sm transition-all ${active
-                                ? "border-blue-600 bg-blue-600 text-white scale-110"
+                            title={`Q${questionNumber}${answered ? " (saved)" : ""}`}
+                            className={`relative flex h-9 w-9 items-center justify-center rounded-lg border text-xs font-bold transition-all ${
+                              active
+                                ? "border-blue-600 bg-blue-600 text-white ring-2 ring-blue-600/20 scale-105"
                                 : answered
-                                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
-                              }`}
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                            }`}
                           >
                             {questionNumber}
                           </button>
@@ -858,13 +874,14 @@ export default function StudentJambExamPage() {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
-                  <div className="flex items-center gap-2 font-bold">
-                    <ShieldCheck className="h-4 w-4" /> Focus mode
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4 text-xs text-amber-900/90 shadow-sm/50 flex items-start gap-2.5">
+                  <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-amber-900">Focus Mode Enabled</p>
+                    <p className="leading-relaxed text-amber-800/80">
+                      Interface isolated cleanly to simulate raw assessment configurations and preserve focus layout balance.
+                    </p>
                   </div>
-                  <p className="mt-2 leading-relaxed text-amber-800">
-                    This page keeps the exam isolated so you can concentrate on the question set without the full dashboard chrome.
-                  </p>
                 </div>
               </div>
             </aside>
@@ -872,17 +889,19 @@ export default function StudentJambExamPage() {
         )}
       </main>
 
+      {/* Grid Quick Navigation Dialog Modal System */}
       <Dialog open={showQuestionGrid} onOpenChange={setShowQuestionGrid}>
-        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto rounded-2xl p-6 gap-0">
           <DialogHeader className="border-b border-slate-100 pb-4">
-            <DialogTitle className="text-xl">Question Navigator</DialogTitle>
-            <DialogDescription>Jump directly to any question in the set.</DialogDescription>
+            <DialogTitle className="text-lg font-bold tracking-tight text-slate-900">Question Navigator</DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs">Jump clean and instant to any targeted position inside the test.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 py-4">
+          
+          <div className="space-y-4 py-5">
             {Array.from({ length: questionTotalPages }, (_, pageIndex) => pageIndex + 1).map((pageNumber) => (
-              <div key={pageNumber} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Page {pageNumber}</p>
-                <div className="flex flex-wrap gap-2.5">
+              <div key={pageNumber} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                <p className="mb-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Page Block {pageNumber}</p>
+                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
                   {Array.from({
                     length: pageNumber < questionTotalPages ? QUESTIONS_PER_PAGE : totalQuestionCount - (questionTotalPages - 1) * QUESTIONS_PER_PAGE,
                   }, (_, questionIndex) => questionIndex).map((questionIndex) => {
@@ -890,6 +909,7 @@ export default function StudentJambExamPage() {
                     const matchingQuestion = pageNumber === questionPage ? questions[questionIndex]?.id : null;
                     const answered = matchingQuestion ? !!answers[matchingQuestion] : false;
                     const isActive = pageNumber === questionPage && questionIndex === activeQuestionIndex;
+                    
                     return (
                       <button
                         key={globalNumber}
@@ -897,12 +917,13 @@ export default function StudentJambExamPage() {
                           goToQuestion(pageNumber, questionIndex);
                           setShowQuestionGrid(false);
                         }}
-                        className={`flex h-11 w-11 items-center justify-center rounded-lg border-2 text-sm font-bold transition-all ${isActive
-                            ? "border-blue-600 bg-blue-100 text-blue-700 ring-2 ring-blue-600/20"
+                        className={`flex h-10 w-10 items-center justify-center rounded-lg border text-xs font-bold transition-all ${
+                          isActive
+                            ? "border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-600/10"
                             : answered
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                          }`}
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                        }`}
                       >
                         {globalNumber}
                       </button>
@@ -912,20 +933,21 @@ export default function StudentJambExamPage() {
               </div>
             ))}
           </div>
-          <div className="sticky bottom-0 flex items-center justify-between border-t border-slate-100 bg-white pt-4 text-xs font-medium text-slate-500">
+          
+          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-t border-slate-100 bg-white pt-4 text-[11px] font-medium text-slate-400 mt-2">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3.5 w-3.5 rounded border-2 border-blue-600 bg-blue-100" /> Current
+                <span className="h-3 w-3 rounded border border-blue-600 bg-blue-50" /> Selected
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3.5 w-3.5 rounded border-2 border-emerald-500 bg-emerald-50" /> Answered
+                <span className="h-3 w-3 rounded border border-emerald-200 bg-emerald-50" /> Answered
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block h-3.5 w-3.5 rounded border-2 border-slate-200 bg-white" /> Pending
+                <span className="h-3 w-3 rounded border border-slate-200 bg-white" /> Pending
               </span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setShowQuestionGrid(false)}>
-              Close
+            <Button variant="ghost" size="sm" onClick={() => setShowQuestionGrid(false)} className="text-slate-500 hover:bg-slate-50 font-medium text-xs h-8 rounded-lg">
+              Close Panel
             </Button>
           </div>
         </DialogContent>

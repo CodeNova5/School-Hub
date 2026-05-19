@@ -217,7 +217,7 @@ export default function StudentJambPage() {
   const [previewData, setPreviewData] = useState<{ totalQuestions: number | null; previousAttempt: any | null; durationSeconds: number | null }>(
     { totalQuestions: null, previousAttempt: null, durationSeconds: null }
   );
-  
+
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [serverStartTime, setServerStartTime] = useState<Date | null>(null);
@@ -412,7 +412,7 @@ export default function StudentJambPage() {
     if (typeof window === "undefined") return;
     const card = document.getElementById(QUESTION_CARD_ID);
     if (card) {
-      const topOffset = 80; 
+      const topOffset = 80;
       const elementPosition = card.getBoundingClientRect().top;
       const offsetPosition = elementPosition + window.pageYOffset - topOffset;
       window.scrollTo({ top: offsetPosition, behavior: "smooth" });
@@ -584,10 +584,10 @@ export default function StudentJambPage() {
       setQuestionDebug({ page: safePage, totalPages: totalPages || 1, count: loadedQuestions.length, hasMore });
       setActiveQuestionIndex(Math.min(targetIndex, loadedQuestions.length - 1));
       if (loadedQuestions.length > 0) { setIsSessionActive(true); }
-      
+
       hasAutoSubmittedRef.current = false;
       hasTimerStartedRef.current = false;
-      
+
       try {
         const params = new URLSearchParams();
         if (mode === "exam") {
@@ -626,7 +626,7 @@ export default function StudentJambPage() {
         console.error("Session initialization error:", e);
         toast.error(e.message || "Failed to initialize exam session");
       }
-      
+
       requestAnimationFrame(() => scrollToQuestionCard());
     } catch (error: any) {
       toast.error(error.message || "Failed to load questions");
@@ -825,8 +825,8 @@ export default function StudentJambPage() {
           totalQuestions,
           totalPages: questionTotalPages,
           questionsPerPage: QUESTIONS_PER_PAGE,
-          sessionId, 
-          sessionToken, 
+          sessionId,
+          sessionToken,
           serverElapsedSeconds: sessionValidation.serverElapsedSeconds,
         }),
       });
@@ -920,20 +920,20 @@ export default function StudentJambPage() {
 
   return (
     <DashboardLayout role="student">
-      
+
       {/* ── Mobile Sticky Top Bar (Only visible during active session) ── */}
       {isSessionActive && (
         <div className="lg:hidden sticky top-0 z-40 -mx-4 mb-6 bg-white border-b border-slate-200 shadow-sm px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-             <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={filteredSubjectLabel} />
+            <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={filteredSubjectLabel} />
           </div>
           <div className="flex gap-2">
-             <Button size="sm" variant="outline" onClick={() => setShowQuestionGrid(true)} className="h-9 w-9 p-0">
-               <LayoutGrid className="h-4 w-4 text-slate-600" />
-             </Button>
-             <Button size="sm" onClick={() => setShowPreSubmitReview(true)} className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3">
-               Submit
-             </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowQuestionGrid(true)} className="h-9 w-9 p-0">
+              <LayoutGrid className="h-4 w-4 text-slate-600" />
+            </Button>
+            <Button size="sm" onClick={() => setShowPreSubmitReview(true)} className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3">
+              Submit
+            </Button>
           </div>
         </div>
       )}
@@ -971,7 +971,7 @@ export default function StudentJambPage() {
 
         {/* ── Filter / Setup Card ── */}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          
+
           {/* Mode Selector - Redesigned */}
           <div className="mb-6">
             <label className="text-sm font-bold text-slate-800 mb-3 block">1. Select Mode</label>
@@ -987,11 +987,10 @@ export default function StudentJambPage() {
                   <button
                     key={m.id}
                     onClick={() => { setMode(m.id as any); setExamSubjects([]); setSelectedSubject(""); setSelectedYear(""); }}
-                    className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all text-left ${
-                      isActive 
-                      ? "border-blue-600 bg-blue-50/50 shadow-sm" 
-                      : "border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/30"
-                    }`}
+                    className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all text-left ${isActive
+                        ? "border-blue-600 bg-blue-50/50 shadow-sm"
+                        : "border-slate-100 bg-slate-50 hover:border-blue-200 hover:bg-blue-50/30"
+                      }`}
                   >
                     <div className={`p-2 rounded-lg ${isActive ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-200"}`}>
                       <Icon className="h-5 w-5" />
@@ -1021,7 +1020,7 @@ export default function StudentJambPage() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             {/* Year Dropdown */}
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-800">
@@ -1048,12 +1047,12 @@ export default function StudentJambPage() {
                 </Badge>
               </div>
               <p className="text-xs text-slate-500 mb-4">English is automatically included. Select up to 3 additional subjects to complete your exam combination.</p>
-              
+
               <div className="flex flex-wrap gap-2 max-h-56 overflow-y-auto pr-2 custom-scrollbar">
                 {subjects.filter(s => s.slug !== "english-language").map((s) => {
                   const isChecked = examSubjects.includes(s.slug);
                   const isDisabled = !isChecked && examSubjects.length >= 3;
-                  
+
                   return (
                     <button
                       key={s.slug}
@@ -1062,17 +1061,16 @@ export default function StudentJambPage() {
                       onClick={() => {
                         setExamSubjects((prev) => {
                           if (prev.includes(s.slug)) return prev.filter((p) => p !== s.slug);
-                          if (prev.length >= 3) return prev; 
+                          if (prev.length >= 3) return prev;
                           return [...prev, s.slug];
                         });
                       }}
-                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
-                        isChecked 
-                          ? "bg-blue-600 border-blue-600 text-white shadow-sm" 
-                          : isDisabled 
-                            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed" 
+                      className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${isChecked
+                          ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                          : isDisabled
+                            ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
                             : "bg-white border-slate-200 text-slate-700 hover:border-blue-300 hover:bg-blue-50"
-                      }`}
+                        }`}
                     >
                       {s.name}
                     </button>
@@ -1180,15 +1178,13 @@ export default function StudentJambPage() {
                           key={`${activeQuestion.id}-${idx}`}
                           type="button"
                           onClick={() => recordAnswer(activeQuestion.id, option)}
-                          className={`group w-full flex items-center gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-200 ${
-                            selected
+                          className={`group w-full flex items-center gap-4 rounded-xl border-2 px-5 py-4 text-left transition-all duration-200 ${selected
                               ? "border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600/20"
                               : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/50 hover:shadow-sm"
                             }`}
                         >
-                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${
-                            selected 
-                              ? "border-blue-600 bg-blue-600 text-white" 
+                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${selected
+                              ? "border-blue-600 bg-blue-600 text-white"
                               : "border-slate-300 bg-slate-50 text-slate-500 group-hover:border-blue-400 group-hover:text-blue-600 group-hover:bg-blue-100"
                             }`}>
                             {OPTION_LABELS[idx]}
@@ -1215,6 +1211,14 @@ export default function StudentJambPage() {
                   <ChevronLeft className="h-5 w-5" /> Prev
                 </Button>
 
+                <button
+                  onClick={() => setShowQuestionGrid(true)}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-500 hover:bg-slate-100 transition-colors"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  Jump to question
+                </button>
+
                 {isLastQuestion ? (
                   <Button
                     size="lg"
@@ -1226,10 +1230,10 @@ export default function StudentJambPage() {
                     Finish Test
                   </Button>
                 ) : (
-                  <Button 
-                    size="lg" 
-                    onClick={handleNextQuestion} 
-                    disabled={loadingQuestions} 
+                  <Button
+                    size="lg"
+                    onClick={handleNextQuestion}
+                    disabled={loadingQuestions}
                     className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm px-8"
                   >
                     Next <ChevronRight className="h-5 w-5" />
@@ -1254,7 +1258,7 @@ export default function StudentJambPage() {
                       <LayoutGrid className="h-3 w-3" /> View Grid
                     </button>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 flex flex-col items-center justify-center">
                       <p className="text-xs text-slate-500 font-bold uppercase tracking-wide">Answered</p>
@@ -1281,8 +1285,7 @@ export default function StudentJambPage() {
                             key={q.id}
                             onClick={() => setActiveQuestionIndex(idx)}
                             title={`Q${gNum}${answered ? " (answered)" : ""}`}
-                            className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold border-2 transition-all shadow-sm ${
-                              active
+                            className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold border-2 transition-all shadow-sm ${active
                                 ? "border-blue-600 bg-blue-600 text-white scale-110"
                                 : answered
                                   ? "border-emerald-500 bg-emerald-50 text-emerald-700"
@@ -1323,15 +1326,15 @@ export default function StudentJambPage() {
       <Dialog open={showStartModal} onOpenChange={setShowStartModal}>
         <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl">
           <div className="bg-blue-600 p-6 text-white text-center relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-4 opacity-10">
-               <BrainCircuit className="w-32 h-32" />
-             </div>
-             <DialogTitle className="text-2xl font-bold relative z-10">Ready to Start?</DialogTitle>
-             <DialogDescription className="text-blue-100 mt-2 relative z-10 text-base">
-               Your session environment is prepared.
-             </DialogDescription>
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <BrainCircuit className="w-32 h-32" />
+            </div>
+            <DialogTitle className="text-2xl font-bold relative z-10">Ready to Start?</DialogTitle>
+            <DialogDescription className="text-blue-100 mt-2 relative z-10 text-base">
+              Your session environment is prepared.
+            </DialogDescription>
           </div>
-          
+
           <div className="p-6 space-y-6 bg-white">
             <div className="space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -1343,14 +1346,14 @@ export default function StudentJambPage() {
                 <span className="font-bold text-slate-800">{selectedYear}</span>
               </div>
               <div className="grid grid-cols-2 gap-4 pt-2">
-                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <p className="text-xs font-bold text-slate-400 uppercase">Questions</p>
-                    <p className="text-xl font-black text-slate-800 mt-0.5">{previewData.totalQuestions ?? "—"}</p>
-                 </div>
-                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    <p className="text-xs font-bold text-slate-400 uppercase">Time Limit</p>
-                    <p className="text-xl font-black text-slate-800 mt-0.5">{previewData.durationSeconds ? `${Math.ceil(previewData.durationSeconds / 60)}m` : "—"}</p>
-                 </div>
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Questions</p>
+                  <p className="text-xl font-black text-slate-800 mt-0.5">{previewData.totalQuestions ?? "—"}</p>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-xs font-bold text-slate-400 uppercase">Time Limit</p>
+                  <p className="text-xl font-black text-slate-800 mt-0.5">{previewData.durationSeconds ? `${Math.ceil(previewData.durationSeconds / 60)}m` : "—"}</p>
+                </div>
               </div>
             </div>
 
@@ -1384,7 +1387,7 @@ export default function StudentJambPage() {
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {/* ── Question grid modal ── */}
       <Dialog open={showQuestionGrid} onOpenChange={setShowQuestionGrid}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
@@ -1409,10 +1412,10 @@ export default function StudentJambPage() {
                         key={gNum}
                         onClick={() => { goToQuestion(pn, qi); setShowQuestionGrid(false); }}
                         className={`flex h-11 w-11 items-center justify-center rounded-lg text-sm font-bold border-2 transition-all ${isActive
-                            ? "border-blue-600 bg-blue-100 text-blue-700 ring-2 ring-blue-600/20"
-                            : answered
-                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                          ? "border-blue-600 bg-blue-100 text-blue-700 ring-2 ring-blue-600/20"
+                          : answered
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                           }`}
                       >
                         {gNum}
@@ -1424,12 +1427,12 @@ export default function StudentJambPage() {
             ))}
           </div>
           <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-xs font-medium text-slate-500 bg-white sticky bottom-0">
-             <div className="flex items-center gap-4">
-                <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-blue-600 bg-blue-100 inline-block" /> Current</span>
-                <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-emerald-500 bg-emerald-50 inline-block" /> Answered</span>
-                <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-slate-200 bg-white inline-block" /> Pending</span>
-             </div>
-             <Button variant="ghost" size="sm" onClick={() => setShowQuestionGrid(false)}>Close</Button>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-blue-600 bg-blue-100 inline-block" /> Current</span>
+              <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-emerald-500 bg-emerald-50 inline-block" /> Answered</span>
+              <span className="flex items-center gap-1.5"><span className="h-3.5 w-3.5 rounded border-2 border-slate-200 bg-white inline-block" /> Pending</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setShowQuestionGrid(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1438,15 +1441,15 @@ export default function StudentJambPage() {
       <Dialog open={showPreSubmitReview} onOpenChange={setShowPreSubmitReview}>
         <DialogContent className="max-w-lg p-6">
           <div className="text-center mb-6">
-             <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
-                <ShieldCheck className="h-8 w-8 text-blue-600" />
-             </div>
+            <div className="mx-auto w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+              <ShieldCheck className="h-8 w-8 text-blue-600" />
+            </div>
             <DialogTitle className="text-2xl font-bold">Review Submission</DialogTitle>
             <DialogDescription className="mt-2 text-base">
               You are about to complete this session. Unanswered questions will receive 0 points.
             </DialogDescription>
           </div>
-          
+
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
@@ -1458,13 +1461,13 @@ export default function StudentJambPage() {
                 <p className="mt-1 text-4xl font-black text-amber-800">{Math.max(totalQuestions - totalAnsweredCount, 0)}</p>
               </div>
             </div>
-            
+
             {totalAnsweredCount < totalQuestions ? (
               <div className="rounded-xl border border-amber-200 bg-white p-4 flex gap-3 items-start shadow-sm">
-                 <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                 <p className="text-sm font-medium text-slate-700 leading-relaxed">
-                   You have <strong className="text-amber-600">{Math.max(totalQuestions - totalAnsweredCount, 0)} unanswered</strong> questions. Are you sure you want to submit now?
-                 </p>
+                <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-sm font-medium text-slate-700 leading-relaxed">
+                  You have <strong className="text-amber-600">{Math.max(totalQuestions - totalAnsweredCount, 0)} unanswered</strong> questions. Are you sure you want to submit now?
+                </p>
               </div>
             ) : (
               <div className="rounded-xl border border-emerald-200 bg-white p-4 flex gap-3 items-start shadow-sm">
@@ -1475,7 +1478,7 @@ export default function StudentJambPage() {
               </div>
             )}
           </div>
-          
+
           <div className="flex gap-3 justify-end pt-6 mt-4 border-t border-slate-100">
             <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => setShowPreSubmitReview(false)}>Return to Test</Button>
             <Button onClick={submitAttempt} disabled={submitting} className="flex-1 h-12 gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold">
@@ -1489,14 +1492,14 @@ export default function StudentJambPage() {
       <Dialog open={showResultWizard} onOpenChange={setShowResultWizard}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl">
           <div className="bg-slate-900 p-8 text-center relative shrink-0">
-             <Trophy className="h-16 w-16 text-yellow-400 mx-auto mb-4 opacity-90" />
-             <DialogTitle className="text-3xl font-bold text-white mb-2">Session Complete</DialogTitle>
-             <DialogDescription className="text-slate-300 text-base">Here is a breakdown of your performance.</DialogDescription>
+            <Trophy className="h-16 w-16 text-yellow-400 mx-auto mb-4 opacity-90" />
+            <DialogTitle className="text-3xl font-bold text-white mb-2">Session Complete</DialogTitle>
+            <DialogDescription className="text-slate-300 text-base">Here is a breakdown of your performance.</DialogDescription>
           </div>
-          
+
           {attemptResult && (
             <div className="overflow-y-auto p-6 space-y-8 bg-slate-50 flex-1">
-              
+
               {/* Score Card */}
               <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
                 <div className="text-center md:text-left z-10">
@@ -1508,13 +1511,13 @@ export default function StudentJambPage() {
                     {attemptResult.correctCount} / {attemptResult.totalQuestions} Correct
                   </p>
                 </div>
-                
+
                 {attemptResult.previousAttempt && (
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 min-w-[200px] z-10">
                     <p className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">Vs Previous Attempt</p>
                     <div className="flex justify-between items-end">
                       <div>
-                         <p className="text-2xl font-black text-blue-900">{attemptResult.previousAttempt.score}%</p>
+                        <p className="text-2xl font-black text-blue-900">{attemptResult.previousAttempt.score}%</p>
                       </div>
                       <div className={`px-2 py-1 rounded font-bold text-sm ${attemptResult.score >= attemptResult.previousAttempt.score ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
                         {attemptResult.score > attemptResult.previousAttempt.score ? "+" : ""}{(attemptResult.score - attemptResult.previousAttempt.score).toFixed(1)}%
@@ -1527,7 +1530,7 @@ export default function StudentJambPage() {
               {/* Review Section */}
               <div className="space-y-6">
                 <h3 className="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">Detailed Review</h3>
-                
+
                 {(attemptResult.unansweredCount ?? 0) > 0 && (
                   <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
                     <p className="font-bold text-amber-900 flex items-center gap-2 mb-2">
@@ -1551,7 +1554,7 @@ export default function StudentJambPage() {
                         <div key={idx} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
                           <p className="text-sm font-bold text-slate-500 uppercase">Question {item.questionNumber || idx + 1}</p>
                           {item.questionText && <div className="text-base font-medium text-slate-900"><MathText content={item.questionText} /></div>}
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div className="rounded-lg bg-red-50 border border-red-100 p-3">
                               <p className="text-red-700 font-bold text-xs uppercase mb-1">Your Answer</p>
@@ -1577,13 +1580,13 @@ export default function StudentJambPage() {
               </div>
             </div>
           )}
-          
+
           {/* Footer Actions */}
           <div className="p-4 bg-white border-t border-slate-200 shrink-0 flex gap-3 justify-end">
-             <Button variant="outline" className="font-bold h-11" onClick={() => setShowResultWizard(false)}>Close Review</Button>
-             <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-11 px-6">
-                <Link href="/student">Return to Dashboard</Link>
-             </Button>
+            <Button variant="outline" className="font-bold h-11" onClick={() => setShowResultWizard(false)}>Close Review</Button>
+            <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-11 px-6">
+              <Link href="/student">Return to Dashboard</Link>
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

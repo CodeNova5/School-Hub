@@ -765,9 +765,20 @@ export default function StudentJambExamPage() {
                 </button>
 
                 {setupMode === "study" ? (
-                  <Button size="lg" onClick={clearAndExit} className="gap-2 bg-slate-700 px-8 text-white shadow-sm hover:bg-slate-800">
-                    Exit Study
-                  </Button>
+                  isLastQuestion ? (
+                    <Button size="lg" onClick={clearAndExit} className="gap-2 bg-slate-700 px-8 text-white shadow-sm hover:bg-slate-800">
+                      Exit Study
+                    </Button>
+                  ) : (
+                    <Button
+                      size="lg"
+                      onClick={handleNextQuestion}
+                      disabled={loadingQuestions}
+                      className="gap-2 bg-blue-600 px-8 text-white shadow-sm hover:bg-blue-700"
+                    >
+                      Next <ChevronRight className="h-5 w-5" />
+                    </Button>
+                  )
                 ) : isLastQuestion ? (
                   <Button
                     size="lg"

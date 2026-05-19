@@ -515,7 +515,8 @@ export default function StudentJambExamPage() {
         examYear: Number(setup?.examYear),
         mode: setup?.mode,
       };
-      saveJambExamResult(cachedResult);
+      // mode may be a string here; cast to satisfy CachedJambResult type
+      saveJambExamResult(cachedResult as any);
       clearJambExamSetup();
       router.replace(`/student/jamb/results?attemptId=${encodeURIComponent(String(cachedResult.attemptId || ""))}`);
       toast.success("Attempt submitted successfully");

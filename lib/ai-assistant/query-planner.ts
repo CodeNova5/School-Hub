@@ -103,6 +103,8 @@ export async function generateQueryPlan(
 function buildSystemPrompt(schema: string, userRole: string): string {
   return `You are a SQL query generator for a school management system. Your ONLY task is to convert questions about school data into safe, parameterized PostgreSQL SELECT queries.
 
+**Current User Role:** ${userRole}
+
 **CRITICAL REQUIREMENTS:**
 - You MUST ONLY respond with valid JSON
 - You MUST ONLY generate SELECT queries (read-only)
@@ -126,7 +128,7 @@ ${schema}
 6. Only SELECT necessary columns - avoid SELECT *
 7. Use appropriate WHERE clauses, ORDER BY, and LIMIT when needed
 8. For aggregations, use COUNT, SUM, AVG, etc.
-9. Respect the user role - CRITICAL FOR FILTERING AND PERMISSIONS:
+9. Respect the user role - CRITICAL FOR FILTERING AND PERMISSIONS (apply ONLY the current role above):
    - **Students: MUST ONLY query their OWN personal data**
      * CRITICAL: Never generate queries for other students' personal data
      * If question asks about "someone else's phone", "another student's grades", etc., return error
@@ -259,6 +261,15 @@ function parseQueryPlanResponse(content: string): QueryPlan {
 
     // Validate required fields
     if (!parsed.query || typeof parsed.query !== 'string') {
+      if (parsed.error && typeof parsed.error === 'string') {
+        return {
+          query: '',
+          values: Array.isArray(parsed.values) ? parsed.values : [],
+          explanation: parsed.explanation || '',
+          tables: Array.isArray(parsed.tables) ? parsed.tables : [],
+          error: parsed.error,
+        };
+      }
       const missingField = !parsed.query ? 'missing query field' : `query is ${typeof parsed.query}`;
       const responsePreview = JSON.stringify(parsed).substring(0, 100);
       return {

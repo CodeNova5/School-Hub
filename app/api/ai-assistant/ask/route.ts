@@ -170,11 +170,20 @@ export async function POST(request: NextRequest) {
     if (useCache) {
       const cachedResponse = getCachedQuery(question, schoolId, userId);
       if (cachedResponse) {
-        return NextResponse.json({
-          success: true,
-          response: cachedResponse,
-          cached: true,
-        });
+        const looksLikePermissionMessage =
+          cachedResponse.toLowerCase().includes("don't have permission") ||
+          cachedResponse.toLowerCase().includes('can only view your own');
+
+        // Prevent stale false-denial cache hits for admin users.
+        if (userRole === 'admin' && looksLikePermissionMessage) {
+          // Continue and regenerate a fresh response.
+        } else {
+          return NextResponse.json({
+            success: true,
+            response: cachedResponse,
+            cached: true,
+          });
+        }
       }
     }
 
@@ -260,10 +269,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if this is a permission-denied case (0 results on personal data query)
-    const isZeroResultsOnPersonalQuery = queryResult.rowCount === 0 && 
-      (queryPlan.query.toLowerCase().includes('user_id') || 
-       queryPlan.tables.some(t => ['students', 'teachers', 'parents'].includes(t)));
+    // Only student-scoped personal queries should map empty results to permission messaging.
+    // Admins/teachers can legitimately get 0 rows for many school-wide queries.
+    const isZeroResultsOnPersonalQuery =
+      userRole === 'student' &&
+      queryResult.rowCount === 0 &&
+      queryPlan.query.toLowerCase().includes('user_id');
 
     // Generate natural language response
     let response: string;

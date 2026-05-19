@@ -764,8 +764,11 @@ export default function AIAssistantChat({
                     {message.queryInfo.tables && (
                       <p><strong>Tables:</strong> {Array.isArray(message.queryInfo.tables) ? message.queryInfo.tables.join(', ') : message.queryInfo.tables}</p>
                     )}
-                    {message.queryInfo.resultCount && (
-                      <p className="mt-1"><strong>Results:</strong> {message.queryInfo.resultCount} records</p>
+                    {typeof message.queryInfo.resultCount === 'number' && (
+                      <p className="mt-1">
+                        <strong>Results:</strong> {message.queryInfo.resultCount}{' '}
+                        {message.queryInfo.resultCount === 1 ? 'record' : 'records'}
+                      </p>
                     )}
                   </div>
                 )}

@@ -174,25 +174,114 @@ export function generateSimpleSummary(
   }
 
   const count = queryResults.length;
-  const firstRow = queryResults[0];
-  const columns = Object.keys(firstRow);
 
-  let summary = `Found ${count} result${count !== 1 ? 's' : ''} for your question:\n\n`;
+  // Handle single-row responses with a more natural tone.
+  if (count === 1) {
+    const row = queryResults[0] || {};
+    const questionLower = question.toLowerCase();
 
-  // Show first few results
-  const maxShow = Math.min(5, count);
-  for (let i = 0; i < maxShow; i++) {
-    const row = queryResults[i];
-    summary += `**Result ${i + 1}:**\n`;
-    for (const col of columns) {
-      summary += `  • ${col}: ${row[col] ?? 'N/A'}\n`;
+    // Special-case common "my school" questions for cleaner answers.
+    if (looksLikeSchoolIdentityQuestion(questionLower) && hasMeaningfulValue(row.name)) {
+      const details: string[] = [];
+      if (hasMeaningfulValue(row.address)) details.push(`Address: ${row.address}`);
+      if (hasMeaningfulValue(row.phone)) details.push(`Phone: ${row.phone}`);
+      if (hasMeaningfulValue(row.email)) details.push(`Email: ${row.email}`);
+
+      if (details.length === 0) {
+        return `Your school name is **${row.name}**.`;
+      }
+
+      return `Your school is **${row.name}**.\n\n${details.join(' • ')}`;
     }
-    summary += '\n';
+
+    const formattedPairs = formatRowAsPairs(row);
+    if (formattedPairs.length === 1) {
+      return `${formattedPairs[0].label}: **${formattedPairs[0].value}**.`;
+    }
+
+    if (formattedPairs.length > 1) {
+      const lines = formattedPairs.slice(0, 6).map((item) => `• ${item.label}: ${item.value}`);
+      return `Here is what I found:\n\n${lines.join('\n')}`;
+    }
   }
 
-  if (count > maxShow) {
-    summary += `... and ${count - maxShow} more result${count - maxShow !== 1 ? 's' : ''}.`;
+  // Multi-row fallback: concise list without robotic "Result 1" formatting.
+  const maxShow = Math.min(5, count);
+  const lines: string[] = [];
+
+  for (let i = 0; i < maxShow; i++) {
+    const row = queryResults[i] || {};
+    const formattedPairs = formatRowAsPairs(row).slice(0, 3);
+
+    if (formattedPairs.length === 0) {
+      continue;
+    }
+
+    const rowSummary = formattedPairs
+      .map((item) => `${item.label}: ${item.value}`)
+      .join(' • ');
+    lines.push(`• ${rowSummary}`);
   }
 
-  return summary;
+  if (lines.length === 0) {
+    return `I found ${count} record${count !== 1 ? 's' : ''}, but there are no readable fields to display.`;
+  }
+
+  const moreText = count > maxShow
+    ? `\n\nShowing ${maxShow} of ${count} records.`
+    : '';
+
+  return `I found ${count} result${count !== 1 ? 's' : ''}:\n\n${lines.join('\n')}${moreText}`;
+}
+
+function looksLikeSchoolIdentityQuestion(questionLower: string): boolean {
+  return (
+    questionLower.includes('school name') ||
+    questionLower.includes('my school') ||
+    questionLower.includes('name of my school') ||
+    questionLower.includes('what school')
+  );
+}
+
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (trimmed.toLowerCase() === 'n/a') return false;
+  }
+  return true;
+}
+
+function humanizeFieldName(field: string): string {
+  return field
+    .replace(/_/g, ' ')
+    .replace(/\bid\b/i, 'ID')
+    .replace(/\burl\b/i, 'URL')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (s) => s.toUpperCase());
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function formatRowAsPairs(row: Record<string, unknown>): Array<{ label: string; value: string }> {
+  return Object.keys(row)
+    .map((key) => {
+      const rawValue = formatValue(row[key]);
+      return {
+        label: humanizeFieldName(key),
+        value: rawValue,
+      };
+    })
+    .filter((item) => hasMeaningfulValue(item.value));
 }

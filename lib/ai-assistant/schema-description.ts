@@ -38,6 +38,23 @@ export const DATABASE_SCHEMA: TableInfo[] = [
       { name: 'updated_at', type: 'timestamptz', description: 'Update timestamp' },
     ]
   },
+
+  {
+    name: 'admins',
+    description: 'School admin user profiles and linkage to auth.users',
+    rlsEnabled: true,
+    columns: [
+      { name: 'id', type: 'uuid', description: 'Admin ID', isPrimaryKey: true },
+      { name: 'school_id', type: 'uuid', description: 'Owning school', isForeignKey: true, references: 'schools(id)' },
+      { name: 'user_id', type: 'uuid', description: 'Auth user', isForeignKey: true, references: 'auth.users(id)' },
+      { name: 'name', type: 'text', description: 'Admin full name' },
+      { name: 'email', type: 'text', description: 'Admin email' },
+      { name: 'phone', type: 'text', description: 'Admin phone number' },
+      { name: 'is_active', type: 'boolean', description: 'Active account flag' },
+      { name: 'created_at', type: 'timestamptz', description: 'Creation timestamp' },
+      { name: 'updated_at', type: 'timestamptz', description: 'Update timestamp' },
+    ]
+  },
   {
     name: 'sessions',
     description: 'Academic sessions per school',

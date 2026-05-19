@@ -259,6 +259,7 @@ CREATE TABLE IF NOT EXISTS admins (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
   name text NOT NULL,
   email text UNIQUE,
+  phone text,
   is_active boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()

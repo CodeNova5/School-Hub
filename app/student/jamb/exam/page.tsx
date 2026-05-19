@@ -123,6 +123,8 @@ type SubjectQuestionRow = {
   subject_name: string;
   exam_year: number;
   image_url?: string | null;
+  correct_option?: string | null;
+  explanation?: string | null;
 };
 
 type ExamSetupState = JambExamSetup;
@@ -139,6 +141,7 @@ export default function StudentJambExamPage() {
   const [allQuestionIds, setAllQuestionIds] = useState<{ id: string; pageNum: number }[]>([]);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({});
   const [showQuestionGrid, setShowQuestionGrid] = useState(false);
   const [isSessionActive, setIsSessionActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -315,7 +318,9 @@ export default function StudentJambExamPage() {
 
       const { data, error } = await supabase
         .from("jamb_questions")
-        .select("id, question_text, options, subject_slug, subject_name, exam_year, image_url")
+        .select(
+          "id, question_text, options, subject_slug, subject_name, exam_year, image_url, correct_option, explanation"
+        )
         .in("id", pageQuestionIds);
       if (error) throw error;
 
@@ -331,6 +336,8 @@ export default function StudentJambExamPage() {
         subject_name: row.subject_name,
         exam_year: row.exam_year,
         image_url: row.image_url || null,
+        correct_option: row.correct_option || null,
+        explanation: row.explanation || null,
       }));
 
       setQuestions(loadedQuestions);
@@ -363,8 +370,13 @@ export default function StudentJambExamPage() {
 
     (async () => {
       try {
-        await startSession(savedSetup);
-        await loadQuestions(1, 0, savedSetup);
+        // For study mode we don't start a timed session or set a question limit.
+        if (savedSetup.mode === "study") {
+          await loadQuestions(1, 0, savedSetup);
+        } else {
+          await startSession(savedSetup);
+          await loadQuestions(1, 0, savedSetup);
+        }
       } catch (error: any) {
         console.error("[student/jamb/exam] bootstrap error", error);
         setStartError(error?.message || "Unable to start exam session");
@@ -589,7 +601,9 @@ export default function StudentJambExamPage() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={setupLabel} />
+            {setupMode !== "study" ? (
+              <ExamTimerWidget time={formatted} isWarning={isWarning} isCritical={isCritical} subject={setupLabel} />
+            ) : null}
             <Button variant="outline" onClick={clearAndExit} className="hidden border-white/15 bg-transparent text-white hover:bg-white/10 sm:inline-flex">
               Exit
             </Button>
@@ -667,23 +681,34 @@ export default function StudentJambExamPage() {
                     {activeQuestion?.options?.map((option, index) => {
                       const selected = answers[activeQuestion.id] === option;
                       const displayText = stripLeadingOptionLabel(option);
+                      const isStudy = setupMode === "study";
+                      const correctLabel = (activeQuestion?.correct_option || "").toUpperCase();
+                      const optionLabel = OPTION_LABELS[index];
+                      const isCorrectOption = isStudy && correctLabel && optionLabel === correctLabel;
+                      const revealed = !!revealedAnswers[activeQuestion.id];
                       return (
                         <button
                           key={`${activeQuestion.id}-${index}`}
                           type="button"
                           onClick={() => recordAnswer(activeQuestion.id, option)}
-                          className={`group flex w-full items-center gap-4 rounded-2xl border-2 px-5 py-4 text-left transition-all duration-200 ${
-                            selected
-                              ? "border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600/20"
-                              : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60 hover:shadow-sm"
-                          }`}
+                          className={`group flex w-full items-center gap-4 rounded-2xl border-2 px-5 py-4 text-left transition-all duration-200 ${revealed && isCorrectOption
+                              ? "border-emerald-600 bg-emerald-50 shadow-sm"
+                              : revealed && selected && !isCorrectOption
+                                ? "border-rose-600 bg-rose-50 shadow-sm"
+                                : selected
+                                  ? "border-blue-600 bg-blue-50 shadow-sm ring-1 ring-blue-600/20"
+                                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/60 hover:shadow-sm"
+                            }`}
                         >
                           <div
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${
-                              selected
-                                ? "border-blue-600 bg-blue-600 text-white"
-                                : "border-slate-300 bg-slate-50 text-slate-500 group-hover:border-blue-400 group-hover:bg-blue-100 group-hover:text-blue-600"
-                            }`}
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold transition-colors ${revealed && isCorrectOption
+                                ? "border-emerald-600 bg-emerald-600 text-white"
+                                : revealed && selected && !isCorrectOption
+                                  ? "border-rose-600 bg-rose-600 text-white"
+                                  : selected
+                                    ? "border-blue-600 bg-blue-600 text-white"
+                                    : "border-slate-300 bg-slate-50 text-slate-500 group-hover:border-blue-400 group-hover:bg-blue-100 group-hover:text-blue-600"
+                              }`}
                           >
                             {OPTION_LABELS[index]}
                           </div>
@@ -693,6 +718,36 @@ export default function StudentJambExamPage() {
                         </button>
                       );
                     })}
+                    {setupMode === "study" ? (
+                      <div className="pt-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRevealedAnswers((s) => ({ ...s, [activeQuestion!.id]: !s[activeQuestion!.id] }))}
+                        >
+                          {revealedAnswers[activeQuestion!.id] ? "Hide answer & explanation" : "Show answer & explanation"}
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    {setupMode === "study" && revealedAnswers[activeQuestion?.id || ""] ? (
+                      <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        <p className="mb-2 font-bold">Correct answer</p>
+                        <p className="mb-3 text-base font-semibold text-emerald-800">
+                          {(() => {
+                            const lbl = (activeQuestion?.correct_option || "").toUpperCase();
+                            const idx = OPTION_LABELS.indexOf(lbl);
+                            const text = idx >= 0 ? stripLeadingOptionLabel(activeQuestion?.options?.[idx] || "") : activeQuestion?.correct_option || "";
+                            return `${lbl} — ${text}`;
+                          })()}
+                        </p>
+                        {activeQuestion?.explanation ? (
+                          <div className="prose max-w-none text-slate-800">
+                            <MathText content={activeQuestion.explanation} />
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -709,7 +764,11 @@ export default function StudentJambExamPage() {
                   <LayoutGrid className="h-4 w-4" /> Jump to question
                 </button>
 
-                {isLastQuestion ? (
+                {setupMode === "study" ? (
+                  <Button size="lg" onClick={clearAndExit} className="gap-2 bg-slate-700 px-8 text-white shadow-sm hover:bg-slate-800">
+                    Exit Study
+                  </Button>
+                ) : isLastQuestion ? (
                   <Button
                     size="lg"
                     onClick={submitAttempt}
@@ -773,13 +832,12 @@ export default function StudentJambExamPage() {
                             key={question.id}
                             onClick={() => setActiveQuestionIndex(index)}
                             title={`Q${questionNumber}${answered ? " (answered)" : ""}`}
-                            className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-bold shadow-sm transition-all ${
-                              active
+                            className={`flex h-10 w-10 items-center justify-center rounded-xl border-2 text-sm font-bold shadow-sm transition-all ${active
                                 ? "border-blue-600 bg-blue-600 text-white scale-110"
                                 : answered
                                   ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                                   : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
+                              }`}
                           >
                             {questionNumber}
                           </button>
@@ -828,13 +886,12 @@ export default function StudentJambExamPage() {
                           goToQuestion(pageNumber, questionIndex);
                           setShowQuestionGrid(false);
                         }}
-                        className={`flex h-11 w-11 items-center justify-center rounded-lg border-2 text-sm font-bold transition-all ${
-                          isActive
+                        className={`flex h-11 w-11 items-center justify-center rounded-lg border-2 text-sm font-bold transition-all ${isActive
                             ? "border-blue-600 bg-blue-100 text-blue-700 ring-2 ring-blue-600/20"
                             : answered
                               ? "border-emerald-500 bg-emerald-50 text-emerald-700"
                               : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                        }`}
+                          }`}
                       >
                         {globalNumber}
                       </button>

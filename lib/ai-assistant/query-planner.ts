@@ -11,9 +11,24 @@ export interface QueryPlan {
   explanation: string;
   tables: string[];
   error?: string;
+  isTruncated?: boolean; // Indicates if results were limited
+  limitApplied?: number;  // The limit that was applied
 }
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
+
+// Safe query limits to prevent returning entire database
+const QUERY_LIMITS = {
+  DEFAULT: 100,        // Default limit for most queries
+  LARGE_TABLES: 50,    // Tables that could be very large (students, users)
+  AGGREGATION: 1000,   // Aggregation queries can return more
+} as const;
+
+// Tables that are likely to have many rows
+const LARGE_TABLES = ['students', 'users', 'results', 'attendance', 'assignments', 'classes'];
+
+// Maximum result set size to warn user
+const RESULT_SET_WARNING_THRESHOLD = 1000;
 
 /**
  * Generate a SQL query plan from a natural language question
@@ -126,18 +141,24 @@ ${schema}
    - For queries with multiple conditions: school_id/id should be in the WHERE clause
 5. Use proper JOINs when querying multiple tables
 6. Only SELECT necessary columns - avoid SELECT *
-7. Use appropriate WHERE clauses, ORDER BY, and LIMIT when needed
-8. For aggregations, use COUNT, SUM, AVG, etc.
-9. Respect the user role - CRITICAL FOR FILTERING AND PERMISSIONS (apply ONLY the current role above):
-   - **Students: MUST ONLY query their OWN personal data**
-     * CRITICAL: Never generate queries for other students' personal data
-     * If question asks about "someone else's phone", "another student's grades", etc., return error
-     * Questions like "what's my phone number", "show my grades", "my attendance" REQUIRE user_id filtering
-     * When a student asks about "my data" or "their own data", use WHERE user_id = <user_id>
-     * REJECT any questions asking about other students' personal information like phone, email, addresses, grades, attendance
-   - Teachers: Only query students in their classes, use school_id filter
-   - Parents: Only query their own children, use school_id filter
-   - Admins: Can query all school data within their school_id
+7. **CRITICAL - ALWAYS use LIMIT clauses on row-returning queries:**
+   - For listing/browsing queries (e.g., "list students", "show all classes"), ALWAYS add LIMIT 50
+   - For aggregation queries (COUNT, SUM, etc.), consider if LIMIT applies to groups; if returning many rows, LIMIT 100
+   - NEVER generate unbounded SELECT queries without LIMIT
+   - If the question asks for "all" records, use LIMIT 50 and include in explanation that results are limited/sampled
+   - Example: "SELECT ... FROM students WHERE school_id = $1 LIMIT 50"
+8. Use appropriate WHERE clauses and ORDER BY when needed (ORDER BY should come before LIMIT)
+9. For aggregations, use COUNT, SUM, AVG, etc.
+10. Respect the user role - CRITICAL FOR FILTERING AND PERMISSIONS (apply ONLY the current role above):
+    - **Students: MUST ONLY query their OWN personal data**
+      * CRITICAL: Never generate queries for other students' personal data
+      * If question asks about "someone else's phone", "another student's grades", etc., return error
+      * Questions like "what's my phone number", "show my grades", "my attendance" REQUIRE user_id filtering
+      * When a student asks about "my data" or "their own data", use WHERE user_id = <user_id>
+      * REJECT any questions asking about other students' personal information like phone, email, addresses, grades, attendance
+    - Teachers: Only query students in their classes, use school_id filter
+    - Parents: Only query their own children, use school_id filter
+    - Admins: Can query all school data within their school_id
 
 **Response Format:**
 FOR VALID DATA QUESTIONS - Return a JSON object with query and values
@@ -190,10 +211,19 @@ Response:
 Question: "Which students in SSS1 have grades below 50 in Math?"
 Response:
 {
-  "query": "SELECT s.first_name, s.last_name, r.total, sub.name as subject_name FROM students s JOIN results r ON s.id = r.student_id JOIN subject_classes sc ON r.subject_class_id = sc.id JOIN subjects sub ON sc.subject_id = sub.id JOIN classes c ON s.class_id = c.id WHERE s.school_id = $1 AND c.level = $2 AND sub.name ILIKE $3 AND r.total < $4 ORDER BY r.total ASC",
+  "query": "SELECT s.first_name, s.last_name, r.total, sub.name as subject_name FROM students s JOIN results r ON s.id = r.student_id JOIN subject_classes sc ON r.subject_class_id = sc.id JOIN subjects sub ON sc.subject_id = sub.id JOIN classes c ON s.class_id = c.id WHERE s.school_id = $1 AND c.level = $2 AND sub.name ILIKE $3 AND r.total < $4 ORDER BY r.total ASC LIMIT 50",
   "values": ["<school_id>", "SSS1", "%Math%", 50],
-  "explanation": "Finds students in SSS1 with Math grades below 50",
+  "explanation": "Finds students in SSS1 with Math grades below 50 (limited to first 50 results)",
   "tables": ["students", "results", "subject_classes", "subjects", "classes"]
+}
+
+Question: "List all students in my school"
+Response:
+{
+  "query": "SELECT first_name, last_name, email, phone FROM students WHERE school_id = $1 ORDER BY last_name ASC LIMIT 50",
+  "values": ["<school_id>"],
+  "explanation": "Shows first 50 students in the school, sorted by last name. Results are limited to prevent loading the entire database.",
+  "tables": ["students"]
 }
 
 Return ONLY a JSON object with no additional text.`;
@@ -304,7 +334,7 @@ function parseQueryPlanResponse(content: string): QueryPlan {
 /**
  * Validate that a query is safe (basic security check)
  */
-export function validateQuery(query: string): { isValid: boolean; error?: string } {
+export function validateQuery(query: string): { isValid: boolean; error?: string; suggestion?: string } {
   if (!query || query.trim().length === 0) {
     return {
       isValid: false,
@@ -384,6 +414,43 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
       isValid: false,
       error: 'Query must include school_id filter for multi-tenancy'
     };
+  }
+
+  // Check for LIMIT clause - queries that return rows must have LIMIT
+  const hasLimit = /\bLIMIT\s+\d+/i.test(query);
+  const hasOffset = /\bOFFSET\s+\d+/i.test(query);
+  
+  // Queries with pure aggregation (COUNT(*), SUM(...), AVG(...), etc.) don't require LIMIT
+  // because they return a single computed value
+  const hasPureAggregation = /\bCOUNT\s*\(\s*\*\s*\)/i.test(query) && 
+                             !/\bGROUP\s+BY/i.test(query);
+  
+  // Check if this is a GROUP BY query (returns many aggregated rows - needs LIMIT)
+  const hasGroupBy = /\bGROUP\s+BY/i.test(query);
+  
+  // Query needs LIMIT if:
+  // - It's not a pure COUNT(*) aggregation
+  // - OR it has GROUP BY (which returns multiple rows)
+  if (!hasLimit && (!hasPureAggregation || hasGroupBy)) {
+    const suggestion = `Add LIMIT clause to prevent loading large result sets. Example: ... ORDER BY ... LIMIT ${QUERY_LIMITS.DEFAULT}`;
+    return {
+      isValid: false,
+      error: 'Query must include a LIMIT clause to prevent accidentally loading too many records from the database. This protects both performance and data privacy.',
+      suggestion
+    };
+  }
+
+  // If LIMIT exists, check it's within reasonable bounds
+  const limitMatch = query.match(/\bLIMIT\s+(\d+)/i);
+  if (limitMatch) {
+    const limitValue = parseInt(limitMatch[1], 10);
+    if (limitValue > RESULT_SET_WARNING_THRESHOLD) {
+      return {
+        isValid: false,
+        error: `Query LIMIT is too high (${limitValue}). Maximum safe limit is ${RESULT_SET_WARNING_THRESHOLD} records to protect performance.`,
+        suggestion: `Reduce LIMIT to ${QUERY_LIMITS.DEFAULT} or lower`
+      };
+    }
   }
 
   return { isValid: true };

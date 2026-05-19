@@ -245,11 +245,13 @@ export async function POST(request: NextRequest) {
     if (!validation.isValid) {
       console.error('Query validation failed:', {
         error: validation.error,
+        suggestion: validation.suggestion,
         query: queryPlan.query.substring(0, 300)
       });
       return NextResponse.json(
         {
           error: validation.error,
+          suggestion: validation.suggestion,
           success: false
         },
         { status: 400 }

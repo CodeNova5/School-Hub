@@ -18,6 +18,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/auth";
 import { useSchoolContext } from "@/hooks/use-school-context";
+import { saveJambExamSetup } from "@/lib/jamb-session-storage";
 import { toast } from "sonner";
 import {
   ChevronLeft,
@@ -1377,7 +1378,14 @@ export default function StudentJambPage() {
               <Button
                 onClick={() => {
                   setShowStartModal(false);
-                  void loadQuestions(1, 0);
+                  saveJambExamSetup({
+                    subjectSlug: mode === "exam" ? "exam-multi" : selectedSubject,
+                    subjectName: mode === "exam" ? "JAMB Combination" : filteredSubjectLabel,
+                    examYear: selectedYear,
+                    mode,
+                    examSubjects,
+                  });
+                  window.location.href = "/student/jamb/exam";
                 }}
                 className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md"
               >

@@ -12,10 +12,6 @@ const DEFAULT_BUCKET = 'jamb-question-images';
 const REQUEST_TIMEOUT_MS = 30000;
 
 const JAMB_SUBJECTS = [
-  { slug: 'islamic-religious-knowledge-irk', name: 'Islamic Religious Studies (IRS)' },
-  { slug: 'history', name: 'History' },
-  { slug: 'fine-arts', name: 'Fine Arts' },
-  { slug: 'music', name: 'Music' },
   { slug: 'arabic', name: 'Arabic' },
   { slug: 'french', name: 'French' },
   { slug: 'hausa', name: 'Hausa' },

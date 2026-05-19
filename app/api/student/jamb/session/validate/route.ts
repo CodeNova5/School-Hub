@@ -144,8 +144,13 @@ export async function POST(req: NextRequest) {
       .eq("id", session.id);
 
     if (updateError) {
+      console.error("Failed to mark JAMB session as submitted", {
+        sessionId: session.id,
+        sessionToken,
+        error: updateError,
+      });
       return NextResponse.json(
-        { error: "Failed to mark session as submitted" },
+        { error: updateError.message || "Failed to mark session as submitted" },
         { status: 500 }
       );
     }

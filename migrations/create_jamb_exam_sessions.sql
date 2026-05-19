@@ -22,9 +22,8 @@ CREATE TABLE IF NOT EXISTS jamb_exam_sessions (
   -- Audit
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  
-  -- Constraints
-  UNIQUE(student_id, school_id, subject_slug, exam_year, status) -- Only 1 active session per student/subject/year
+
+  -- Constraints are applied after table creation so we can scope the uniqueness to active sessions only.
 );
 
 CREATE OR REPLACE FUNCTION set_jamb_exam_session_expires_at()
@@ -46,6 +45,9 @@ CREATE INDEX IF NOT EXISTS idx_jamb_sessions_student_active ON jamb_exam_session
 CREATE INDEX IF NOT EXISTS idx_jamb_sessions_school_subject_year ON jamb_exam_sessions(school_id, subject_slug, exam_year, status);
 CREATE INDEX IF NOT EXISTS idx_jamb_sessions_token ON jamb_exam_sessions(session_token);
 CREATE INDEX IF NOT EXISTS idx_jamb_sessions_expires ON jamb_exam_sessions(expires_at) WHERE status = 'active';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jamb_sessions_unique_active
+  ON jamb_exam_sessions(student_id, school_id, subject_slug, exam_year)
+  WHERE status = 'active';
 
 -- Add RLS policies
 ALTER TABLE jamb_exam_sessions ENABLE ROW LEVEL SECURITY;

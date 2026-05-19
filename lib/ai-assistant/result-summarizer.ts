@@ -26,7 +26,7 @@ export async function summarizeResults(
     };
   }
 
-  // If no results, provide context-appropriate message
+  // If no results, provide a clean, context-appropriate message
   if (!queryResults || queryResults.length === 0) {
     if (isZeroResultsOnPersonalQuery) {
       return {
@@ -42,8 +42,6 @@ export async function summarizeResults(
   const userPrompt = buildSummaryUserPrompt(question, queryResults, queryExplanation);
 
   try {
-    const message = `${systemPrompt}\n\nUser Query: ${userPrompt}`;
-    
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -51,8 +49,16 @@ export async function summarizeResults(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [{ role: 'user', content: message }]
+        // FIX 1: Use a production-ready model supported natively by Groq
+        model: 'llama3-70b-8192', 
+        // FIX 2: Segregate system guidelines from the data payload for better instruction adherence
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        // FIX 3: Introduce moderate temperature for fluid, human-like summaries
+        temperature: 0.5,
+        max_tokens: 512
       })
     });
 
@@ -66,8 +72,6 @@ export async function summarizeResults(
     }
 
     const data = await response.json();
-    
-    // Handle Groq response format (OpenAI-compatible)
     const summary = (data.choices?.[0]?.message?.content || '')?.trim();
 
     if (!summary) {
@@ -92,43 +96,27 @@ export async function summarizeResults(
  * Build the system prompt for summarization
  */
 function buildSummarySystemPrompt(): string { 
-  return `You are a conversational AI assistant for a school management system. Your task is to convert query results into natural, engaging responses that feel like talking to a knowledgeable colleague.
+  return `You are a conversational AI assistant for a school management system. Your task is to convert database query results into natural, engaging responses that feel like talking to a helpful colleague.
 
 **Tone & Style:**
-- Be warm, approachable, and conversational
-- Use natural language, not robotic phrasing
-- Speak directly to the user (use "you", "your", etc.)
-- Add a touch of personality while staying professional
+- Be warm, approachable, and highly conversational.
+- Use natural language; avoid robotic phrasing.
+- Speak directly to the user (use "you", "your", etc.).
+- Maintain a professional yet personable persona.
 
-**For Numerical Results:**
-1. Lead with the key number prominently: "We have **15 students** enrolled this term"
-2. Break down further if relevant: "Split across JSS1 (5), JSS2 (6), and JSS3 (4)"
-3. End with insight: "This is a healthy enrollment for our capacity"
+**Data Presentation Rules:**
+1. **For Numerical/Count Results:** Lead with the key number prominently (e.g., "We have **15 students** enrolled this term"). Break it down further if relevant data is present, and end with a brief helpful insight.
+2. **For Multiple Row Results:** Group related items cleanly, highlight notable patterns or outliers, and use conversational bullet points rather than dumping long raw rows.
+3. **Avoid Technical Clutter:** Never mention terms like "query", "database", "rows", "table", "Result 1", or internal column IDs unless directly asked.
 
-**For Multiple Results:**
-- Use bullet points for clarity, but keep sentences conversational
-- Group related items together
-- Highlight notable patterns or outliers
+**Formatting Constraints:**
+- Use markdown bold (**text**) exclusively for numbers, metrics, or critical names.
+- Use markdown headers (##) only when separating complex sections of data.
+- Keep the overall response concise (typically 2 to 5 sentences) unless the user explicitly requested an exhaustive breakdown.
 
-**Formatting:**
-- Use **bold** for emphasis and important numbers
-- Use markdown headers (##) to organize complex data
-- Use lists for multiple items - keep it concise
-- Avoid robotic "Result 1:", "Result 2:" format
-
-**If Data Shows Concerns:**
-- Mention it tactfully but directly
-- Suggest next steps (\"You might want to follow up on...\", \"Consider reviewing...\")
-- Keep tone helpful, not alarming
-
-**Response Length:**
-- Keep it concise (2-4 sentences typically)
-- Use line breaks for readability
-- Save detailed analysis for follow-up questions
-
-**Examples:**
-- ❌ \"Found 1 result for your question: Result 1: • total_students: 3\"
-- ✅ \"Great news! We currently have **3 students** enrolled.\"`;
+**If Data Shows Concerns or Low Performance:**
+- Frame anomalies tactfully but directly (e.g., notice low attendance or failing marks).
+- Softly suggest actionable steps ("You might want to check in on...", "Consider reviewing...").`;
 }
 
 /**
@@ -139,26 +127,22 @@ function buildSummaryUserPrompt(
   queryResults: any[],
   queryExplanation: string
 ): string {
-  // Limit results shown to AI (prevent token overflow)
-  const maxResults = 100;
+  // Limit results shown to AI to prevent context window saturation
+  const maxResults = 50; // Lowered slightly to ensure higher efficiency and low latency
   const limitedResults = queryResults.slice(0, maxResults);
   const hasMore = queryResults.length > maxResults;
 
-  let prompt = `**User's Question:** "${question}"\n\n`;
-  prompt += `**Data Retrieved:** ${queryResults.length} result${queryResults.length !== 1 ? 's' : ''}\n\n`;
-  prompt += JSON.stringify(limitedResults, null, 2);
-
-  if (hasMore) {
-    prompt += `\n\n(Note: Showing first ${maxResults} of ${queryResults.length} total results)`;
-  }
-
-  prompt += `\n\nRespond naturally to the user's question. Start with the answer directly, not "Found X results". Be conversational and highlight the most important information.`;
-
-  return prompt;
+  return JSON.stringify({
+    userQuestion: question,
+    queryIntentContext: queryExplanation,
+    totalRecordsFound: queryResults.length,
+    resultsSample: limitedResults,
+    truncatedDataWarning: hasMore ? `Showing first ${maxResults} rows out of ${queryResults.length} total rows.` : null
+  });
 }
 
 /**
- * Generate a simple text summary without AI (fallback)
+ * Generate a clean text summary without AI (Robust fallback strategy)
  */
 export function generateSimpleSummary(
   question: string,
@@ -174,23 +158,21 @@ export function generateSimpleSummary(
 
   const count = queryResults.length;
 
-  // Handle single-row responses with a more natural tone.
   if (count === 1) {
     const row = queryResults[0] || {};
     const questionLower = question.toLowerCase();
 
-    // Special-case common "my school" questions for cleaner answers.
     if (looksLikeSchoolIdentityQuestion(questionLower) && hasMeaningfulValue(row.name)) {
       const details: string[] = [];
-      if (hasMeaningfulValue(row.address)) details.push(`Address: ${row.address}`);
-      if (hasMeaningfulValue(row.phone)) details.push(`Phone: ${row.phone}`);
-      if (hasMeaningfulValue(row.email)) details.push(`Email: ${row.email}`);
+      if (hasMeaningfulValue(row.address)) details.push(`**Address:** ${row.address}`);
+      if (hasMeaningfulValue(row.phone)) details.push(`**Phone:** ${row.phone}`);
+      if (hasMeaningfulValue(row.email)) details.push(`**Email:** ${row.email}`);
 
       if (details.length === 0) {
         return `Your school name is **${row.name}**.`;
       }
 
-      return `Your school is **${row.name}**.\n\n${details.join(' • ')}`;
+      return `Your school is **${row.name}**.\n\n${details.join('\n')}`;
     }
 
     const formattedPairs = formatRowAsPairs(row);
@@ -199,12 +181,11 @@ export function generateSimpleSummary(
     }
 
     if (formattedPairs.length > 1) {
-      const lines = formattedPairs.slice(0, 6).map((item) => `• ${item.label}: ${item.value}`);
-      return `Here is what I found:\n\n${lines.join('\n')}`;
+      const lines = formattedPairs.slice(0, 6).map((item) => `• **${item.label}**: ${item.value}`);
+      return `Here is the record I found:\n\n${lines.join('\n')}`;
     }
   }
 
-  // Multi-row fallback: concise list without robotic "Result 1" formatting.
   const maxShow = Math.min(5, count);
   const lines: string[] = [];
 
@@ -212,9 +193,7 @@ export function generateSimpleSummary(
     const row = queryResults[i] || {};
     const formattedPairs = formatRowAsPairs(row).slice(0, 3);
 
-    if (formattedPairs.length === 0) {
-      continue;
-    }
+    if (formattedPairs.length === 0) continue;
 
     const rowSummary = formattedPairs
       .map((item) => `${item.label}: ${item.value}`)
@@ -223,14 +202,14 @@ export function generateSimpleSummary(
   }
 
   if (lines.length === 0) {
-    return `I found ${count} record${count !== 1 ? 's' : ''}, but there are no readable fields to display.`;
+    return `I found **${count}** matching records, but there are no readable fields to display.`;
   }
 
-  const moreText = count > maxShow
-    ? `\n\nShowing ${maxShow} of ${count} records.`
+  const remainingRecordsNotice = count > maxShow
+    ? `\n\n(Showing the first ${maxShow} of ${count} records)`
     : '';
 
-  return `I found ${count} result${count !== 1 ? 's' : ''}:\n\n${lines.join('\n')}${moreText}`;
+  return `I found **${count}** results matching your inquiry:\n\n${lines.join('\n')}${remainingRecordsNotice}`;
 }
 
 function looksLikeSchoolIdentityQuestion(questionLower: string): boolean {
@@ -246,8 +225,7 @@ function hasMeaningfulValue(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) return false;
-    if (trimmed.toLowerCase() === 'n/a') return false;
+    if (!trimmed || trimmed.toLowerCase() === 'n/a') return false;
   }
   return true;
 }
@@ -275,12 +253,9 @@ function formatValue(value: unknown): string {
 
 function formatRowAsPairs(row: Record<string, unknown>): Array<{ label: string; value: string }> {
   return Object.keys(row)
-    .map((key) => {
-      const rawValue = formatValue(row[key]);
-      return {
-        label: humanizeFieldName(key),
-        value: rawValue,
-      };
-    })
+    .map((key) => ({
+      label: humanizeFieldName(key),
+      value: formatValue(row[key]),
+    }))
     .filter((item) => hasMeaningfulValue(item.value));
 }

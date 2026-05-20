@@ -3,7 +3,7 @@
  * Converts query results into natural language responses
  */
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GEMINI_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY;
 
 export interface SummaryResult {
   summary: string;
@@ -19,10 +19,10 @@ export async function summarizeResults(
   queryExplanation: string,
   isZeroResultsOnPersonalQuery: boolean = false
 ): Promise<SummaryResult> {
-  if (!GROQ_API_KEY) {
+  if (!GEMINI_API_KEY) {
     return {
       summary: '',
-      error: 'Groq API key not configured'
+      error: 'Google AI Studio API key not configured'
     };
   }
 
@@ -42,29 +42,38 @@ export async function summarizeResults(
   const userPrompt = buildSummaryUserPrompt(question, queryResults, queryExplanation);
 
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        // FIX 1: Use a production-ready model supported natively by Groq
-        model: 'llama3-70b-8192', 
-        // FIX 2: Segregate system guidelines from the data payload for better instruction adherence
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        // FIX 3: Introduce moderate temperature for fluid, human-like summaries
-        temperature: 0.5,
-        max_tokens: 512
-      })
-    });
+    // Combine system and user prompts for Gemini
+    const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: combinedPrompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.5, // Moderate temperature for fluid, human-like summaries
+            maxOutputTokens: 512
+          }
+        })
+      }
+    );
 
     if (!response.ok) {
       const error = await response.text();
-      console.error('Groq API error:', error);
+      console.error('Gemini API error:', error);
       return {
         summary: '',
         error: 'Failed to generate summary'
@@ -72,10 +81,10 @@ export async function summarizeResults(
     }
 
     const data = await response.json();
-    const summary = (data.choices?.[0]?.message?.content || '')?.trim();
+    const summary = (data.candidates?.[0]?.content?.parts?.[0]?.text || '')?.trim();
 
     if (!summary) {
-      console.error('Unexpected Groq response:', data);
+      console.error('Unexpected Gemini response:', data);
       return {
         summary: '',
         error: 'No summary generated'

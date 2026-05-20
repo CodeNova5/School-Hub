@@ -15,7 +15,7 @@ export interface QueryPlan {
   limitApplied?: number;  // The limit that was applied
 }
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GEMINI_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY;
 
 // Safe query limits to prevent returning entire database
 const QUERY_LIMITS = {
@@ -35,8 +35,8 @@ export async function generateQueryPlan(
   userRole: 'student' | 'teacher' | 'admin' | 'parent',
   userId?: string
 ): Promise<QueryPlan> {
-  if (!GROQ_API_KEY) {
-    console.error('GROQ_API_KEY not configured');
+  if (!GEMINI_API_KEY) {
+    console.error('GOOGLE_AI_STUDIO_KEY not configured');
     return {
       query: '',
       values: [],
@@ -51,29 +51,38 @@ export async function generateQueryPlan(
   const userPrompt = buildUserPrompt(question, userId);
 
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        // FIX 1: Use an actual production-ready Groq model string
-        model: 'llama3-70b-8192', 
-        // FIX 2: Correctly isolate system vs user instructions for better layout compliance
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        // FIX 3: Enforce JSON mode natively at the API level
-        response_format: { type: "json_object" },
-        temperature: 0.1 // Low temperature = deterministic, structurally sound SQL
-      })
-    });
+    // Combine system and user prompts for Gemini
+    const combinedPrompt = `${systemPrompt}\n\nUser Question:\n${userPrompt}`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: combinedPrompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.1, // Low temperature = deterministic, structurally sound SQL
+            responseMimeType: 'application/json'
+          }
+        })
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Groq API error:', errorText);
+      console.error('Gemini API error:', errorText);
       return {
         query: '',
         values: [],
@@ -84,10 +93,10 @@ export async function generateQueryPlan(
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!content) {
-      console.error('Unexpected Groq response:', data);
+      console.error('Unexpected Gemini response:', data);
       return {
         query: '',
         values: [],

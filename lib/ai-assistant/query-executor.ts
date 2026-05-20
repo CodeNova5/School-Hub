@@ -88,17 +88,18 @@ export async function executeQueryPlan(
     }
     
     // Then process the values array for parameterized placeholders ($1, $2, etc.)
-    queryPlan.values.forEach((val, index) => {
+    const values = Array.isArray(queryPlan.values) ? queryPlan.values : [];
+    values.forEach((val, index) => {
       let replacementValue = val;
-      
+
       // Skip if this was a placeholder token (already replaced above)
       if (val === '<school_id>' || val === '<user_id>') {
         return;
       }
 
       // Escape values for SQL
-      const escapedValue = typeof replacementValue === 'string' 
-        ? `'${replacementValue.replace(/'/g, "''")}'` 
+      const escapedValue = typeof replacementValue === 'string'
+        ? `'${replacementValue.replace(/'/g, "''")}'`
         : replacementValue;
 
       // Replace $1, $2, etc. with actual values
@@ -114,6 +115,14 @@ export async function executeQueryPlan(
       return {
         success: false,
         error: 'Query contains unreplaced placeholders. School ID or User ID not provided.'
+      };
+    }
+
+    // If any positional parameter placeholders remain ($1, $2...), abort to avoid accidental execution
+    if (/\$[1-9][0-9]*/.test(finalQuery)) {
+      return {
+        success: false,
+        error: 'Query contains unreplaced positional parameter placeholders (e.g. $1). Please provide matching values in the query plan.'
       };
     }
 

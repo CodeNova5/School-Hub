@@ -186,10 +186,13 @@ function parseQueryPlanResponse(content: string): QueryPlan {
 
     const parsed = JSON.parse(jsonStr);
 
+    // Ensure we have a values array even if AI omitted it
+    const valuesArray = Array.isArray(parsed.values) ? parsed.values : [];
+
     if (parsed.error) {
       return {
         query: '',
-        values: Array.isArray(parsed.values) ? parsed.values : [],
+        values: valuesArray,
         explanation: parsed.explanation || '',
         tables: Array.isArray(parsed.tables) ? parsed.tables : [],
         error: parsed.error
@@ -199,16 +202,29 @@ function parseQueryPlanResponse(content: string): QueryPlan {
     if (!parsed.query || typeof parsed.query !== 'string') {
       return {
         query: '',
-        values: [],
+        values: valuesArray,
         explanation: '',
         tables: [],
         error: 'AI response failed schema compliance. No query string was found.'
       };
     }
 
+    // Validate that positional placeholders ($1, $2...) have corresponding values
+    const placeholderMatches = [...String(parsed.query).matchAll(/\$([1-9][0-9]*)/g)].map(m => parseInt(m[1], 10));
+    const maxPlaceholder = placeholderMatches.length ? Math.max(...placeholderMatches) : 0;
+    if (maxPlaceholder > valuesArray.length) {
+      return {
+        query: '',
+        values: valuesArray,
+        explanation: parsed.explanation || '',
+        tables: Array.isArray(parsed.tables) ? parsed.tables : [],
+        error: `AI response schema violation: Query expects ${maxPlaceholder} parameter(s) but only ${valuesArray.length} value(s) were provided. Ensure the values array matches $ placeholders.`
+      };
+    }
+
     return {
       query: parsed.query.trim(),
-      values: Array.isArray(parsed.values) ? parsed.values : [],
+      values: valuesArray,
       explanation: parsed.explanation || '',
       tables: Array.isArray(parsed.tables) ? parsed.tables : [],
     };

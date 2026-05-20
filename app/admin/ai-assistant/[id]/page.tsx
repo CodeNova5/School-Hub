@@ -986,7 +986,7 @@ export default function AdminAIAssistantPage() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+    <div className="flex h-screen w-screen bg-[#090d16] text-slate-100 overflow-hidden">
       {/* Confirmation Dialog */}
       <AlertDialog open={confirmDialog.isOpen} onOpenChange={(isOpen) => {
         if (!isOpen) {
@@ -1014,9 +1014,9 @@ export default function AdminAIAssistantPage() {
         </AlertDialogContent>
       </AlertDialog>
       {/* Premium Sidebar */}
-      <div className={`${showSidebar ? 'w-80' : 'w-0'} bg-gradient-to-b from-slate-800 to-slate-900 border-r border-slate-700 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
+      <div className={`${showSidebar ? 'w-80' : 'w-0'} bg-[#0e1524] border-r border-white/10 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
         {/* Sidebar Header */}
-        <div className="p-4 border-b border-slate-700">
+        <div className="p-4 border-b border-white/10">
           <Button
             onClick={handleNewChat}
             className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold gap-2 h-10 shadow-lg hover:shadow-xl transition-all"
@@ -1228,7 +1228,7 @@ export default function AdminAIAssistantPage() {
         </ScrollArea>
 
         {/* Sidebar Footer with Settings */}
-        <div className="p-4 border-t border-slate-700 space-y-2">
+        <div className="p-4 border-t border-white/10 space-y-2">
           {/* Settings Modal */}
           {showSettings && !showArchived && (
             <div
@@ -1365,11 +1365,11 @@ export default function AdminAIAssistantPage() {
           onClick={handleCloseArchived}
         >
           <div
-            className="bg-slate-800 rounded-xl w-full max-w-2xl border border-slate-700 shadow-2xl z-[60] flex flex-col max-h-[80vh]"
+            className="bg-[#0e1524] rounded-2xl w-full max-w-2xl border border-white/10 shadow-2xl z-[60] flex flex-col max-h-[80vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-slate-800 to-slate-700">
+            <div className="p-6 border-b border-white/10 bg-[#0f172a]">
               <div className="flex items-center gap-3 justify-between">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-amber-500/30 rounded-lg">
@@ -1583,7 +1583,7 @@ export default function AdminAIAssistantPage() {
             </ScrollArea>
 
             {/* Footer */}
-            <div className="p-6 border-t border-slate-700 bg-gradient-to-r from-slate-800/50 to-slate-700/50">
+            <div className="p-6 border-t border-white/10 bg-[#0f172a]/70">
               <button
                 onClick={handleCloseArchived}
                 className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-lg hover:shadow-xl"
@@ -1598,28 +1598,36 @@ export default function AdminAIAssistantPage() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Navigation Bar */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-700 border-b border-slate-600 px-8 py-4 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="border-b border-white/10 bg-[#0f1420]/90 backdrop-blur-xl px-6 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
               <button
                 onClick={() => setShowSidebar(!showSidebar)}
-                className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-100 transition-colors hover:bg-white/10"
               >
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="p-2.5 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg">
-                <MessageSquare className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-white">School Deck AI</h1>
-                <p className="text-sm text-slate-300">Intelligent Analytics Platform</p>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-400 shadow-lg shadow-blue-500/20">
+                  <MessageSquare className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="truncate text-lg font-semibold tracking-tight text-white">School Deck AI</h1>
+                  <p className="truncate text-sm text-slate-400">Ask questions, get data answers</p>
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm font-medium text-white">Session Active</p>
-              <p className="text-xs text-slate-400">{sessions.length} conversation{sessions.length !== 1 ? 's' : ''}</p>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                Live
+              </div>
+              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-right">
+                <p className="text-xs font-medium text-slate-200">{sessions.length} conversation{sessions.length !== 1 ? 's' : ''}</p>
+                <p className="text-[11px] text-slate-400">Session active</p>
+              </div>
             </div>
           </div>
         </div>

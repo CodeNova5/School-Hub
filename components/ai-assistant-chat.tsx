@@ -229,7 +229,7 @@ export default function AIAssistantChat({
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/ai-assistant/chat', {
+      const response = await fetch('/api/ai-assistant/ask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -412,7 +412,7 @@ export default function AIAssistantChat({
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-800">
+    <div className="flex flex-col h-full min-h-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.10),_transparent_34%),linear-gradient(180deg,_#0b1020_0%,_#090d16_100%)]">
       {/* Error Notifications */}
       <div className="fixed top-0 right-0 pt-4 pr-4 space-y-2 pointer-events-none z-50">
         {errors.map((error) => (

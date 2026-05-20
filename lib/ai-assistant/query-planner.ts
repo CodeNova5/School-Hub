@@ -132,7 +132,6 @@ function buildSystemPrompt(schema: string, userRole: string): string {
 **CRITICAL REQUIREMENTS:**
 - You MUST respond with a valid JSON object matching the defined schema layout.
 - You MUST ONLY generate SELECT queries (read-only).
-- If the question is not about querying school data or violates permissions, return a JSON object containing an "error" property.
 - NEVER return plain text or markdown wrappers outside the JSON string.
 
 **Database Schema:**
@@ -141,18 +140,14 @@ ${schema}
 **Important Rules:**
 1. ALWAYS use SELECT queries ONLY.
 2. ALWAYS use parameterized queries with $1, $2, etc. placeholders - NEVER embed values directly in SQL text string literals.
-3. ALL queries MUST filter by school_id to enforce multi-tenancy:
-   - For most tables: Include an explicit check on "school_id" (or its table alias equivalent, e.g. "s.school_id = $1").
-   - For the schools table: Filter by "WHERE id = $1" or "WHERE schools.id = $1".
-  - For user-scoped access (students/parents/teachers), include BOTH school_id and user_id filters when possible.
-4. Use proper explicit JOINs when querying multiple tables.
-5. Only SELECT necessary columns - avoid using SELECT *.
-6. **ALWAYS use LIMIT clauses on row-returning queries:**
+3. Use proper explicit JOINs when querying multiple tables.
+4. Only SELECT necessary columns - avoid using SELECT *.
+5. **Use LIMIT clauses on row-returning queries when reasonable:**
    - For listing/browsing queries, ALWAYS append LIMIT 50.
    - For queries returning many rows, default to LIMIT 100.
    - Unbounded queries are structural failures.
    - If the question asks for "all" records, limit your response selection to 50 items and note this limitation explicitly in the "explanation".
-7. For scalar aggregations (COUNT, SUM, AVG, MIN, MAX) without a GROUP BY statement, do not provide a LIMIT clause.
+6. For scalar aggregations (COUNT, SUM, AVG, MIN, MAX) without a GROUP BY statement, do not provide a LIMIT clause.
 
 **Response Format JSON Schema Structure:**
 {
@@ -163,14 +158,8 @@ ${schema}
   "error": "Optional failure message string if rules are violated."
 }
 
-**User Role Specific Filter Controls:**
-- **Students:** MUST ONLY access their OWN records. Enforce via: "WHERE user_id = <user_id>" or "s.user_id = <user_id>". Reject external requests with an error response.
-- **Teachers:** Filter fields against matching valid school instances.
-- **Parents / Admins:** Filter explicitly by application tenancy parameters (<school_id>).
-
 **Value Placeholders Rules:**
-- Inject literal "<school_id>" string token into the values collection mapping to the multi-tenancy binding argument.
-- Inject literal "<user_id>" string token into values mapping context when processing user-scoped actions.`;
+- If the query needs tenant or user scoping, inject literal "<school_id>" or "<user_id>" tokens into the values collection for binding.`;
 }
 
 function buildUserPrompt(question: string, userId?: string): string {

@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { generateQueryPlan, validateQuery } from '@/lib/ai-assistant/query-planner';
+import { generateQueryPlan } from '@/lib/ai-assistant/query-planner';
 import { executeQueryPlan } from '@/lib/ai-assistant/query-executor';
 import { summarizeResults, generateSimpleSummary } from '@/lib/ai-assistant/result-summarizer';
 import { getCachedQuery, setCachedQuery } from '@/lib/ai-assistant/query-cache';
@@ -26,70 +26,6 @@ interface AskRequest {
   useCache?: boolean;
   sessionId?: string;
   context?: Message[];
-}
-
-/**
- * Detect if question is asking about other people's personal data
- * Returns error if student is trying to access unauthorized data
- */
-function detectPermissionViolation(question: string, userRole: 'student' | 'teacher' | 'admin' | 'parent'): string | null {
-  // Only students have data access restrictions
-  if (userRole !== 'student') {
-    return null;
-  }
-
-  const lowerQuestion = question.toLowerCase();
-  
-  // Keywords indicating personal data queries
-  const personalDataKeywords = [
-    'phone number',
-    'email',
-    'address',
-    'date of birth',
-    'grades',
-    'results',
-    'attendance',
-    'marks',
-    'score',
-    'personal information',
-    'contact',
-    'parent phone',
-    'parent email'
-  ];
-
-  // Check if asking about others' personal data
-  const askingAboutPersonal = personalDataKeywords.some(keyword => lowerQuestion.includes(keyword));
-  
-  if (!askingAboutPersonal) {
-    return null;
-  }
-
-  // Keywords indicating it's about someone else
-  const otherUserIndicators = [
-    'other',
-    'someone else',
-    'another student',
-    'classmate',
-    "student's",
-    'classmates',
-    'teacher',
-    'different student'
-  ];
-
-  const isAboutOthers = otherUserIndicators.some(indicator => lowerQuestion.includes(indicator));
-
-  // Check for specific names (implies asking about someone else)
-  const hasSpecificName = /\b([A-Z][a-z]+)\s+([A-Z][a-z]+)\b/.test(question);
-  
-  // If asking for personal data without "my", "i", "me", "myself", likely asking about others
-  const hasPersonalPronoun = /\b(my|i|me|myself)\b/i.test(lowerQuestion);
-
-  // If it's personal data + other indicators + no personal pronouns, it's likely unauthorized
-  if ((isAboutOthers || hasSpecificName) && !hasPersonalPronoun) {
-    return "You don't have permission to view other students' personal information like phone numbers, emails, grades, or attendance. I can only provide information about your own data. Ask me 'What's my phone number?' or 'Show my grades' instead.";
-  }
-
-  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -136,19 +72,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Question is required' },
         { status: 400 }
-      );
-    }
-
-    // Check for permission violations
-    const permissionError = detectPermissionViolation(question, userRole);
-    if (permissionError) {
-      return NextResponse.json(
-        {
-          error: permissionError,
-          success: false,
-          isPermissionError: true
-        },
-        { status: 403 }
       );
     }
 
@@ -240,44 +163,35 @@ export async function POST(request: NextRequest) {
       explanation: queryPlan.explanation
     });
 
-    // Normalize and validate query for security
+    // Normalize the query
     queryPlan.query = queryPlan.query.trim().replace(/;+\s*$/, '');
-    const validation = validateQuery(queryPlan.query);
-    if (!validation.isValid) {
-      console.error('Query validation failed:', {
-        error: validation.error,
-        suggestion: validation.suggestion,
-        query: queryPlan.query.substring(0, 300)
-      });
-      return NextResponse.json(
-        {
-          error: validation.error,
-          suggestion: validation.suggestion,
-          success: false
-        },
-        { status: 400 }
-      );
-    }
 
     // Execute query
     const queryResult = await executeQueryPlan(queryPlan, schoolId, userId);
 
     if (!queryResult.success) {
-      return NextResponse.json(
-        {
-          error: queryResult.error,
-          success: false
-        },
-        { status: 500 }
+      const summaryResult = await summarizeResults(
+        question,
+        [],
+        queryPlan.explanation,
+        queryResult.error || 'Query execution failed.'
       );
-    }
 
-    // Only student-scoped personal queries should map empty results to permission messaging.
-    // Admins/teachers can legitimately get 0 rows for many school-wide queries.
-    const isZeroResultsOnPersonalQuery =
-      userRole === 'student' &&
-      queryResult.rowCount === 0 &&
-      queryPlan.query.toLowerCase().includes('user_id');
+      return NextResponse.json({
+        success: true,
+        response: summaryResult.summary || queryResult.error || 'Query execution failed.',
+        queryPlan: {
+          explanation: queryPlan.explanation,
+          tables: queryPlan.tables,
+        },
+        resultCount: 0,
+        errorCode: queryResult.errorCode,
+        errorDetails: queryResult.errorDetails,
+        errorHint: queryResult.errorHint,
+        cached: false,
+        sessionId: currentSessionId,
+      });
+    }
 
     // Generate natural language response
     let response: string;
@@ -286,19 +200,18 @@ export async function POST(request: NextRequest) {
       const summaryResult = await summarizeResults(
         question,
         queryResult.data || [],
-        queryPlan.explanation,
-        isZeroResultsOnPersonalQuery
+        queryPlan.explanation
       );
 
       if (summaryResult.error) {
         // Fallback to simple summary if AI fails
-        response = generateSimpleSummary(question, queryResult.data || [], isZeroResultsOnPersonalQuery);
+        response = generateSimpleSummary(question, queryResult.data || []);
       } else {
         response = summaryResult.summary;
       }
     } catch (error) {
       // Fallback to simple summary
-      response = generateSimpleSummary(question, queryResult.data || [], isZeroResultsOnPersonalQuery);
+      response = generateSimpleSummary(question, queryResult.data || []);
     }
 
     // Cache the response

@@ -13,6 +13,9 @@ export interface QueryResult {
   success: boolean;
   data?: any[];
   error?: string;
+  errorCode?: string;
+  errorDetails?: string | null;
+  errorHint?: string | null;
   rowCount?: number;
 }
 
@@ -72,7 +75,10 @@ export async function executeQueryPlan(
       console.error('Query execution error:', error);
       return {
         success: false,
-        error: error.message || 'Query execution failed'
+        error: error.message || 'Query execution failed',
+        errorCode: error.code,
+        errorDetails: error.details,
+        errorHint: error.hint
       };
     }
 

@@ -17,8 +17,14 @@ export async function summarizeResults(
   question: string,
   queryResults: any[],
   queryExplanation: string,
-  isZeroResultsOnPersonalQuery: boolean = false
+  executionError?: string
 ): Promise<SummaryResult> {
+  if (executionError) {
+    return {
+      summary: executionError
+    };
+  }
+
   if (!GEMINI_API_KEY) {
     return {
       summary: '',
@@ -28,11 +34,6 @@ export async function summarizeResults(
 
   // If no results, provide a clean, context-appropriate message
   if (!queryResults || queryResults.length === 0) {
-    if (isZeroResultsOnPersonalQuery) {
-      return {
-        summary: "You don't have permission to access this data. You can only view your own personal information."
-      };
-    }
     return {
       summary: "I couldn't find any data matching your question. Please try rephrasing or check if the data exists in the system."
     };
@@ -155,13 +156,9 @@ function buildSummaryUserPrompt(
  */
 export function generateSimpleSummary(
   question: string,
-  queryResults: any[],
-  isZeroResultsOnPersonalQuery: boolean = false
+  queryResults: any[]
 ): string {
   if (!queryResults || queryResults.length === 0) {
-    if (isZeroResultsOnPersonalQuery) {
-      return "You don't have permission to access this data. You can only view your own personal information.";
-    }
     return "I couldn't find any data matching your question.";
   }
 

@@ -89,12 +89,18 @@ export async function executeQueryPlan(
     
     // Then process the values array for parameterized placeholders ($1, $2, etc.)
     const values = Array.isArray(queryPlan.values) ? queryPlan.values : [];
+    let missingUserId = false;
     values.forEach((val, index) => {
       let replacementValue = val;
 
-      // Skip if this was a placeholder token (already replaced above)
-      if (val === '<school_id>' || val === '<user_id>') {
-        return;
+      if (val === '<school_id>') {
+        replacementValue = schoolId;
+      } else if (val === '<user_id>') {
+        if (!userId) {
+          missingUserId = true;
+          return;
+        }
+        replacementValue = userId;
       }
 
       // Escape values for SQL
@@ -106,6 +112,13 @@ export async function executeQueryPlan(
       const placeholder = `$${index + 1}`;
       finalQuery = finalQuery.replace(new RegExp(`\\${placeholder}`, 'g'), String(escapedValue));
     });
+
+    if (missingUserId) {
+      return {
+        success: false,
+        error: 'User ID is required but not provided. Cannot execute query.'
+      };
+    }
 
     // Create Supabase client with user authentication (RLS enforced)
     const supabase = createClientComponentClient();

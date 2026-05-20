@@ -27,7 +27,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
+  timestamp: Date | string;
   queryInfo?: {
     explanation: string;
     tables: string[];

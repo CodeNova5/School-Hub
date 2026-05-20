@@ -60,17 +60,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user's school_id from request (from client context) or fetch from DB
-    let schoolId = body.schoolId; // Use schoolId from request if provided
-    if (!schoolId) {
-      // Fallback to fetching from database
-      schoolId = await getUserSchoolId(supabase, userId);
-    }
-    
+    // Require `schoolId` in the request body — client must pass it
+    const schoolId = body.schoolId;
     if (!schoolId) {
       return NextResponse.json(
-        { error: 'School not found for user' },
-        { status: 403 }
+        { error: 'schoolId is required in request body' },
+        { status: 400 }
       );
     }
 
@@ -256,61 +251,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * Get user's school ID
- */
-async function getUserSchoolId(supabase: any, userId: string): Promise<string | undefined> {
-  try {
-    // Try admin first
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('school_id')
-      .eq('user_id', userId)
-      .maybeSingle();
 
-    if (admin?.school_id) {
-      return admin.school_id;
-    }
-
-    // Try teacher
-    const { data: teacher } = await supabase
-      .from('teachers')
-      .select('school_id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (teacher?.school_id) {
-      return teacher.school_id;
-    }
-
-    // Try student
-    const { data: student } = await supabase
-      .from('students')
-      .select('school_id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (student?.school_id) {
-      return student.school_id;
-    }
-
-    // Try parent
-    const { data: parent } = await supabase
-      .from('parents')
-      .select('school_id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (parent?.school_id) {
-      return parent.school_id;
-    }
-
-    return undefined;
-  } catch (error) {
-    console.error('Error getting school_id:', error);
-    return undefined;
-  }
-}
 
 /**
  * Get user's role

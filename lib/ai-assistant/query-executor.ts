@@ -67,9 +67,11 @@ export async function executeQueryPlan(
           error: 'School ID is required but not provided. Cannot execute query.'
         };
       }
-      // Replace all occurrences of <school_id> placeholder
+      // Replace all occurrences of <school_id> placeholder.
+      // Handle cases where the AI may include surrounding quotes around the token
+      // (e.g. "'<school_id>'") to avoid producing double-quoted literals.
       const escapedSchoolId = `'${schoolId.replace(/'/g, "''")}'`;
-      finalQuery = finalQuery.replace(/<school_id>/g, escapedSchoolId);
+      finalQuery = finalQuery.replace(/'?<school_id>'?/g, escapedSchoolId);
     }
     
     if (finalQuery.includes('<user_id>')) {
@@ -79,9 +81,10 @@ export async function executeQueryPlan(
           error: 'User ID is required but not provided. Cannot execute query.'
         };
       }
-      // Replace all occurrences of <user_id> placeholder
+      // Replace all occurrences of <user_id> placeholder.
+      // Handle optional surrounding quotes to avoid double-quoting.
       const escapedUserId = `'${userId.replace(/'/g, "''")}'`;
-      finalQuery = finalQuery.replace(/<user_id>/g, escapedUserId);
+      finalQuery = finalQuery.replace(/'?<user_id>'?/g, escapedUserId);
     }
     
     // Then process the values array for parameterized placeholders ($1, $2, etc.)

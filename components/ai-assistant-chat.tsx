@@ -16,7 +16,7 @@ interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: Date;
+  timestamp: Date | string;
   queryInfo?: {
     explanation: string;
     tables: string[];
@@ -392,7 +392,13 @@ export default function AIAssistantChat({
   };
 
   // Format timestamp
-  const formatTimestamp = (date: Date) => {
+  const formatTimestamp = (dateValue: Date | string) => {
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
     return new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
       minute: '2-digit',

@@ -240,7 +240,8 @@ export async function POST(request: NextRequest) {
       explanation: queryPlan.explanation
     });
 
-    // Validate query for security
+    // Normalize and validate query for security
+    queryPlan.query = queryPlan.query.trim().replace(/;+\s*$/, '');
     const validation = validateQuery(queryPlan.query);
     if (!validation.isValid) {
       console.error('Query validation failed:', {

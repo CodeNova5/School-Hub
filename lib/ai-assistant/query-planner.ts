@@ -144,6 +144,7 @@ ${schema}
 3. ALL queries MUST filter by school_id to enforce multi-tenancy:
    - For most tables: Include an explicit check on "school_id" (or its table alias equivalent, e.g. "s.school_id = $1").
    - For the schools table: Filter by "WHERE id = $1" or "WHERE schools.id = $1".
+  - For user-scoped access (students/parents/teachers), include BOTH school_id and user_id filters when possible.
 4. Use proper explicit JOINs when querying multiple tables.
 5. Only SELECT necessary columns - avoid using SELECT *.
 6. **ALWAYS use LIMIT clauses on row-returning queries:**
@@ -242,7 +243,8 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
     return { isValid: false, error: 'Query cannot be empty' };
   }
 
-  const upperQuery = query.toUpperCase().replace(/\s+/g, ' ').trim();
+  const normalizedQuery = query.trim().replace(/;+\s*$/, '');
+  const upperQuery = normalizedQuery.toUpperCase().replace(/\s+/g, ' ').trim();
 
   // 1. Structural Write Operation Interceptions
   const nonSelectOperations = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE', 'GRANT', 'REVOKE', 'REPLACE', 'UPSERT'];
@@ -263,9 +265,9 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
   }
 
   // 2. Dangerous Token Parsing Safeguards
-  const dangerousPatterns = [/--/, /\/\*/, /;\s*$/];
+  const dangerousPatterns = [/--/, /\/\*/];
   for (const pattern of dangerousPatterns) {
-    if (pattern.test(query)) {
+    if (pattern.test(normalizedQuery)) {
       return {
         isValid: false,
         error: 'Query blocked: Contains unsafe structures or command chaining markers.'
@@ -276,8 +278,9 @@ export function validateQuery(query: string): { isValid: boolean; error?: string
   // FIX 4: Flexible multi-tenancy verification handling aliases (e.g., s.school_id, schools.id)
   const hasSchoolIdFilter = /\b([a-zA-Z0-9_]+\.)?school_id\s*=/i.test(upperQuery);
   const hasSchoolTableFilter = /\bFROM\s+schools\b/i.test(upperQuery) && /\b([a-zA-Z0-9_]+\.)?id\s*=/i.test(upperQuery);
+  const hasUserIdFilter = /\b([a-zA-Z0-9_]+\.)?user_id\s*=/i.test(upperQuery);
   
-  if (!hasSchoolIdFilter && !hasSchoolTableFilter) {
+  if (!hasSchoolIdFilter && !hasSchoolTableFilter && !hasUserIdFilter) {
     return {
       isValid: false,
       error: 'Query violates security criteria: Missing structural school context verification filters.'

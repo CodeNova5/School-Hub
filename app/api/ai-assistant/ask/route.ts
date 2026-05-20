@@ -26,6 +26,7 @@ interface AskRequest {
   useCache?: boolean;
   sessionId?: string;
   context?: Message[];
+  schoolId?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -47,8 +48,25 @@ export async function POST(request: NextRequest) {
 
     const userId = session.user.id;
 
-    // Get user's school_id and role
-    const schoolId = await getUserSchoolId(supabase, userId);
+    // Get user's school_id from request (from client context) or fetch from DB
+    // Parse request first
+    const body: AskRequest = await request.json();
+    const { question, useCache = true, sessionId, context = [] } = body;
+
+    if (!question || question.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Question is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get user's school_id from request (from client context) or fetch from DB
+    let schoolId = body.schoolId; // Use schoolId from request if provided
+    if (!schoolId) {
+      // Fallback to fetching from database
+      schoolId = await getUserSchoolId(supabase, userId);
+    }
+    
     if (!schoolId) {
       return NextResponse.json(
         { error: 'School not found for user' },
@@ -61,17 +79,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'User role not found' },
         { status: 403 }
-      );
-    }
-
-    // Parse request
-    const body: AskRequest = await request.json();
-    const { question, useCache = true, sessionId, context = [] } = body;
-
-    if (!question || question.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Question is required' },
-        { status: 400 }
       );
     }
 
@@ -252,7 +259,7 @@ export async function POST(request: NextRequest) {
 /**
  * Get user's school ID
  */
-async function getUserSchoolId(supabase: any, userId: string): Promise<string | null> {
+async function getUserSchoolId(supabase: any, userId: string): Promise<string | undefined> {
   try {
     // Try admin first
     const { data: admin } = await supabase
@@ -298,10 +305,10 @@ async function getUserSchoolId(supabase: any, userId: string): Promise<string | 
       return parent.school_id;
     }
 
-    return null;
+    return undefined;
   } catch (error) {
     console.error('Error getting school_id:', error);
-    return null;
+    return undefined;
   }
 }
 

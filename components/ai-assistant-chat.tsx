@@ -10,6 +10,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Bot, User, AlertCircle, Info, Copy, Check, Mic, MicOff, Volume2, VolumeX, Pause, Play, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { recordAudio, playAudio, getMicrophoneStream, stopAudioStream, formatDuration, checkMicrophonePermission, speakText, stopSpeech } from '@/lib/audio-utils';
+import { useSchoolContext } from '@/hooks/use-school-context';
 
 interface Message {
   id: string;
@@ -65,6 +66,10 @@ export default function AIAssistantChat({
   const [expandedQueryInfoId, setExpandedQueryInfoId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [errors, setErrors] = useState<ErrorNotification[]>([]);
+  
+  // Get school context
+  const { schoolId } = useSchoolContext();
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -489,6 +494,7 @@ export default function AIAssistantChat({
         },
         body: JSON.stringify({ 
           question,
+          schoolId,
           sessionId: currentSessionId,
           context: updatedMessages // Send conversation history for context
         }),

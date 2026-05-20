@@ -26,6 +26,21 @@ export async function executeQueryPlan(
   userId?: string
 ): Promise<QueryResult> {
   try {
+    // Validate schoolId is provided and is a valid UUID
+    if (!schoolId || schoolId.trim() === '') {
+      return {
+        success: false,
+        error: 'School ID is required for query execution'
+      };
+    }
+
+    if (schoolId === '<school_id>') {
+      return {
+        success: false,
+        error: 'School ID placeholder not replaced. Please provide actual school_id'
+      };
+    }
+
     // Validate query
     if (queryPlan.error) {
       return {
@@ -43,12 +58,39 @@ export async function executeQueryPlan(
 
     // Replace placeholder values with actual values
     let finalQuery = queryPlan.query;
+    
+    // First, ensure school_id and user_id are replaced in the query (these might be in the query string but not in values array)
+    if (finalQuery.includes('<school_id>')) {
+      if (!schoolId) {
+        return {
+          success: false,
+          error: 'School ID is required but not provided. Cannot execute query.'
+        };
+      }
+      // Replace all occurrences of <school_id> placeholder
+      const escapedSchoolId = `'${schoolId.replace(/'/g, "''")}'`;
+      finalQuery = finalQuery.replace(/<school_id>/g, escapedSchoolId);
+    }
+    
+    if (finalQuery.includes('<user_id>')) {
+      if (!userId) {
+        return {
+          success: false,
+          error: 'User ID is required but not provided. Cannot execute query.'
+        };
+      }
+      // Replace all occurrences of <user_id> placeholder
+      const escapedUserId = `'${userId.replace(/'/g, "''")}'`;
+      finalQuery = finalQuery.replace(/<user_id>/g, escapedUserId);
+    }
+    
+    // Then process the values array for parameterized placeholders ($1, $2, etc.)
     queryPlan.values.forEach((val, index) => {
       let replacementValue = val;
-      if (val === '<school_id>') {
-        replacementValue = schoolId;
-      } else if (val === '<user_id>') {
-        replacementValue = userId;
+      
+      // Skip if this was a placeholder token (already replaced above)
+      if (val === '<school_id>' || val === '<user_id>') {
+        return;
       }
 
       // Escape values for SQL
@@ -63,6 +105,14 @@ export async function executeQueryPlan(
 
     // Create Supabase client with user authentication (RLS enforced)
     const supabase = createClientComponentClient();
+
+    // Verify all placeholders were replaced
+    if (finalQuery.includes('<school_id>') || finalQuery.includes('<user_id>')) {
+      return {
+        success: false,
+        error: 'Query contains unreplaced placeholders. School ID or User ID not provided.'
+      };
+    }
 
     // Execute query using the RPC function with user's authenticated session
     // RLS policies will be enforced automatically

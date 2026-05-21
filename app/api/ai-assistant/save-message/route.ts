@@ -14,6 +14,7 @@ interface SaveMessageRequest {
   sessionId?: string;
   role: 'user' | 'assistant';
   content: string;
+  generatedTitle?: string;
   queryPlan?: {
     explanation: string;
     tables: string[];
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     const schoolId = context.schoolId;
 
     const body: SaveMessageRequest = await request.json();
-    const { sessionId, role, content, queryPlan, error: isError = false } = body;
+    const { sessionId, role, content, generatedTitle, queryPlan, error: isError = false } = body;
 
     if (!role || !content) {
       return NextResponse.json(
@@ -94,6 +95,13 @@ export async function POST(request: NextRequest) {
       } else {
         currentSessionId = createSessionResponse.data;
       }
+    }
+
+    if (generatedTitle && role === 'assistant') {
+      await supabase
+        .from('ai_chat_sessions')
+        .update({ title: generatedTitle.trim(), updated_at: new Date().toISOString() })
+        .eq('id', currentSessionId);
     }
 
     // Save message using the database function

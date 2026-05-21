@@ -126,16 +126,23 @@ export default function AIAssistantChat({
     timestamp: new Date(),
   });
 
-  const saveMessage = async (
-    currentSessionId: string,
-    role: 'user' | 'assistant',
-    content: string,
+  const saveMessage = async ({
+    currentSessionId,
+    role,
+    content,
+    queryPlan,
+    generatedTitle,
+  }: {
+    currentSessionId: string;
+    role: 'user' | 'assistant';
+    content: string;
     queryPlan?: {
       explanation: string;
       tables: string[];
       resultCount?: number;
-    }
-  ) => {
+    };
+    generatedTitle?: string;
+  }) => {
     await fetch('/api/ai-assistant/save-message', {
       method: 'POST',
       headers: {
@@ -146,6 +153,7 @@ export default function AIAssistantChat({
         role,
         content,
         queryPlan,
+        generatedTitle,
       }),
     });
   };
@@ -306,8 +314,18 @@ export default function AIAssistantChat({
           setSessionId(data.sessionId);
 
           try {
-            await saveMessage(data.sessionId, 'user', trimmedInput);
-            await saveMessage(data.sessionId, 'assistant', assistantMessage.content, queryInfo);
+            await saveMessage({
+              currentSessionId: data.sessionId,
+              role: 'user',
+              content: trimmedInput,
+            });
+            await saveMessage({
+              currentSessionId: data.sessionId,
+              role: 'assistant',
+              content: assistantMessage.content,
+              queryPlan: queryInfo,
+              generatedTitle: userMessageCount === 0 ? data.generatedTitle : undefined,
+            });
           } catch (saveError) {
             console.error('Error saving chat messages:', saveError);
           }

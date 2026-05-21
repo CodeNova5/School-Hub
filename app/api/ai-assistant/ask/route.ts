@@ -529,7 +529,13 @@ async function classifyAndRespond(
 
 Your task:
 1. Determine if the question requires school database access (student records, grades, attendance, classes, teachers, schedules, results, marks, etc.)
-2. Generate a concise title (3-4 words max) for the conversation
+2. Generate a short, clean title (2-4 words max) for the conversation
+
+Title rules:
+- Use a noun phrase, not a full sentence or question
+- Avoid question marks, quotes, filler words, and punctuation
+- Prefer concrete topic words from the question
+- Keep it natural for a sidebar label
 
 If the question REQUIRES database access:
 - Set "isDataQuestion": true
@@ -613,6 +619,7 @@ function sanitizeGeneratedTitle(rawTitle: unknown, fallbackTitle: string): strin
   const normalized = rawTitle
     .replace(/[\r\n]+/g, ' ')
     .replace(/["'`]/g, '')
+    .replace(/[?.!,;:]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -620,12 +627,29 @@ function sanitizeGeneratedTitle(rawTitle: unknown, fallbackTitle: string): strin
     return fallbackTitle;
   }
 
-  const words = normalized.split(' ').filter(Boolean).slice(0, 4);
+  const words = normalized.split(' ').filter(Boolean);
   if (words.length === 0) {
     return fallbackTitle;
   }
 
-  return words.join(' ');
+  const lowerFirstWord = words[0].toLowerCase();
+  const questionStarters = new Set(['what', 'why', 'how', 'when', 'where', 'who', 'which', 'can', 'could', 'should', 'would', 'do', 'does', 'is', 'are']);
+  if (questionStarters.has(lowerFirstWord) || normalized.includes('?')) {
+    return fallbackTitle;
+  }
+
+  if (words.length > 4) {
+    return fallbackTitle;
+  }
+
+  const cleanedWords = words.filter((word) => word.length > 1);
+  if (cleanedWords.length === 0) {
+    return fallbackTitle;
+  }
+
+  return cleanedWords
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 }
 
 function buildFallbackTitle(question: string): string {
@@ -638,12 +662,16 @@ function buildFallbackTitle(question: string): string {
     return 'New Conversation';
   }
 
-  const words = cleaned.split(' ').filter(Boolean).slice(0, 4);
+  const words = cleaned.split(' ').filter(Boolean);
   if (words.length === 0) {
     return 'New Conversation';
   }
 
-  return words
+  const stopWords = new Set(['show', 'tell', 'give', 'me', 'the', 'a', 'an', 'please', 'can', 'you', 'could', 'would', 'should', 'how', 'what', 'why', 'when', 'where', 'who', 'which', 'is', 'are', 'am', 'do', 'does', 'did']);
+  const topicWords = words.filter((word) => !stopWords.has(word.toLowerCase())).slice(0, 4);
+  const sourceWords = topicWords.length > 0 ? topicWords : words.slice(0, 4);
+
+  return sourceWords
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 }

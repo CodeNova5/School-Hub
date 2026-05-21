@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     let currentSessionId = sessionId;
     if (!currentSessionId) {
       const { data: newSession, error: sessionError } = await supabase
-        .rpc('get_or_create_chat_session', {
+        .rpc('create_chat_session', {
           p_user_id: userId,
           p_school_id: schoolId,
         });

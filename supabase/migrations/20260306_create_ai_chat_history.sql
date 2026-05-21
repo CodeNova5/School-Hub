@@ -103,9 +103,30 @@ BEGIN
   -- If no session exists, create one
   IF v_session_id IS NULL THEN
     INSERT INTO ai_chat_sessions (user_id, school_id, title)
-    VALUES (p_user_id, p_school_id, 'Chat Session - ' || now()::text)
+    VALUES (p_user_id, p_school_id, 'Untitled Conversation')
     RETURNING id INTO v_session_id;
   END IF;
+
+  RETURN v_session_id;
+END;
+$$;
+
+-- Function to always create a fresh chat session for user
+CREATE OR REPLACE FUNCTION create_chat_session(
+  p_user_id uuid,
+  p_school_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_session_id uuid;
+BEGIN
+  INSERT INTO ai_chat_sessions (user_id, school_id, title)
+  VALUES (p_user_id, p_school_id, 'Untitled Conversation')
+  RETURNING id INTO v_session_id;
 
   RETURN v_session_id;
 END;

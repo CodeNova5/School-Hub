@@ -55,7 +55,6 @@ export default function AdminAIAssistantPage() {
   const [archivedSessions, setArchivedSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [showSidebar, setShowSidebar] = useState(true);
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [invalidSessionId, setInvalidSessionId] = useState(false);
 
@@ -98,83 +97,12 @@ export default function AdminAIAssistantPage() {
   const [isClearingArchived, setIsClearingArchived] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
-  // Refs for preventing race conditions during initial load
-  const isInitialLoadRef = useRef(true);
-  const creatingSessionRef = useRef(false);
-  const userProfileRef = useRef<{ user_id: string; school_id: string } | null>(null);
   const unsavedSessionIdsRef = useRef(unsavedSessionIds);
 
   // Keep ref in sync with state
   useEffect(() => {
     unsavedSessionIdsRef.current = unsavedSessionIds;
   }, [unsavedSessionIds]);
-
-  // Helper function to create a new session with optimistic updates
-  const createNewSessionOptimistic = useCallback(async (title: string = 'New Conversation') => {
-    // Prevent duplicate creation attempts
-    if (creatingSessionRef.current) return null;
-    
-    try {
-      creatingSessionRef.current = true;
-
-      // Get auth session
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) return null;
-
-      // Use cached profile or fetch it
-      let schoolId = userProfileRef.current?.school_id;
-      if (!schoolId) {
-        const { data: userProfile } = await supabase
-          .from('admins')
-          .select('school_id')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (!userProfile) return null;
-        schoolId = userProfile.school_id;
-        userProfileRef.current = {
-          user_id: session.user.id,
-          school_id: userProfile.school_id,
-        };
-      }
-
-      // Create session in database
-      const { data: newSession, error } = await supabase
-        .from('ai_chat_sessions')
-        .insert({
-          user_id: session.user.id,
-          school_id: schoolId,
-          title,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating session:', error);
-        return null;
-      }
-
-      if (!newSession) return null;
-
-      // Return formatted session data
-      return {
-        id: newSession.id,
-        title: newSession.title,
-        createdAt: new Date(newSession.created_at),
-        updatedAt: new Date(newSession.updated_at),
-        isPinned: false,
-        isArchived: false,
-      } as ChatSession;
-    } catch (error) {
-      console.error('Error in createNewSessionOptimistic:', error);
-      return null;
-    } finally {
-      creatingSessionRef.current = false;
-    }
-  }, []);
 
   // Initialize sessions on load
   useEffect(() => {
@@ -200,18 +128,9 @@ export default function AdminAIAssistantPage() {
           return;
         }
 
-        // Cache user profile for later use
-        const { data: userProfile } = await supabase
-          .from('admins')
-          .select('school_id')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        if (userProfile && isMounted) {
-          userProfileRef.current = {
-            user_id: session.user.id,
-            school_id: userProfile.school_id,
-          };
+        if (!routeSessionId) {
+          router.replace('/admin/ai-assistant');
+          return;
         }
 
         // Load existing sessions from database
@@ -251,53 +170,23 @@ export default function AdminAIAssistantPage() {
 
           setArchivedSessions(archived);
 
-          if (routeSessionId) {
-            const matchedSession = activeSessions.find((s: ChatSession) => s.id === routeSessionId);
-            setSessions(activeSessions);
-            if (matchedSession) {
-              setCurrentSessionId(routeSessionId);
-              setInvalidSessionId(false);
-            } else {
-              setCurrentSessionId('');
-              setInvalidSessionId(true);
-            }
+          const matchedSession = activeSessions.find((s: ChatSession) => s.id === routeSessionId);
+          setSessions(activeSessions);
+          if (matchedSession) {
+            setCurrentSessionId(routeSessionId);
+            setInvalidSessionId(false);
           } else {
-            // Check if "New Conversation" already exists in active sessions
-            const hasNewConversation = activeSessions.some((s: ChatSession) => s.title === 'New Conversation');
-
-            // Only create a new session if one doesn't already exist
-            let newSession: ChatSession | null = null;
-            if (!hasNewConversation && userProfileRef.current) {
-              newSession = await createNewSessionOptimistic('New Conversation');
-            }
-
-            if (newSession && isMounted) {
-              setSessions([newSession, ...activeSessions]);
-              setCurrentSessionId(newSession.id);
-            } else if (isMounted) {
-              setSessions(activeSessions);
-              const newConversationSession = activeSessions.find((s: ChatSession) => s.title === 'New Conversation');
-              setCurrentSessionId(newConversationSession?.id || activeSessions[0]?.id || '');
-            }
+            setCurrentSessionId('');
+            setInvalidSessionId(true);
           }
         } else {
           setSessions([]);
           setArchivedSessions([]);
-
-          if (routeSessionId) {
-            setCurrentSessionId('');
-            setInvalidSessionId(true);
-          } else if (userProfileRef.current) {
-            const newSession = await createNewSessionOptimistic('New Conversation');
-            if (newSession && isMounted) {
-              setSessions([newSession]);
-              setCurrentSessionId(newSession.id);
-            }
-          }
+          setCurrentSessionId('');
+          setInvalidSessionId(true);
         }
 
         if (isMounted) {
-          isInitialLoadRef.current = false;
           setIsLoading(false);
         }
       } catch (error: any) {
@@ -326,28 +215,11 @@ export default function AdminAIAssistantPage() {
       isMounted = false;
       if (retryTimeoutId) clearTimeout(retryTimeoutId);
     };
-  }, [router, createNewSessionOptimistic, routeSessionId]);
+  }, [router, routeSessionId]);
 
-  const handleNewChat = useCallback(async () => {
-    // Prevent creating multiple chats during initial load
-    if (isInitialLoadRef.current || creatingSessionRef.current) return;
-
-    setIsCreatingSession(true);
-    try {
-      const newSession = await createNewSessionOptimistic('New Conversation');
-      
-      if (newSession) {
-        setSessions((prev) => [newSession, ...prev]);
-        setCurrentSessionId(newSession.id);
-        setInvalidSessionId(false);
-        router.push(`/admin/ai-assistant/${newSession.id}`);
-      }
-    } catch (error) {
-      console.error('Error creating new chat:', error);
-    } finally {
-      setIsCreatingSession(false);
-    }
-  }, [createNewSessionOptimistic, router]);
+  const handleNewChat = useCallback(() => {
+    router.push('/admin/ai-assistant');
+  }, [router]);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
     // Mark session as having messages in localStorage
@@ -943,20 +815,6 @@ export default function AdminAIAssistantPage() {
       }
     }
   }, [currentSessionId, sessions, router]);
-
-  // Auto-create new session when all are deleted (after initial load)
-  useEffect(() => {
-    if (
-      !isInitialLoadRef.current &&
-      sessions.length === 0 &&
-      !isCreatingSession &&
-      currentSessionId === '' &&
-      !invalidSessionId &&
-      !routeSessionId
-    ) {
-      handleNewChat();
-    }
-  }, [sessions.length, isCreatingSession, currentSessionId, handleNewChat, invalidSessionId, routeSessionId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

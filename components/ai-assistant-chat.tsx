@@ -44,6 +44,7 @@ interface AIAssistantChatProps {
   enableSpeech?: boolean;
   autoPlayResponses?: boolean;
   onGeneratedTitle?: (title: string) => void;
+  loadHistory?: boolean;
 }
 
 export default function AIAssistantChat({
@@ -57,6 +58,7 @@ export default function AIAssistantChat({
   enableSpeech = true,
   autoPlayResponses = false,
   onGeneratedTitle,
+  loadHistory = true,
 }: AIAssistantChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(propSessionId || null);
@@ -117,6 +119,37 @@ export default function AIAssistantChat({
     setErrors((prev) => prev.filter((err) => err.id !== id));
   };
 
+  const getWelcomeMessage = (): Message => ({
+    id: '0',
+    role: 'assistant',
+    content: welcomeMessage,
+    timestamp: new Date(),
+  });
+
+  const saveMessage = async (
+    currentSessionId: string,
+    role: 'user' | 'assistant',
+    content: string,
+    queryPlan?: {
+      explanation: string;
+      tables: string[];
+      resultCount?: number;
+    }
+  ) => {
+    await fetch('/api/ai-assistant/save-message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sessionId: currentSessionId,
+        role,
+        content,
+        queryPlan,
+      }),
+    });
+  };
+
   // Load chat history on mount or when sessionId changes
   useEffect(() => {
     let isMounted = true;
@@ -126,6 +159,18 @@ export default function AIAssistantChat({
     const loadChatHistory = async () => {
       try {
         setIsLoadingHistory(true);
+
+        if (!loadHistory) {
+          if (isMounted) {
+            if (initialMessages.length > 0) {
+              setMessages(initialMessages);
+            } else {
+              setMessages([getWelcomeMessage()]);
+            }
+            setSessionId(propSessionId || null);
+          }
+          return;
+        }
         
         if (propSessionId) {
           const response = await fetch(`/api/ai-assistant/history?sessionId=${propSessionId}`);
@@ -141,13 +186,7 @@ export default function AIAssistantChat({
               onSessionIdChange(propSessionId);
             }
           } else {
-            const welcomeMsg: Message = {
-              id: '0',
-              role: 'assistant',
-              content: welcomeMessage,
-              timestamp: new Date(),
-            };
-            setMessages([welcomeMsg]);
+            setMessages([getWelcomeMessage()]);
           }
         } else {
           const response = await fetch('/api/ai-assistant/history');
@@ -163,13 +202,7 @@ export default function AIAssistantChat({
               onSessionIdChange(data.sessionId);
             }
           } else {
-            const welcomeMsg: Message = {
-              id: '0',
-              role: 'assistant',
-              content: welcomeMessage,
-              timestamp: new Date(),
-            };
-            setMessages([welcomeMsg]);
+            setMessages([getWelcomeMessage()]);
           }
         }
         retryCount = 0;
@@ -183,13 +216,7 @@ export default function AIAssistantChat({
           if (initialMessages.length > 0) {
             setMessages(initialMessages);
           } else {
-            const welcomeMsg: Message = {
-              id: '0',
-              role: 'assistant',
-              content: welcomeMessage,
-              timestamp: new Date(),
-            };
-            setMessages([welcomeMsg]);
+            setMessages([getWelcomeMessage()]);
           }
         } else {
           retryCount++;
@@ -206,7 +233,13 @@ export default function AIAssistantChat({
     return () => {
       isMounted = false;
     };
-  }, [propSessionId]);
+  }, [propSessionId, loadHistory, welcomeMessage, onSessionIdChange]);
+
+  useEffect(() => {
+    if (onMessagesUpdate) {
+      onMessagesUpdate(messages);
+    }
+  }, [messages, onMessagesUpdate]);
 
   // Scroll to bottom effect
   useEffect(() => {
@@ -217,10 +250,12 @@ export default function AIAssistantChat({
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
 
+    const trimmedInput = input.trim();
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: trimmedInput,
       timestamp: new Date(),
     };
 
@@ -235,7 +270,7 @@ export default function AIAssistantChat({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: input,
+          question: trimmedInput,
           sessionId,
           schoolId,
         }),
@@ -248,26 +283,48 @@ export default function AIAssistantChat({
       const data = await response.json();
 
       if (data.success) {
+        const queryInfo = data.queryPlan
+          ? {
+              explanation: data.queryPlan.explanation,
+              tables: data.queryPlan.tables,
+              resultCount: data.resultCount,
+            }
+          : undefined;
+
         const assistantMessage: Message = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: data.message,
+          content: data.response || '',
           timestamp: new Date(),
-          queryInfo: data.queryInfo,
+          queryInfo,
         };
 
         setMessages((prev) => [...prev, assistantMessage]);
-        setSessionId(data.sessionId);
+
+        if (data.sessionId) {
+          setSessionId(data.sessionId);
+
+          try {
+            await saveMessage(data.sessionId, 'user', trimmedInput);
+            await saveMessage(data.sessionId, 'assistant', assistantMessage.content, queryInfo);
+          } catch (saveError) {
+            console.error('Error saving chat messages:', saveError);
+          }
+        }
 
         if (onSessionIdChange && data.sessionId) {
           onSessionIdChange(data.sessionId);
+        }
+
+        if (onGeneratedTitle && data.generatedTitle) {
+          onGeneratedTitle(data.generatedTitle);
         }
 
         if (autoPlayResponses && isSpeechEnabled) {
           await handlePlayResponse(assistantMessage.id, assistantMessage.content);
         }
       } else {
-        showError('Error', data.message || 'Failed to process message');
+        showError('Error', data.error || 'Failed to process message');
       }
     } catch (error: any) {
       showError('Error', 'Failed to send message. Please try again.');

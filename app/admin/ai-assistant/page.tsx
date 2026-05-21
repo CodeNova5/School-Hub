@@ -1,381 +1,238 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { MessageSquare, Plus, Settings, LogOut, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { Bot, Loader2, MessageSquarePlus, Send, Sparkles } from 'lucide-react';
+import AIAssistantChat from '@/components/ai-assistant-chat';
+import { Button } from '@/components/ui/button';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
+export default function AdminAIAssistantLandingPage() {
+	const router = useRouter();
+	const redirectingRef = useRef(false);
 
-const STORAGE_KEY = 'admin-ai-assistant-session-id';
+	const [isLoading, setIsLoading] = useState(true);
+	const [showSidebar, setShowSidebar] = useState(true);
+	const [showSettings, setShowSettings] = useState(false);
+	const [isLoggingOut, setIsLoggingOut] = useState(false);
+	const [isAutoCollapseSidebar, setIsAutoCollapseSidebar] = useState(false);
 
-const suggestedPrompts = [
-  'How many students are currently enrolled?',
-  'Show me the latest attendance trend.',
-  'Which classes need attention this week?',
-  'Summarize recent academic performance.',
-];
+	useEffect(() => {
+		let mounted = true;
 
-export default function AdminAIAssistantEntryPage() {
-  const router = useRouter();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+		const initialize = async () => {
+			try {
+				const savedAutoCollapse = localStorage.getItem('aiAssistant_autoCollapseSidebar') === 'true';
+				if (mounted) {
+					setIsAutoCollapseSidebar(savedAutoCollapse);
+					if (savedAutoCollapse) {
+						setShowSidebar(false);
+					}
+				}
 
-  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [conversationTitle, setConversationTitle] = useState('New chat');
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
 
-  useEffect(() => {
-    let isMounted = true;
+				if (!mounted) return;
 
-    const initialize = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+				if (!session) {
+					router.push('/admin/login');
+					return;
+				}
 
-        if (!session) {
-          router.push('/admin/login');
-          return;
-        }
+				setIsLoading(false);
+			} catch (error) {
+				if (mounted) {
+					setIsLoading(false);
+				}
+			}
+		};
 
-        const { data: userProfile } = await supabase
-          .from('admins')
-          .select('school_id')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
+		initialize();
 
-        if (!userProfile?.school_id) {
-          if (isMounted) {
-            setError('Unable to load your school profile.');
-          }
-          return;
-        }
+		return () => {
+			mounted = false;
+		};
+	}, [router]);
 
-        if (!isMounted) return;
+	const handleNewChat = useCallback(() => {
+		router.push('/admin/ai-assistant');
+	}, [router]);
 
-        setSchoolId(userProfile.school_id);
+	const handleLogout = useCallback(async () => {
+		setIsLoggingOut(true);
+		try {
+			await supabase.auth.signOut();
+			router.push('/admin/login');
+		} catch (error) {
+			console.error('Error logging out:', error);
+			alert('Failed to logout. Please try again.');
+		} finally {
+			setIsLoggingOut(false);
+		}
+	}, [router]);
 
-        const savedSessionId = localStorage.getItem(STORAGE_KEY);
-        if (savedSessionId) {
-          const response = await fetch(`/api/ai-assistant/history?sessionId=${savedSessionId}`);
-          const data = await response.json();
+	const handleToggleAutoCollapse = useCallback(() => {
+		const newValue = !isAutoCollapseSidebar;
+		setIsAutoCollapseSidebar(newValue);
+		localStorage.setItem('aiAssistant_autoCollapseSidebar', String(newValue));
+	}, [isAutoCollapseSidebar]);
 
-          if (response.ok && data.success) {
-            const restoredMessages = (data.messages || []).map((message: any) => ({
-              id: message.id,
-              role: message.role,
-              content: message.content,
-              timestamp: new Date(message.timestamp || Date.now()),
-            }));
+	const handleSessionIdChange = useCallback(
+		(newSessionId: string) => {
+			if (!newSessionId || redirectingRef.current) return;
+			redirectingRef.current = true;
+			router.push(`/admin/ai-assistant/${newSessionId}`);
+		},
+		[router]
+	);
 
-            if (isMounted) {
-              setMessages(restoredMessages);
-              setSessionId(savedSessionId);
-              setConversationTitle(data.session?.title || 'New chat');
-            }
-          } else {
-            localStorage.removeItem(STORAGE_KEY);
-          }
-        }
-      } catch (err) {
-        console.error('Error initializing AI assistant:', err);
-        if (isMounted) {
-          setError('Something went wrong while loading the assistant.');
-        }
-      } finally {
-        if (isMounted) {
-          setIsCheckingAccess(false);
-        }
-      }
-    };
+	if (isLoading) {
+		return (
+			<div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 items-center justify-center">
+				<Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+			</div>
+		);
+	}
 
-    initialize();
+	return (
+		<div className="flex h-screen w-screen bg-[#090d16] text-slate-100 overflow-hidden">
+			<div className={`${showSidebar ? 'w-80' : 'w-0'} bg-[#0e1524] border-r border-white/10 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
+				<div className="p-4 border-b border-white/10">
+					<Button
+						onClick={handleNewChat}
+						className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold gap-2 h-10 shadow-lg hover:shadow-xl transition-all"
+					>
+						<Plus className="h-4 w-4" />
+						New Chat
+					</Button>
+				</div>
 
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
+				<div className="flex-1 p-6">
+					<div className="h-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center flex items-center justify-center">
+						<p className="text-sm text-slate-400">Start by sending your first message.</p>
+					</div>
+				</div>
 
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 160)}px`;
-    }
-  }, [input]);
+				<div className="p-4 border-t border-white/10 space-y-2">
+					{showSettings && (
+						<div
+							className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3"
+							onClick={() => setShowSettings(false)}
+						>
+							<div
+								className="bg-slate-800 rounded-lg p-5 w-full max-w-sm border border-slate-700 shadow-2xl z-[60]"
+								onClick={(e) => e.stopPropagation()}
+							>
+								<div className="flex items-center gap-2 mb-4">
+									<Settings className="h-5 w-5 text-blue-400" />
+									<h2 className="text-lg font-semibold text-white">Settings</h2>
+								</div>
 
-  const persistMessage = async (
-    activeSessionId: string,
-    role: 'user' | 'assistant',
-    content: string,
-    queryPlan?: {
-      explanation: string;
-      tables: string[];
-      resultCount?: number;
-    }
-  ) => {
-    await fetch('/api/ai-assistant/save-message', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sessionId: activeSessionId,
-        role,
-        content,
-        queryPlan,
-      }),
-    });
-  };
+								<div className="space-y-3">
+									<div className="p-3 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-slate-500 transition-colors">
+										<label className="flex items-center gap-3 cursor-pointer">
+											<input
+												type="checkbox"
+												checked={isAutoCollapseSidebar}
+												onChange={handleToggleAutoCollapse}
+												className="w-4 h-4 rounded accent-blue-500"
+											/>
+											<div>
+												<p className="text-sm font-medium text-slate-200">Auto-Collapse Sidebar</p>
+												<p className="text-xs text-slate-400">Sidebar collapses on startup</p>
+											</div>
+										</label>
+									</div>
 
-  const handleSubmit = async (value?: string) => {
-    const prompt = (value ?? input).trim();
+									<button
+										onClick={handleLogout}
+										disabled={isLoggingOut}
+										className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+										<div className="flex items-center gap-2 mb-1">
+											<LogOut className="h-4 w-4 text-slate-300" />
+											<p className="text-sm font-medium text-slate-200">
+												{isLoggingOut ? 'Signing out...' : 'Logout'}
+											</p>
+										</div>
+										<p className="text-xs text-slate-400 ml-6">Sign out from your account</p>
+									</button>
+								</div>
 
-    if (!prompt || isSending || !schoolId) {
-      return;
-    }
+								<div className="flex gap-2 mt-4">
+									<button
+										onClick={() => setShowSettings(false)}
+										className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors font-medium text-sm"
+									>
+										Done
+									</button>
+								</div>
+							</div>
+						</div>
+					)}
 
-    const userMessage: Message = {
-      id: `${Date.now()}-user`,
-      role: 'user',
-      content: prompt,
-      timestamp: new Date(),
-    };
+					<button
+						onClick={() => setShowSettings(true)}
+						className="w-full flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 rounded-lg transition-all border border-slate-600 hover:border-slate-500"
+					>
+						<Settings className="h-4 w-4" />
+						<span className="text-sm font-medium">Settings</span>
+					</button>
+				</div>
+			</div>
 
-    setError(null);
-    setMessages((current) => [...current, userMessage]);
-    setInput('');
-    setIsSending(true);
+			<div className="flex-1 flex flex-col overflow-hidden">
+				<div className="border-b border-white/10 bg-[#0f1420]/90 backdrop-blur-xl px-6 py-3">
+					<div className="flex items-center justify-between gap-4">
+						<div className="flex items-center gap-3 min-w-0">
+							<button
+								onClick={() => setShowSidebar(!showSidebar)}
+								className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-white/5 text-slate-100 transition-colors hover:bg-white/10"
+							>
+								<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+								</svg>
+							</button>
+							<div className="flex items-center gap-3 min-w-0">
+								<div className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-blue-500 via-cyan-500 to-emerald-400 shadow-lg shadow-blue-500/20">
+									<MessageSquare className="h-5 w-5 text-white" />
+								</div>
+								<div className="min-w-0">
+									<h1 className="truncate text-lg font-semibold tracking-tight text-white">School Deck AI</h1>
+									<p className="truncate text-sm text-slate-400">Ask questions, get data answers</p>
+								</div>
+							</div>
+						</div>
+						<div className="flex items-center gap-3">
+							<div className="hidden sm:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300">
+								<span className="h-2 w-2 rounded-full bg-emerald-400" />
+								Live
+							</div>
+							<div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-right">
+								<p className="text-xs font-medium text-slate-200">0 conversations</p>
+								<p className="text-[11px] text-slate-400">New chat</p>
+							</div>
+						</div>
+					</div>
+				</div>
 
-    try {
-      const response = await fetch('/api/ai-assistant/ask', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: prompt,
-          sessionId: sessionId || undefined,
-          schoolId,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to generate a response.');
-      }
-
-      const activeSessionId = data.sessionId || sessionId;
-
-      if (!activeSessionId) {
-        throw new Error('No chat session was created.');
-      }
-
-      if (!sessionId) {
-        localStorage.setItem(STORAGE_KEY, activeSessionId);
-      }
-
-      setSessionId(activeSessionId);
-      setConversationTitle(data.generatedTitle || conversationTitle || 'New chat');
-
-      const assistantMessage: Message = {
-        id: `${Date.now()}-assistant`,
-        role: 'assistant',
-        content: data.response,
-        timestamp: new Date(),
-      };
-
-      setMessages((current) => [...current, assistantMessage]);
-
-      await persistMessage(activeSessionId, 'user', prompt);
-      await persistMessage(activeSessionId, 'assistant', data.response, data.queryPlan);
-    } catch (err) {
-      console.error('Error sending AI prompt:', err);
-      setError('The assistant could not reply just now. Please try again.');
-
-      setMessages((current) => [
-        ...current,
-        {
-          id: `${Date.now()}-error`,
-          role: 'assistant',
-          content: 'Something went wrong while generating a reply.',
-          timestamp: new Date(),
-        },
-      ]);
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      handleSubmit();
-    }
-  };
-
-  const handleNewChat = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setSessionId(null);
-    setConversationTitle('New chat');
-    setMessages([]);
-    setInput('');
-    setError(null);
-  };
-
-  if (isCheckingAccess) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_36%),linear-gradient(135deg,#020617_0%,#0f172a_45%,#111827_100%)]">
-        <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-slate-100 backdrop-blur-xl">
-          <Loader2 className="h-5 w-5 animate-spin text-sky-400" />
-          <span>Loading the assistant...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (error && messages.length === 0) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_36%),linear-gradient(135deg,#020617_0%,#0f172a_45%,#111827_100%)] px-4">
-        <div className="max-w-md rounded-3xl border border-white/10 bg-white/8 p-6 text-center text-slate-100 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
-          <p className="text-lg font-semibold">Unable to open the assistant</p>
-          <p className="mt-2 text-sm text-slate-300">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_36%),linear-gradient(135deg,#020617_0%,#0f172a_45%,#111827_100%)] text-slate-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 px-5 py-4 shadow-2xl shadow-slate-950/20 backdrop-blur-xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-500/20">
-              <Bot className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium uppercase tracking-[0.22em] text-sky-300/80">Admin AI Assistant</p>
-              <h1 className="text-lg font-semibold text-white">{conversationTitle}</h1>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleNewChat}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-sky-400/40 hover:bg-sky-400/10"
-          >
-            <MessageSquarePlus className="h-4 w-4" />
-            New chat
-          </button>
-        </div>
-
-        <div className="flex flex-1 flex-col justify-between gap-6">
-          {messages.length === 0 ? (
-            <section className="grid flex-1 place-items-center py-10">
-              <div className="w-full max-w-3xl rounded-[2rem] border border-white/10 bg-white/6 p-8 shadow-2xl shadow-slate-950/30 backdrop-blur-xl sm:p-10">
-                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/10 px-4 py-2 text-sm text-sky-200">
-                  <Sparkles className="h-4 w-4" />
-                  Ask anything about your school data
-                </div>
-
-                <h2 className="max-w-2xl text-3xl font-semibold leading-tight text-white sm:text-5xl">
-                  Start with a question, not a blank chat.
-                </h2>
-
-                <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                  This assistant stays empty until you type. Your first prompt creates the conversation, and reloading will bring back the same chat instead of making a new one.
-                </p>
-
-                <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                  {suggestedPrompts.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => setInput(prompt)}
-                      className="rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 text-left text-sm text-slate-200 transition hover:border-sky-400/30 hover:bg-sky-400/10"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-          ) : (
-            <section className="flex-1 space-y-4 overflow-y-auto rounded-[2rem] border border-white/10 bg-white/5 p-4 shadow-2xl shadow-slate-950/20 backdrop-blur-xl sm:p-6">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-3xl px-4 py-3 text-sm leading-6 sm:max-w-[75%] ${
-                      message.role === 'user'
-                        ? 'bg-gradient-to-r from-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-500/20'
-                        : 'border border-white/10 bg-slate-950/40 text-slate-100'
-                    }`}
-                  >
-                    {message.content}
-                  </div>
-                </div>
-              ))}
-              {isSending && (
-                <div className="flex justify-start">
-                  <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-300">
-                    <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
-                    Thinking...
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-
-          <div className="sticky bottom-0 pb-2 pt-4">
-            <div className="rounded-[2rem] border border-white/10 bg-slate-950/60 p-3 shadow-2xl shadow-slate-950/40 backdrop-blur-xl sm:p-4">
-              <div className="flex items-end gap-3 rounded-[1.5rem] border border-white/10 bg-white/5 px-4 py-3">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask about attendance, results, teachers, fees, or anything else..."
-                  rows={1}
-                  className="max-h-40 min-h-[52px] flex-1 resize-none border-0 bg-transparent text-sm text-white outline-none placeholder:text-slate-400"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => handleSubmit()}
-                  disabled={!input.trim() || isSending || !schoolId}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white transition hover:shadow-lg hover:shadow-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                </button>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  <Sparkles className="h-3 w-3" />
-                  Session starts only when you send a message
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  Shift + Enter for a new line
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+				<div className="flex-1 overflow-hidden">
+					<AIAssistantChat
+						loadHistory={false}
+						onSessionIdChange={handleSessionIdChange}
+						welcomeMessage="👋 Welcome to School Deck AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more."
+						placeholder="Ask me anything about your school data..."
+						suggestedQuestions={[
+							'How many students are enrolled?',
+							'Show students with low attendance',
+							'Average grades by class',
+							'Which teacher has the most classes assigned?',
+						]}
+					/>
+				</div>
+			</div>
+		</div>
+	);
 }

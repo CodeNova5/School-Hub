@@ -11,7 +11,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import AIAssistantSidebar from '@/components/ai-assistant-sidebar';
-import { Loader2, Plus, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash, Settings, LogOut, Trash2 as TrashIcon, Download } from 'lucide-react';
+import { Bot, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash, Settings, LogOut, Trash2 as TrashIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -99,7 +99,7 @@ export default function AdminAIAssistantPage() {
     isOpen: false,
     title: '',
     description: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDestructive: false,
   });
 
@@ -146,16 +146,16 @@ export default function AdminAIAssistantPage() {
           return;
         }
 
-          // load sessions via shared hook
-          await loadSessions();
-          const matchedSession = sessions.find((s: ChatSession) => s.id === routeSessionId);
-          if (matchedSession) {
-            setCurrentSessionId(routeSessionId);
-            setInvalidSessionId(false);
-          } else {
-            setCurrentSessionId('');
-            setInvalidSessionId(true);
-          }
+        // load sessions via shared hook
+        await loadSessions();
+        const matchedSession = sessions.find((s: ChatSession) => s.id === routeSessionId);
+        if (matchedSession) {
+          setCurrentSessionId(routeSessionId);
+          setInvalidSessionId(false);
+        } else {
+          setCurrentSessionId('');
+          setInvalidSessionId(true);
+        }
 
         if (isMounted) {
           setIsLoading(false);
@@ -663,8 +663,8 @@ export default function AdminAIAssistantPage() {
                           setOpenDropdownId(null);
                         }}
                         className={`group p-4 rounded-lg cursor-pointer transition-all duration-200 border ${currentSessionId === session.id
-                            ? 'bg-gradient-to-r from-blue-600 to-blue-700 border-blue-500 shadow-lg'
-                            : 'bg-slate-700/50 border-slate-600 hover:bg-slate-700 hover:border-slate-500'
+                          ? 'bg-gradient-to-r from-blue-600 to-blue-700 border-blue-500 shadow-lg'
+                          : 'bg-slate-700/50 border-slate-600 hover:bg-slate-700 hover:border-slate-500'
                           }`}
                       >
                         <div className="flex items-start gap-3 justify-between">
@@ -672,8 +672,8 @@ export default function AdminAIAssistantPage() {
                             <div className="flex items-center gap-1.5 mt-1">
                               <MessageSquare
                                 className={`h-5 w-5 flex-shrink-0 ${currentSessionId === session.id
-                                    ? 'text-white'
-                                    : 'text-slate-400'
+                                  ? 'text-white'
+                                  : 'text-slate-400'
                                   }`}
                               />
                               <Archive
@@ -684,16 +684,16 @@ export default function AdminAIAssistantPage() {
                             <div className="min-w-0 flex-1">
                               <h3
                                 className={`text-base font-semibold truncate mb-2 ${currentSessionId === session.id
-                                    ? 'text-white'
-                                    : 'text-slate-100'
+                                  ? 'text-white'
+                                  : 'text-slate-100'
                                   }`}
                               >
                                 {session.title}
                               </h3>
                               <div
                                 className={`text-sm flex items-center gap-2 ${currentSessionId === session.id
-                                    ? 'text-blue-100'
-                                    : 'text-slate-400'
+                                  ? 'text-blue-100'
+                                  : 'text-slate-400'
                                   }`}
                               >
                                 <Clock className="h-4 w-4 flex-shrink-0" />
@@ -729,8 +729,8 @@ export default function AdminAIAssistantPage() {
                             >
                               <MoreVertical
                                 className={`h-5 w-5 ${currentSessionId === session.id
-                                    ? 'text-blue-100'
-                                    : 'text-slate-300'
+                                  ? 'text-blue-100'
+                                  : 'text-slate-300'
                                   }`}
                               />
                             </button>
@@ -871,8 +871,13 @@ export default function AdminAIAssistantPage() {
               ]}
             />
           ) : (
-            <div className="h-full flex items-center justify-center text-slate-400">
-              <p>Loading chat...</p>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                  <Bot className="h-6 w-6 text-white" />
+                </div>
+                <p className="text-slate-400 text-sm">Loading conversation...</p>
+              </div>
             </div>
           )}
         </div>

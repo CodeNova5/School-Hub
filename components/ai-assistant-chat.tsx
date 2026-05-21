@@ -251,6 +251,7 @@ export default function AIAssistantChat({
     if (!input.trim() || isLoading) return;
 
     const trimmedInput = input.trim();
+    const userMessageCount = messages.filter((message) => message.role === 'user').length;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -316,7 +317,7 @@ export default function AIAssistantChat({
           onSessionIdChange(data.sessionId);
         }
 
-        if (onGeneratedTitle && data.generatedTitle) {
+        if (userMessageCount === 0 && onGeneratedTitle && data.generatedTitle) {
           onGeneratedTitle(data.generatedTitle);
         }
 

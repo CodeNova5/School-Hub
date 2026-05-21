@@ -2,25 +2,28 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Plus, Settings, LogOut, Loader2, Download, Trash2 as TrashIcon, Trash } from 'lucide-react';
+import { MessageSquare, Plus, Settings, LogOut, Loader2, Download, Trash2 as TrashIcon, Trash, Archive, Clock, MoreVertical } from 'lucide-react';
 import AIAssistantSidebar from '@/components/ai-assistant-sidebar';
 import { supabase } from '@/lib/supabase';
 import useAIAssistantSessions from '@/hooks/useAIAssistantSessions';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function AdminAIAssistantLandingPage() {
 	const router = useRouter();
 	const redirectingRef = useRef(false);
 
-	const { sessions, archivedSessions, isLoading, loadSessions, clearAllArchived, exportAsJSON, deleteAllChatHistory } = useAIAssistantSessions();
+	const { sessions, archivedSessions, isLoading, loadSessions, unarchiveSession, permanentDelete, clearAllArchived, exportAsJSON, deleteAllChatHistory } = useAIAssistantSessions();
 	const [authLoading, setAuthLoading] = useState(true);
 	const [showSidebar, setShowSidebar] = useState(true);
 	const [showSettings, setShowSettings] = useState(false);
+	const [showArchived, setShowArchived] = useState(false);
 	const [isLoggingOut, setIsLoggingOut] = useState(false);
 	const [isAutoCollapseSidebar, setIsAutoCollapseSidebar] = useState(false);
 	const [isClearingArchived, setIsClearingArchived] = useState(false);
 	const [isDeletingAll, setIsDeletingAll] = useState(false);
+	const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
 
 	useEffect(() => {
 		let mounted = true;
@@ -104,6 +107,45 @@ export default function AdminAIAssistantLandingPage() {
 		}
 	}, [archivedSessions.length, clearAllArchived]);
 
+	const handleOpenArchived = useCallback(() => {
+		setShowArchived(true);
+		setShowSettings(false);
+	}, []);
+
+	const handleCloseArchived = useCallback(() => {
+		setShowArchived(false);
+	}, []);
+
+	const handleUnarchiveSession = useCallback(async (id: string) => {
+		try {
+			setLoadingActionId(id);
+			await unarchiveSession(id);
+			setShowArchived(false);
+			await loadSessions();
+		} catch (error) {
+			console.error('Error unarchiving session:', error);
+			alert('Failed to unarchive session. Please try again.');
+		} finally {
+			setLoadingActionId(null);
+		}
+	}, [unarchiveSession, loadSessions]);
+
+	const handlePermanentDelete = useCallback(async (id: string) => {
+		const ok = window.confirm('This conversation will be permanently deleted. This action cannot be undone.');
+		if (!ok) return;
+
+		try {
+			setLoadingActionId(id);
+			await permanentDelete(id);
+			await loadSessions();
+		} catch (error) {
+			console.error('Error permanently deleting session:', error);
+			alert('Failed to delete session. Please try again.');
+		} finally {
+			setLoadingActionId(null);
+		}
+	}, [permanentDelete, loadSessions]);
+
 	const handleExportAsJSON = useCallback(() => {
 		exportAsJSON();
 		setShowSettings(false);
@@ -153,6 +195,122 @@ export default function AdminAIAssistantLandingPage() {
 
 	return (
 		<div className="flex h-screen w-screen bg-[#090d16] text-slate-100 overflow-hidden">
+			{showArchived && (
+				<div
+					className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3"
+					onClick={handleCloseArchived}
+				>
+					<div
+						className="bg-[#0e1524] rounded-2xl w-full max-w-2xl border border-white/10 shadow-2xl z-[60] flex flex-col max-h-[80vh]"
+						onClick={(e) => e.stopPropagation()}
+					>
+						<div className="p-6 border-b border-white/10 bg-[#0f172a]">
+							<div className="flex items-center gap-3 justify-between">
+								<div className="flex items-center gap-3">
+									<div className="p-2.5 bg-amber-500/30 rounded-lg">
+										<Archive className="h-6 w-6 text-amber-400" />
+									</div>
+									<div>
+										<h2 className="text-xl font-bold text-white">Archived Conversations</h2>
+										<p className="text-xs text-slate-400 mt-1">View, restore, or permanently remove archived chats</p>
+									</div>
+								</div>
+								<span className="px-3 py-1.5 bg-amber-500/30 text-amber-200 rounded-full text-sm font-semibold">
+									{archivedSessions.length}
+								</span>
+							</div>
+						</div>
+
+						<ScrollArea className="flex-1 [&_[data-radix-scroll-area-thumb]]:hidden">
+							<div className="p-6 space-y-3">
+								{archivedSessions.length === 0 ? (
+									<div className="flex flex-col items-center justify-center py-12">
+										<Archive className="h-12 w-12 text-slate-600 mb-3" />
+										<p className="text-sm text-slate-400 text-center">No archived conversations yet</p>
+									</div>
+								) : (
+									archivedSessions.map((session) => (
+										<div key={session.id} className="group p-4 rounded-lg cursor-pointer transition-all duration-200 border bg-slate-700/50 border-slate-600 hover:bg-slate-700 hover:border-slate-500">
+											<div className="flex items-start gap-3 justify-between">
+												<div
+													onClick={() => {
+														handleCloseArchived();
+														router.push(`/admin/ai-assistant/${session.id}`);
+													}}
+													className="flex items-start gap-3 flex-1 min-w-0"
+												>
+													<div className="flex items-center gap-1.5 mt-1">
+														<MessageSquare className="h-5 w-5 flex-shrink-0 text-slate-400" />
+														<Archive className="h-4 w-4 flex-shrink-0 text-amber-400" fill="currentColor" />
+													</div>
+													<div className="min-w-0 flex-1">
+														<h3 className="text-base font-semibold truncate mb-2 text-slate-100">{session.title}</h3>
+														<div className="text-sm flex items-center gap-2 text-slate-400">
+															<Clock className="h-4 w-4 flex-shrink-0" />
+															<span className="whitespace-nowrap">
+																{session.updatedAt instanceof Date
+																	? session.updatedAt.toLocaleString([], {
+																		month: 'short',
+																		day: 'numeric',
+																		hour: '2-digit',
+																		minute: '2-digit',
+																		hour12: false,
+																	})
+																	: new Date(session.updatedAt).toLocaleString([], {
+																		month: 'short',
+																		day: 'numeric',
+																		hour: '2-digit',
+																		minute: '2-digit',
+																		hour12: false,
+																	})}
+															</span>
+														</div>
+													</div>
+												</div>
+
+												<div className="relative">
+													<button
+														onClick={(e) => {
+															e.stopPropagation();
+															handleUnarchiveSession(session.id);
+														}}
+														disabled={loadingActionId === session.id}
+														className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors border-b border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-t-lg"
+													>
+														<MoreVertical className="h-4 w-4 opacity-0" />
+														<span>{loadingActionId === session.id ? 'Processing...' : 'Unarchive'}</span>
+													</button>
+													<button
+														onClick={(e) => {
+															e.stopPropagation();
+															handlePermanentDelete(session.id);
+														}}
+														disabled={loadingActionId === session.id}
+														className="w-full px-4 py-3 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed rounded-b-lg"
+													>
+														<Trash className="h-4 w-4" />
+														<span>{loadingActionId === session.id ? 'Processing...' : 'Delete Permanently'}</span>
+													</button>
+												</div>
+											</div>
+										</div>
+									))
+								)}
+							</div>
+						</ScrollArea>
+
+						<div className="p-6 border-t border-white/10 bg-[#0f172a]/70">
+							<button
+								onClick={handleCloseArchived}
+								className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-lg hover:shadow-xl"
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
 			{showSettings && (
 				<div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3" onClick={() => setShowSettings(false)}>
 					<div className="bg-slate-800 rounded-lg p-5 w-full max-w-sm border border-slate-700 shadow-2xl z-[60]" onClick={(e) => e.stopPropagation()}>
@@ -245,7 +403,7 @@ export default function AdminAIAssistantLandingPage() {
 				onNewChat={handleNewChat}
 				onSessionClick={(id) => router.push(`/admin/ai-assistant/${id}`)}
 				onOpenSettings={() => setShowSettings(true)}
-				onOpenArchived={() => { /* landing page can open archived modal later if needed */ }}
+				onOpenArchived={handleOpenArchived}
 			/>
 
 			<div className="flex-1 flex flex-col overflow-hidden">

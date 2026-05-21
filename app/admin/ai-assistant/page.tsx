@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Plus, Settings, LogOut, Loader2 } from 'lucide-react';
+import AIAssistantSidebar from '@/components/ai-assistant-sidebar';
 import { supabase } from '@/lib/supabase';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import { Button } from '@/components/ui/button';
@@ -98,90 +99,15 @@ export default function AdminAIAssistantLandingPage() {
 
 	return (
 		<div className="flex h-screen w-screen bg-[#090d16] text-slate-100 overflow-hidden">
-			<div className={`${showSidebar ? 'w-80' : 'w-0'} bg-[#0e1524] border-r border-white/10 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
-				<div className="p-4 border-b border-white/10">
-					<Button
-						onClick={handleNewChat}
-						className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold gap-2 h-10 shadow-lg hover:shadow-xl transition-all"
-					>
-						<Plus className="h-4 w-4" />
-						New Chat
-					</Button>
-				</div>
-
-				<div className="flex-1 p-6">
-					<div className="h-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center flex items-center justify-center">
-						<p className="text-sm text-slate-400">Start by sending your first message.</p>
-					</div>
-				</div>
-
-				<div className="p-4 border-t border-white/10 space-y-2">
-					{showSettings && (
-						<div
-							className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3"
-							onClick={() => setShowSettings(false)}
-						>
-							<div
-								className="bg-slate-800 rounded-lg p-5 w-full max-w-sm border border-slate-700 shadow-2xl z-[60]"
-								onClick={(e) => e.stopPropagation()}
-							>
-								<div className="flex items-center gap-2 mb-4">
-									<Settings className="h-5 w-5 text-blue-400" />
-									<h2 className="text-lg font-semibold text-white">Settings</h2>
-								</div>
-
-								<div className="space-y-3">
-									<div className="p-3 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-slate-500 transition-colors">
-										<label className="flex items-center gap-3 cursor-pointer">
-											<input
-												type="checkbox"
-												checked={isAutoCollapseSidebar}
-												onChange={handleToggleAutoCollapse}
-												className="w-4 h-4 rounded accent-blue-500"
-											/>
-											<div>
-												<p className="text-sm font-medium text-slate-200">Auto-Collapse Sidebar</p>
-												<p className="text-xs text-slate-400">Sidebar collapses on startup</p>
-											</div>
-										</label>
-									</div>
-
-									<button
-										onClick={handleLogout}
-										disabled={isLoggingOut}
-										className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-									>
-										<div className="flex items-center gap-2 mb-1">
-											<LogOut className="h-4 w-4 text-slate-300" />
-											<p className="text-sm font-medium text-slate-200">
-												{isLoggingOut ? 'Signing out...' : 'Logout'}
-											</p>
-										</div>
-										<p className="text-xs text-slate-400 ml-6">Sign out from your account</p>
-									</button>
-								</div>
-
-								<div className="flex gap-2 mt-4">
-									<button
-										onClick={() => setShowSettings(false)}
-										className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors font-medium text-sm"
-									>
-										Done
-									</button>
-								</div>
-							</div>
-						</div>
-					)}
-
-					<button
-						onClick={() => setShowSettings(true)}
-						className="w-full flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 rounded-lg transition-all border border-slate-600 hover:border-slate-500"
-					>
-						<Settings className="h-4 w-4" />
-						<span className="text-sm font-medium">Settings</span>
-					</button>
-				</div>
-			</div>
+			<AIAssistantSidebar
+				sessions={[]}
+				archivedSessions={[]}
+				currentSessionId={undefined}
+				showSidebar={showSidebar}
+				onNewChat={handleNewChat}
+				onSessionClick={(id) => router.push(`/admin/ai-assistant/${id}`)}
+				onOpenSettings={() => setShowSettings(true)}
+			/>
 
 			<div className="flex-1 flex flex-col overflow-hidden">
 				<div className="border-b border-white/10 bg-[#0f1420]/90 backdrop-blur-xl px-6 py-3">

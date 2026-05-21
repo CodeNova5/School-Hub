@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageSquare, Plus, MoreVertical, Clock, Pin, Settings, Edit2, Archive, Trash } from 'lucide-react';
@@ -43,17 +43,23 @@ export default function AIAssistantSidebar({
   onOpenArchived,
 }: SidebarProps) {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Element)) {
+        setOpenDropdownId(null);
+        return;
+      }
+
+      if (openDropdownId && !target.closest(`[data-session-dropdown="${openDropdownId}"]`)) {
         setOpenDropdownId(null);
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [openDropdownId]);
   return (
     <div className={`${showSidebar ? 'w-80' : 'w-0'} bg-[#0e1524] border-r border-white/10 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
       <div className="p-4 border-b border-white/10">
@@ -105,11 +111,11 @@ export default function AIAssistantSidebar({
                       </div>
                     </div>
 
-                    <div className="relative" ref={dropdownRef}>
+                    <div className="relative" data-session-dropdown={session.id}>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setOpenDropdownId(openDropdownId === session.id ? null : session.id);
+                          setOpenDropdownId((current) => (current === session.id ? null : session.id));
                         }}
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded"
                         aria-haspopup="true"

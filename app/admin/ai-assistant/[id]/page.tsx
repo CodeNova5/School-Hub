@@ -979,12 +979,7 @@ export default function AdminAIAssistantPage() {
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center mx-auto mb-4 animate-pulse">
-                  <Bot className="h-6 w-6 text-white" />
-                </div>
-                <p className="text-slate-400 text-sm">Loading conversation...</p>
-              </div>
+             
             </div>
           )}
         </div>

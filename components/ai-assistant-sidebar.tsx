@@ -125,7 +125,7 @@ export default function AIAssistantSidebar({
                       </button>
 
                       {openDropdownId === session.id && (
-                        <div className="absolute right-0 top-full mt-2 w-44 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                        <div className="absolute right-0 left-0 top-0 bottom-0 mt-2 w-44 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

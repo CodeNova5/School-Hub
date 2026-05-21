@@ -3,7 +3,9 @@
  * Converts query results into natural language responses
  */
 
-const GEMINI_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY;
+import { fetchGroqChatCompletion } from './groq-client';
+
+const GROQ_MODEL = 'openai/gpt-oss-20b';
 
 export interface SummaryResult {
   summary: string;
@@ -25,10 +27,10 @@ export async function summarizeResults(
     };
   }
 
-  if (!GEMINI_API_KEY) {
+  if (!process.env.GROQ_API_KEY && !process.env.GROQ_API_KEYS) {
     return {
       summary: '',
-      error: 'Google AI Studio API key not configured'
+      error: 'Groq API key not configured'
     };
   }
 
@@ -43,49 +45,40 @@ export async function summarizeResults(
   const userPrompt = buildSummaryUserPrompt(question, queryResults, queryExplanation);
 
   try {
-    // Combine system and user prompts for Gemini
+    // Combine system and user prompts for Groq
     const combinedPrompt = `${systemPrompt}\n\n${userPrompt}`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+    const result = await fetchGroqChatCompletion({
+      model: GROQ_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: combinedPrompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.5, // Moderate temperature for fluid, human-like summaries
-            maxOutputTokens: 512
-          }
-        })
-      }
-    );
+        {
+          role: 'user',
+          content: combinedPrompt,
+        },
+      ],
+      temperature: 0.5,
+      max_tokens: 512,
+    });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Gemini API error:', error);
+    if (!result.ok) {
+      console.error('Groq API error:', result.error);
       return {
         summary: '',
-        error: 'Failed to generate summary'
+        error: result.status === 429
+          ? `Groq is temporarily rate limited. Please retry in ${result.retryAfterSeconds || 60} seconds.`
+          : 'Failed to generate summary'
       };
     }
 
-    const data = await response.json();
-    const summary = (data.candidates?.[0]?.content?.parts?.[0]?.text || '')?.trim();
+    const data = result.data;
+    const summary = (data.choices?.[0]?.message?.content || '')?.trim();
 
     if (!summary) {
-      console.error('Unexpected Gemini response:', data);
+      console.error('Unexpected Groq response:', data);
       return {
         summary: '',
         error: 'No summary generated'

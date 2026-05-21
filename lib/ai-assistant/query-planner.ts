@@ -4,6 +4,7 @@
  */
 
 import { getSchemaDescription } from './schema-description';
+import { fetchGroqChatCompletion } from './groq-client';
 
 export interface QueryPlan {
   query: string;
@@ -15,7 +16,7 @@ export interface QueryPlan {
   limitApplied?: number;  // The limit that was applied
 }
 
-const GEMINI_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY;
+const GROQ_MODEL = 'openai/gpt-oss-20b';
 
 // Safe query limits to prevent returning entire database
 const QUERY_LIMITS = {
@@ -35,74 +36,51 @@ export async function generateQueryPlan(
   userRole: 'student' | 'teacher' | 'admin' | 'parent',
   userId?: string
 ): Promise<QueryPlan> {
-  if (!GEMINI_API_KEY) {
-    console.error('GOOGLE_AI_STUDIO_KEY not configured');
-    return {
-      query: '',
-      values: [],
-      explanation: '',
-      tables: [],
-      error: 'AI service is not properly configured. Please contact system administrator.'
-    };
-  }
-
   const schema = getSchemaDescription();
   const systemPrompt = buildSystemPrompt(schema, userRole);
   const userPrompt = buildUserPrompt(question, userId);
 
   try {
-    // Combine system and user prompts for Gemini
-    const combinedPrompt = `${systemPrompt}\n\nUser Question:\n${userPrompt}`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+    const result = await fetchGroqChatCompletion({
+      model: GROQ_MODEL,
+      messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
         },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: combinedPrompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.1, // Low temperature = deterministic, structurally sound SQL
-            responseMimeType: 'application/json'
-          }
-        })
-      }
-    );
+        {
+          role: 'user',
+          content: `User Question:\n${userPrompt}`,
+        },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', errorText);
+    if (!result.ok) {
+      console.error('Groq API error:', result.error);
       return {
         query: '',
         values: [],
         explanation: '',
         tables: [],
-        error: `AI service error (${response.status}): Unable to generate a query. Please try a different question.`
+        error: result.status === 429
+          ? `Groq is temporarily rate limited. Please retry in ${result.retryAfterSeconds || 60} seconds.`
+          : `Groq service error (${result.status || 'unknown'}): Unable to generate a query. Please try a different question.`
       };
     }
 
-    const data = await response.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const data = result.data;
+    const content = data.choices?.[0]?.message?.content?.trim();
     
     if (!content) {
-      console.error('Unexpected Gemini response:', data);
+      console.error('Unexpected Groq response:', data);
       return {
         query: '',
         values: [],
         explanation: '',
         tables: [],
-        error: 'AI did not return a valid response. Please try again with a more specific question.'
+        error: 'Groq did not return a valid response. Please try again with a more specific question.'
       };
     }
 

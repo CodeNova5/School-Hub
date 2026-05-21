@@ -266,14 +266,22 @@ export async function POST(request: NextRequest) {
     // Get or create chat session
     let currentSessionId = sessionId;
     if (!currentSessionId) {
-      const { data: newSession, error: sessionError } = await supabase
-        .rpc('create_chat_session', {
+      const createSessionResponse = await supabase.rpc('create_chat_session', {
+        p_user_id: userId,
+        p_school_id: schoolId,
+      });
+
+      if (!createSessionResponse.error && createSessionResponse.data) {
+        currentSessionId = createSessionResponse.data;
+      } else {
+        const fallbackSessionResponse = await supabase.rpc('get_or_create_chat_session', {
           p_user_id: userId,
           p_school_id: schoolId,
         });
 
-      if (!sessionError && newSession) {
-        currentSessionId = newSession;
+        if (!fallbackSessionResponse.error && fallbackSessionResponse.data) {
+          currentSessionId = fallbackSessionResponse.data;
+        }
       }
     }
 

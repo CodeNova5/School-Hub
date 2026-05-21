@@ -72,20 +72,28 @@ export async function POST(request: NextRequest) {
     // Get or create session
     let currentSessionId = sessionId;
     if (!currentSessionId) {
-      const { data: newSession, error: sessionError } = await supabase
-        .rpc('create_chat_session', {
+      const createSessionResponse = await supabase.rpc('create_chat_session', {
+        p_user_id: userId,
+        p_school_id: schoolId,
+      });
+
+      if (createSessionResponse.error || !createSessionResponse.data) {
+        const fallbackSessionResponse = await supabase.rpc('get_or_create_chat_session', {
           p_user_id: userId,
           p_school_id: schoolId,
         });
 
-      if (sessionError || !newSession) {
-        return NextResponse.json(
-          { error: 'Failed to create chat session' },
-          { status: 500 }
-        );
-      }
+        if (fallbackSessionResponse.error || !fallbackSessionResponse.data) {
+          return NextResponse.json(
+            { error: 'Failed to create chat session' },
+            { status: 500 }
+          );
+        }
 
-      currentSessionId = newSession;
+        currentSessionId = fallbackSessionResponse.data;
+      } else {
+        currentSessionId = createSessionResponse.data;
+      }
     }
 
     // Save message using the database function

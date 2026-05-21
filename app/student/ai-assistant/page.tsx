@@ -47,6 +47,7 @@ interface ChatSession {
 
 export default function StudentAIAssistantPage() {
   const router = useRouter();
+  const redirectingRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [archivedSessions, setArchivedSessions] = useState<ChatSession[]>([]);
@@ -456,6 +457,18 @@ export default function StudentAIAssistantPage() {
       console.error('Error updating session title:', error);
     }
   }, [currentSessionId]);
+
+  const handleSessionIdChange = useCallback(
+    (newSessionId: string) => {
+      if (!newSessionId || redirectingRef.current) {
+        return;
+      }
+
+      redirectingRef.current = true;
+      router.push(`/student/ai-assistant/${newSessionId}`);
+    },
+    [router]
+  );
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {
@@ -1602,6 +1615,7 @@ export default function StudentAIAssistantPage() {
               sessionId={currentSessionId}
               onMessagesUpdate={handleMessagesUpdate}
               onGeneratedTitle={handleTitleGenerated}
+                onSessionIdChange={handleSessionIdChange}
               welcomeMessage="👋 Welcome to School Deck AI! I'm here to help you analyze your school data. Ask me anything about students, classes, grades, attendance, teachers, and more."
               placeholder="Ask me anything about your school data..."
               suggestedQuestions={[

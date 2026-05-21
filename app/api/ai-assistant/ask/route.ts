@@ -517,6 +517,8 @@ async function classifyAndRespond(
   question: string,
   context: Message[] = []
 ): Promise<{ isDataQuestion: boolean; response?: string; title?: string; error?: string; status?: number; retryAfterSeconds?: number }> {
+  const fallbackTitle = buildFallbackTitle(question);
+
   try {
     const result = await fetchGroqChatCompletion({
       model: GROQ_MODEL,
@@ -556,6 +558,7 @@ No markdown formatting in the response field, just plain text.`,
       ],
       temperature: 0.7,
       max_tokens: 500,
+      response_format: { type: 'json_object' },
     });
 
     if (!result.ok) {
@@ -584,13 +587,14 @@ No markdown formatting in the response field, just plain text.`,
     }
 
     const { isDataQuestion, response: responseText, title } = parsed;
+    const safeTitle = sanitizeGeneratedTitle(title, fallbackTitle);
 
     if (isDataQuestion && responseText === '[[DATA_QUESTION]]') {
-      return { isDataQuestion: true, title };
+      return { isDataQuestion: true, title: safeTitle };
     }
 
     if (!isDataQuestion && responseText) {
-      return { isDataQuestion: false, response: responseText, title };
+      return { isDataQuestion: false, response: responseText, title: safeTitle };
     }
 
     return { isDataQuestion: false, error: 'Invalid response format' };
@@ -599,5 +603,48 @@ No markdown formatting in the response field, just plain text.`,
     return { isDataQuestion: false, error: error instanceof Error ? error.message : 'Failed to process question' };
   }
 
+}
+
+function sanitizeGeneratedTitle(rawTitle: unknown, fallbackTitle: string): string {
+  if (typeof rawTitle !== 'string') {
+    return fallbackTitle;
+  }
+
+  const normalized = rawTitle
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/["'`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return fallbackTitle;
+  }
+
+  const words = normalized.split(' ').filter(Boolean).slice(0, 4);
+  if (words.length === 0) {
+    return fallbackTitle;
+  }
+
+  return words.join(' ');
+}
+
+function buildFallbackTitle(question: string): string {
+  const cleaned = question
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) {
+    return 'New Conversation';
+  }
+
+  const words = cleaned.split(' ').filter(Boolean).slice(0, 4);
+  if (words.length === 0) {
+    return 'New Conversation';
+  }
+
+  return words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 }
 

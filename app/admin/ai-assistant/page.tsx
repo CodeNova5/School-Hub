@@ -13,6 +13,8 @@ export default function AdminAIAssistantLandingPage() {
 	const redirectingRef = useRef(false);
 
 	const [isLoading, setIsLoading] = useState(true);
+	const [sessions, setSessions] = useState([]);
+	const [archivedSessions, setArchivedSessions] = useState([]);
 	const [showSidebar, setShowSidebar] = useState(true);
 	const [showSettings, setShowSettings] = useState(false);
 	const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -50,7 +52,55 @@ export default function AdminAIAssistantLandingPage() {
 			}
 		};
 
+		// load user's sessions for the sidebar
+		async function loadSessions() {
+			try {
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+				if (!session) return;
+				const { data: dbSessions, error } = await supabase
+					.from('ai_chat_sessions')
+					.select('id, title, created_at, updated_at, is_pinned, is_archived, deleted_at')
+					.eq('user_id', session.user.id)
+					.is('deleted_at', null)
+					.order('is_pinned', { ascending: false })
+					.order('updated_at', { ascending: false })
+					.limit(50);
+
+				if (!error && dbSessions) {
+					const active = dbSessions
+						.filter((s: any) => !s.is_archived)
+						.map((s: any) => ({
+							id: s.id,
+							title: s.title || 'Untitled Conversation',
+							createdAt: new Date(s.created_at),
+							updatedAt: new Date(s.updated_at),
+							isPinned: s.is_pinned || false,
+							isArchived: s.is_archived || false,
+						}));
+
+					const archived = dbSessions
+						.filter((s: any) => s.is_archived)
+						.map((s: any) => ({
+							id: s.id,
+							title: s.title || 'Untitled Conversation',
+							createdAt: new Date(s.created_at),
+							updatedAt: new Date(s.updated_at),
+							isPinned: s.is_pinned || false,
+							isArchived: s.is_archived || false,
+						}));
+
+					setSessions(active);
+					setArchivedSessions(archived);
+				}
+			} catch (err) {
+				console.error('Failed to load chat sessions for sidebar', err);
+			}
+		}
+
 		initialize();
+		loadSessions();
 
 		return () => {
 			mounted = false;
@@ -100,13 +150,14 @@ export default function AdminAIAssistantLandingPage() {
 	return (
 		<div className="flex h-screen w-screen bg-[#090d16] text-slate-100 overflow-hidden">
 			<AIAssistantSidebar
-				sessions={[]}
-				archivedSessions={[]}
+				sessions={sessions}
+				archivedSessions={archivedSessions}
 				currentSessionId={undefined}
 				showSidebar={showSidebar}
 				onNewChat={handleNewChat}
 				onSessionClick={(id) => router.push(`/admin/ai-assistant/${id}`)}
 				onOpenSettings={() => setShowSettings(true)}
+				onOpenArchived={() => { /* landing page can open archived modal later if needed */ }}
 			/>
 
 			<div className="flex-1 flex flex-col overflow-hidden">

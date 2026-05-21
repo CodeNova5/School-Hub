@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import useAIAssistantSessions from '@/hooks/useAIAssistantSessions';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AIAssistantChat from '@/components/ai-assistant-chat';
@@ -52,8 +53,22 @@ export default function AdminAIAssistantPage() {
   const routeSessionId = Array.isArray(params?.id) ? params.id[0] : params?.id;
 
   const [isLoading, setIsLoading] = useState(true);
-  const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [archivedSessions, setArchivedSessions] = useState<ChatSession[]>([]);
+  const {
+    sessions,
+    archivedSessions,
+    loadSessions,
+    renameSession,
+    pinSession,
+    archiveSession,
+    unarchiveSession,
+    deleteSession,
+    permanentDelete,
+    clearAllArchived,
+    exportAsJSON,
+    deleteAllChatHistory,
+    unsavedSessionIds,
+    setUnsavedSessionIds,
+  } = useAIAssistantSessions();
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [showSidebar, setShowSidebar] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
@@ -72,9 +87,6 @@ export default function AdminAIAssistantPage() {
 
   // Action loading states
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
-
-  // Track which sessions are not yet saved to database
-  const [unsavedSessionIds, setUnsavedSessionIds] = useState<Set<string>>(new Set());
 
   // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -134,45 +146,9 @@ export default function AdminAIAssistantPage() {
           return;
         }
 
-        // Load existing sessions from database
-        const { data: dbSessions, error } = await supabase
-          .from('ai_chat_sessions')
-          .select('id, title, created_at, updated_at, is_pinned, is_archived, deleted_at')
-          .eq('user_id', session.user.id)
-          .is('deleted_at', null)
-          .order('is_pinned', { ascending: false })
-          .order('updated_at', { ascending: false })
-          .limit(50);
-
-        if (!isMounted) return;
-
-        if (!error && dbSessions && dbSessions.length > 0) {
-          const activeSessions = dbSessions
-            .filter((s: any) => !s.is_archived)
-            .map((s: any) => ({
-              id: s.id,
-              title: s.title || 'Untitled Conversation',
-              createdAt: new Date(s.created_at),
-              updatedAt: new Date(s.updated_at),
-              isPinned: s.is_pinned || false,
-              isArchived: s.is_archived || false,
-            }));
-
-          const archived = dbSessions
-            .filter((s: any) => s.is_archived)
-            .map((s: any) => ({
-              id: s.id,
-              title: s.title || 'Untitled Conversation',
-              createdAt: new Date(s.created_at),
-              updatedAt: new Date(s.updated_at),
-              isPinned: s.is_pinned || false,
-              isArchived: s.is_archived || false,
-            }));
-
-          setArchivedSessions(archived);
-
-          const matchedSession = activeSessions.find((s: ChatSession) => s.id === routeSessionId);
-          setSessions(activeSessions);
+          // load sessions via shared hook
+          await loadSessions();
+          const matchedSession = sessions.find((s: ChatSession) => s.id === routeSessionId);
           if (matchedSession) {
             setCurrentSessionId(routeSessionId);
             setInvalidSessionId(false);
@@ -180,12 +156,6 @@ export default function AdminAIAssistantPage() {
             setCurrentSessionId('');
             setInvalidSessionId(true);
           }
-        } else {
-          setSessions([]);
-          setArchivedSessions([]);
-          setCurrentSessionId('');
-          setInvalidSessionId(true);
-        }
 
         if (isMounted) {
           setIsLoading(false);
@@ -227,7 +197,6 @@ export default function AdminAIAssistantPage() {
     if (currentSessionId && newMessages.length > 0) {
       const sessionMessagesKey = `aiAssistant_sessionMessages_${currentSessionId}`;
       localStorage.setItem(sessionMessagesKey, 'true');
-
       // If this is an unsaved session with messages, save it to database
       if (unsavedSessionIds.has(currentSessionId)) {
         (async () => {
@@ -262,21 +231,8 @@ export default function AdminAIAssistantPage() {
               .single();
 
             if (!error && newSession) {
-              // Update sessions with real ID from database
-              setSessions((prev) =>
-                prev.map((s) =>
-                  s.id === currentSessionId
-                    ? {
-                      id: newSession.id,
-                      title: newSession.title || 'Untitled Conversation',
-                      createdAt: new Date(newSession.created_at),
-                      updatedAt: new Date(newSession.updated_at),
-                      isPinned: false,
-                      isArchived: false,
-                    }
-                    : s
-                )
-              );
+              // Refresh sessions from DB
+              await loadSessions();
 
               // Update current session ID to real ID
               setCurrentSessionId(newSession.id);
@@ -301,37 +257,11 @@ export default function AdminAIAssistantPage() {
     if (!currentSessionId) {
       return;
     }
-
+    // delegate to shared rename handler which also updates DB when appropriate
     try {
-      // Update the session with the AI-generated title
-      setSessions((prev) =>
-        prev.map((session) =>
-          session.id === currentSessionId
-            ? {
-              ...session,
-              title: generatedTitle,
-              updatedAt: new Date(),
-            }
-            : session
-        )
-      );
-
-      // Only update DB if session is already saved (not unsaved)
-      if (!unsavedSessionIdsRef.current.has(currentSessionId)) {
-        const { error } = await supabase
-          .from('ai_chat_sessions')
-          .update({
-            title: generatedTitle,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', currentSessionId);
-        
-        if (error) {
-          console.error('Error updating title in DB:', error);
-        }
-      }
-    } catch (error: any) {
-      console.error('Error updating session title:', error);
+      await renameSession(currentSessionId, generatedTitle);
+    } catch (err) {
+      console.error('Error updating session title:', err);
     }
   }, [currentSessionId]);
 
@@ -346,44 +276,26 @@ export default function AdminAIAssistantPage() {
 
   const handleDeleteSession = useCallback(async (id: string) => {
     try {
-      // Clear localStorage flag for this session
-      const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
-      localStorage.removeItem(sessionMessagesKey);
-
-      // Only delete from database if it was saved
-      if (!unsavedSessionIds.has(id)) {
-        await supabase
-          .from('ai_chat_sessions')
-          .update({ deleted_at: new Date().toISOString() })
-          .eq('id', id);
-      }
-
-      // Remove from unsaved set if present
-      setUnsavedSessionIds((prev) => {
-        const updated = new Set(prev);
-        updated.delete(id);
-        return updated;
-      });
-
-      setSessions((prev) => {
-        const wasCurrentSession = currentSessionId === id;
-        const filtered = prev.filter((session) => session.id !== id);
-
-        if (wasCurrentSession) {
-          if (filtered.length > 0) {
-            setCurrentSessionId(filtered[0].id);
-            router.push(`/admin/ai-assistant/${filtered[0].id}`);
+      await deleteSession(id);
+      // if deleting current session, navigate to first available or clear
+      if (currentSessionId === id) {
+        if (sessions.length > 0) {
+          const next = sessions.find((s) => s.id !== id);
+          if (next) {
+            setCurrentSessionId(next.id);
+            router.push(`/admin/ai-assistant/${next.id}`);
           } else {
             setCurrentSessionId('');
           }
+        } else {
+          setCurrentSessionId('');
         }
-
-        return filtered;
-      });
+      }
+      await loadSessions();
     } catch (error) {
       console.error('Error deleting session:', error);
     }
-  }, [currentSessionId, unsavedSessionIds, router]);
+  }, [currentSessionId, sessions, deleteSession, loadSessions, router]);
 
   const handlePermanentDelete = useCallback(async (id: string) => {
     setConfirmDialog({
@@ -394,47 +306,10 @@ export default function AdminAIAssistantPage() {
       onConfirm: async () => {
         try {
           setLoadingActionId(id);
-
-          // Clear localStorage flag for this session
-          const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
-          localStorage.removeItem(sessionMessagesKey);
-
-          // Only delete from database if it was saved
-          if (!unsavedSessionIds.has(id)) {
-            await supabase
-              .from('ai_chat_sessions')
-              .delete()
-              .eq('id', id);
-          }
-
-          // Remove from unsaved set if present
-          setUnsavedSessionIds((prev) => {
-            const updated = new Set(prev);
-            updated.delete(id);
-            return updated;
-          });
-
-          setSessions((prev) => {
-            const wasCurrentSession = currentSessionId === id;
-            const filtered = prev.filter((session) => session.id !== id);
-
-            if (wasCurrentSession) {
-              if (filtered.length > 0) {
-                setCurrentSessionId(filtered[0].id);
-                router.push(`/admin/ai-assistant/${filtered[0].id}`);
-              } else {
-                setCurrentSessionId('');
-              }
-            }
-
-            return filtered;
-          });
-
-          // Also remove from archived if present
-          setArchivedSessions((prev) => prev.filter((session) => session.id !== id));
-
+          await permanentDelete(id);
           setOpenDropdownId(null);
           setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
+          await loadSessions();
         } catch (error) {
           console.error('Error permanently deleting session:', error);
           alert('Failed to delete session. Please try again.');
@@ -443,198 +318,65 @@ export default function AdminAIAssistantPage() {
         }
       },
     });
-  }, [currentSessionId, unsavedSessionIds, router]);
+  }, [permanentDelete, loadSessions]);
 
   const handleRenameSession = useCallback(async (id: string, newTitle: string) => {
     if (!newTitle.trim()) return;
-
     setIsRenamingSession(true);
     try {
-      // Only update database if session is already saved
-      if (!unsavedSessionIds.has(id)) {
-        await supabase
-          .from('ai_chat_sessions')
-          .update({
-            title: newTitle.trim(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', id);
-      }
-
-      setSessions((prev) =>
-        prev.map((session) =>
-          session.id === id
-            ? {
-              ...session,
-              title: newTitle.trim(),
-              updatedAt: new Date(),
-            }
-            : session
-        )
-      );
+      await renameSession(id, newTitle);
       setRenameSessionId(null);
       setRenameValue('');
       setOpenDropdownId(null);
-    } catch (error) {
-      console.error('Error renaming session:', error);
+    } catch (err) {
+      console.error('Error renaming session:', err);
     } finally {
       setIsRenamingSession(false);
     }
-  }, [unsavedSessionIds]);
+  }, [renameSession]);
 
   const handlePinSession = useCallback(async (id: string, isPinned?: boolean) => {
     try {
       setLoadingActionId(id);
-      await supabase
-        .from('ai_chat_sessions')
-        .update({
-          is_pinned: !isPinned,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      setSessions((prev) => {
-        const updated = prev.map((session) =>
-          session.id === id
-            ? {
-              ...session,
-              isPinned: !isPinned,
-              updatedAt: new Date(),
-            }
-            : session
-        );
-
-        // Re-sort with pinned items first
-        return updated.sort((a, b) => {
-          if (a.isPinned !== b.isPinned) {
-            return (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0);
-          }
-          return b.updatedAt.getTime() - a.updatedAt.getTime();
-        });
-      });
+      await pinSession(id, isPinned);
       setOpenDropdownId(null);
+      await loadSessions();
     } catch (error) {
       console.error('Error pinning session:', error);
       alert('Failed to pin session. Please try again.');
     } finally {
       setLoadingActionId(null);
     }
-  }, []);
+  }, [pinSession, loadSessions]);
 
   const handleArchiveSession = useCallback(async (id: string) => {
     try {
       setLoadingActionId(id);
-
-      // Clear localStorage flag for this session
-      const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
-      localStorage.removeItem(sessionMessagesKey);
-
-      // If unsaved, just delete it since it can't be archived
-      if (unsavedSessionIds.has(id)) {
-        setUnsavedSessionIds((prev) => {
-          const updated = new Set(prev);
-          updated.delete(id);
-          return updated;
-        });
-
-        setSessions((prev) => {
-          const wasCurrentSession = currentSessionId === id;
-          const filtered = prev.filter((session) => session.id !== id);
-
-          if (wasCurrentSession) {
-            if (filtered.length > 0) {
-              setCurrentSessionId(filtered[0].id);
-              router.push(`/admin/ai-assistant/${filtered[0].id}`);
-            } else {
-              setCurrentSessionId('');
-            }
-          }
-
-          return filtered;
-        });
-      } else {
-        // Archive in database if already saved
-        await supabase
-          .from('ai_chat_sessions')
-          .update({
-            is_archived: true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', id);
-
-        setSessions((prev) => {
-          const wasCurrentSession = currentSessionId === id;
-          const filtered = prev.filter((session) => session.id !== id);
-
-          if (wasCurrentSession) {
-            if (filtered.length > 0) {
-              setCurrentSessionId(filtered[0].id);
-              router.push(`/admin/ai-assistant/${filtered[0].id}`);
-            } else {
-              setCurrentSessionId('');
-            }
-          }
-
-          return filtered;
-        });
-
-        // Add to archived sessions
-        setArchivedSessions((prev) => {
-          const archivedSession = sessions.find((s) => s.id === id);
-          if (archivedSession) {
-            return [...prev, { ...archivedSession, isArchived: true }];
-          }
-          return prev;
-        });
-      }
-
+      await archiveSession(id);
       setOpenDropdownId(null);
+      await loadSessions();
     } catch (error) {
       console.error('Error archiving session:', error);
       alert('Failed to archive session. Please try again.');
     } finally {
       setLoadingActionId(null);
     }
-  }, [currentSessionId, sessions, unsavedSessionIds, router]);
+  }, [archiveSession, loadSessions]);
 
   const handleUnarchiveSession = useCallback(async (id: string) => {
     try {
       setLoadingActionId(id);
-      await supabase
-        .from('ai_chat_sessions')
-        .update({
-          is_archived: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      // Remove from archived sessions
-      setArchivedSessions((prev) => prev.filter((session) => session.id !== id));
-
-      // Add to active sessions
-      setSessions((prev) => {
-        const unarchivedSession = archivedSessions.find((s) => s.id === id);
-        if (unarchivedSession) {
-          const updated = [...prev, { ...unarchivedSession, isArchived: false }];
-          // Set as current session after unarchiving
-          setTimeout(() => {
-            setCurrentSessionId(id);
-            router.push(`/admin/ai-assistant/${id}`);
-          }, 0);
-          return updated;
-        }
-        return prev;
-      });
-
+      await unarchiveSession(id);
       setOpenArchivedDropdownId(null);
       setShowArchived(false);
+      await loadSessions();
     } catch (error) {
       console.error('Error unarchiving session:', error);
       alert('Failed to unarchive session. Please try again.');
     } finally {
       setLoadingActionId(null);
     }
-  }, [archivedSessions, router]);
+  }, [unarchiveSession, loadSessions]);
 
   const handleLogout = useCallback(async () => {
     setConfirmDialog({
@@ -691,7 +433,7 @@ export default function AdminAIAssistantPage() {
           }
 
           // Remove all archived sessions from local state
-          setArchivedSessions([]);
+          await clearAllArchived();
           setShowSettings(false);
           setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
           alert('All archived conversations have been deleted.');
@@ -706,34 +448,10 @@ export default function AdminAIAssistantPage() {
   }, [archivedSessions, unsavedSessionIds]);
 
   const handleExportAsJSON = useCallback(() => {
-    try {
-      // Prepare export data
-      const exportData = {
-        exportDate: new Date().toISOString(),
-        totalSessions: sessions.length + archivedSessions.length,
-        activeSessions: sessions,
-        archivedSessions: archivedSessions,
-      };
-
-      // Create and download JSON file
-      const dataStr = JSON.stringify(exportData, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `chat-history-${new Date().getTime()}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      setShowSettings(false);
-      alert('Chat history exported successfully!');
-    } catch (error) {
-      console.error('Error exporting:', error);
-      alert('Failed to export chat history. Please try again.');
-    }
-  }, [sessions, archivedSessions]);
+    exportAsJSON();
+    setShowSettings(false);
+    alert('Chat history exported successfully!');
+  }, [exportAsJSON]);
 
   const handleDeleteAllChatHistory = useCallback(async () => {
     setConfirmDialog({
@@ -744,48 +462,10 @@ export default function AdminAIAssistantPage() {
       onConfirm: async () => {
         setIsDeletingAll(true);
         try {
-          const {
-            data: { session },
-          } = await supabase.auth.getSession();
-
-          if (!session) return;
-
-          // Get all SAVED session IDs for this user (excluding unsaved ones)
-          const { data: allSessions } = await supabase
-            .from('ai_chat_sessions')
-            .select('id')
-            .eq('user_id', session.user.id);
-
-          if (allSessions && allSessions.length > 0) {
-            const sessionIds = allSessions.map((s: any) => s.id);
-
-            // Clear all localStorage flags for these sessions
-            sessionIds.forEach((id: string) => {
-              const sessionMessagesKey = `aiAssistant_sessionMessages_${id}`;
-              localStorage.removeItem(sessionMessagesKey);
-            });
-
-            // Delete all messages for these sessions
-            await supabase
-              .from('ai_chat_messages')
-              .delete()
-              .in('session_id', sessionIds);
-
-            // Delete all sessions
-            await supabase
-              .from('ai_chat_sessions')
-              .delete()
-              .in('id', sessionIds);
-          }
-
-          // Clear all local state including unsaved sessions
-          setSessions([]);
-          setArchivedSessions([]);
-          setUnsavedSessionIds(new Set());
+          await deleteAllChatHistory();
           setCurrentSessionId('');
           setShowSettings(false);
           setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
-
           alert('All chat history has been permanently deleted.');
         } catch (error) {
           console.error('Error deleting all chat history:', error);
@@ -795,7 +475,7 @@ export default function AdminAIAssistantPage() {
         }
       },
     });
-  }, []);
+  }, [deleteAllChatHistory]);
 
   const handleToggleAutoCollapse = useCallback(() => {
     const newValue = !isAutoCollapsSidebar;

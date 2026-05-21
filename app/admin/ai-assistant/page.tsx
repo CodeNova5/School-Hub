@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { MessageSquare, Plus, Settings, LogOut, Loader2 } from 'lucide-react';
 import AIAssistantSidebar from '@/components/ai-assistant-sidebar';
 import { supabase } from '@/lib/supabase';
+import useAIAssistantSessions from '@/hooks/useAIAssistantSessions';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import { Button } from '@/components/ui/button';
 
@@ -12,9 +13,8 @@ export default function AdminAIAssistantLandingPage() {
 	const router = useRouter();
 	const redirectingRef = useRef(false);
 
-	const [isLoading, setIsLoading] = useState(true);
-	const [sessions, setSessions] = useState([]);
-	const [archivedSessions, setArchivedSessions] = useState([]);
+	const { sessions, archivedSessions, isLoading, loadSessions } = useAIAssistantSessions();
+	const [authLoading, setAuthLoading] = useState(true);
 	const [showSidebar, setShowSidebar] = useState(true);
 	const [showSettings, setShowSettings] = useState(false);
 	const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -44,60 +44,13 @@ export default function AdminAIAssistantLandingPage() {
 					return;
 				}
 
-				setIsLoading(false);
+				setAuthLoading(false);
 			} catch (error) {
 				if (mounted) {
-					setIsLoading(false);
+					setAuthLoading(false);
 				}
 			}
 		};
-
-		// load user's sessions for the sidebar
-		async function loadSessions() {
-			try {
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-				if (!session) return;
-				const { data: dbSessions, error } = await supabase
-					.from('ai_chat_sessions')
-					.select('id, title, created_at, updated_at, is_pinned, is_archived, deleted_at')
-					.eq('user_id', session.user.id)
-					.is('deleted_at', null)
-					.order('is_pinned', { ascending: false })
-					.order('updated_at', { ascending: false })
-					.limit(50);
-
-				if (!error && dbSessions) {
-					const active = dbSessions
-						.filter((s: any) => !s.is_archived)
-						.map((s: any) => ({
-							id: s.id,
-							title: s.title || 'Untitled Conversation',
-							createdAt: new Date(s.created_at),
-							updatedAt: new Date(s.updated_at),
-							isPinned: s.is_pinned || false,
-							isArchived: s.is_archived || false,
-						}));
-
-					const archived = dbSessions
-						.filter((s: any) => s.is_archived)
-						.map((s: any) => ({
-							id: s.id,
-							title: s.title || 'Untitled Conversation',
-							createdAt: new Date(s.created_at),
-							updatedAt: new Date(s.updated_at),
-							isPinned: s.is_pinned || false,
-							isArchived: s.is_archived || false,
-						}));
-
-					setSessions(active);
-					setArchivedSessions(archived);
-				}
-			} catch (err) {
-				console.error('Failed to load chat sessions for sidebar', err);
-			}
-		}
 
 		initialize();
 		loadSessions();

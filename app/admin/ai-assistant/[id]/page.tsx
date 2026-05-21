@@ -254,17 +254,20 @@ export default function AdminAIAssistantPage() {
     }
   }, [currentSessionId, sessions, unsavedSessionIds, router]);
 
-  const handleTitleGenerated = useCallback(async (generatedTitle: string) => {
-    if (!currentSessionId) {
+  const handleTitleGenerated = useCallback(async (sessionId: string, generatedTitle: string) => {
+    if (!sessionId) {
       return;
     }
-    // delegate to shared rename handler which also updates DB when appropriate
     try {
-      await renameSession(currentSessionId, generatedTitle);
+      await renameSession(sessionId, generatedTitle);
+
+      if (sessionId === currentSessionId) {
+        setCurrentSessionId(sessionId);
+      }
     } catch (err) {
       console.error('Error updating session title:', err);
     }
-  }, [currentSessionId]);
+  }, [currentSessionId, renameSession]);
 
   const handleSessionIdChange = useCallback((newSessionId: string) => {
     if (!newSessionId) return;

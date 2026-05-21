@@ -43,7 +43,7 @@ interface AIAssistantChatProps {
   onSessionIdChange?: (sessionId: string) => void;
   enableSpeech?: boolean;
   autoPlayResponses?: boolean;
-  onGeneratedTitle?: (title: string) => void;
+  onGeneratedTitle?: (sessionId: string, title: string) => void | Promise<void>;
   loadHistory?: boolean;
 }
 
@@ -317,8 +317,8 @@ export default function AIAssistantChat({
           onSessionIdChange(data.sessionId);
         }
 
-        if (userMessageCount === 0 && onGeneratedTitle && data.generatedTitle) {
-          onGeneratedTitle(data.generatedTitle);
+        if (userMessageCount === 0 && onGeneratedTitle && data.generatedTitle && data.sessionId) {
+          await onGeneratedTitle(data.sessionId, data.generatedTitle);
         }
 
         if (autoPlayResponses && isSpeechEnabled) {

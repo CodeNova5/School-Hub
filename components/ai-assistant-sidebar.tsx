@@ -1,9 +1,9 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare, Plus, MoreVertical, Clock, Pin } from 'lucide-react';
+import { MessageSquare, Plus, MoreVertical, Clock, Pin, Settings, Edit2, Archive, Trash } from 'lucide-react';
 
 interface ChatSession {
   id: string;
@@ -21,6 +21,11 @@ interface SidebarProps {
   onNewChat?: () => void;
   onSessionClick?: (id: string) => void;
   onOpenSettings?: () => void;
+  onRenameSession?: (id: string, newTitle: string) => void;
+  onPinSession?: (id: string, isPinned?: boolean) => void;
+  onArchiveSession?: (id: string) => void;
+  onDeleteSession?: (id: string) => void;
+  onOpenArchived?: () => void;
 }
 
 export default function AIAssistantSidebar({
@@ -31,7 +36,24 @@ export default function AIAssistantSidebar({
   onNewChat,
   onSessionClick,
   onOpenSettings,
+  onRenameSession,
+  onPinSession,
+  onArchiveSession,
+  onDeleteSession,
+  onOpenArchived,
 }: SidebarProps) {
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdownId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   return (
     <div className={`${showSidebar ? 'w-80' : 'w-0'} bg-[#0e1524] border-r border-white/10 flex flex-col transition-all duration-300 overflow-hidden shadow-2xl`}>
       <div className="p-4 border-b border-white/10">
@@ -83,8 +105,75 @@ export default function AIAssistantSidebar({
                       </div>
                     </div>
 
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded">
-                      <MoreVertical className={`h-4 w-4 ${currentSessionId === session.id ? 'text-blue-100' : 'text-slate-300'}`} />
+                    <div className="relative" ref={dropdownRef}>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenDropdownId(openDropdownId === session.id ? null : session.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-600/50 rounded"
+                        aria-haspopup="true"
+                        aria-expanded={openDropdownId === session.id}
+                      >
+                        <MoreVertical className={`h-4 w-4 ${currentSessionId === session.id ? 'text-blue-100' : 'text-slate-300'}`} />
+                      </button>
+
+                      {openDropdownId === session.id && (
+                        <div className="absolute right-0 top-full mt-2 w-44 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newTitle = prompt('Rename conversation', session.title || '');
+                              if (newTitle !== null && newTitle.trim() !== '') {
+                                onRenameSession?.(session.id, newTitle.trim());
+                              }
+                              setOpenDropdownId(null);
+                            }}
+                            className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                            Rename
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPinSession?.(session.id, session.isPinned);
+                              setOpenDropdownId(null);
+                            }}
+                            className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors"
+                          >
+                            <Pin className="h-4 w-4" />
+                            {session.isPinned ? 'Unpin' : 'Pin'}
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const ok = confirm('Archive this conversation? You can restore it from the Archived list.');
+                              if (ok) onArchiveSession?.(session.id);
+                              setOpenDropdownId(null);
+                            }}
+                            className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors"
+                          >
+                            <Archive className="h-4 w-4" />
+                            Archive
+                          </button>
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const ok = confirm('Delete this conversation? This will remove local copies and, if saved, mark it deleted.');
+                              if (ok) onDeleteSession?.(session.id);
+                              setOpenDropdownId(null);
+                            }}
+                            className="w-full px-4 py-3 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-3 transition-colors"
+                          >
+                            <Trash className="h-4 w-4" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -95,13 +184,20 @@ export default function AIAssistantSidebar({
       </ScrollArea>
 
       <div className="p-4 border-t border-white/10 space-y-2">
-        <button
-          onClick={onOpenSettings}
-          className="w-full flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 rounded-lg transition-all border border-slate-600 hover:border-slate-500"
-        >
-          <Settings className="h-4 w-4" />
-          <span className="text-sm font-medium">Settings</span>
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onOpenArchived?.()}
+            className="flex-1 px-3 py-2 bg-slate-700/60 hover:bg-slate-700 rounded-lg text-sm text-slate-200 border border-slate-600"
+          >
+            Archived
+          </button>
+          <button
+            onClick={onOpenSettings}
+            className="px-3 py-2 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 rounded-lg transition-all border border-slate-600 hover:border-slate-500"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

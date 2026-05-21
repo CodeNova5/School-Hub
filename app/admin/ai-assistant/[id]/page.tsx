@@ -482,7 +482,7 @@ export default function AdminAIAssistantPage() {
     }
   }, [unsavedSessionIds]);
 
-  const handlePinSession = useCallback(async (id: string, isPinned: boolean) => {
+  const handlePinSession = useCallback(async (id: string, isPinned?: boolean) => {
     try {
       setLoadingActionId(id);
       await supabase
@@ -878,6 +878,11 @@ export default function AdminAIAssistantPage() {
           router.push(`/admin/ai-assistant/${id}`);
         }}
         onOpenSettings={() => setShowSettings(true)}
+        onRenameSession={handleRenameSession}
+        onPinSession={handlePinSession}
+        onArchiveSession={handleArchiveSession}
+        onDeleteSession={handleDeleteSession}
+        onOpenArchived={() => setShowArchived(true)}
       />
 
       {/* Archived Sessions Modal */}

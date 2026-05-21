@@ -227,7 +227,7 @@ export default function useAIAssistantSessions() {
       const { data: allSessions } = await supabase.from('ai_chat_sessions').select('id').eq('user_id', session.user.id);
       if (allSessions && allSessions.length > 0) {
         const sessionIds = allSessions.map((s: any) => s.id);
-        sessionIds.forEach((id) => localStorage.removeItem(`aiAssistant_sessionMessages_${id}`));
+        sessionIds.forEach((id: any) => localStorage.removeItem(`aiAssistant_sessionMessages_${id}`));
         await supabase.from('ai_chat_messages').delete().in('session_id', sessionIds);
         await supabase.from('ai_chat_sessions').delete().in('id', sessionIds);
       }

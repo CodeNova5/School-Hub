@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Plus, Settings, LogOut, Loader2 } from 'lucide-react';
+import { MessageSquare, Plus, Settings, LogOut, Loader2, Clock, Pin } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/lib/supabase';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,9 @@ export default function AdminAIAssistantLandingPage() {
 	const redirectingRef = useRef(false);
 
 	const [isLoading, setIsLoading] = useState(true);
+	const [sessions, setSessions] = useState<any[]>([]);
+	const [archivedSessions, setArchivedSessions] = useState<any[]>([]);
+	const [isLoadingSessions, setIsLoadingSessions] = useState(true);
 	const [showSidebar, setShowSidebar] = useState(true);
 	const [showSettings, setShowSettings] = useState(false);
 	const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -39,6 +43,42 @@ export default function AdminAIAssistantLandingPage() {
 				if (!session) {
 					router.push('/admin/login');
 					return;
+				}
+
+				// load sessions for sidebar
+				try {
+					setIsLoadingSessions(true);
+					const { data: { session } } = await supabase.auth.getSession();
+					if (!session) return;
+					const { data: dbSessions } = await supabase
+						.from('ai_chat_sessions')
+						.select('id, title, created_at, updated_at, is_pinned, is_archived')
+						.eq('user_id', session.user.id)
+						.is('deleted_at', null)
+						.order('is_pinned', { ascending: false })
+						.order('updated_at', { ascending: false })
+						.limit(50);
+
+					if (mounted && dbSessions) {
+						const active = dbSessions.filter((s: any) => !s.is_archived).map((s: any) => ({
+							id: s.id,
+							title: s.title || 'Untitled Conversation',
+							updatedAt: new Date(s.updated_at),
+							isPinned: s.is_pinned || false,
+						}));
+						const archived = dbSessions.filter((s: any) => s.is_archived).map((s: any) => ({
+							id: s.id,
+							title: s.title || 'Untitled Conversation',
+							updatedAt: new Date(s.updated_at),
+							isPinned: s.is_pinned || false,
+						}));
+						setSessions(active);
+						setArchivedSessions(archived);
+					}
+				} catch (err) {
+					console.error('Error loading sessions on landing:', err);
+				} finally {
+					if (mounted) setIsLoadingSessions(false);
 				}
 
 				setIsLoading(false);
@@ -110,9 +150,39 @@ export default function AdminAIAssistantLandingPage() {
 				</div>
 
 				<div className="flex-1 p-6">
-					<div className="h-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center flex items-center justify-center">
-						<p className="text-sm text-slate-400">Start by sending your first message.</p>
-					</div>
+					<ScrollArea className="h-full">
+						<div className="space-y-2 p-2">
+							{isLoadingSessions ? (
+								<div className="py-8 text-center text-slate-400">
+									Loading conversations...
+								</div>
+							) : sessions.length === 0 ? (
+								<div className="h-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-center flex items-center justify-center">
+									<p className="text-sm text-slate-400">No conversations yet — send your first message.</p>
+								</div>
+							) : (
+								sessions.map((session) => (
+									<div
+										key={session.id}
+										onClick={() => router.push(`/admin/ai-assistant/${session.id}`)}
+										className="group p-3 rounded-lg cursor-pointer transition-all duration-200 bg-slate-700 hover:bg-slate-600"
+									>
+										<div className="flex items-center justify-between">
+											<div className="flex items-center gap-3">
+												<MessageSquare className="h-5 w-5 text-slate-200" />
+												<div className="min-w-0">
+													<p className="text-sm font-medium truncate text-slate-100">{session.title}</p>
+													<p className="text-xs text-slate-400">{session.updatedAt instanceof Date ? session.updatedAt.toLocaleString() : ''}</p>
+												</div>
+											</div>
+											{session.isPinned && <Pin className="h-4 w-4 text-amber-400" />}
+										</div>
+									</div>
+								))
+							)}
+						</div>
+					</ScrollArea>
+			
 				</div>
 
 				<div className="p-4 border-t border-white/10 space-y-2">

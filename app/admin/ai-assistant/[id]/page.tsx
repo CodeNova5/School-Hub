@@ -835,14 +835,6 @@ export default function AdminAIAssistantPage() {
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 
-  if (isLoading) {
-    return (
-      <div className="flex h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-screen bg-[#090d16] text-slate-100 overflow-hidden">
       {/* Confirmation Dialog */}

@@ -30,7 +30,7 @@ export default function useAIAssistantSessions() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) return { activeSessions: [], archivedSessions: [] };
 
       const { data: dbSessions, error } = await supabase
         .from('ai_chat_sessions')
@@ -66,12 +66,15 @@ export default function useAIAssistantSessions() {
 
         setSessions(active);
         setArchivedSessions(archived);
+        return { activeSessions: active, archivedSessions: archived };
       } else {
         setSessions([]);
         setArchivedSessions([]);
+        return { activeSessions: [], archivedSessions: [] };
       }
     } catch (err) {
       console.error('Failed to load chat sessions', err);
+      return { activeSessions: [], archivedSessions: [] };
     } finally {
       setIsLoading(false);
     }

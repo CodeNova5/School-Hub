@@ -146,9 +146,10 @@ export default function AdminAIAssistantPage() {
           return;
         }
 
-        // load sessions via shared hook
-        await loadSessions();
-        const matchedSession = sessions.find((s: ChatSession) => s.id === routeSessionId);
+        // load sessions via shared hook and validate against the freshly loaded list
+        const loadedSessions = await loadSessions();
+        const matchedSession = loadedSessions.activeSessions.find((s: ChatSession) => s.id === routeSessionId)
+          || loadedSessions.archivedSessions.find((s: ChatSession) => s.id === routeSessionId);
         if (matchedSession) {
           setCurrentSessionId(routeSessionId);
           setInvalidSessionId(false);

@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { checkIsAdminWithSchool, errorResponse, getStudentContext } from '@/lib/api-helpers';
+import { errorResponse, getAiAssistantContext } from '@/lib/api-helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,20 +29,9 @@ export async function GET(request: NextRequest) {
 
     const userId = session.user.id;
 
-    // Try to get student context first
-    let context = await getStudentContext();
-    
-    // If not a student, try admin
+    const context = await getAiAssistantContext();
     if (!context.authorized) {
-      const adminContext = await checkIsAdminWithSchool();
-      if (!adminContext.authorized) {
-        return errorResponse(adminContext.error || 'Forbidden', adminContext.status || 403);
-      }
-      context = {
-        authorized: true,
-        userId: userId,
-        schoolId: adminContext.schoolId,
-      };
+      return errorResponse(context.error || 'Forbidden', context.status || 403);
     }
 
     const schoolId = context.schoolId;

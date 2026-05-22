@@ -116,3 +116,66 @@ export async function getStudentContext() {
     };
   }
 }
+
+/**
+ * Get the current AI assistant context for any supported role.
+ * Returns { authorized: boolean, userId?: string, schoolId?: string, role?: string, error?: string, status?: number }
+ */
+export async function getAiAssistantContext() {
+  const supabase = createRouteHandlerClient({ cookies });
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { authorized: false, error: 'Unauthorized', status: 401 };
+    }
+
+    const roleLookups = [
+      { table: 'students', role: 'student' },
+      { table: 'teachers', role: 'teacher' },
+      { table: 'parents', role: 'parent' },
+    ] as const;
+
+    for (const lookup of roleLookups) {
+      const { data: record, error } = await supabase
+        .from(lookup.table)
+        .select('school_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!error && record?.school_id) {
+        return {
+          authorized: true,
+          userId: user.id,
+          schoolId: record.school_id,
+          role: lookup.role,
+        };
+      }
+    }
+
+    const adminContext = await checkIsAdminWithSchool();
+    if (adminContext.authorized) {
+      return {
+        authorized: true,
+        userId: user.id,
+        schoolId: adminContext.schoolId,
+        role: 'admin',
+      };
+    }
+
+    return {
+      authorized: false,
+      error: adminContext.error || 'Forbidden',
+      status: adminContext.status || 403,
+    };
+  } catch (error: any) {
+    return {
+      authorized: false,
+      error: error.message,
+      status: 400,
+    };
+  }
+}

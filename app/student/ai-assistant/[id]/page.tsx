@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AIAssistantChat from '@/components/ai-assistant-chat';
+import AIAssistantSettings from '@/components/ai-assistant-settings';
+import AIAssistantArchivedModal from '@/components/ai-assistant-archived-modal';
 import { Loader2, Plus, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash, Settings, LogOut, Trash2 as TrashIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -1231,123 +1233,24 @@ export default function StudentAIAssistantPage() {
 
         {/* Sidebar Footer with Settings */}
         <div className="p-4 border-t border-slate-700 space-y-2">
-          {/* Settings Modal */}
-          {showSettings && !showArchived && (
-            <div
-              className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3"
-              onClick={() => setShowSettings(false)}
-            >
-              <div
-                className="bg-slate-800 rounded-lg p-5 w-full max-w-sm border border-slate-700 shadow-2xl z-[60]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center gap-2 mb-4">
-                  <Settings className="h-5 w-5 text-blue-400" />
-                  <h2 className="text-lg font-semibold text-white">Settings</h2>
-                </div>
-
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {/* Auto-Collapse Sidebar Toggle */}
-                  <div className="p-3 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-slate-500 transition-colors">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isAutoCollapsSidebar}
-                        onChange={handleToggleAutoCollapse}
-                        className="w-4 h-4 rounded accent-blue-500"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-slate-200">Auto-Collapse Sidebar</p>
-                        <p className="text-xs text-slate-400">Sidebar collapses on startup</p>
-                      </div>
-                    </label>
-                  </div>
-
-                  {/* View Archived Conversations */}
-                  <button
-                    onClick={() => {
-                      setShowSettings(false);
-                      setShowArchived(true);
-                    }}
-                    className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Archive className="h-4 w-4 text-amber-400" />
-                      <p className="text-sm font-medium text-slate-200">View Archived</p>
-                    </div>
-                    <p className="text-xs text-slate-400 ml-6">{archivedSessions.length} archived conversation{archivedSessions.length !== 1 ? 's' : ''}</p>
-                  </button>
-
-                  {/* Export Chat History */}
-                  <button
-                    onClick={handleExportAsJSON}
-                    className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Download className="h-4 w-4 text-green-400" />
-                      <p className="text-sm font-medium text-slate-200">Export as JSON</p>
-                    </div>
-                    <p className="text-xs text-slate-400 ml-6">Download all chat history</p>
-                  </button>
-
-                  {/* Clear All Archived */}
-                  <button
-                    onClick={handleClearAllArchived}
-                    disabled={isClearingArchived || archivedSessions.length === 0}
-                    className="w-full p-3 text-left bg-red-900/20 border border-red-700/50 rounded-lg hover:bg-red-900/30 hover:border-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <TrashIcon className="h-4 w-4 text-red-400" />
-                      <p className="text-sm font-medium text-red-300">
-                        {isClearingArchived ? 'Clearing...' : 'Clear All Archived'}
-                      </p>
-                    </div>
-                    <p className="text-xs text-red-300/70 ml-6">Permanently delete all archived</p>
-                  </button>
-
-                  {/* Delete All Chat History */}
-                  <button
-                    onClick={handleDeleteAllChatHistory}
-                    disabled={isDeletingAll}
-                    className="w-full p-3 text-left bg-red-900/30 border border-red-700/50 rounded-lg hover:bg-red-900/40 hover:border-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Trash className="h-4 w-4 text-red-400" />
-                      <p className="text-sm font-medium text-red-300">
-                        {isDeletingAll ? 'Deleting...' : 'Delete All History'}
-                      </p>
-                    </div>
-                    <p className="text-xs text-red-300/70 ml-6">Permanently remove everything</p>
-                  </button>
-
-
-                  {/* Logout */}
-                  <button
-                    onClick={handleLogout}
-                    disabled={isLoggingOut}
-                    className="w-full p-3 text-left bg-slate-700/50 border border-slate-600 rounded-lg hover:bg-slate-700 hover:border-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <LogOut className="h-4 w-4 text-slate-300" />
-                      <p className="text-sm font-medium text-slate-200">
-                        {isLoggingOut ? 'Signing out...' : 'Logout'}
-                      </p>
-                    </div>
-                    <p className="text-xs text-slate-400 ml-6">Sign out from your account</p>
-                  </button>
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => setShowSettings(false)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded transition-colors font-medium text-sm"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <AIAssistantSettings
+            open={showSettings && !showArchived}
+            archivedCount={archivedSessions.length}
+            isAutoCollapseSidebar={isAutoCollapsSidebar}
+            isClearingArchived={isClearingArchived}
+            isDeletingAll={isDeletingAll}
+            isLoggingOut={isLoggingOut}
+            onClose={() => setShowSettings(false)}
+            onToggleAutoCollapse={handleToggleAutoCollapse}
+            onOpenArchived={() => {
+              setShowSettings(false);
+              setShowArchived(true);
+            }}
+            onExport={handleExportAsJSON}
+            onClearAllArchived={handleClearAllArchived}
+            onDeleteAllChatHistory={handleDeleteAllChatHistory}
+            onLogout={handleLogout}
+          />
 
           {/* Settings Button */}
           <button
@@ -1360,242 +1263,20 @@ export default function StudentAIAssistantPage() {
         </div>
       </div>
 
-      {/* Archived Sessions Modal */}
-      {showArchived && (
-        <div
-          className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3"
-          onClick={handleCloseArchived}
-        >
-          <div
-            className="bg-slate-800 rounded-xl w-full max-w-2xl border border-slate-700 shadow-2xl z-[60] flex flex-col max-h-[80vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-slate-800 to-slate-700">
-              <div className="flex items-center gap-3 justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-amber-500/30 rounded-lg">
-                    <Archive className="h-6 w-6 text-amber-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-white">Archived Conversations</h2>
-                    <p className="text-xs text-slate-400 mt-1">View and restore your archived chats</p>
-                  </div>
-                </div>
-                <span className="px-3 py-1.5 bg-amber-500/30 text-amber-200 rounded-full text-sm font-semibold">
-                  {archivedSessions.length}
-                </span>
-              </div>
-            </div>
-
-            {/* Content */}
-            <ScrollArea className="flex-1 [&_[data-radix-scroll-area-thumb]]:hidden">
-              <div className="p-6 space-y-3">
-                {archivedSessions.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <Archive className="h-12 w-12 text-slate-600 mb-3" />
-                    <p className="text-sm text-slate-400 text-center">No archived conversations yet</p>
-                  </div>
-                ) : (
-                  archivedSessions.map((session) => (
-                    <div key={session.id} className="relative">
-                      {/* Rename Modal */}
-                      {renameSessionId === session.id && (
-                        <div
-                          className="fixed inset-0 bg-slate-900/80 z-40 flex items-center justify-center p-3"
-                          onClick={() => {
-                            setRenameSessionId(null);
-                            setRenameValue('');
-                          }}
-                        >
-                          <div
-                            className="bg-slate-800 rounded-lg p-6 w-full max-w-sm border border-slate-700 shadow-xl z-50"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <h2 className="text-white font-semibold mb-4 text-lg">Rename Conversation</h2>
-                            <input
-                              autoFocus
-                              type="text"
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  handleRenameSession(session.id, renameValue);
-                                } else if (e.key === 'Escape') {
-                                  setRenameSessionId(null);
-                                  setRenameValue('');
-                                }
-                              }}
-                              placeholder="New name..."
-                              className="w-full bg-slate-700 border border-slate-600 text-white rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-5"
-                            />
-                            <div className="flex gap-3">
-                              <button
-                                onClick={() => handleRenameSession(session.id, renameValue)}
-                                disabled={isRenamingSession || !renameValue.trim()}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                              >
-                                {isRenamingSession ? 'Saving...' : 'Save'}
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setRenameSessionId(null);
-                                  setRenameValue('');
-                                }}
-                                className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded transition-colors font-medium"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Session Item - Archived */}
-                      <div
-                        onClick={() => {
-                          setCurrentSessionId(session.id);
-                          setOpenDropdownId(null);
-                        }}
-                        className={`group p-4 rounded-lg cursor-pointer transition-all duration-200 border ${currentSessionId === session.id
-                            ? 'bg-gradient-to-r from-blue-600 to-blue-700 border-blue-500 shadow-lg'
-                            : 'bg-slate-700/50 border-slate-600 hover:bg-slate-700 hover:border-slate-500'
-                          }`}
-                      >
-                        <div className="flex items-start gap-3 justify-between">
-                          <div className="flex items-start gap-3 flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 mt-1">
-                              <MessageSquare
-                                className={`h-5 w-5 flex-shrink-0 ${currentSessionId === session.id
-                                    ? 'text-white'
-                                    : 'text-slate-400'
-                                  }`}
-                              />
-                              <Archive
-                                className="h-4 w-4 flex-shrink-0 text-amber-400"
-                                fill="currentColor"
-                              />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h3
-                                className={`text-base font-semibold truncate mb-2 ${currentSessionId === session.id
-                                    ? 'text-white'
-                                    : 'text-slate-100'
-                                  }`}
-                              >
-                                {session.title}
-                              </h3>
-                              <div
-                                className={`text-sm flex items-center gap-2 ${currentSessionId === session.id
-                                    ? 'text-blue-100'
-                                    : 'text-slate-400'
-                                  }`}
-                              >
-                                <Clock className="h-4 w-4 flex-shrink-0" />
-                                <span className="whitespace-nowrap">
-                                  {session.updatedAt instanceof Date
-                                    ? session.updatedAt.toLocaleString([], {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      hour12: false,
-                                    })
-                                    : new Date(session.updatedAt).toLocaleString([], {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      hour12: false,
-                                    })}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Dropdown Menu Button */}
-                          <div ref={archivedDropdownRef} className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenArchivedDropdownId(openArchivedDropdownId === session.id ? null : session.id);
-                              }}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-slate-600/50 rounded-lg"
-                            >
-                              <MoreVertical
-                                className={`h-5 w-5 ${currentSessionId === session.id
-                                    ? 'text-blue-100'
-                                    : 'text-slate-300'
-                                  }`}
-                              />
-                            </button>
-
-                            {/* Dropdown Menu - Archived */}
-                            {openArchivedDropdownId === session.id && (
-                              <div className="absolute right-0 top-full mt-2 w-52 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-[100] overflow-hidden">
-                                {/* Rename */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setRenameSessionId(session.id);
-                                    setRenameValue(session.title);
-                                    setOpenArchivedDropdownId(null);
-                                  }}
-                                  disabled={loadingActionId === session.id}
-                                  className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors border-b border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Edit2 className="h-4 w-4" />
-                                  <span>{loadingActionId === session.id ? 'Processing...' : 'Rename'}</span>
-                                </button>
-
-                                {/* Unarchive */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleUnarchiveSession(session.id);
-                                  }}
-                                  disabled={loadingActionId === session.id}
-                                  className="w-full px-4 py-3 text-left text-sm text-slate-200 hover:bg-slate-600 flex items-center gap-3 transition-colors border-b border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Archive className="h-4 w-4" />
-                                  <span>{loadingActionId === session.id ? 'Processing...' : 'Unarchive'}</span>
-                                </button>
-
-                                {/* Permanent Delete */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handlePermanentDelete(session.id);
-                                  }}
-                                  disabled={loadingActionId === session.id}
-                                  className="w-full px-4 py-3 text-left text-sm text-red-300 hover:bg-red-900/30 flex items-center gap-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Trash className="h-4 w-4" />
-                                  <span>{loadingActionId === session.id ? 'Processing...' : 'Delete Permanently'}</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-
-            {/* Footer */}
-            <div className="p-6 border-t border-slate-700 bg-gradient-to-r from-slate-800/50 to-slate-700/50">
-              <button
-                onClick={handleCloseArchived}
-                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-semibold shadow-lg hover:shadow-xl"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AIAssistantArchivedModal
+        open={showArchived}
+        archivedSessions={archivedSessions}
+        currentSessionId={currentSessionId}
+        loadingActionId={loadingActionId}
+        onClose={handleCloseArchived}
+        onUnarchive={handleUnarchiveSession}
+        onPermanentDelete={handlePermanentDelete}
+        onSetCurrentSession={(id) => {
+          setCurrentSessionId(id);
+          router.push(`/student/ai-assistant/${id}`);
+        }}
+        onRename={handleRenameSession}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">

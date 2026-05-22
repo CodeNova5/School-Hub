@@ -424,8 +424,10 @@ export default function StudentAIAssistantPage() {
     }
   }, [currentSessionId, sessions, unsavedSessionIds, router]);
 
-  const handleTitleGenerated = useCallback(async (generatedTitle: string) => {
-    if (!currentSessionId) {
+  const handleTitleGenerated = useCallback(async (sessionId: string, generatedTitle: string) => {
+    const targetSessionId = sessionId || currentSessionId;
+
+    if (!targetSessionId || !generatedTitle) {
       return;
     }
 
@@ -433,7 +435,7 @@ export default function StudentAIAssistantPage() {
       // Update the session with the AI-generated title
       setSessions((prev) =>
         prev.map((session) =>
-          session.id === currentSessionId
+          session.id === targetSessionId
             ? {
               ...session,
               title: generatedTitle,
@@ -444,14 +446,14 @@ export default function StudentAIAssistantPage() {
       );
 
       // Only update DB if session is already saved (not unsaved)
-      if (!unsavedSessionIdsRef.current.has(currentSessionId)) {
+      if (!unsavedSessionIdsRef.current.has(targetSessionId)) {
         const { error } = await supabase
           .from('ai_chat_sessions')
           .update({
             title: generatedTitle,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', currentSessionId);
+          .eq('id', targetSessionId);
         
         if (error) {
           console.error('Error updating title in DB:', error);

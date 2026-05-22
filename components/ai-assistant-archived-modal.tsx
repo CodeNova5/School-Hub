@@ -43,7 +43,7 @@ export default function AIAssistantArchivedModal({
   return (
     <div className="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-3" onClick={onClose}>
       <div
-        className="bg-slate-800 rounded-xl w-full max-w-2xl border border-slate-700 shadow-2xl z-[60] flex flex-col max-h-[80vh]"
+        className="bg-slate-800 rounded-xl w-full max-w-4xl xl:max-w-5xl h-[85vh] max-h-[85vh] border border-slate-700 shadow-2xl z-[60] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-slate-700 bg-gradient-to-r from-slate-800 to-slate-700">
@@ -63,8 +63,8 @@ export default function AIAssistantArchivedModal({
           </div>
         </div>
 
-        <ScrollArea className="flex-1 [&_[data-radix-scroll-area-thumb]]:hidden">
-          <div className="p-6 space-y-3">
+        <ScrollArea className="flex-1 min-h-0 [&_[data-radix-scroll-area-thumb]]:hidden">
+          <div className="p-6 space-y-4">
             {archivedSessions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Archive className="h-12 w-12 text-slate-600 mb-3" />
@@ -176,7 +176,7 @@ export default function AIAssistantArchivedModal({
                           <MoreVertical className={`h-5 w-5 ${currentSessionId === session.id ? 'text-blue-100' : 'text-slate-300'}`} />
                         </button>
 
-                        <div className="absolute right-0 top-full mt-2 w-52 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-[100] overflow-hidden">
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-[100] overflow-hidden">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();

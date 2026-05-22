@@ -10,6 +10,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AIAssistantChat from '@/components/ai-assistant-chat';
 import AIAssistantSidebar from '@/components/ai-assistant-sidebar';
+import AIAssistantSettings from '@/components/ai-assistant-settings';
 import AIAssistantArchivedModal from '@/components/ai-assistant-archived-modal';
 import { Loader2, Plus, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash, Settings, LogOut, Trash2 as TrashIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -1028,6 +1029,25 @@ export default function TeacherAIAssistantPage() {
         onArchiveSession={handleArchiveSession}
         onDeleteSession={handlePermanentDelete}
         onOpenArchived={() => setShowArchived(true)}
+      />
+
+      <AIAssistantSettings
+        open={showSettings}
+        archivedCount={archivedSessions.length}
+        isAutoCollapseSidebar={isAutoCollapsSidebar}
+        isClearingArchived={isClearingArchived}
+        isDeletingAll={isDeletingAll}
+        isLoggingOut={isLoggingOut}
+        onClose={() => setShowSettings(false)}
+        onToggleAutoCollapse={handleToggleAutoCollapse}
+        onOpenArchived={() => {
+          setShowSettings(false);
+          setShowArchived(true);
+        }}
+        onExport={handleExportAsJSON}
+        onClearAllArchived={handleClearAllArchived}
+        onDeleteAllChatHistory={handleDeleteAllChatHistory}
+        onLogout={handleLogout}
       />
 
       <AIAssistantArchivedModal

@@ -10,6 +10,7 @@ import { useSchoolContext } from "@/hooks/use-school-context";
 import { supabase } from "@/lib/supabase";
 import { Class, Department, Religion } from "@/lib/types";
 import { toast } from "sonner";
+import { UploadCloud } from "lucide-react";
 import {
   ArrowLeft,
   BookOpen,

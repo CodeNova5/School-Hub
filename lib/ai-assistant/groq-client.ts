@@ -1,5 +1,5 @@
 const GROQ_CHAT_COMPLETIONS_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const DEFAULT_GROQ_RETRY_AFTER_SECONDS = 60;
+export const DEFAULT_GROQ_RETRY_AFTER_SECONDS = 60;
 
 const groqKeyCooldowns = new Map<string, number>();
 let groqKeyCursor = 0;
@@ -7,6 +7,7 @@ let groqKeyCursor = 0;
 export interface GroqChatCompletionResult {
   ok: true;
   data: any;
+  usage?: Record<string, { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }>;
 }
 
 export interface GroqChatCompletionError {
@@ -157,7 +158,18 @@ export async function fetchGroqChatCompletion(
 
     if (response.ok) {
       const data = await response.json();
-      return { ok: true, data };
+
+      // Parse provider-reported usage if present (OpenAI-style `usage` in body)
+      const groqUsageRaw = data?.usage;
+      const groqUsage = groqUsageRaw
+        ? {
+            prompt_tokens: Number(groqUsageRaw.prompt_tokens || 0),
+            completion_tokens: Number(groqUsageRaw.completion_tokens || 0),
+            total_tokens: Number(groqUsageRaw.total_tokens || 0),
+          }
+        : undefined;
+
+      return { ok: true, data, usage: groqUsage ? { groq: groqUsage } : undefined };
     }
 
     if (response.status === 429) {

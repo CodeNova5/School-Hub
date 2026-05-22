@@ -10,6 +10,7 @@ const GROQ_MODEL = 'openai/gpt-oss-20b';
 export interface SummaryResult {
   summary: string;
   error?: string;
+  usage?: Record<string, { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }>;
 }
 
 /**
@@ -85,7 +86,7 @@ export async function summarizeResults(
       };
     }
 
-    return { summary };
+    return { summary, usage: result.usage };
   } catch (error) {
     console.error('Error generating summary:', error);
     return {

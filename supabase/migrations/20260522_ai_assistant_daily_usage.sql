@@ -97,6 +97,78 @@ BEGIN
 END;
 $$;
 
+/*
+  Atomic commit function that prefers provider-reported totals (jsonb) and falls back to p_tokens_delta.
+*/
+CREATE OR REPLACE FUNCTION commit_ai_assistant_usage(
+  p_user_id uuid,
+  p_school_id uuid,
+  p_role text,
+  p_provider_totals jsonb DEFAULT NULL,
+  p_tokens_delta integer DEFAULT 0,
+  p_quota_limit integer,
+  p_usage_date date DEFAULT ((timezone('utc', now()))::date)
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_row ai_assistant_daily_usage%ROWTYPE;
+  v_tokens_delta integer := 0;
+BEGIN
+  -- Compute tokens delta from provider totals when available
+  IF p_provider_totals IS NOT NULL THEN
+    SELECT COALESCE(SUM((value->>'total_tokens')::integer), 0)
+    INTO v_tokens_delta
+    FROM jsonb_each(p_provider_totals) AS t(key, value);
+  ELSE
+    v_tokens_delta := GREATEST(p_tokens_delta, 0);
+  END IF;
+
+  -- Upsert atomically and increment tokens_used
+  WITH upsert AS (
+    INSERT INTO ai_assistant_daily_usage (
+      user_id, school_id, role, usage_date, tokens_used, quota_limit, created_at, updated_at
+    )
+    VALUES (
+      p_user_id,
+      p_school_id,
+      p_role,
+      p_usage_date,
+      GREATEST(0, v_tokens_delta),
+      p_quota_limit,
+      now(),
+      now()
+    )
+    ON CONFLICT (user_id, school_id, usage_date)
+    DO UPDATE SET
+      tokens_used = ai_assistant_daily_usage.tokens_used + GREATEST(v_tokens_delta, 0),
+      quota_limit = EXCLUDED.quota_limit,
+      updated_at = now()
+    RETURNING *
+  )
+  SELECT * INTO v_row FROM upsert;
+
+  -- Check quota
+  IF v_row.tokens_used > p_quota_limit THEN
+    RAISE EXCEPTION 'AI assistant daily quota exceeded' USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN jsonb_build_object(
+    'usageDate', to_char(v_row.usage_date, 'YYYY-MM-DD'),
+    'tokensUsed', v_row.tokens_used,
+    'quotaLimit', v_row.quota_limit,
+    'remainingTokens', GREATEST(v_row.quota_limit - v_row.tokens_used, 0),
+    'resetAt', ((v_row.usage_date + 1)::timestamp AT TIME ZONE 'utc')::timestamptz,
+    'role', v_row.role,
+    'schoolId', v_row.school_id,
+    'userId', v_row.user_id
+  );
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION record_ai_assistant_usage(
   p_user_id uuid,
   p_school_id uuid,

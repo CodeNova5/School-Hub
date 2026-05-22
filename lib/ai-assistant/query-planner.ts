@@ -14,6 +14,7 @@ export interface QueryPlan {
   error?: string;
   isTruncated?: boolean; // Indicates if results were limited
   limitApplied?: number;  // The limit that was applied
+  usage?: Record<string, { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }>;
 }
 
 const GROQ_MODEL = 'openai/gpt-oss-20b';
@@ -72,6 +73,7 @@ export async function generateQueryPlan(
 
     const data = result.data;
     const content = data.choices?.[0]?.message?.content?.trim();
+    const resultUsage = result.usage;
     
     if (!content) {
       console.error('Unexpected Groq response:', data);
@@ -85,7 +87,12 @@ export async function generateQueryPlan(
     }
 
     // Parse the JSON response safely
-    return parseQueryPlanResponse(content);
+    const parsedPlan = parseQueryPlanResponse(content);
+    if (resultUsage) {
+      parsedPlan.usage = resultUsage;
+    }
+
+    return parsedPlan;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Error generating query plan:', error);

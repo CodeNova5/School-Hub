@@ -19,15 +19,9 @@ import {
   getSecondsUntilUtcMidnight,
   getUtcDateKey,
 } from '@/lib/ai-assistant/usage';
+import { fetchGroqChatCompletion, DEFAULT_GROQ_RETRY_AFTER_SECONDS } from '@/lib/ai-assistant/groq-client';
 
 export const dynamic = 'force-dynamic';
-
-const GROQ_CHAT_COMPLETIONS_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL = 'openai/gpt-oss-20b';
-const DEFAULT_GROQ_RETRY_AFTER_SECONDS = 60;
-
-const groqKeyCooldowns = new Map<string, number>();
-let groqKeyCursor = 0;
 
 interface Message {
   id?: string;
@@ -44,185 +38,7 @@ interface AskRequest {
   context?: Message[];
   schoolId?: string;
 }
-
-interface GroqChatCompletionResult {
-  ok: true;
-  data: any;
-}
-
-interface GroqChatCompletionError {
-  ok: false;
-  error: string;
-  status?: number;
-  retryAfterSeconds?: number;
-}
-
-function getGroqApiKeys(): string[] {
-  const fromSingleKey = process.env.GROQ_API_KEY?.trim();
-  const fromList = (process.env.GROQ_API_KEYS || '')
-    .split(/[\n,]/)
-    .map((key) => key.trim())
-    .filter((key): key is string => Boolean(key));
-
-  const fromIndexedKeys = Object.entries(process.env)
-    .filter(([name, value]) => /^GROQ_API_KEY_\d+$/.test(name) && value?.trim())
-    .sort(([a], [b]) => {
-      const aIndex = Number.parseInt(a.split('_').pop() || '0', 10);
-      const bIndex = Number.parseInt(b.split('_').pop() || '0', 10);
-      return aIndex - bIndex;
-    })
-    .map(([, value]) => value!.trim());
-
-  return Array.from(
-    new Set([fromSingleKey, ...fromList, ...fromIndexedKeys].filter((key): key is string => Boolean(key)))
-  );
-}
-
-function getRetryAfterSeconds(response: Response): number {
-  const headerValue = response.headers.get('retry-after');
-  if (!headerValue) {
-    return DEFAULT_GROQ_RETRY_AFTER_SECONDS;
-  }
-
-  const parsedSeconds = Number.parseInt(headerValue, 10);
-  if (!Number.isNaN(parsedSeconds) && parsedSeconds > 0) {
-    return parsedSeconds;
-  }
-
-  const parsedDate = Date.parse(headerValue);
-  if (!Number.isNaN(parsedDate)) {
-    const remainingSeconds = Math.ceil((parsedDate - Date.now()) / 1000);
-    if (remainingSeconds > 0) {
-      return remainingSeconds;
-    }
-  }
-
-  return DEFAULT_GROQ_RETRY_AFTER_SECONDS;
-}
-
-function markGroqKeyCooldown(apiKey: string, retryAfterSeconds: number): void {
-  groqKeyCooldowns.set(apiKey, Date.now() + retryAfterSeconds * 1000);
-}
-
-function getNextAvailableGroqKeyIndex(apiKeys: string[]): number {
-  const now = Date.now();
-
-  for (let offset = 0; offset < apiKeys.length; offset++) {
-    const index = (groqKeyCursor + offset) % apiKeys.length;
-    const cooldownUntil = groqKeyCooldowns.get(apiKeys[index]) || 0;
-
-    if (cooldownUntil <= now) {
-      groqKeyCursor = (index + 1) % apiKeys.length;
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function getSoonestGroqRetryAfterSeconds(apiKeys: string[]): number {
-  const now = Date.now();
-  let soonestRemainingMs = Number.POSITIVE_INFINITY;
-
-  for (const apiKey of apiKeys) {
-    const cooldownUntil = groqKeyCooldowns.get(apiKey);
-    if (!cooldownUntil) {
-      return 0;
-    }
-
-    const remainingMs = cooldownUntil - now;
-    if (remainingMs <= 0) {
-      return 0;
-    }
-
-    soonestRemainingMs = Math.min(soonestRemainingMs, remainingMs);
-  }
-
-  if (!Number.isFinite(soonestRemainingMs)) {
-    return 0;
-  }
-
-  return Math.max(1, Math.ceil(soonestRemainingMs / 1000));
-}
-
-async function readGroqErrorMessage(response: Response): Promise<string> {
-  try {
-    const errorBody = await response.json();
-    return errorBody?.error?.message || errorBody?.message || 'Failed to process question';
-  } catch {
-    try {
-      const text = await response.text();
-      return text || 'Failed to process question';
-    } catch {
-      return 'Failed to process question';
-    }
-  }
-}
-
-async function fetchGroqChatCompletion(
-  body: Record<string, unknown>
-): Promise<GroqChatCompletionResult | GroqChatCompletionError> {
-  const apiKeys = getGroqApiKeys();
-
-  if (apiKeys.length === 0) {
-    return {
-      ok: false,
-      error: 'GROQ_API_KEY is not configured',
-      status: 500,
-    };
-  }
-
-  const triedKeys = new Set<string>();
-
-  while (triedKeys.size < apiKeys.length) {
-    const keyIndex = getNextAvailableGroqKeyIndex(apiKeys);
-
-    if (keyIndex === -1) {
-      return {
-        ok: false,
-        error: 'Groq is rate limited across all available keys',
-        status: 429,
-        retryAfterSeconds: getSoonestGroqRetryAfterSeconds(apiKeys) || DEFAULT_GROQ_RETRY_AFTER_SECONDS,
-      };
-    }
-
-    const apiKey = apiKeys[keyIndex];
-    triedKeys.add(apiKey);
-
-    const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return { ok: true, data };
-    }
-
-    if (response.status === 429) {
-      const retryAfterSeconds = getRetryAfterSeconds(response);
-      markGroqKeyCooldown(apiKey, retryAfterSeconds);
-      continue;
-    }
-
-    return {
-      ok: false,
-      error: await readGroqErrorMessage(response),
-      status: response.status,
-    };
-  }
-
-  return {
-    ok: false,
-    error: 'Groq is temporarily unavailable',
-    status: 429,
-    retryAfterSeconds: getSoonestGroqRetryAfterSeconds(apiKeys) || DEFAULT_GROQ_RETRY_AFTER_SECONDS,
-  };
-}
+const GROQ_MODEL = 'openai/gpt-oss-20b';
 
 export async function POST(request: NextRequest) {
   try {
@@ -360,6 +176,23 @@ export async function POST(request: NextRequest) {
     // Classify question and get response in single API call
     const classificationResult = await classifyAndRespond(question, context);
 
+    // Aggregate provider-reported usage across the request lifecycle
+    const providerTotals: Record<string, { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }> = {};
+    function mergeUsage(source?: Record<string, { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }>) {
+      if (!source) return;
+      for (const [provider, vals] of Object.entries(source)) {
+        const existing = providerTotals[provider] || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+        providerTotals[provider] = {
+          prompt_tokens: (existing.prompt_tokens || 0) + (vals.prompt_tokens || 0),
+          completion_tokens: (existing.completion_tokens || 0) + (vals.completion_tokens || 0),
+          total_tokens: (existing.total_tokens || 0) + (vals.total_tokens || 0),
+        };
+      }
+    }
+
+    // Merge classification usage if present
+    mergeUsage((classificationResult as any).usage);
+
     if (classificationResult.error) {
       if (classificationResult.status === 429) {
         const retryAfterSeconds = classificationResult.retryAfterSeconds || DEFAULT_GROQ_RETRY_AFTER_SECONDS;
@@ -401,7 +234,15 @@ export async function POST(request: NextRequest) {
         usageDate,
         tokensDelta: estimatedTokens,
         quotaLimit,
-      });
+      }, providerTotals);
+
+      if ((finalUsage as any)?.quotaExceeded) {
+        const retryAfterSeconds = getSecondsUntilUtcMidnight();
+        return NextResponse.json(
+          { error: 'Daily AI token limit reached', success: false, usage: (finalUsage as any).usage, retryAfterSeconds },
+          { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+        );
+      }
 
       // Cache the response
       if (useCache) {
@@ -420,6 +261,8 @@ export async function POST(request: NextRequest) {
 
     // Generate query plan using AI for data questions
     const queryPlan = await generateQueryPlan(question, userRole, userId);
+    // Merge any usage produced by query planning
+    mergeUsage((queryPlan as any).usage);
 
     if (queryPlan.error) {
       return NextResponse.json(
@@ -454,6 +297,9 @@ export async function POST(request: NextRequest) {
         queryResult.error || 'Query execution failed.'
       );
 
+      // Merge summarization usage
+      mergeUsage((summaryResult as any).usage);
+
       const finalUsage = await recordAIAssistantUsageDelta(supabase, {
         userId,
         schoolId,
@@ -461,7 +307,15 @@ export async function POST(request: NextRequest) {
         usageDate,
         tokensDelta: estimatedTokens,
         quotaLimit,
-      });
+      }, providerTotals);
+
+      if ((finalUsage as any)?.quotaExceeded) {
+        const retryAfterSeconds = getSecondsUntilUtcMidnight();
+        return NextResponse.json(
+          { error: 'Daily AI token limit reached', success: false, usage: (finalUsage as any).usage, retryAfterSeconds },
+          { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -490,6 +344,9 @@ export async function POST(request: NextRequest) {
         queryPlan.explanation
       );
 
+      // Merge summarization usage
+      mergeUsage((summaryResult as any).usage);
+
       if (summaryResult.error) {
         // Fallback to simple summary if AI fails
         response = generateSimpleSummary(question, queryResult.data || []);
@@ -513,7 +370,15 @@ export async function POST(request: NextRequest) {
       usageDate,
       tokensDelta: estimatedTokens,
       quotaLimit,
-    });
+    }, providerTotals);
+
+    if ((finalUsage as any)?.quotaExceeded) {
+      const retryAfterSeconds = getSecondsUntilUtcMidnight();
+      return NextResponse.json(
+        { error: 'Daily AI token limit reached', success: false, usage: (finalUsage as any).usage, retryAfterSeconds },
+        { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+      );
+    }
 
     // NOTE: Messages are saved by the client component via save-message endpoint
     // to avoid duplicate insertions and maintain single source of truth for persistence
@@ -561,18 +426,38 @@ async function recordAIAssistantUsageDelta(
     tokensDelta: number;
     quotaLimit: number;
   }
+  , providerTotals?: Record<string, { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }>
 ) {
-  const { data, error } = await supabase.rpc('record_ai_assistant_usage', {
+  // Prefer commit_ai_assistant_usage which accepts provider totals
+  const rpcParams: Record<string, unknown> = {
     p_user_id: params.userId,
     p_school_id: params.schoolId,
     p_role: params.role,
+    p_provider_totals: providerTotals ?? null,
     p_tokens_delta: params.tokensDelta,
     p_quota_limit: params.quotaLimit,
     p_usage_date: params.usageDate,
-  });
+  };
+
+  const { data, error } = await supabase.rpc('commit_ai_assistant_usage', rpcParams);
 
   if (error) {
-    console.error('Error recording AI usage:', error);
+    console.error('Error committing AI usage:', error);
+
+    // Detect quota-exceeded error (using our RPC's P0001)
+    if (String(error?.code) === 'P0001' || String(error?.message || '').toLowerCase().includes('quota exceeded')) {
+      // Return structured indicator so caller can return 429
+      const fallback = formatAIAssistantUsageSummary({
+        usageDate: params.usageDate,
+        tokensUsed: params.tokensDelta,
+        quotaLimit: params.quotaLimit,
+        role: params.role,
+        schoolId: params.schoolId,
+        userId: params.userId,
+      });
+      return { quotaExceeded: true, usage: fallback } as any;
+    }
+
     return formatAIAssistantUsageSummary({
       usageDate: params.usageDate,
       tokensUsed: params.tokensDelta,
@@ -664,6 +549,7 @@ No markdown formatting in the response field, just plain text.`,
 
     const data = result.data;
     const message = data.choices?.[0]?.message?.content?.trim();
+    const resultUsage = (result as any).usage;
 
     if (!message) {
       return { isDataQuestion: false, error: 'No response generated' };
@@ -682,14 +568,14 @@ No markdown formatting in the response field, just plain text.`,
     const safeTitle = sanitizeGeneratedTitle(title, fallbackTitle);
 
     if (isDataQuestion && responseText === '[[DATA_QUESTION]]') {
-      return { isDataQuestion: true, title: safeTitle };
+      return { isDataQuestion: true, title: safeTitle, usage: resultUsage } as any;
     }
 
     if (!isDataQuestion && responseText) {
-      return { isDataQuestion: false, response: responseText, title: safeTitle };
+      return { isDataQuestion: false, response: responseText, title: safeTitle, usage: resultUsage } as any;
     }
 
-    return { isDataQuestion: false, error: 'Invalid response format' };
+    return { isDataQuestion: false, error: 'Invalid response format', usage: resultUsage } as any;
   } catch (error) {
     console.error('Error classifying question:', error);
     return { isDataQuestion: false, error: error instanceof Error ? error.message : 'Failed to process question' };

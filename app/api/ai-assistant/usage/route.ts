@@ -2,7 +2,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { errorResponse, getAiAssistantContext } from '@/lib/api-helpers';
-import { formatAIAssistantUsageSummary, getAIAssistantDailyTokenLimit, getUtcDateKey } from '@/lib/ai-assistant/usage';
+import { AIAssistantRole, formatAIAssistantUsageSummary, getAIAssistantDailyTokenLimit, getUtcDateKey } from '@/lib/ai-assistant/usage';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +25,7 @@ export async function GET() {
     }
 
     const usageDate = getUtcDateKey();
-    const quotaLimit = getAIAssistantDailyTokenLimit(context.role);
+    const quotaLimit = getAIAssistantDailyTokenLimit(context.role as AIAssistantRole);
 
     const { data, error } = await supabase.rpc('get_ai_assistant_usage_summary', {
       p_user_id: session.user.id,
@@ -44,7 +44,7 @@ export async function GET() {
       usageDate,
       tokensUsed: Number(summary?.tokensUsed ?? 0),
       quotaLimit: Number(summary?.quotaLimit ?? quotaLimit),
-      role: context.role,
+      role: context.role as AIAssistantRole,
       schoolId: context.schoolId,
       userId: session.user.id,
     });

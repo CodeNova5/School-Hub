@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageSquare, Plus, MoreVertical, Clock, Pin, Settings, Edit2, Archive, Trash } from 'lucide-react';
+import { AIAssistantUsageSummary } from '@/lib/ai-assistant/usage';
 
 interface ChatSession {
   id: string;
@@ -43,6 +44,36 @@ export default function AIAssistantSidebar({
   onOpenArchived,
 }: SidebarProps) {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [usageSummary, setUsageSummary] = useState<AIAssistantUsageSummary | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadUsage = async () => {
+      try {
+        setIsLoadingUsage(true);
+        const response = await fetch('/api/ai-assistant/usage');
+        const data = await response.json();
+
+        if (isMounted && data?.success && data?.usage) {
+          setUsageSummary(data.usage);
+        }
+      } catch (error) {
+        console.error('Error loading AI usage summary:', error);
+      } finally {
+        if (isMounted) {
+          setIsLoadingUsage(false);
+        }
+      }
+    };
+
+    loadUsage();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -190,6 +221,27 @@ export default function AIAssistantSidebar({
       </ScrollArea>
 
       <div className="p-4 border-t border-white/10 space-y-2">
+        <div className="rounded-lg border border-slate-600 bg-slate-700/40 p-3 text-xs text-slate-300">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="font-semibold text-slate-200">Daily AI Tokens</span>
+            <span className="text-slate-400">{isLoadingUsage ? 'Loading...' : usageSummary?.usageDate || new Date().toISOString().slice(0, 10)}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-md border border-slate-600 bg-slate-900/50 p-2">
+              <p className="text-slate-400">Used</p>
+              <p className="text-sm font-semibold text-white">{usageSummary ? usageSummary.tokensUsed.toLocaleString() : '0'}</p>
+            </div>
+            <div className="rounded-md border border-slate-600 bg-slate-900/50 p-2">
+              <p className="text-slate-400">Left</p>
+              <p className="text-sm font-semibold text-white">{usageSummary ? usageSummary.remainingTokens.toLocaleString() : '0'}</p>
+            </div>
+            <div className="rounded-md border border-slate-600 bg-slate-900/50 p-2">
+              <p className="text-slate-400">Limit</p>
+              <p className="text-sm font-semibold text-white">{usageSummary ? usageSummary.quotaLimit.toLocaleString() : '0'}</p>
+            </div>
+          </div>
+        </div>
+
         <div className="flex gap-2">
           <button
             onClick={() => onOpenArchived?.()}

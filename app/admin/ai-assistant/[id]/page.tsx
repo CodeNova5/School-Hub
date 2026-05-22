@@ -14,6 +14,7 @@ import AIAssistantSidebar from '@/components/ai-assistant-sidebar';
 import { Bot, MessageSquare, Trash2, Clock, MoreVertical, Edit2, Pin, Archive, Trash, Settings, LogOut, Trash2 as TrashIcon, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { AIAssistantUsageSummary } from '@/lib/ai-assistant/usage';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,6 +110,8 @@ export default function AdminAIAssistantPage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isClearingArchived, setIsClearingArchived] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [usageSummary, setUsageSummary] = useState<AIAssistantUsageSummary | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
   const unsavedSessionIdsRef = useRef(unsavedSessionIds);
 
@@ -487,6 +490,28 @@ export default function AdminAIAssistantPage() {
     localStorage.setItem('aiAssistant_autoCollapseSidebar', String(newValue));
   }, [isAutoCollapsSidebar]);
 
+  const loadUsageSummary = useCallback(async () => {
+    try {
+      setIsLoadingUsage(true);
+      const response = await fetch('/api/ai-assistant/usage');
+      const data = await response.json();
+
+      if (data?.success && data?.usage) {
+        setUsageSummary(data.usage);
+      }
+    } catch (error) {
+      console.error('Error loading AI usage summary:', error);
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showSettings) {
+      loadUsageSummary();
+    }
+  }, [showSettings, loadUsageSummary]);
+
   // Ensure valid session is selected when closing modals
   const handleCloseArchived = useCallback(() => {
     setShowArchived(false);
@@ -564,6 +589,32 @@ export default function AdminAIAssistantPage() {
             </div>
 
             <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="p-3 bg-slate-700/50 rounded-lg border border-slate-600">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-sm font-medium text-slate-200">Daily Token Usage</p>
+                  <p className="text-xs text-slate-400">
+                    {isLoadingUsage ? 'Loading...' : usageSummary?.usageDate || new Date().toISOString().slice(0, 10)}
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-md bg-slate-900/50 border border-slate-600 p-2">
+                    <p className="text-slate-400">Used</p>
+                    <p className="text-white font-semibold">{usageSummary ? usageSummary.tokensUsed.toLocaleString() : '0'}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-900/50 border border-slate-600 p-2">
+                    <p className="text-slate-400">Remaining</p>
+                    <p className="text-white font-semibold">{usageSummary ? usageSummary.remainingTokens.toLocaleString() : '0'}</p>
+                  </div>
+                  <div className="rounded-md bg-slate-900/50 border border-slate-600 p-2">
+                    <p className="text-slate-400">Limit</p>
+                    <p className="text-white font-semibold">{usageSummary ? usageSummary.quotaLimit.toLocaleString() : '0'}</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Resets at {usageSummary ? new Date(usageSummary.resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '00:00'} UTC
+                </p>
+              </div>
+
               <div className="p-3 bg-slate-700/50 rounded-lg border border-slate-600 hover:border-slate-500 transition-colors">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input

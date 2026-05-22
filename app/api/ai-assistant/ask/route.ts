@@ -10,6 +10,15 @@ import { generateQueryPlan } from '@/lib/ai-assistant/query-planner';
 import { executeQueryPlan } from '@/lib/ai-assistant/query-executor';
 import { summarizeResults, generateSimpleSummary } from '@/lib/ai-assistant/result-summarizer';
 import { getCachedQuery, setCachedQuery } from '@/lib/ai-assistant/query-cache';
+import { errorResponse, getAiAssistantContext } from '@/lib/api-helpers';
+import {
+  AIAssistantRole,
+  estimateChatContextTokens,
+  formatAIAssistantUsageSummary,
+  getAIAssistantDailyTokenLimit,
+  getSecondsUntilUtcMidnight,
+  getUtcDateKey,
+} from '@/lib/ai-assistant/usage';
 
 export const dynamic = 'force-dynamic';
 
@@ -234,6 +243,11 @@ export async function POST(request: NextRequest) {
 
     const userId = session.user.id;
 
+    const contextInfo = await getAiAssistantContext();
+    if (!contextInfo.authorized || !contextInfo.role || !contextInfo.schoolId) {
+      return errorResponse(contextInfo.error || 'Forbidden', contextInfo.status || 403);
+    }
+
     // Get user's school_id from request (from client context) or fetch from DB
     // Parse request first
     const body: AskRequest = await request.json();
@@ -246,19 +260,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Require `schoolId` in the request body — client must pass it
-    const schoolId = body.schoolId;
-    if (!schoolId) {
-      return NextResponse.json(
-        { error: 'schoolId is required in request body' },
-        { status: 400 }
-      );
-    }
+    const schoolId = contextInfo.schoolId;
+    const userRole = contextInfo.role as AIAssistantRole;
 
-    const userRole = await getUserRole(supabase, userId);
-    if (!userRole) {
+    if (body.schoolId && body.schoolId !== schoolId) {
       return NextResponse.json(
-        { error: 'User role not found' },
+        { error: 'schoolId does not match the authenticated user' },
         { status: 403 }
       );
     }
@@ -285,6 +292,49 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const usageDate = getUtcDateKey();
+    const quotaLimit = getAIAssistantDailyTokenLimit(userRole);
+    const estimatedTokens = estimateChatContextTokens(question, context);
+
+    const { data: usageData, error: usageError } = await supabase.rpc('get_ai_assistant_usage_summary', {
+      p_user_id: userId,
+      p_school_id: schoolId,
+      p_role: userRole,
+      p_usage_date: usageDate,
+    });
+
+    if (usageError) {
+      console.error('Error loading AI usage summary:', usageError);
+      return NextResponse.json({ error: 'Failed to load usage summary' }, { status: 500 });
+    }
+
+    const usageSummary = formatAIAssistantUsageSummary({
+      usageDate,
+      tokensUsed: Number((usageData as Record<string, unknown> | null)?.tokensUsed ?? 0),
+      quotaLimit: Number((usageData as Record<string, unknown> | null)?.quotaLimit ?? quotaLimit),
+      role: userRole,
+      schoolId,
+      userId,
+    });
+
+    if (usageSummary.remainingTokens < estimatedTokens) {
+      const retryAfterSeconds = getSecondsUntilUtcMidnight();
+      return NextResponse.json(
+        {
+          error: 'Daily AI token limit reached',
+          success: false,
+          usage: usageSummary,
+          retryAfterSeconds,
+        },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(retryAfterSeconds),
+          },
+        }
+      );
+    }
+
     // Check cache first
     if (useCache) {
       const cachedResponse = getCachedQuery(question, schoolId, userId);
@@ -301,6 +351,7 @@ export async function POST(request: NextRequest) {
             success: true,
             response: cachedResponse,
             cached: true,
+            usage: usageSummary,
           });
         }
       }
@@ -317,6 +368,7 @@ export async function POST(request: NextRequest) {
           {
             error: classificationResult.error,
             success: false,
+            usage: usageSummary,
             retryAfterSeconds,
           },
           {
@@ -342,6 +394,15 @@ export async function POST(request: NextRequest) {
       const responseText = classificationResult.response!;
       const generatedTitle = classificationResult.title || null;
 
+      const finalUsage = await recordAIAssistantUsageDelta(supabase, {
+        userId,
+        schoolId,
+        role: userRole,
+        usageDate,
+        tokensDelta: estimatedTokens,
+        quotaLimit,
+      });
+
       // Cache the response
       if (useCache) {
         setCachedQuery(question, schoolId, responseText, userId);
@@ -353,6 +414,7 @@ export async function POST(request: NextRequest) {
         cached: false,
         sessionId: currentSessionId,
         generatedTitle,
+        usage: finalUsage,
       });
     }
 
@@ -363,7 +425,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: queryPlan.error,
-          success: false
+          success: false,
+          usage: usageSummary,
         },
         { status: 400 }
       );
@@ -391,6 +454,15 @@ export async function POST(request: NextRequest) {
         queryResult.error || 'Query execution failed.'
       );
 
+      const finalUsage = await recordAIAssistantUsageDelta(supabase, {
+        userId,
+        schoolId,
+        role: userRole,
+        usageDate,
+        tokensDelta: estimatedTokens,
+        quotaLimit,
+      });
+
       return NextResponse.json({
         success: true,
         response: summaryResult.summary || queryResult.error || 'Query execution failed.',
@@ -404,6 +476,7 @@ export async function POST(request: NextRequest) {
         errorHint: queryResult.errorHint,
         cached: false,
         sessionId: currentSessionId,
+        usage: finalUsage,
       });
     }
 
@@ -433,6 +506,15 @@ export async function POST(request: NextRequest) {
       setCachedQuery(question, schoolId, response, userId);
     }
 
+    const finalUsage = await recordAIAssistantUsageDelta(supabase, {
+      userId,
+      schoolId,
+      role: userRole,
+      usageDate,
+      tokensDelta: estimatedTokens,
+      quotaLimit,
+    });
+
     // NOTE: Messages are saved by the client component via save-message endpoint
     // to avoid duplicate insertions and maintain single source of truth for persistence
 
@@ -450,6 +532,7 @@ export async function POST(request: NextRequest) {
       cached: false,
       sessionId: currentSessionId,
       generatedTitle,
+      usage: finalUsage,
     });
   } catch (error) {
     console.error('AI Assistant error:', error);
@@ -468,52 +551,47 @@ export async function POST(request: NextRequest) {
 /**
  * Get user's role
  */
-async function getUserRole(
+async function recordAIAssistantUsageDelta(
   supabase: any,
-  userId: string
-): Promise<'student' | 'teacher' | 'admin' | 'parent' | null> {
-  try {
-    // Check if admin
-    const { data: admin } = await supabase
-      .from('admins')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
-
-    if (admin) return 'admin';
-
-    // Check if teacher
-    const { data: teacher } = await supabase
-      .from('teachers')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
-
-    if (teacher) return 'teacher';
-
-    // Check if student
-    const { data: student } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
-
-    if (student) return 'student';
-
-    // Check if parent
-    const { data: parent } = await supabase
-      .from('parents')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
-
-    if (parent) return 'parent';
-
-    return null;
-  } catch (error) {
-    console.error('Error getting user role:', error);
-    return null;
+  params: {
+    userId: string;
+    schoolId: string;
+    role: 'student' | 'teacher' | 'admin' | 'parent';
+    usageDate: string;
+    tokensDelta: number;
+    quotaLimit: number;
   }
+) {
+  const { data, error } = await supabase.rpc('record_ai_assistant_usage', {
+    p_user_id: params.userId,
+    p_school_id: params.schoolId,
+    p_role: params.role,
+    p_tokens_delta: params.tokensDelta,
+    p_quota_limit: params.quotaLimit,
+    p_usage_date: params.usageDate,
+  });
+
+  if (error) {
+    console.error('Error recording AI usage:', error);
+    return formatAIAssistantUsageSummary({
+      usageDate: params.usageDate,
+      tokensUsed: params.tokensDelta,
+      quotaLimit: params.quotaLimit,
+      role: params.role,
+      schoolId: params.schoolId,
+      userId: params.userId,
+    });
+  }
+
+  const summary = data as Record<string, unknown> | null;
+  return formatAIAssistantUsageSummary({
+    usageDate: String(summary?.usageDate || params.usageDate),
+    tokensUsed: Number(summary?.tokensUsed ?? params.tokensDelta),
+    quotaLimit: Number(summary?.quotaLimit ?? params.quotaLimit),
+    role: params.role,
+    schoolId: params.schoolId,
+    userId: params.userId,
+  });
 }
 
 /**

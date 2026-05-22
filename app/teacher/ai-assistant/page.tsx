@@ -12,7 +12,7 @@ export default function TeacherAIAssistantEntryPage() {
   useEffect(() => {
     let isMounted = true;
 
-    const createSessionAndRedirect = async () => {
+    const redirectToAssistant = async () => {
       try {
         const {
           data: { session },
@@ -36,33 +36,16 @@ export default function TeacherAIAssistantEntryPage() {
           return;
         }
 
-        const { data: newSession, error: createError } = await supabase
-          .from('ai_chat_sessions')
-          .insert({
-            user_id: session.user.id,
-            school_id: userProfile.school_id,
-            title: 'New Conversation',
-          })
-          .select()
-          .single();
-
-        if (createError || !newSession) {
-          if (isMounted) {
-            setError('Failed to create a new chat session.');
-          }
-          return;
-        }
-
-        router.replace(`/teacher/ai-assistant/${newSession.id}`);
+        router.replace('/teacher/ai-assistant/new');
       } catch (err) {
         console.error('Error creating session:', err);
         if (isMounted) {
-          setError('Something went wrong while creating your chat.');
+          setError('Something went wrong while opening your chat.');
         }
       }
     };
 
-    createSessionAndRedirect();
+    redirectToAssistant();
 
     return () => {
       isMounted = false;
@@ -79,7 +62,7 @@ export default function TeacherAIAssistantEntryPage() {
       ) : (
         <div className="flex items-center gap-3 text-slate-200">
           <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-          <span>Creating a new chat...</span>
+          <span>Opening chat...</span>
         </div>
       )}
     </div>

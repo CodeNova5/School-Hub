@@ -45,10 +45,23 @@ interface ChatSession {
   isArchived?: boolean;
 }
 
+const UUID_TITLE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeConversationTitle(title?: string | null) {
+  const normalized = title?.trim();
+
+  if (!normalized || UUID_TITLE_PATTERN.test(normalized)) {
+    return 'Untitled Conversation';
+  }
+
+  return normalized;
+}
+
 export default function TeacherAIAssistantPage() {
   const router = useRouter();
   const params = useParams();
   const routeSessionId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const isNewChatRoute = routeSessionId === 'new';
 
   const [isLoading, setIsLoading] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -231,7 +244,7 @@ export default function TeacherAIAssistantPage() {
             .filter((s: any) => !s.is_archived)
             .map((s: any) => ({
               id: s.id,
-              title: s.title || 'Untitled Conversation',
+              title: normalizeConversationTitle(s.title),
               createdAt: new Date(s.created_at),
               updatedAt: new Date(s.updated_at),
               isPinned: s.is_pinned || false,
@@ -242,7 +255,7 @@ export default function TeacherAIAssistantPage() {
             .filter((s: any) => s.is_archived)
             .map((s: any) => ({
               id: s.id,
-              title: s.title || 'Untitled Conversation',
+              title: normalizeConversationTitle(s.title),
               createdAt: new Date(s.created_at),
               updatedAt: new Date(s.updated_at),
               isPinned: s.is_pinned || false,
@@ -251,7 +264,11 @@ export default function TeacherAIAssistantPage() {
 
           setArchivedSessions(archived);
 
-          if (routeSessionId) {
+          if (isNewChatRoute) {
+            setSessions(activeSessions);
+            setCurrentSessionId('');
+            setInvalidSessionId(false);
+          } else if (routeSessionId) {
             const matchedSession = activeSessions.find((s: ChatSession) => s.id === routeSessionId);
             setSessions(activeSessions);
             if (matchedSession) {
@@ -262,37 +279,20 @@ export default function TeacherAIAssistantPage() {
               setInvalidSessionId(true);
             }
           } else {
-            // Check if "New Conversation" already exists in active sessions
-            const hasNewConversation = activeSessions.some((s: ChatSession) => s.title === 'New Conversation');
-
-            // Only create a new session if one doesn't already exist
-            let newSession: ChatSession | null = null;
-            if (!hasNewConversation && userProfileRef.current) {
-              newSession = await createNewSessionOptimistic('New Conversation');
-            }
-
-            if (newSession && isMounted) {
-              setSessions([newSession, ...activeSessions]);
-              setCurrentSessionId(newSession.id);
-            } else if (isMounted) {
-              setSessions(activeSessions);
-              const newConversationSession = activeSessions.find((s: ChatSession) => s.title === 'New Conversation');
-              setCurrentSessionId(newConversationSession?.id || activeSessions[0]?.id || '');
-            }
+            setSessions(activeSessions);
+            setCurrentSessionId(activeSessions[0]?.id || '');
+            setInvalidSessionId(false);
           }
         } else {
           setSessions([]);
           setArchivedSessions([]);
 
-          if (routeSessionId) {
+          if (isNewChatRoute) {
+            setCurrentSessionId('');
+            setInvalidSessionId(false);
+          } else if (routeSessionId) {
             setCurrentSessionId('');
             setInvalidSessionId(true);
-          } else if (userProfileRef.current) {
-            const newSession = await createNewSessionOptimistic('New Conversation');
-            if (newSession && isMounted) {
-              setSessions([newSession]);
-              setCurrentSessionId(newSession.id);
-            }
           }
         }
 
@@ -333,21 +333,11 @@ export default function TeacherAIAssistantPage() {
     if (isInitialLoadRef.current || creatingSessionRef.current) return;
 
     setIsCreatingSession(true);
-    try {
-      const newSession = await createNewSessionOptimistic('New Conversation');
-      
-      if (newSession) {
-        setSessions((prev) => [newSession, ...prev]);
-        setCurrentSessionId(newSession.id);
-        setInvalidSessionId(false);
-        router.push(`/teacher/ai-assistant/${newSession.id}`);
-      }
-    } catch (error) {
-      console.error('Error creating new chat:', error);
-    } finally {
-      setIsCreatingSession(false);
-    }
-  }, [createNewSessionOptimistic, router]);
+    setCurrentSessionId('');
+    setInvalidSessionId(false);
+    router.push('/teacher/ai-assistant/new');
+    setIsCreatingSession(false);
+  }, [router]);
 
   const handleMessagesUpdate = useCallback((newMessages: Message[]) => {
     // Mark session as having messages in localStorage
@@ -424,8 +414,10 @@ export default function TeacherAIAssistantPage() {
     }
   }, [currentSessionId, sessions, unsavedSessionIds, router]);
 
-  const handleTitleGenerated = useCallback(async (generatedTitle: string) => {
-    if (!currentSessionId) {
+  const handleTitleGenerated = useCallback(async (sessionId: string, generatedTitle: string) => {
+    const targetSessionId = sessionId || currentSessionId;
+
+    if (!targetSessionId || !generatedTitle) {
       return;
     }
 
@@ -433,7 +425,7 @@ export default function TeacherAIAssistantPage() {
       // Update the session with the AI-generated title
       setSessions((prev) =>
         prev.map((session) =>
-          session.id === currentSessionId
+          session.id === targetSessionId
             ? {
               ...session,
               title: generatedTitle,
@@ -444,14 +436,14 @@ export default function TeacherAIAssistantPage() {
       );
 
       // Only update DB if session is already saved (not unsaved)
-      if (!unsavedSessionIdsRef.current.has(currentSessionId)) {
+      if (!unsavedSessionIdsRef.current.has(targetSessionId)) {
         const { error } = await supabase
           .from('ai_chat_sessions')
           .update({
             title: generatedTitle,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', currentSessionId);
+          .eq('id', targetSessionId);
         
         if (error) {
           console.error('Error updating title in DB:', error);
@@ -944,7 +936,7 @@ export default function TeacherAIAssistantPage() {
     }
   }, [currentSessionId, sessions, router]);
 
-  // Auto-create new session when all are deleted (after initial load)
+  // Keep the blank composer route available when all sessions are deleted.
   useEffect(() => {
     if (
       !isInitialLoadRef.current &&
@@ -952,11 +944,11 @@ export default function TeacherAIAssistantPage() {
       !isCreatingSession &&
       currentSessionId === '' &&
       !invalidSessionId &&
-      !routeSessionId
+      !isNewChatRoute
     ) {
-      handleNewChat();
+      router.replace('/teacher/ai-assistant/new');
     }
-  }, [sessions.length, isCreatingSession, currentSessionId, handleNewChat, invalidSessionId, routeSessionId]);
+  }, [sessions.length, isCreatingSession, currentSessionId, invalidSessionId, isNewChatRoute, router]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -976,6 +968,7 @@ export default function TeacherAIAssistantPage() {
   }, []);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
+  const showBlankComposer = isNewChatRoute || (!currentSessionId && !invalidSessionId);
 
   if (isLoading) {
     return (
@@ -1639,10 +1632,10 @@ export default function TeacherAIAssistantPage() {
                 </Button>
               </div>
             </div>
-          ) : currentSessionId && currentSession ? (
+          ) : showBlankComposer || (currentSessionId && currentSession) ? (
             <AIAssistantChat
-              key={currentSessionId}
-              sessionId={currentSessionId}
+              key={currentSessionId || 'new-chat'}
+              sessionId={showBlankComposer ? undefined : currentSessionId}
               onMessagesUpdate={handleMessagesUpdate}
               onGeneratedTitle={handleTitleGenerated}
               onSessionIdChange={handleSessionIdChange}
@@ -1654,6 +1647,7 @@ export default function TeacherAIAssistantPage() {
                 'Average grades by class',
                 'Which teacher has the most classes assigned?',
               ]}
+              loadHistory={!showBlankComposer}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-slate-400">

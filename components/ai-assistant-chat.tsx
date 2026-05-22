@@ -60,6 +60,7 @@ export default function AIAssistantChat({
   onGeneratedTitle,
   loadHistory = true,
 }: AIAssistantChatProps) {
+  const MAX_INPUT_HEIGHT = 160;
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(propSessionId || null);
   const [input, setInput] = useState('');
@@ -91,7 +92,9 @@ export default function AIAssistantChat({
     const textarea = inputRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+      const nextHeight = Math.min(textarea.scrollHeight, MAX_INPUT_HEIGHT);
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
     }
   }, [input]);
 
@@ -703,13 +706,13 @@ export default function AIAssistantChat({
             )}
 
             {/* Input Controls */}
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
               {/* Mic Button */}
               {isSpeechEnabled && (
                 <button
                   onClick={isRecording ? handleStopRecording : handleStartRecording}
                   disabled={isLoading}
-                  className={`flex-shrink-0 px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-slate-900 transition-all ${
+                  className={`flex-shrink-0 h-11 px-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-slate-900 transition-all ${
                     isRecording
                       ? 'bg-red-600 hover:bg-red-700 text-white shadow-lg'
                       : 'bg-slate-700 hover:bg-slate-600 text-slate-200 focus:ring-red-500'
@@ -733,14 +736,14 @@ export default function AIAssistantChat({
                 placeholder={placeholder}
                 disabled={isLoading}
                 rows={1}
-                className="flex-1 px-4 py-2.5 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-slate-700 resize-none disabled:bg-slate-800 disabled:cursor-not-allowed transition-all placeholder-slate-500"
+                className="min-w-0 flex-1 w-full px-4 py-2.5 bg-slate-700/50 border border-slate-600/50 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-slate-700 resize-none overflow-y-auto disabled:bg-slate-800 disabled:cursor-not-allowed transition-all placeholder-slate-500 leading-6"
               />
 
               {/* Send Button */}
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
-                className="flex-shrink-0 px-3 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+                className="flex-shrink-0 h-11 px-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg sm:self-end"
                 title="Send message (Shift+Enter for new line)"
               >
                 {isLoading ? (

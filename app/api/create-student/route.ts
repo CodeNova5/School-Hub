@@ -58,9 +58,31 @@ async function generateUniqueStudentId(): Promise<string> {
 }
 
 function normalizeGuardianInput(studentData: Record<string, any>) {
-  const guardianName = String(studentData.guardian_name ?? studentData.parent_name ?? "").trim();
-  const guardianEmail = String(studentData.guardian_email ?? studentData.parent_email ?? "").trim();
-  const guardianPhone = String(studentData.guardian_phone ?? studentData.parent_phone ?? "").trim();
+  const primaryGuardian = Array.isArray(studentData.guardians) && studentData.guardians.length > 0
+    ? studentData.guardians[0]
+    : null;
+
+  const guardianName = String(
+    studentData.guardian_name
+      ?? studentData.parent_name
+      ?? primaryGuardian?.guardian_name
+      ?? primaryGuardian?.name
+      ?? ""
+  ).trim();
+  const guardianEmail = String(
+    studentData.guardian_email
+      ?? studentData.parent_email
+      ?? primaryGuardian?.guardian_email
+      ?? primaryGuardian?.email
+      ?? ""
+  ).trim();
+  const guardianPhone = String(
+    studentData.guardian_phone
+      ?? studentData.parent_phone
+      ?? primaryGuardian?.guardian_phone
+      ?? primaryGuardian?.phone
+      ?? ""
+  ).trim();
 
   return {
     guardianName,

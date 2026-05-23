@@ -18,6 +18,7 @@ export default function ParentActivatePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [relationshipType, setRelationshipType] = useState("Guardian");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +58,7 @@ export default function ParentActivatePage() {
       setParentInfo(result.parent);
       setFullName(result.parent?.name || "");
       setPhone(result.parent?.phone || "");
+      setRelationshipType(result.parent?.relationship_type || "Guardian");
     } catch (error: any) {
       toast.error("Failed to validate activation link");
       setTimeout(() => router.push("/parent/login"), 2000);
@@ -84,7 +86,7 @@ export default function ParentActivatePage() {
       const response = await fetch("/api/parent/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password, name: fullName, phone }),
+        body: JSON.stringify({ token, password, name: fullName, phone, relationship_type: relationshipType }),
       });
 
       const result = await response.json();
@@ -167,6 +169,23 @@ export default function ParentActivatePage() {
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Enter your phone number"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="relationshipType">Relationship</Label>
+              <select
+                id="relationshipType"
+                value={relationshipType}
+                onChange={(e) => setRelationshipType(e.target.value)}
+                className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500"
+                required
+              >
+                <option value="Mother">Mother</option>
+                <option value="Father">Father</option>
+                <option value="Legal Guardian">Legal Guardian</option>
+                <option value="Emergency Contact">Emergency Contact</option>
+                <option value="Guardian">Guardian</option>
+              </select>
             </div>
 
             <div className="space-y-2">

@@ -236,9 +236,7 @@ export async function POST(req: Request) {
       class_id: studentData.class_id || null,
       department_id: studentData.department_id || null,
       religion_id: studentData.religion_id || null,
-      parent_name: guardianInput.guardianName,
-      parent_email: guardianInput.guardianEmail,
-      parent_phone: guardianInput.guardianPhone,
+      // Legacy parent snapshot removed: use student_guardian_links instead
       admission_date: studentData.admission_date,
       student_id: generatedStudentId,
       user_id: authUserId, // Will be null if no own email
@@ -256,22 +254,116 @@ export async function POST(req: Request) {
 
     if (studentError) throw studentError;
 
-    const { error: guardianLinkError } = await supabase
-      .from("student_guardian_links")
-      .upsert({
-        school_id: schoolId,
-        student_id: createdStudent.id,
-        guardian_id: parentRecordId,
+    // Support multiple guardians: either `guardians` array in request body, or single guardianInput
+    const guardiansList = Array.isArray(studentData.guardians) && studentData.guardians.length > 0
+      ? studentData.guardians
+      : [ {
+        guardian_name: guardianInput.guardianName,
+        guardian_email: guardianInput.guardianEmail,
+        guardian_phone: guardianInput.guardianPhone,
         relationship_type: guardianInput.relationshipType,
         is_primary_contact: guardianInput.isPrimaryContact,
         has_legal_custody: guardianInput.hasLegalCustody,
         can_pickup: guardianInput.canPickup,
-      }, {
-        onConflict: "student_id,guardian_id",
-      });
+      } ];
 
-    if (guardianLinkError) {
-      throw guardianLinkError;
+    // For each guardian, ensure parent record/auth exists and upsert student_guardian_links
+    const parentActivationTokens: Array<{ email: string; token: string } > = [];
+
+    for (const g of guardiansList) {
+      const gName = String(g.guardian_name ?? g.name ?? "").trim();
+      const gEmail = String(g.guardian_email ?? g.email ?? "").trim();
+      const gPhone = String(g.guardian_phone ?? g.phone ?? "").trim() || null;
+      const gRelationship = String(g.relationship_type ?? "Guardian").trim() || "Guardian";
+      const gIsPrimary = Boolean(g.is_primary_contact ?? false);
+      const gHasLegal = Boolean(g.has_legal_custody ?? false);
+      const gCanPickup = Boolean(g.can_pickup ?? true);
+
+      if (!gEmail || !gName) {
+        // skip incomplete guardian entries
+        continue;
+      }
+
+      // Check for existing parent record
+      const { data: existingP } = await supabase
+        .from("parents")
+        .select("*")
+        .eq("email", gEmail)
+        .single();
+
+      let parentId: string | null = null;
+      let createdNewParent = false;
+
+      if (existingP) {
+        if (existingP.school_id && existingP.school_id !== schoolId) {
+          warnings.push(`Guardian ${gEmail} already belongs to another school`);
+          continue;
+        }
+
+        parentId = existingP.id;
+
+        const { error: updateErr } = await supabase
+          .from("parents")
+          .update({ name: gName, phone: gPhone, updated_at: new Date().toISOString() })
+          .eq("id", existingP.id);
+
+        if (updateErr) throw updateErr;
+      } else {
+        // Create supabase auth user for parent
+        const { data: parentAuthData, error: parentAuthError } = await supabase.auth.admin.createUser({
+          email: gEmail,
+          password: crypto.randomUUID(),
+          email_confirm: false,
+          user_metadata: { role: "parent", name: gName },
+        });
+
+        if (parentAuthError) throw parentAuthError;
+
+        const rawToken = crypto.randomBytes(32).toString("hex");
+        const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+        const { error: parentInsertError } = await supabase.from("parents").insert({
+          user_id: parentAuthData.user.id,
+          email: gEmail,
+          name: gName,
+          phone: gPhone,
+          is_active: false,
+          activation_token_hash: tokenHash,
+          activation_expires_at: new Date(Date.now() + 86400000),
+          activation_used: false,
+          school_id: schoolId,
+        });
+
+        if (parentInsertError) throw parentInsertError;
+
+        const { data: createdP, error: parentLookupError } = await supabase
+          .from("parents")
+          .select("id")
+          .eq("email", gEmail)
+          .single();
+
+        if (parentLookupError || !createdP?.id) throw parentLookupError || new Error("Failed to resolve created guardian");
+
+        parentId = createdP.id;
+        createdNewParent = true;
+        parentActivationTokens.push({ email: gEmail, token: rawToken });
+      }
+
+      if (!parentId) continue;
+
+      const { error: linkError } = await supabase
+        .from("student_guardian_links")
+        .upsert({
+          school_id: schoolId,
+          student_id: createdStudent.id,
+          guardian_id: parentId,
+          relationship_type: gRelationship,
+          is_primary_contact: gIsPrimary,
+          has_legal_custody: gHasLegal,
+          can_pickup: gCanPickup,
+        }, { onConflict: "student_id,guardian_id" });
+
+      if (linkError) throw linkError;
     }
 
     // 3.5️⃣ If student has own email, generate and send activation token link
@@ -377,54 +469,61 @@ export async function POST(req: Request) {
     }
 
     // 4️⃣ Send parent notifications (best effort; do not fail student creation)
-    if (isNewParent) {
-      const parentActivationToken = (studentData as any).__parentActivationToken;
-      if (parentActivationToken) {
-        const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/parent/activate?token=${parentActivationToken}`;
-
-        const parentMailError = await sendEmailSafe({
-          to: guardianInput.guardianEmail,
-          fromName: buildSchoolSenderName(schoolName),
-          subject: `Activate Your Parent Portal Account - ${schoolName}`,
-          html: `
-            <p>Hello ${guardianInput.guardianName},</p>
-          <p>A student account has been created at <strong>${schoolName}</strong> for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
+    // Send activation emails to any newly-created parents
+    for (const p of parentActivationTokens) {
+      const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/parent/activate?token=${p.token}`;
+      const parentMailError = await sendEmailSafe({
+        to: p.email,
+        fromName: buildSchoolSenderName(schoolName),
+        subject: `Activate Your Parent Portal Account - ${schoolName}`,
+        html: `
+          <p>Hello,</p>
+          <p>A parent portal account has been created at <strong>${schoolName}</strong> for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
           <p>Student ID: <strong>${generatedStudentId}</strong></p>
           <p>Click the link below to activate your parent portal account and set your password:</p>
           <p>
-            <a href="${activationLink}" style="color:#2563eb;">
-              Activate Parent Account
-            </a>
+            <a href="${activationLink}" style="color:#2563eb;">Activate Parent Account</a>
           </p>
-          <p>Once activated, you'll be able to view your child's academic progress, attendance, assignments, and more.</p>
           <p>This link expires in 24 hours.</p>
-          <p>Powered by School Deck.</p>
-        `,
-        });
-
-        if (parentMailError) {
-          warnings.push(`Parent activation email was not delivered: ${parentMailError}`);
-        }
-      }
-    }
-
-    if (!isNewParent && existingParent?.is_active) {
-      const existingParentMailError = await sendEmailSafe({
-        to: studentData.parent_email,
-        fromName: buildSchoolSenderName(schoolName),
-        subject: `New Student Added to Your Account - ${schoolName}`,
-        html: `
-          <p>Hello ${studentData.parent_name},</p>
-          <p>A new student has been added to your ${schoolName} parent portal account:</p>
-          <p><strong>${studentData.first_name} ${studentData.last_name}</strong> (ID: ${generatedStudentId})</p>
-          <p>You can now view their information in your parent portal.</p>
           <p>Powered by School Deck.</p>
         `,
       });
 
-      if (existingParentMailError) {
-        warnings.push(`Parent notification email was not delivered: ${existingParentMailError}`);
+      if (parentMailError) warnings.push(`Parent activation email was not delivered: ${parentMailError}`);
+    }
+
+    // Notify existing active parents that a new student has been added to their account
+    try {
+      const guardianEmails = guardiansList.map((g: any) => String(g.guardian_email ?? g.email ?? "").trim()).filter(Boolean);
+      if (guardianEmails.length > 0) {
+        const { data: parentsRecords } = await supabase
+          .from("parents")
+          .select("email,name,is_active")
+          .in("email", guardianEmails);
+
+        if (parentsRecords && Array.isArray(parentsRecords)) {
+          for (const parentRec of parentsRecords) {
+            if (parentRec.is_active) {
+              const existingParentMailError = await sendEmailSafe({
+                to: parentRec.email,
+                fromName: buildSchoolSenderName(schoolName),
+                subject: `New Student Added to Your Account - ${schoolName}`,
+                html: `
+                  <p>Hello ${parentRec.name || ''},</p>
+                  <p>A new student has been added to your ${schoolName} parent portal account:</p>
+                  <p><strong>${studentData.first_name} ${studentData.last_name}</strong> (ID: ${generatedStudentId})</p>
+                  <p>You can now view their information in your parent portal.</p>
+                  <p>Powered by School Deck.</p>
+                `,
+              });
+
+              if (existingParentMailError) warnings.push(`Parent notification email was not delivered: ${existingParentMailError}`);
+            }
+          }
+        }
       }
+    } catch (err) {
+      // best-effort notifications only
     }
 
     return NextResponse.json({

@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { token, password, name, phone } = await req.json();
+    const { token, password, name, phone, relationship_type } = await req.json();
 
     if (!token || !password) {
       return NextResponse.json(
@@ -79,6 +79,26 @@ export async function POST(req: Request) {
       .from("parents")
       .update(parentUpdate)
       .eq("id", parent.id);
+
+    if (typeof relationship_type === "string" && relationship_type.trim()) {
+      const { data: linkedRows } = await supabase
+        .from("student_guardian_links")
+        .select("id, is_primary_contact")
+        .eq("guardian_id", parent.id)
+        .order("is_primary_contact", { ascending: false })
+        .limit(1);
+
+      const primaryLink = linkedRows?.[0];
+      if (primaryLink?.id) {
+        await supabase
+          .from("student_guardian_links")
+          .update({
+            relationship_type: relationship_type.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", primaryLink.id);
+      }
+    }
 
     // Create user_role entry if it doesn't exist
     const { error: roleError } = await supabase

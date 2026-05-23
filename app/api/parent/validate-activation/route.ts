@@ -68,6 +68,8 @@ export async function POST(req: Request) {
       .map((link: any) => link.students)
       .filter(Boolean);
 
+    const primaryLink = (guardianLinks || []).find((link: any) => link.is_primary_contact) || guardianLinks?.[0] || null;
+
     const { data: legacyStudents } = await supabase
       .from("students")
       .select("first_name, last_name, student_id")
@@ -81,6 +83,7 @@ export async function POST(req: Request) {
         name: parent.name,
         email: parent.email,
         phone: parent.phone || "",
+        relationship_type: primaryLink?.relationship_type || "Guardian",
         students: students || [],
       },
     });

@@ -138,6 +138,8 @@ export default function NewStudentPage() {
     admission_date: new Date().toISOString().split("T")[0],
   });
 
+  const [otherGuardians, setOtherGuardians] = useState<Array<Record<string, any>>>([]);
+
   useEffect(() => {
     if (!schoolId) {
       return;
@@ -238,13 +240,18 @@ export default function NewStudentPage() {
           class_id: formData.class_id || null,
           department_id: formData.department_id || null,
           religion_id: formData.religion_id || null,
-          parent_name: formData.guardian_name,
-          parent_email: formData.guardian_email,
-          parent_phone: formData.guardian_phone,
-          relationship_type: formData.relationship_type,
-          is_primary_contact: true,
-          has_legal_custody: false,
-          can_pickup: true,
+          guardians: [
+            {
+              guardian_name: formData.guardian_name,
+              guardian_email: formData.guardian_email,
+              guardian_phone: formData.guardian_phone,
+              relationship_type: formData.relationship_type,
+              is_primary_contact: true,
+              has_legal_custody: false,
+              can_pickup: true,
+            },
+            ...otherGuardians,
+          ],
           admission_date: formData.admission_date,
           notes: formData.notes,
         }),
@@ -445,6 +452,71 @@ export default function NewStudentPage() {
                       <option value="Guardian">Guardian</option>
                     </StyledSelect>
                   </FieldGroup>
+
+                  <div className="lg:col-span-3">
+                    <div className="mt-3 space-y-3">
+                      {otherGuardians.map((g, idx) => (
+                        <div key={idx} className="rounded-xl border border-slate-200 bg-white p-3">
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <div>
+                              <FieldLabel required>Guardian Name</FieldLabel>
+                              <StyledInput
+                                value={g.guardian_name}
+                                onChange={(e) => {
+                                  const next = [...otherGuardians];
+                                  next[idx] = { ...next[idx], guardian_name: e.target.value };
+                                  setOtherGuardians(next);
+                                }}
+                                placeholder="e.g. Mrs. Jane Doe"
+                              />
+                            </div>
+
+                            <div>
+                              <FieldLabel required>Guardian Email</FieldLabel>
+                              <StyledInput
+                                type="email"
+                                value={g.guardian_email}
+                                onChange={(e) => {
+                                  const next = [...otherGuardians];
+                                  next[idx] = { ...next[idx], guardian_email: e.target.value };
+                                  setOtherGuardians(next);
+                                }}
+                                placeholder="guardian@example.com"
+                              />
+                            </div>
+
+                            <div>
+                              <FieldLabel>Phone</FieldLabel>
+                              <StyledInput
+                                value={g.guardian_phone}
+                                onChange={(e) => {
+                                  const next = [...otherGuardians];
+                                  next[idx] = { ...next[idx], guardian_phone: e.target.value };
+                                  setOtherGuardians(next);
+                                }}
+                                placeholder="e.g. +234 801 234 5678"
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center justify-end">
+                            <Button type="button" variant="outline" onClick={() => {
+                              const next = [...otherGuardians];
+                              next.splice(idx, 1);
+                              setOtherGuardians(next);
+                            }}>
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div>
+                        <Button type="button" onClick={() => setOtherGuardians((cur) => ([...cur, { guardian_name: "", guardian_email: "", guardian_phone: "", relationship_type: "Guardian", is_primary_contact: false, has_legal_custody: false, can_pickup: true }]))}>
+                          Add another guardian
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
 
                   <FieldGroup className="lg:col-span-2">
                     <FieldLabel htmlFor="address">Address</FieldLabel>

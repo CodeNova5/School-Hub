@@ -398,6 +398,34 @@ export default function NewStudentPage() {
                     />
                   </FieldGroup>
 
+                  <FieldGroup className="lg:col-span-2">
+                    <FieldLabel htmlFor="address">Address</FieldLabel>
+                    <StyledInput
+                      id="address"
+                      value={formData.address}
+                      onChange={(event) => setFormData((current) => ({ ...current, address: event.target.value }))}
+                      placeholder="e.g. 123 Main Street, Lagos"
+                    />
+                  </FieldGroup>
+
+                  <FieldGroup className="lg:col-span-3">
+                    <FieldLabel htmlFor="notes">Important Notes</FieldLabel>
+                    <StyledTextarea
+                      id="notes"
+                      value={formData.notes}
+                      onChange={(event) => setFormData((current) => ({ ...current, notes: event.target.value }))}
+                      placeholder="e.g. Allergic to peanuts, needs front-row seating, uses glasses..."
+                    />
+                  </FieldGroup>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="Parent / Guardian"
+                description="Primary guardian and additional contacts"
+                icon={Users}
+              >
+                <div className="grid gap-4 lg:grid-cols-3">
                   <FieldGroup>
                     <FieldLabel htmlFor="guardian_name" required>
                       Guardian Name
@@ -517,26 +545,6 @@ export default function NewStudentPage() {
                       </div>
                     </div>
                   </div>
-
-                  <FieldGroup className="lg:col-span-2">
-                    <FieldLabel htmlFor="address">Address</FieldLabel>
-                    <StyledInput
-                      id="address"
-                      value={formData.address}
-                      onChange={(event) => setFormData((current) => ({ ...current, address: event.target.value }))}
-                      placeholder="e.g. 123 Main Street, Lagos"
-                    />
-                  </FieldGroup>
-
-                  <FieldGroup className="lg:col-span-3">
-                    <FieldLabel htmlFor="notes">Important Notes</FieldLabel>
-                    <StyledTextarea
-                      id="notes"
-                      value={formData.notes}
-                      onChange={(event) => setFormData((current) => ({ ...current, notes: event.target.value }))}
-                      placeholder="e.g. Allergic to peanuts, needs front-row seating, uses glasses..."
-                    />
-                  </FieldGroup>
                 </div>
               </SectionCard>
 

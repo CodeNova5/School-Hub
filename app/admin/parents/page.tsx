@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,9 +35,16 @@ interface ParentSummary {
 export default function AdminParentsPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const rowRefs = useRef<Array<HTMLTableRowElement | null>>([]);
+  const listContainerRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [parents, setParents] = useState<ParentSummary[]>([]);
+  const [totals, setTotals] = useState<{ parents: number; families: number } | null>(null);
+  const [meta, setMeta] = useState({ page: 1, pageSize: 20, total: 0, totalPages: 1 });
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", email: "", phone: "", is_active: false });
@@ -50,9 +58,11 @@ export default function AdminParentsPage() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (search.trim()) {
-        params.set("search", search.trim());
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
       }
+      params.set("page", String(meta.page));
+      params.set("pageSize", String(meta.pageSize));
 
       const response = await fetch(`/api/admin/parents?${params.toString()}`);
       const payload = await response.json();
@@ -63,6 +73,8 @@ export default function AdminParentsPage() {
 
       const fetchedParents = payload.data.parents || [];
       setParents(fetchedParents);
+      if (payload.data.totals) setTotals(payload.data.totals);
+      if (payload.data.meta) setMeta((current) => ({ ...current, ...payload.data.meta }));
 
       if (fetchedParents.length > 0) {
         const stillVisible = selectedParentId && fetchedParents.some((parent: ParentSummary) => parent.id === selectedParentId);
@@ -87,6 +99,21 @@ export default function AdminParentsPage() {
     loadParents();
   }, []);
 
+  // debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setMeta((m) => ({ ...m, page: 1 }));
+    }, 400);
+
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // reload when debounced search or pagination changes
+  useEffect(() => {
+    loadParents();
+  }, [debouncedSearch, meta.page, meta.pageSize]);
+
   function selectParent(parent: ParentSummary) {
     setSelectedParentId(parent.id);
     setEditForm({
@@ -97,6 +124,50 @@ export default function AdminParentsPage() {
     });
     setDetailsOpen(true);
   }
+
+  // keyboard navigation handlers
+  const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+    if (!parents || parents.length === 0) return;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setSelectedIndex((i) => {
+        const next = Math.min(parents.length - 1, Math.max(0, i + 1));
+        const p = parents[next];
+        if (p) setSelectedParentId(p.id);
+        return next;
+      });
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setSelectedIndex((i) => {
+        const prev = Math.max(0, i - 1);
+        const p = parents[prev];
+        if (p) setSelectedParentId(p.id);
+        return prev;
+      });
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (selectedIndex >= 0 && parents[selectedIndex]) {
+        selectParent(parents[selectedIndex]);
+      }
+    }
+  }, [parents, selectedIndex]);
+
+  useEffect(() => {
+    // focus row when selectedIndex changes
+    const el = rowRefs.current[selectedIndex];
+    if (el) el.focus();
+  }, [selectedIndex]);
+
+  useEffect(() => {
+    // keep selectedIndex in sync when selectedParentId or parents change
+    if (!selectedParentId) {
+      setSelectedIndex(-1);
+      return;
+    }
+    const idx = parents.findIndex((p) => p.id === selectedParentId);
+    setSelectedIndex(idx);
+  }, [selectedParentId, parents]);
 
   async function saveParent() {
     if (!selectedParent) return;
@@ -138,7 +209,7 @@ export default function AdminParentsPage() {
   }
 
   const stats = useMemo(() => ({
-    parents: parents.length,
+    parents: totals?.parents ?? parents.length,
     active: parents.filter((parent) => parent.is_active).length,
     linkedStudents: parents.reduce((total, parent) => total + parent.student_count, 0),
   }), [parents]);
@@ -182,14 +253,20 @@ export default function AdminParentsPage() {
               className="h-11 rounded-xl pl-9"
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
-                  loadParents();
+                  setDebouncedSearch(search);
+                  setMeta((m) => ({ ...m, page: 1 }));
                 }
               }}
             />
           </div>
-          <Button className="rounded-xl" onClick={loadParents}>
-            Refresh
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/admin/parents/new">Add Parent</Link>
+            </Button>
+            <Button className="rounded-xl" onClick={loadParents}>
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -198,10 +275,33 @@ export default function AdminParentsPage() {
               <Loader2 className="h-5 w-5 animate-spin" />
               Loading parents...
             </div>
+
+            {/* Pagination controls */}
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-sm text-slate-600">Showing {(meta.page - 1) * meta.pageSize + 1} - {Math.min(meta.page * meta.pageSize, meta.total)} of {meta.total}</div>
+              <div className="flex items-center gap-2">
+                <button className="rounded-xl border px-3 py-1" onClick={() => setMeta((m) => ({ ...m, page: Math.max(1, m.page - 1) }))} disabled={meta.page <= 1}>Previous</button>
+                <div className="text-sm text-slate-700">Page {meta.page} / {meta.totalPages}</div>
+                <button className="rounded-xl border px-3 py-1" onClick={() => setMeta((m) => ({ ...m, page: Math.min(m.totalPages, m.page + 1) }))} disabled={meta.page >= meta.totalPages}>Next</button>
+                <select value={meta.pageSize} onChange={(e) => setMeta((m) => ({ ...m, pageSize: Number(e.target.value), page: 1 }))} className="ml-3 rounded-xl border px-2 py-1 text-sm">
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-3">
+            <div className="space-y-3" ref={listContainerRef} tabIndex={0} onKeyDown={handleKeyDown} aria-label="Parents list">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Button variant={viewMode === "cards" ? "default" : "outline"} onClick={() => setViewMode("cards")} aria-pressed={viewMode === "cards"} aria-label="Card view">Cards</Button>
+                  <Button variant={viewMode === "table" ? "default" : "outline"} onClick={() => setViewMode("table")} aria-pressed={viewMode === "table"} aria-label="Table view">Table</Button>
+                </div>
+                <div className="text-xs text-slate-500">Use ↑ ↓ to navigate, Enter to open</div>
+              </div>
+
               {parents.length === 0 ? (
                 <Card className="border-dashed border-slate-300">
                   <CardContent className="flex min-h-[30vh] flex-col items-center justify-center gap-3 py-10 text-center">
@@ -212,8 +312,15 @@ export default function AdminParentsPage() {
                     </p>
                   </CardContent>
                 </Card>
-              ) : parents.map((parent) => (
-                <Card key={parent.id} className={`cursor-pointer border-slate-200 shadow-sm transition hover:border-sky-300 ${selectedParentId === parent.id ? "ring-2 ring-sky-200" : ""}`} onClick={() => selectParent(parent)}>
+              ) : viewMode === "cards" ? parents.map((parent) => (
+                <Card
+                  key={parent.id}
+                  className={`cursor-pointer border-slate-200 shadow-sm transition hover:border-sky-300 ${selectedParentId === parent.id ? "ring-2 ring-sky-200" : ""}`}
+                  onClick={() => selectParent(parent)}
+                  role="listitem"
+                  tabIndex={0}
+                  aria-selected={selectedParentId === parent.id}
+                >
                   <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-base font-semibold text-slate-900">{parent.name}</p>
@@ -231,7 +338,45 @@ export default function AdminParentsPage() {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              )) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" role="table" aria-label="Parents table">
+                    <thead>
+                      <tr className="text-left text-xs text-slate-500">
+                        <th className="p-2">Name</th>
+                        <th className="p-2">Email</th>
+                        <th className="p-2">Phone</th>
+                        <th className="p-2">Students</th>
+                        <th className="p-2">Families</th>
+                        <th className="p-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parents.map((parent, idx) => (
+                        <tr
+                          key={parent.id}
+                          ref={(el) => { rowRefs.current[idx] = el; }}
+                          tabIndex={0}
+                          onClick={() => { setSelectedIndex(idx); selectParent(parent); }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") selectParent(parent);
+                          }}
+                          className={`border-t p-2 ${selectedIndex === idx ? "bg-slate-50" : ""}`}
+                          role="row"
+                          aria-selected={selectedIndex === idx}
+                        >
+                          <td className="p-2 font-medium text-slate-900">{parent.name}</td>
+                          <td className="p-2 text-slate-600">{parent.email}</td>
+                          <td className="p-2 text-slate-600">{parent.phone || "—"}</td>
+                          <td className="p-2 text-slate-600">{parent.student_count}</td>
+                          <td className="p-2 text-slate-600">{parent.family_count}</td>
+                          <td className="p-2"><Badge variant={parent.is_active ? "default" : "secondary"} className={parent.is_active ? "bg-emerald-600" : ""}>{parent.is_active ? "Active" : "Inactive"}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             <Card className="border-slate-200 shadow-sm">

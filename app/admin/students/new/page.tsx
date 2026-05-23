@@ -123,6 +123,7 @@ export default function NewStudentPage() {
 
   const [formData, setFormData] = useState({
     full_name: "",
+    email: "",
     gender: "",
     date_of_birth: "",
     phone: "",
@@ -232,7 +233,7 @@ export default function NewStudentPage() {
           school_id: schoolId,
           first_name: firstName,
           last_name: lastName,
-          email: "",
+          email: formData.email,
           phone: formData.phone,
           date_of_birth: formData.date_of_birth,
           gender: formData.gender,
@@ -395,6 +396,17 @@ export default function NewStudentPage() {
                       value={formData.phone}
                       onChange={(event) => setFormData((current) => ({ ...current, phone: event.target.value }))}
                       placeholder="e.g. +234 801 234 5678"
+                    />
+                  </FieldGroup>
+
+                  <FieldGroup>
+                    <FieldLabel htmlFor="email">Student Email</FieldLabel>
+                    <StyledInput
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(event) => setFormData((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="student@example.com"
                     />
                   </FieldGroup>
 

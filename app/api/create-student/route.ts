@@ -292,6 +292,12 @@ export async function POST(req: Request) {
     // For each guardian, ensure parent record/auth exists and upsert student_guardian_links
     const parentActivationTokens: Array<{ email: string; token: string } > = [];
 
+    // If an activation token was created earlier for the primary guardian, queue it
+    if ((studentData as any).__parentActivationToken) {
+      parentActivationTokens.push({ email: guardianInput.guardianEmail, token: (studentData as any).__parentActivationToken });
+      delete (studentData as any).__parentActivationToken;
+    }
+
     for (const g of guardiansList) {
       const gName = String(g.guardian_name ?? g.name ?? "").trim();
       const gEmail = String(g.guardian_email ?? g.email ?? "").trim();

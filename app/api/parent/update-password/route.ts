@@ -69,9 +69,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the user's password in Auth
+    // Update the user's password in Auth and confirm the email so sign-in is allowed again
     const { error: updateError } = await supabase.auth.admin.updateUserById(parent.user_id, {
       password: newPassword,
+      email_confirm: true,
     });
 
     if (updateError) {

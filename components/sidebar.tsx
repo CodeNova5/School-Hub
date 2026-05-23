@@ -138,6 +138,8 @@ export function Sidebar({
     { href: "/admin/periods", label: "Periods", icon: <Clock className="h-5 w-5" /> },
     { href: "/admin/timetable", label: "Timetable", icon: <FileText className="h-5 w-5" /> },
     { href: "/admin/students", label: "Students", icon: <Users className="h-5 w-5" /> },
+    { href: "/admin/families", label: "Families", icon: <Users className="h-5 w-5" /> },
+    { href: "/admin/parents", label: "Parents & Guardians", icon: <UserCheck className="h-5 w-5" /> },
     { href: "/admin/students/id-cards", label: "ID Card Generator", icon: <IdCard className="h-5 w-5" /> },
     { href: "/admin/teachers", label: "Teachers", icon: <GraduationCap className="h-5 w-5" /> },
     { href: "/admin/teachers/id-cards", label: "Teacher ID Cards", icon: <IdCard className="h-5 w-5" /> },

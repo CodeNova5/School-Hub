@@ -637,6 +637,29 @@ CREATE INDEX IF NOT EXISTS idx_parents_email ON parents(email);
 CREATE INDEX IF NOT EXISTS idx_parents_user_id ON parents(user_id);
 CREATE INDEX IF NOT EXISTS idx_parents_activation_token ON parents(activation_token_hash);
 
+-- STUDENT_GUARDIAN_LINKS TABLE
+CREATE TABLE IF NOT EXISTS student_guardian_links (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  school_id uuid NOT NULL REFERENCES schools(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+  guardian_id uuid NOT NULL REFERENCES parents(id) ON DELETE CASCADE,
+  relationship_type text NOT NULL DEFAULT 'Guardian',
+  is_primary_contact boolean DEFAULT false,
+  has_legal_custody boolean DEFAULT false,
+  can_pickup boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE (student_id, guardian_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_guardian_links_primary_contact
+  ON student_guardian_links(student_id)
+  WHERE is_primary_contact;
+
+CREATE INDEX IF NOT EXISTS idx_student_guardian_links_school_id ON student_guardian_links(school_id);
+CREATE INDEX IF NOT EXISTS idx_student_guardian_links_student_id ON student_guardian_links(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_guardian_links_guardian_id ON student_guardian_links(guardian_id);
+
 -- NOTIFICATION_TOKENS TABLE
 CREATE TABLE IF NOT EXISTS notification_tokens (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

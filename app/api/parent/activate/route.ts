@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { token, password } = await req.json();
+    const { token, password, name, phone } = await req.json();
 
     if (!token || !password) {
       return NextResponse.json(
@@ -59,15 +59,25 @@ export async function POST(req: Request) {
     }
 
     // Mark parent as active and token as used
+    const parentUpdate: Record<string, any> = {
+      is_active: true,
+      activation_used: true,
+      activation_token_hash: null,
+      activation_expires_at: null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (typeof name === "string" && name.trim()) {
+      parentUpdate.name = name.trim();
+    }
+
+    if (typeof phone === "string") {
+      parentUpdate.phone = phone.trim() || null;
+    }
+
     await supabase
       .from("parents")
-      .update({
-        is_active: true,
-        activation_used: true,
-        activation_token_hash: null,
-        activation_expires_at: null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(parentUpdate)
       .eq("id", parent.id);
 
     // Create user_role entry if it doesn't exist

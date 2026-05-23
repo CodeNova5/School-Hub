@@ -15,16 +15,11 @@ import {
   ArrowLeft,
   BookOpen,
   Loader2,
-  RefreshCw,
   School,
   Sparkles,
   Users,
 } from "lucide-react";
 
-function generateAdmissionNumber() {
-  const number = Math.floor(1000 + Math.random() * 9000);
-  return `SR${String(number).padStart(4, "0")}`;
-}
 
 function splitFullName(fullName: string) {
   const trimmed = fullName.trim().replace(/\s+/g, " ");
@@ -128,13 +123,13 @@ export default function NewStudentPage() {
 
   const [formData, setFormData] = useState({
     full_name: "",
-    admission_number: generateAdmissionNumber(),
     gender: "",
     date_of_birth: "",
     phone: "",
     guardian_name: "",
     guardian_email: "",
     guardian_phone: "",
+    relationship_type: "Mother",
     address: "",
     notes: "",
     class_id: "",
@@ -188,10 +183,6 @@ export default function NewStudentPage() {
     loadOptions();
   }, [schoolId]);
 
-  function handleRefreshAdmissionNumber() {
-    setFormData((current) => ({ ...current, admission_number: generateAdmissionNumber() }));
-  }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -205,11 +196,6 @@ export default function NewStudentPage() {
       return;
     }
 
-    if (!formData.admission_number.trim()) {
-      toast.error("Admission number is required");
-      return;
-    }
-
     if (!formData.gender.trim()) {
       toast.error("Gender is required");
       return;
@@ -220,8 +206,8 @@ export default function NewStudentPage() {
       return;
     }
 
-    if (!formData.admission_date.trim()) {
-      toast.error("Admission date is required");
+    if (!formData.relationship_type.trim()) {
+      toast.error("Relationship type is required");
       return;
     }
 
@@ -242,7 +228,6 @@ export default function NewStudentPage() {
         },
         body: JSON.stringify({
           school_id: schoolId,
-          student_id: formData.admission_number,
           first_name: firstName,
           last_name: lastName,
           email: "",
@@ -256,6 +241,10 @@ export default function NewStudentPage() {
           parent_name: formData.guardian_name,
           parent_email: formData.guardian_email,
           parent_phone: formData.guardian_phone,
+          relationship_type: formData.relationship_type,
+          is_primary_contact: true,
+          has_legal_custody: false,
+          can_pickup: true,
           admission_date: formData.admission_date,
           notes: formData.notes,
         }),
@@ -366,30 +355,6 @@ export default function NewStudentPage() {
                   </FieldGroup>
 
                   <FieldGroup>
-                    <FieldLabel htmlFor="admission_number" required>
-                      Admission Number
-                    </FieldLabel>
-                    <div className="flex gap-2">
-                      <StyledInput
-                        id="admission_number"
-                        value={formData.admission_number}
-                        onChange={(event) => setFormData((current) => ({ ...current, admission_number: event.target.value }))}
-                        placeholder="SR0001"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={handleRefreshAdmissionNumber}
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                        aria-label="Generate a new admission number"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-slate-500">Auto-generated. Click refresh to generate a new number.</p>
-                  </FieldGroup>
-
-                  <FieldGroup>
                     <FieldLabel htmlFor="gender" required>
                       Gender
                     </FieldLabel>
@@ -451,6 +416,34 @@ export default function NewStudentPage() {
                       placeholder="guardian@example.com"
                       required
                     />
+                  </FieldGroup>
+
+                  <FieldGroup>
+                    <FieldLabel htmlFor="guardian_phone">Guardian Phone</FieldLabel>
+                    <StyledInput
+                      id="guardian_phone"
+                      value={formData.guardian_phone}
+                      onChange={(event) => setFormData((current) => ({ ...current, guardian_phone: event.target.value }))}
+                      placeholder="e.g. +234 801 234 5678"
+                    />
+                  </FieldGroup>
+
+                  <FieldGroup>
+                    <FieldLabel htmlFor="relationship_type" required>
+                      Relationship
+                    </FieldLabel>
+                    <StyledSelect
+                      id="relationship_type"
+                      value={formData.relationship_type}
+                      onChange={(event) => setFormData((current) => ({ ...current, relationship_type: event.target.value }))}
+                      required
+                    >
+                      <option value="Mother">Mother</option>
+                      <option value="Father">Father</option>
+                      <option value="Legal Guardian">Legal Guardian</option>
+                      <option value="Emergency Contact">Emergency Contact</option>
+                      <option value="Guardian">Guardian</option>
+                    </StyledSelect>
                   </FieldGroup>
 
                   <FieldGroup className="lg:col-span-2">

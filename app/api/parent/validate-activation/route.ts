@@ -49,17 +49,38 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fetch students separately using parent email
-    const { data: students } = await supabase
+    // Resolve linked students through the new relation table first, then fall back to the legacy snapshot.
+    const { data: guardianLinks } = await supabase
+      .from("student_guardian_links")
+      .select(`
+        relationship_type,
+        is_primary_contact,
+        students (
+          first_name,
+          last_name,
+          student_id
+        )
+      `)
+      .eq("guardian_id", parent.id)
+      .order("is_primary_contact", { ascending: false });
+
+    const linkedStudents = (guardianLinks || [])
+      .map((link: any) => link.students)
+      .filter(Boolean);
+
+    const { data: legacyStudents } = await supabase
       .from("students")
       .select("first_name, last_name, student_id")
       .eq("parent_email", parent.email);
+
+    const students = linkedStudents.length > 0 ? linkedStudents : (legacyStudents || []);
 
     console.log("Parent validated successfully", parent);
     return NextResponse.json({
       parent: {
         name: parent.name,
         email: parent.email,
+        phone: parent.phone || "",
         students: students || [],
       },
     });

@@ -15,6 +15,35 @@ export interface School {
   updated_at: string;
 }
 
+export interface Parent {
+  id: string;
+  school_id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  phone?: string | null;
+  is_active: boolean;
+  activation_token_hash?: string | null;
+  activation_expires_at?: string | null;
+  activation_used?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StudentGuardianLink {
+  id: string;
+  school_id: string;
+  student_id: string;
+  guardian_id: string;
+  relationship_type: string;
+  is_primary_contact: boolean;
+  has_legal_custody: boolean;
+  can_pickup: boolean;
+  created_at: string;
+  updated_at: string;
+  guardian?: Parent;
+}
+
 // ── Core types ────────────────────────────────────────────────────────────
 
 export interface Session {
@@ -263,6 +292,7 @@ export interface Student {
   parent_name: string;
   parent_email: string;
   parent_phone: string;
+  guardian_links?: StudentGuardianLink[];
   admission_date: string;
   photo_url?: string;
   image_url?: string;

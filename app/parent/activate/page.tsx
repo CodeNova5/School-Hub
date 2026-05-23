@@ -16,6 +16,8 @@ export default function ParentActivatePage() {
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +55,8 @@ export default function ParentActivatePage() {
       }
 
       setParentInfo(result.parent);
+      setFullName(result.parent?.name || "");
+      setPhone(result.parent?.phone || "");
     } catch (error: any) {
       toast.error("Failed to validate activation link");
       setTimeout(() => router.push("/parent/login"), 2000);
@@ -80,7 +84,7 @@ export default function ParentActivatePage() {
       const response = await fetch("/api/parent/activate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token, password, name: fullName, phone }),
       });
 
       const result = await response.json();
@@ -142,6 +146,29 @@ export default function ParentActivatePage() {
           )}
 
           <form onSubmit={handleActivate} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Enter your phone number"
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <div className="relative">

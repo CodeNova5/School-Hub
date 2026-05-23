@@ -111,21 +111,49 @@ export default function ParentDashboardPage() {
       console.log("🚀 Syncing notification token with schoolId:", parentSchoolId);
       await syncNotificationToken(user.id, "parent", parentSchoolId);
 
-      // Get all children
-      const { data: students, error: studentsError } = await supabase
-        .from("students")
+      // Get all children through the guardian link table first, then fall back to the legacy snapshot.
+      const { data: guardianLinks, error: guardianLinksError } = await supabase
+        .from("student_guardian_links")
         .select(`
-          *,
-          classes(name)
+          relationship_type,
+          is_primary_contact,
+          students (
+            *,
+            classes(name)
+          )
         `)
-        .eq("parent_email", parent.email)
-        .order("first_name");
+        .eq("guardian_id", parent.id)
+        .order("is_primary_contact", { ascending: false });
 
-      if (studentsError) throw studentsError;
+      if (guardianLinksError) throw guardianLinksError;
+
+      const linkedStudents = (guardianLinks || [])
+        .map((link: any) => ({
+          ...link.students,
+          relationship_type: link.relationship_type,
+          is_primary_contact: link.is_primary_contact,
+        }))
+        .filter((student: Student) => Boolean(student?.id));
+
+      let students: Student[] = linkedStudents;
+
+      if (students.length === 0) {
+        const { data: legacyStudents, error: studentsError } = await supabase
+          .from("students")
+          .select(`
+            *,
+            classes(name)
+          `)
+          .eq("parent_email", parent.email)
+          .order("first_name");
+
+        if (studentsError) throw studentsError;
+        students = (legacyStudents || []) as Student[];
+      }
 
       // Fetch additional data for each child
       const enrichedStudents = await Promise.all(
-        (students || []).map(async (student: Student) => {
+        students.map(async (student: Student) => {
           // Get attendance
           const { data: attendance } = await supabase
             .from("attendance")

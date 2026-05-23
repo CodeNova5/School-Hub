@@ -57,10 +57,35 @@ async function generateUniqueStudentId(): Promise<string> {
   return studentId!;
 }
 
+function normalizeGuardianInput(studentData: Record<string, any>) {
+  const guardianName = String(studentData.guardian_name ?? studentData.parent_name ?? "").trim();
+  const guardianEmail = String(studentData.guardian_email ?? studentData.parent_email ?? "").trim();
+  const guardianPhone = String(studentData.guardian_phone ?? studentData.parent_phone ?? "").trim();
+
+  return {
+    guardianName,
+    guardianEmail,
+    guardianPhone: guardianPhone || null,
+    relationshipType: String(studentData.relationship_type ?? "Guardian").trim() || "Guardian",
+    isPrimaryContact: Boolean(studentData.is_primary_contact ?? true),
+    hasLegalCustody: Boolean(studentData.has_legal_custody ?? false),
+    canPickup: Boolean(studentData.can_pickup ?? true),
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const studentData = await req.json();
     const warnings: string[] = [];
+    const guardianInput = normalizeGuardianInput(studentData);
+
+    if (!guardianInput.guardianName) {
+      return NextResponse.json({ error: "Guardian name is required" }, { status: 400 });
+    }
+
+    if (!guardianInput.guardianEmail) {
+      return NextResponse.json({ error: "Guardian email is required" }, { status: 400 });
+    }
 
     // Resolve school_id: prefer explicit body param (internal calls), else from caller session
     let schoolId: string | null = studentData.school_id ?? null;
@@ -77,7 +102,7 @@ export async function POST(req: Request) {
 
     // Determine if student has their own email or using parent's
     const hasOwnEmail = studentData.email && studentData.email.trim() !== '';
-    const studentEmail = hasOwnEmail ? studentData.email : studentData.parent_email;
+    const studentEmail = hasOwnEmail ? studentData.email : guardianInput.guardianEmail;
     const studentIsActive = !hasOwnEmail; // Only active if no own email (using parent's)
 
     // 1️⃣ Create auth user for student ONLY if they have their own email
@@ -105,24 +130,41 @@ export async function POST(req: Request) {
     const { data: existingParent } = await supabase
       .from("parents")
       .select("*")
-      .eq("email", studentData.parent_email)
+      .eq("email", guardianInput.guardianEmail)
       .single();
 
     let parentUserId: string;
+    let parentRecordId: string | null = null;
     let isNewParent = false;
 
     if (existingParent) {
+      if (existingParent.school_id && existingParent.school_id !== schoolId) {
+        return NextResponse.json({ error: "Guardian email already belongs to another school" }, { status: 400 });
+      }
+
       parentUserId = existingParent.user_id;
+      parentRecordId = existingParent.id;
+
+      const { error: parentUpdateError } = await supabase
+        .from("parents")
+        .update({
+          name: guardianInput.guardianName,
+          phone: guardianInput.guardianPhone,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existingParent.id);
+
+      if (parentUpdateError) throw parentUpdateError;
       // Do not create new parent or send activation email
     } else {
       // Create new parent auth user
       const { data: parentAuthData, error: parentAuthError } = await supabase.auth.admin.createUser({
-        email: studentData.parent_email,
+        email: guardianInput.guardianEmail,
         password: crypto.randomUUID(),
-        email_confirm: true,
+        email_confirm: false,
         user_metadata: {
           role: "parent",
-          name: studentData.parent_name,
+          name: guardianInput.guardianName,
         },
       });
 
@@ -140,9 +182,9 @@ export async function POST(req: Request) {
       // Create parent record
       const { error: parentInsertError } = await supabase.from("parents").insert({
         user_id: parentUserId,
-        email: studentData.parent_email,
-        name: studentData.parent_name,
-        phone: studentData.parent_phone || null,
+        email: guardianInput.guardianEmail,
+        name: guardianInput.guardianName,
+        phone: guardianInput.guardianPhone,
         is_active: false,
         activation_token_hash: tokenHash,
         activation_expires_at: new Date(Date.now() + 86400000),
@@ -152,8 +194,34 @@ export async function POST(req: Request) {
 
       if (parentInsertError) throw parentInsertError;
 
+      const { data: createdParent, error: parentLookupError } = await supabase
+        .from("parents")
+        .select("id")
+        .eq("email", guardianInput.guardianEmail)
+        .single();
+
+      if (parentLookupError || !createdParent?.id) {
+        throw parentLookupError || new Error("Failed to resolve guardian record");
+      }
+
+      parentRecordId = createdParent.id;
+
       // Store token for email after core create flow succeeds
       (studentData as any).__parentActivationToken = rawToken;
+    }
+
+    if (!parentRecordId) {
+      const { data: resolvedParent, error: parentLookupError } = await supabase
+        .from("parents")
+        .select("id")
+        .eq("email", guardianInput.guardianEmail)
+        .single();
+
+      if (parentLookupError || !resolvedParent?.id) {
+        throw parentLookupError || new Error("Failed to resolve guardian record");
+      }
+
+      parentRecordId = resolvedParent.id;
     }
 
     // 3️⃣ Create student row with generated ID
@@ -168,9 +236,9 @@ export async function POST(req: Request) {
       class_id: studentData.class_id || null,
       department_id: studentData.department_id || null,
       religion_id: studentData.religion_id || null,
-      parent_name: studentData.parent_name,
-      parent_email: studentData.parent_email,
-      parent_phone: studentData.parent_phone || null,
+      parent_name: guardianInput.guardianName,
+      parent_email: guardianInput.guardianEmail,
+      parent_phone: guardianInput.guardianPhone,
       admission_date: studentData.admission_date,
       student_id: generatedStudentId,
       user_id: authUserId, // Will be null if no own email
@@ -187,6 +255,25 @@ export async function POST(req: Request) {
       .single();
 
     if (studentError) throw studentError;
+
+    const { error: guardianLinkError } = await supabase
+      .from("student_guardian_links")
+      .upsert({
+        school_id: schoolId,
+        student_id: createdStudent.id,
+        guardian_id: parentRecordId,
+        relationship_type: guardianInput.relationshipType,
+        is_primary_contact: guardianInput.isPrimaryContact,
+        has_legal_custody: guardianInput.hasLegalCustody,
+        can_pickup: guardianInput.canPickup,
+      }, {
+        onConflict: "student_id,guardian_id",
+      });
+
+    if (guardianLinkError) {
+      throw guardianLinkError;
+    }
+
     // 3.5️⃣ If student has own email, generate and send activation token link
     if (hasOwnEmail) {
       // Generate activation token
@@ -296,11 +383,11 @@ export async function POST(req: Request) {
         const activationLink = `${process.env.NEXT_PUBLIC_APP_URL}/parent/activate?token=${parentActivationToken}`;
 
         const parentMailError = await sendEmailSafe({
-          to: studentData.parent_email,
+          to: guardianInput.guardianEmail,
           fromName: buildSchoolSenderName(schoolName),
           subject: `Activate Your Parent Portal Account - ${schoolName}`,
           html: `
-          <p>Hello ${studentData.parent_name},</p>
+            <p>Hello ${guardianInput.guardianName},</p>
           <p>A student account has been created at <strong>${schoolName}</strong> for your child/ward: <strong>${studentData.first_name} ${studentData.last_name}</strong>.</p>
           <p>Student ID: <strong>${generatedStudentId}</strong></p>
           <p>Click the link below to activate your parent portal account and set your password:</p>

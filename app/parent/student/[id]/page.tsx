@@ -91,7 +91,7 @@ export default function ParentStudentDetailPage() {
       // Verify parent and get student
       const { data: parent } = await supabase
         .from("parents")
-        .select("email")
+        .select("id, email")
         .eq("user_id", user.id)
         .single();
 
@@ -101,12 +101,39 @@ export default function ParentStudentDetailPage() {
         return;
       }
 
-      const { data: studentData, error: studentError } = await supabase
-        .from("students")
-        .select("*, classes(name)")
-        .eq("id", studentId)
-        .eq("parent_email", parent.email)
-        .single();
+      const { data: guardianAccess, error: guardianAccessError } = await supabase
+        .from("student_guardian_links")
+        .select("id")
+        .eq("guardian_id", parent.id)
+        .eq("student_id", studentId);
+
+      let studentData: Student | null = null;
+      let studentError: any = null;
+
+      if (guardianAccessError) {
+        throw guardianAccessError;
+      }
+
+      if ((guardianAccess || []).length > 0) {
+        const result = await supabase
+          .from("students")
+          .select("*, classes(name)")
+          .eq("id", studentId)
+          .single();
+
+        studentData = result.data as Student | null;
+        studentError = result.error;
+      } else {
+        const result = await supabase
+          .from("students")
+          .select("*, classes(name)")
+          .eq("id", studentId)
+          .eq("parent_email", parent.email)
+          .single();
+
+        studentData = result.data as Student | null;
+        studentError = result.error;
+      }
 
       if (studentError || !studentData) {
         toast.error("Student not found or not authorized");

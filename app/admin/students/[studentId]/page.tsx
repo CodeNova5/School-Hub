@@ -16,6 +16,7 @@ import { ResultsTable } from '@/components/results-table';
 import { AttendanceTimeline } from '@/components/attendance-timeline';
 import { filterAttendanceByPeriod } from '@/lib/student-utils';
 import { EditStudentModal } from '@/components/edit-student-modal';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Upload, Users } from 'lucide-react';
 import {
@@ -37,6 +38,7 @@ export default function AdminStudentPage() {
 	const [classes, setClasses] = useState<Class[]>([]);
 	const [attendance, setAttendance] = useState<any[]>([]);
 	const [studentResults, setStudentResults] = useState<any[]>([]);
+	const [guardians, setGuardians] = useState<any[]>([]);
 	const [attendancePeriod, setAttendancePeriod] = useState<'daily'|'weekly'|'monthly'|'term'|'session'>('monthly');
 
 	const [loading, setLoading] = useState(true);
@@ -71,6 +73,29 @@ export default function AdminStudentPage() {
 			if (studentData?.id) {
 				const { data: attendanceData } = await supabase.from('attendance').select('*').eq('student_id', studentData.id).eq('school_id', schoolId);
 				setAttendance(attendanceData || []);
+			}
+
+			// guardians (new link table)
+			if (studentData?.id) {
+				const { data: guardianRows, error: guardianError } = await supabase
+					.from('student_guardian_links')
+					.select(`id, relationship_type, is_primary_contact, has_legal_custody, can_pickup, parents(id, name, email, phone)`) // parents is the FK target
+					.eq('school_id', schoolId)
+					.eq('student_id', studentData.id);
+				if (guardianError) {
+					console.error('Failed to load guardians', guardianError);
+				} else {
+					const mapped = (guardianRows || []).map((r: any) => ({
+						id: r.parents?.id || r.guardian_id || r.id,
+						name: r.parents?.name || 'Unknown',
+						email: r.parents?.email || '',
+						phone: r.parents?.phone || '',
+						relationship: r.relationship_type,
+						is_primary: r.is_primary_contact,
+						can_pickup: r.can_pickup,
+					}));
+					setGuardians(mapped);
+				}
 			}
 
 		} catch (e: any) {
@@ -148,12 +173,29 @@ export default function AdminStudentPage() {
 						<h1 className="text-2xl font-bold">{student.first_name} {student.last_name}</h1>
 						<p className="text-sm text-slate-500">Student profile and academic records</p>
 					</div>
-					<div className="flex items-center gap-2">
-						<Button variant="ghost" onClick={() => router.back()} aria-label="Back to students list"><ArrowLeft className="h-4 w-4" /> Back</Button>
-						<Button onClick={() => setIsEditOpen(true)} aria-label="Edit student"><Users className="h-4 w-4 mr-2" /> Edit</Button>
-						<Button variant="outline" onClick={() => setIsTransferOpen(true)} aria-haspopup="dialog" aria-controls="transfer-dialog">Transfer</Button>
-						<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} aria-label="Delete student"><Trash2 className="h-4 w-4 mr-2" />{isDeleting ? 'Deleting…' : 'Delete'}</Button>
-						<Button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.success('Link copied'); }} aria-label="Copy student link">Share</Button>
+					<div className="flex items-center gap-3">
+						<div className="inline-flex items-center gap-2 bg-white/50 p-1 rounded-xl shadow-sm">
+							<Button variant="ghost" size="sm" onClick={() => router.back()} aria-label="Back to students list" className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-100">
+								<ArrowLeft className="h-4 w-4 mr-2" />
+								Back
+							</Button>
+
+							<Button onClick={() => setIsEditOpen(true)} aria-label="Edit student" className="rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-2">
+								<Users className="h-4 w-4 mr-2" /> Edit
+							</Button>
+
+							<Button variant="outline" onClick={() => setIsTransferOpen(true)} aria-haspopup="dialog" aria-controls="transfer-dialog" className="rounded-xl border-indigo-200 text-indigo-700 px-3 py-2">
+								Transfer
+							</Button>
+						</div>
+
+						<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} aria-label="Delete student" className="rounded-xl px-3 py-2">
+							<Trash2 className="h-4 w-4 mr-2" />{isDeleting ? 'Deleting…' : 'Delete'}
+						</Button>
+
+						<Button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.success('Link copied'); }} aria-label="Copy student link" className="rounded-xl px-3 py-2">
+							Share
+						</Button>
 					</div>
 				</div>
 
@@ -189,20 +231,38 @@ export default function AdminStudentPage() {
 						<CardTitle>Parent / Guardian</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-							<div>
-								<Label>Name</Label>
-								<div className="font-medium">{student.parent_name}</div>
+						{guardians && guardians.length > 0 ? (
+							<ul role="list" className="space-y-3">
+								{guardians.map((g) => (
+									<li key={g.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border border-slate-100 bg-slate-50 hover:bg-white transition">
+										<div>
+											<p className="font-semibold">
+												<Link href={`/admin/parents/${g.id}`} className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-200">{g.name}</Link>
+												{g.is_primary && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">Primary</span>}
+											</p>
+											<p className="text-xs text-slate-500">{g.relationship}</p>
+											<p className="text-sm mt-1">{g.email || '—'} · {g.phone || '—'}</p>
+										</div>
+										<div className="text-xs text-slate-400">{g.can_pickup ? 'Can pickup' : ''}</div>
+									</li>
+								))}
+							</ul>
+						) : (
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+								<div>
+									<Label>Name</Label>
+									<div className="font-medium">{student.parent_name || '—'}</div>
+								</div>
+								<div>
+									<Label>Email</Label>
+									<div className="font-medium break-all">{student.parent_email || '—'}</div>
+								</div>
+								<div>
+									<Label>Phone</Label>
+									<div className="font-medium">{student.parent_phone || '—'}</div>
+								</div>
 							</div>
-							<div>
-								<Label>Email</Label>
-								<div className="font-medium break-all">{student.parent_email}</div>
-							</div>
-							<div>
-								<Label>Phone</Label>
-								<div className="font-medium">{student.parent_phone}</div>
-							</div>
-						</div>
+						)}
 					</CardContent>
 				</Card>
 
@@ -228,8 +288,8 @@ export default function AdminStudentPage() {
 								</div>
 							</CardHeader>
 							<CardContent>
-								<div className="mb-4">
-									<div className="text-2xl font-bold" aria-live="polite" aria-atomic="true">{student.average_attendance}%</div>
+								<div className="mb-4 flex items-center gap-4">
+									<div className="inline-flex items-center gap-3 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 font-bold text-2xl" aria-live="polite" aria-atomic="true">{student.average_attendance}%</div>
 									<div className="text-sm text-slate-500">Average attendance</div>
 								</div>
 								<AttendanceTimeline attendance={filteredAttendance} />

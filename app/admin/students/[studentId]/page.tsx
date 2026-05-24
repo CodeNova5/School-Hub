@@ -19,13 +19,23 @@ import { filterAttendanceByPeriod } from '@/lib/student-utils';
 import { EditStudentModal } from '@/components/edit-student-modal';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Users, ShieldAlert, RefreshCcw, KeyRound } from 'lucide-react';
+import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Users, ShieldAlert, RefreshCcw, KeyRound, CheckCircle2, PencilLine, MoveRight } from 'lucide-react';
 import {
 	Dialog,
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function AdminStudentPage() {
 	const params = useParams();
@@ -47,12 +57,14 @@ export default function AdminStudentPage() {
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
 	const [transferTargetClassId, setTransferTargetClassId] = useState('');
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 	const [isResettingPassword, setIsResettingPassword] = useState(false);
 	const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(false);
-	const [emailStep, setEmailStep] = useState<'email' | 'code'>('email');
+	const [emailStep, setEmailStep] = useState<'email' | 'code' | 'success'>('email');
 	const [newEmail, setNewEmail] = useState('');
 	const [verificationCode, setVerificationCode] = useState('');
 	const [emailChangeError, setEmailChangeError] = useState('');
+	const [emailChangeSuccess, setEmailChangeSuccess] = useState('');
 	const [isSendingCode, setIsSendingCode] = useState(false);
 	const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 	const [isApplyingEmailChange, setIsApplyingEmailChange] = useState(false);
@@ -192,6 +204,7 @@ export default function AdminStudentPage() {
 		setNewEmail('');
 		setVerificationCode('');
 		setEmailChangeError('');
+		setEmailChangeSuccess('');
 		setEmailStep('email');
 		setIsEmailChangeOpen(true);
 	}
@@ -201,6 +214,7 @@ export default function AdminStudentPage() {
 		setNewEmail('');
 		setVerificationCode('');
 		setEmailChangeError('');
+		setEmailChangeSuccess('');
 		setEmailStep('email');
 	}
 
@@ -247,6 +261,7 @@ export default function AdminStudentPage() {
 		}
 
 		setEmailChangeError('');
+		setEmailChangeSuccess('');
 		try {
 			setIsVerifyingCode(true);
 			const verifyResponse = await fetch('/api/admin/student-email-verification/verify', {
@@ -277,14 +292,21 @@ export default function AdminStudentPage() {
 			if (updateData.student) {
 				setStudent(updateData.student);
 			}
-			toast.success(updateData.message || 'Student email updated');
-			setIsEmailChangeOpen(false);
+			const successMessage = updateData.message || 'Student email updated successfully';
+			setEmailChangeSuccess(successMessage);
+			setEmailStep('success');
+			toast.success(successMessage);
 		} catch (e: any) {
 			setEmailChangeError(e.message || 'Failed to update email');
 		} finally {
 			setIsVerifyingCode(false);
 			setIsApplyingEmailChange(false);
 		}
+	}
+
+	function handleResetConfirmed() {
+		setIsResetConfirmOpen(false);
+		void handleResetPassword();
 	}
 
 	if (schoolLoading || loading) return (
@@ -313,25 +335,10 @@ export default function AdminStudentPage() {
 						<p className="text-sm text-slate-500">Student profile and academic records</p>
 					</div>
 					<div className="flex items-center gap-3">
-						<div className="inline-flex items-center gap-2 bg-white/50 p-1 rounded-xl shadow-sm">
-							<Button variant="ghost" size="sm" onClick={() => router.back()} aria-label="Back to students list" className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-100">
-								<ArrowLeft className="h-4 w-4 mr-2" />
-								Back
-							</Button>
-
-							<Button onClick={() => setIsEditOpen(true)} aria-label="Edit student" className="rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-2">
-								<Users className="h-4 w-4 mr-2" /> Edit
-							</Button>
-
-							<Button variant="outline" onClick={() => setIsTransferOpen(true)} aria-haspopup="dialog" aria-controls="transfer-dialog" className="rounded-xl border-indigo-200 text-indigo-700 px-3 py-2">
-								Transfer
-							</Button>
-						</div>
-
-						<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} aria-label="Delete student" className="rounded-xl px-3 py-2">
-							<Trash2 className="h-4 w-4 mr-2" />{isDeleting ? 'Deleting…' : 'Delete'}
+						<Button variant="ghost" size="sm" onClick={() => router.back()} aria-label="Back to students list" className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-100">
+							<ArrowLeft className="h-4 w-4 mr-2" />
+							Back
 						</Button>
-
 					</div>
 				</div>
 
@@ -472,6 +479,21 @@ export default function AdminStudentPage() {
 					</DialogContent>
 				</Dialog>
 
+				<AlertDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Send password reset email?</AlertDialogTitle>
+							<AlertDialogDescription>
+								A reset link will be sent to {student.email} and the student will need to use it to set a new password.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction onClick={handleResetConfirmed}>Send reset email</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
+
 				<Dialog open={isEmailChangeOpen} onOpenChange={(open) => (open ? setIsEmailChangeOpen(true) : closeEmailChangeDialog())}>
 					<DialogContent className="sm:max-w-lg rounded-2xl">
 						<DialogHeader>
@@ -485,6 +507,22 @@ export default function AdminStudentPage() {
 
 							{emailChangeError ? (
 								<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{emailChangeError}</div>
+							) : null}
+
+							{emailStep === 'success' ? (
+								<div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+									<div className="flex items-start gap-3">
+										<CheckCircle2 className="h-5 w-5 text-emerald-600 mt-0.5" />
+										<div>
+											<p className="font-semibold text-emerald-900">Email updated successfully</p>
+											<p className="text-sm text-emerald-800">{emailChangeSuccess}</p>
+											<p className="text-sm text-emerald-800 mt-1">New login email: {newEmail}</p>
+										</div>
+									</div>
+									<div className="flex justify-end">
+										<Button onClick={closeEmailChangeDialog} className="rounded-xl">Done</Button>
+									</div>
+								</div>
 							) : null}
 
 							{emailStep === 'email' ? (
@@ -553,7 +591,7 @@ export default function AdminStudentPage() {
 								<p className="text-sm text-slate-500">Send a password reset link to the student&apos;s current email address.</p>
 							</CardHeader>
 							<CardContent>
-								<Button variant="destructive" onClick={handleResetPassword} disabled={isResettingPassword} className="w-full rounded-xl">
+								<Button variant="destructive" onClick={() => setIsResetConfirmOpen(true)} disabled={isResettingPassword} className="w-full rounded-xl">
 									{isResettingPassword ? 'Sending reset email…' : 'Send Reset Email'}
 								</Button>
 							</CardContent>
@@ -570,6 +608,51 @@ export default function AdminStudentPage() {
 							<CardContent>
 								<Button variant="outline" onClick={openEmailChangeDialog} className="w-full rounded-xl border-red-200 text-red-700 hover:bg-red-50">
 									Start Email Change
+								</Button>
+							</CardContent>
+						</Card>
+
+						<Card className="border-red-200 bg-white shadow-sm">
+							<CardHeader className="space-y-2">
+								<div className="flex items-center gap-2">
+									<PencilLine className="h-4 w-4 text-red-600" />
+									<CardTitle className="text-base text-slate-900">Edit Student</CardTitle>
+								</div>
+								<p className="text-sm text-slate-500">Open the edit modal to update profile details and contact info.</p>
+							</CardHeader>
+							<CardContent>
+								<Button onClick={() => setIsEditOpen(true)} className="w-full rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+									Open Edit Modal
+								</Button>
+							</CardContent>
+						</Card>
+
+						<Card className="border-red-200 bg-white shadow-sm">
+							<CardHeader className="space-y-2">
+								<div className="flex items-center gap-2">
+									<MoveRight className="h-4 w-4 text-red-600" />
+									<CardTitle className="text-base text-slate-900">Transfer Student</CardTitle>
+								</div>
+								<p className="text-sm text-slate-500">Move this student to another class using the transfer dialog.</p>
+							</CardHeader>
+							<CardContent>
+								<Button variant="outline" onClick={() => setIsTransferOpen(true)} className="w-full rounded-xl border-red-200 text-red-700 hover:bg-red-50">
+									Open Transfer Dialog
+								</Button>
+							</CardContent>
+						</Card>
+
+						<Card className="border-red-200 bg-white shadow-sm">
+							<CardHeader className="space-y-2">
+								<div className="flex items-center gap-2">
+									<Trash2 className="h-4 w-4 text-red-600" />
+									<CardTitle className="text-base text-slate-900">Delete Student</CardTitle>
+								</div>
+								<p className="text-sm text-slate-500">Permanently remove this student and their linked auth record.</p>
+							</CardHeader>
+							<CardContent>
+								<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="w-full rounded-xl">
+									{isDeleting ? 'Deleting…' : 'Delete Student'}
 								</Button>
 							</CardContent>
 						</Card>

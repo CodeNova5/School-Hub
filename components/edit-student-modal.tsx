@@ -10,8 +10,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Student } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { UserRound, Phone, CalendarDays, MapPin, BadgeCheck, Sparkles } from "lucide-react";
 
 interface EditStudentModalProps {
   student: Student | null;
@@ -30,15 +42,11 @@ export function EditStudentModal({
   const [formData, setFormData] = useState({
     first_name: student?.first_name || "",
     last_name: student?.last_name || "",
-    email: student?.email || "",
     phone: student?.phone || "",
     date_of_birth: student?.date_of_birth || "",
     gender: student?.gender || "",
     address: student?.address || "",
     status: student?.status || "active",
-    parent_name: student?.parent_name || "",
-    parent_email: student?.parent_email || "",
-    parent_phone: student?.parent_phone || "",
   });
 
   // Only update formData when the student changes
@@ -47,30 +55,26 @@ export function EditStudentModal({
       setFormData({
         first_name: student.first_name || "",
         last_name: student.last_name || "",
-        email: student.email || "",
         phone: student.phone || "",
         date_of_birth: student.date_of_birth || "",
         gender: student.gender || "",
         address: student.address || "",
         status: student.status || "active",
-        parent_name: student.parent_name || "",
-        parent_email: student.parent_email || "",
-        parent_phone: student.parent_phone || "",
       });
     }
   }, [student]);
 
-  const [emailChanged, setEmailChanged] = useState(false);
-
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    
-    // Track if email is being changed
-    if (name === "email" && student) {
-      setEmailChanged(value !== student.email);
-    }
 
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const setField = (name: keyof typeof formData, value: string) => {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -86,11 +90,6 @@ export function EditStudentModal({
       return;
     }
 
-    if (!formData.email.trim()) {
-      toast.error("Email is required");
-      return;
-    }
-
     setIsLoading(true);
 
     try {
@@ -102,155 +101,204 @@ export function EditStudentModal({
           updates: {
             first_name: formData.first_name,
             last_name: formData.last_name,
-            email: formData.email,
             phone: formData.phone || null,
             date_of_birth: formData.date_of_birth || null,
             gender: formData.gender || null,
-            address: formData.address || null,
-            status: formData.status,
-            parent_name: formData.parent_name,
-            parent_email: formData.parent_email,
-            parent_phone: formData.parent_phone || null,
-          },
-        }),
-      });
+                <DialogContent className="max-w-4xl overflow-hidden p-0 gap-0 rounded-3xl border-0 bg-white shadow-2xl">
+                  <DialogHeader className="border-b bg-gradient-to-br from-slate-50 via-white to-indigo-50 px-6 py-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <DialogTitle className="text-2xl font-semibold tracking-tight">Edit Student</DialogTitle>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Update core identity and contact details in a clean, focused layout.
+                        </p>
+                      </div>
+                      <Badge variant="secondary" className="rounded-full px-3 py-1 text-xs font-medium">
+                        <Sparkles className="mr-1 h-3.5 w-3.5" />
+                        Profile
+                      </Badge>
+                    </div>
+                  </DialogHeader>
 
-      const result = await response.json();
+                  <div className="grid gap-0 md:grid-cols-[1.4fr_0.9fr]">
+                    <div className="max-h-[70vh] overflow-y-auto px-6 py-6">
+                      <div className="space-y-5">
+                        <Card className="border-slate-200 shadow-sm">
+                          <CardContent className="p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                              <UserRound className="h-4 w-4 text-indigo-600" />
+                              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Student Information</h3>
+                            </div>
 
-      if (!response.ok) {
-        toast.error(result.error || "Failed to update student");
-        return;
-      }
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor="first_name" className="text-xs font-medium text-slate-600">First Name*</Label>
+                                <Input
+                                  id="first_name"
+                                  name="first_name"
+                                  value={formData.first_name}
+                                  onChange={handleInputChange}
+                                  disabled={isLoading}
+                                  className="h-11 rounded-xl bg-white"
+                                  placeholder="Enter first name"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="last_name" className="text-xs font-medium text-slate-600">Last Name*</Label>
+                                <Input
+                                  id="last_name"
+                                  name="last_name"
+                                  value={formData.last_name}
+                                  onChange={handleInputChange}
+                                  disabled={isLoading}
+                                  className="h-11 rounded-xl bg-white"
+                                  placeholder="Enter last name"
+                                />
+                              </div>
+                            </div>
 
-      toast.success(result.message);
-      
-      if (emailChanged) {
-        toast.info("Student account has been deactivated. Verification email sent to the new address.");
-      }
+                            <Separator />
 
-      onSuccess(result.student);
-      setEmailChanged(false);
-      onClose();
-    } catch (error: any) {
-      console.error("Error updating student:", error);
-      toast.error("Failed to update student: " + (error.message || error));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor="phone" className="text-xs font-medium text-slate-600">Phone Number</Label>
+                                <Input
+                                  id="phone"
+                                  name="phone"
+                                  value={formData.phone}
+                                  onChange={handleInputChange}
+                                  disabled={isLoading}
+                                  className="h-11 rounded-xl bg-white"
+                                  placeholder="08012345678"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="date_of_birth" className="text-xs font-medium text-slate-600">Date of Birth</Label>
+                                <Input
+                                  id="date_of_birth"
+                                  type="date"
+                                  name="date_of_birth"
+                                  value={formData.date_of_birth ? formData.date_of_birth.split('T')[0] : ""}
+                                  onChange={handleInputChange}
+                                  disabled={isLoading}
+                                  className="h-11 rounded-xl bg-white"
+                                />
+                              </div>
+                            </div>
 
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Student Details</DialogTitle>
-        </DialogHeader>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor="gender" className="text-xs font-medium text-slate-600">Gender</Label>
+                                <Select value={formData.gender} onValueChange={(value) => setField('gender', value)} disabled={isLoading}>
+                                  <SelectTrigger id="gender" className="h-11 rounded-xl bg-white">
+                                    <SelectValue placeholder="Select gender" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="male">Male</SelectItem>
+                                    <SelectItem value="female">Female</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="status" className="text-xs font-medium text-slate-600">Status</Label>
+                                <Select value={formData.status} onValueChange={(value) => setField('status', value)} disabled={isLoading}>
+                                  <SelectTrigger id="status" className="h-11 rounded-xl bg-white">
+                                    <SelectValue placeholder="Select status" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="suspended">Suspended</SelectItem>
+                                    <SelectItem value="graduated">Graduated</SelectItem>
+                                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
 
-        <div className="space-y-4">
-          {/* Student Information */}
-          <div className="space-y-3">
-            <h3 className="font-semibold text-sm">Student Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="first_name" className="text-xs">First Name*</Label>
-                <Input
-                  id="first_name"
-                  name="first_name"
-                  value={formData.first_name}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <Label htmlFor="last_name" className="text-xs">Last Name*</Label>
-                <Input
-                  id="last_name"
-                  name="last_name"
-                  value={formData.last_name}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="address" className="text-xs font-medium text-slate-600">Address</Label>
+                              <Textarea
+                                id="address"
+                                name="address"
+                                value={formData.address}
+                                onChange={handleInputChange}
+                                disabled={isLoading}
+                                className="min-h-28 rounded-xl bg-white resize-none"
+                                placeholder="Enter residential address"
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="email" className="text-xs">
-                  Email*
-                  {emailChanged && <span className="text-red-500 ml-1">*changed</span>}
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                  className={emailChanged ? "border-orange-500" : ""}
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone" className="text-xs">Phone</Label>
-                <Input
-                  id="phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
+                    <div className="border-t bg-slate-50 px-6 py-6 md:border-l md:border-t-0">
+                      <div className="sticky top-6 space-y-4">
+                        <Card className="border-slate-200 shadow-sm bg-white">
+                          <CardContent className="p-5 space-y-4">
+                            <div className="flex items-center gap-2">
+                              <BadgeCheck className="h-4 w-4 text-emerald-600" />
+                              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">Live Preview</h3>
+                            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="date_of_birth" className="text-xs">Date of Birth</Label>
-                <Input
-                  id="date_of_birth"
-                  type="date"
-                  name="date_of_birth"
-                  value={formData.date_of_birth ? formData.date_of_birth.split('T')[0] : ""}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <Label htmlFor="gender" className="text-xs">Gender</Label>
-                <select
-                  id="gender"
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                  className="border rounded-md p-2 w-full"
-                >
-                  <option value="">Select gender</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </div>
-            </div>
+                            <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 p-4 text-white shadow-lg">
+                              <p className="text-xs uppercase tracking-[0.2em] text-white/70">Student Name</p>
+                              <p className="mt-1 text-2xl font-semibold leading-tight">
+                                {(formData.first_name || 'First name')} {(formData.last_name || 'Last name')}
+                              </p>
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <Badge className="rounded-full bg-white/10 text-white hover:bg-white/10">
+                                  {formData.status || 'status'}
+                                </Badge>
+                                <Badge className="rounded-full bg-white/10 text-white hover:bg-white/10">
+                                  {formData.gender || 'gender'}
+                                </Badge>
+                              </div>
+                            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="status" className="text-xs">Status</Label>
-                <select
-                  id="status"
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                  className="border rounded-md p-2 w-full"
-                >
-                  <option value="active">Active</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="graduated">Graduated</option>
-                  <option value="withdrawn">Withdrawn</option>
-                </select>
-              </div>
-            </div>
+                            <div className="space-y-3 text-sm text-slate-600">
+                              <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <Phone className="mt-0.5 h-4 w-4 text-slate-400" />
+                                <div>
+                                  <p className="font-medium text-slate-700">Phone</p>
+                                  <p>{formData.phone || 'Not provided'}</p>
+                                </div>
+                              </div>
 
-            <div>
-              <Label htmlFor="address" className="text-xs">Address</Label>
+                              <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <CalendarDays className="mt-0.5 h-4 w-4 text-slate-400" />
+                                <div>
+                                  <p className="font-medium text-slate-700">Date of Birth</p>
+                                  <p>{formData.date_of_birth ? formData.date_of_birth.split('T')[0] : 'Not provided'}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
+                                <div>
+                                  <p className="font-medium text-slate-700">Address</p>
+                                  <p className="line-clamp-3">{formData.address || 'Not provided'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 text-sm text-indigo-900">
+                          Updates here affect the student profile only. Parent and email changes are managed separately in the Danger Zone.
+                        </div>
+
+                        <div className="flex gap-2 pt-1">
+                          <Button variant="outline" onClick={onClose} disabled={isLoading} className="h-11 flex-1 rounded-xl">
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSubmit} disabled={isLoading} className="h-11 flex-1 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+                            {isLoading ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
               <Input
                 id="address"
                 name="address"
@@ -260,54 +308,6 @@ export function EditStudentModal({
               />
             </div>
           </div>
-
-          {/* Parent Information */}
-          <div className="space-y-3 border-t pt-4">
-            <h3 className="font-semibold text-sm">Parent Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="parent_name" className="text-xs">Parent Name*</Label>
-                <Input
-                  id="parent_name"
-                  name="parent_name"
-                  value={formData.parent_name}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                />
-              </div>
-              <div>
-                <Label htmlFor="parent_email" className="text-xs">Parent Email*</Label>
-                <Input
-                  id="parent_email"
-                  type="email"
-                  name="parent_email"
-                  value={formData.parent_email}
-                  onChange={handleInputChange}
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="parent_phone" className="text-xs">Parent Phone</Label>
-              <Input
-                id="parent_phone"
-                name="parent_phone"
-                value={formData.parent_phone}
-                onChange={handleInputChange}
-                disabled={isLoading}
-              />
-            </div>
-          </div>
-
-          {/* Email Change Warning */}
-          {emailChanged && (
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
-              <p className="text-sm text-orange-800">
-                <strong>Note:</strong> Changing the student's email will require them to verify the new email address. A verification link will be sent to the new address and will expire in 24 hours.
-              </p>
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4 border-t">

@@ -18,6 +18,12 @@ import { filterAttendanceByPeriod } from '@/lib/student-utils';
 import { EditStudentModal } from '@/components/edit-student-modal';
 import { toast } from 'sonner';
 import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Upload, Users } from 'lucide-react';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 
 export default function AdminStudentPage() {
 	const params = useParams();
@@ -118,7 +124,7 @@ export default function AdminStudentPage() {
 	}
 
 	if (schoolLoading || loading) return (
-		<DashboardLayout role="admin"><div className="flex items-center justify-center h-96">Loading...</div></DashboardLayout>
+		<DashboardLayout role="admin"><div className="flex items-center justify-center h-96" role="status" aria-live="polite">Loading...</div></DashboardLayout>
 	);
 
 	if (schoolError || !schoolId) return (
@@ -136,39 +142,42 @@ export default function AdminStudentPage() {
 
 	return (
 		<DashboardLayout role="admin">
-			<div className="max-w-5xl mx-auto p-6 space-y-6">
+			<main className="max-w-5xl mx-auto p-6 space-y-6" id="main-content">
 				<div className="flex items-center justify-between">
 					<div>
 						<h1 className="text-2xl font-bold">{student.first_name} {student.last_name}</h1>
 						<p className="text-sm text-slate-500">Student profile and academic records</p>
 					</div>
 					<div className="flex items-center gap-2">
-						<Button variant="ghost" onClick={() => router.back()}><ArrowLeft className="h-4 w-4" /> Back</Button>
-						<Button onClick={() => setIsEditOpen(true)}><Users className="h-4 w-4 mr-2" /> Edit</Button>
-						<Button variant="outline" onClick={() => setIsTransferOpen(true)}>Transfer</Button>
-						<Button variant="destructive" onClick={handleDelete} disabled={isDeleting}><Trash2 className="h-4 w-4 mr-2" />{isDeleting ? 'Deleting…' : 'Delete'}</Button>
-						<Button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.success('Link copied'); }}>Share</Button>
+						<Button variant="ghost" onClick={() => router.back()} aria-label="Back to students list"><ArrowLeft className="h-4 w-4" /> Back</Button>
+						<Button onClick={() => setIsEditOpen(true)} aria-label="Edit student"><Users className="h-4 w-4 mr-2" /> Edit</Button>
+						<Button variant="outline" onClick={() => setIsTransferOpen(true)} aria-haspopup="dialog" aria-controls="transfer-dialog">Transfer</Button>
+						<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} aria-label="Delete student"><Trash2 className="h-4 w-4 mr-2" />{isDeleting ? 'Deleting…' : 'Delete'}</Button>
+						<Button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.success('Link copied'); }} aria-label="Copy student link">Share</Button>
 					</div>
 				</div>
 
 				<Card>
 					<CardContent className="p-4 md:p-6">
 						<div className="flex flex-col md:flex-row gap-4">
-							<Avatar className="h-24 w-24">
-								<AvatarImage src={student.photo_url} />
-								<AvatarFallback className="bg-blue-100 text-blue-700 text-2xl">{getInitials(student.first_name, student.last_name)}</AvatarFallback>
-							</Avatar>
+							<figure className="flex-shrink-0">
+								<Avatar className="h-24 w-24">
+									<AvatarImage src={student.photo_url} alt={`Photo of ${student.first_name} ${student.last_name}`} />
+									<AvatarFallback className="bg-blue-100 text-blue-700 text-2xl">{getInitials(student.first_name, student.last_name)}</AvatarFallback>
+								</Avatar>
+								<figcaption className="sr-only">Photo of {student.first_name} {student.last_name}</figcaption>
+							</figure>
 							<div className="flex-1">
 								<div className="flex items-center gap-3">
 									<h2 className="text-xl font-bold">{student.first_name} {student.last_name}</h2>
 									<Badge>{student.status}</Badge>
 								</div>
 								<div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-sm">
-									<div className="flex items-center gap-2"><Mail className="h-4 w-4 text-gray-500" />{student.email}</div>
-									<div className="flex items-center gap-2"><Phone className="h-4 w-4 text-gray-500" />{student.phone}</div>
-									<div className="flex items-center gap-2"><User className="h-4 w-4 text-gray-500" />{student.gender}</div>
-									<div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-500" />Admitted: {new Date(student.admission_date).toLocaleDateString()}</div>
-									<div className="flex items-center gap-2"><Hash className="h-4 w-4 text-gray-500" />{student.student_id}</div>
+									<div className="flex items-center gap-2"><Mail className="h-4 w-4 text-gray-500" /><span>{student.email}</span></div>
+									<div className="flex items-center gap-2"><Phone className="h-4 w-4 text-gray-500" /><span>{student.phone}</span></div>
+									<div className="flex items-center gap-2"><User className="h-4 w-4 text-gray-500" /><span className="capitalize">{student.gender}</span></div>
+									<div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-500" /><span>Admitted: {new Date(student.admission_date).toLocaleDateString()}</span></div>
+									<div className="flex items-center gap-2"><Hash className="h-4 w-4 text-gray-500" /><span>{student.student_id}</span></div>
 								</div>
 							</div>
 						</div>
@@ -208,8 +217,8 @@ export default function AdminStudentPage() {
 							<CardHeader className="flex items-center justify-between">
 								<CardTitle>Attendance</CardTitle>
 								<div className="flex items-center gap-2">
-									<Label>Period</Label>
-									<select value={attendancePeriod} onChange={(e) => setAttendancePeriod(e.target.value as any)} className="px-2 py-1 border rounded">
+									<Label htmlFor="attendancePeriodSelect">Period</Label>
+									<select id="attendancePeriodSelect" value={attendancePeriod} onChange={(e) => setAttendancePeriod(e.target.value as any)} className="px-2 py-1 border rounded" aria-label="Attendance period">
 										<option value="daily">Daily</option>
 										<option value="weekly">Weekly</option>
 										<option value="monthly">Monthly</option>
@@ -220,7 +229,7 @@ export default function AdminStudentPage() {
 							</CardHeader>
 							<CardContent>
 								<div className="mb-4">
-									<div className="text-2xl font-bold">{student.average_attendance}%</div>
+									<div className="text-2xl font-bold" aria-live="polite" aria-atomic="true">{student.average_attendance}%</div>
 									<div className="text-sm text-slate-500">Average attendance</div>
 								</div>
 								<AttendanceTimeline attendance={filteredAttendance} />
@@ -236,8 +245,8 @@ export default function AdminStudentPage() {
 							<CardContent>
 								<ResultsTable results={studentResults} />
 								<div className="flex gap-2 mt-4">
-									<Button onClick={handleManageSubjects}>Manage Subjects</Button>
-									<Button variant="outline" onClick={handleViewReport}>View Report</Button>
+									<Button onClick={handleManageSubjects} aria-label="Manage subjects">Manage Subjects</Button>
+									<Button variant="outline" onClick={handleViewReport} aria-label="View report">View Report</Button>
 								</div>
 							</CardContent>
 						</Card>
@@ -246,25 +255,27 @@ export default function AdminStudentPage() {
 
 				<EditStudentModal student={student} isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} onSuccess={(updated: Student) => { setStudent(updated); toast.success('Student updated'); }} />
 
-				{/* Transfer dialog (simple inline) */}
-				{isTransferOpen && (
-					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-						<div className="bg-white rounded-lg p-6 w-full max-w-md">
-							<h3 className="text-lg font-bold">Transfer Student</h3>
+				{/* Accessible Transfer Dialog */}
+				<Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+					<DialogContent id="transfer-dialog" className="rounded-2xl sm:max-w-md">
+						<DialogHeader>
+							<DialogTitle className="text-lg font-bold">Transfer Student</DialogTitle>
+						</DialogHeader>
+						<div>
 							<p className="text-sm text-slate-500 mt-1">Move {student.first_name} {student.last_name} to another class</p>
-							<select value={transferTargetClassId} onChange={(e) => setTransferTargetClassId(e.target.value)} className="w-full mt-4 px-3 py-2 border rounded">
+							<label htmlFor="transferClassSelect" className="sr-only">Select target class</label>
+							<select id="transferClassSelect" value={transferTargetClassId} onChange={(e) => setTransferTargetClassId(e.target.value)} className="w-full mt-4 px-3 py-2 border rounded" aria-label="Target class">
 								<option value="">Select class</option>
 								{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
 							</select>
 							<div className="flex justify-end gap-2 mt-4">
 								<Button variant="outline" onClick={() => { setIsTransferOpen(false); setTransferTargetClassId(''); }}>Cancel</Button>
-								<Button onClick={handleTransfer}>Transfer</Button>
+								<Button onClick={handleTransfer} aria-disabled={!transferTargetClassId} aria-label="Confirm transfer">Transfer</Button>
 							</div>
 						</div>
-					</div>
-				)}
-
-			</div>
+					</DialogContent>
+				</Dialog>
+			</main>
 		</DashboardLayout>
 	);
 }

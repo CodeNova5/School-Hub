@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
         // Fetch target class details
         const { data: targetClass, error: classError } = await supabaseAdmin
           .from("classes")
-          .select("id, name")
+          .select("id, name, school_id")
           .eq("id", targetClassId)
           .single();
 
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
             // 1. Fetch student details (department_id, religion_id)
             const { data: student, error: studentError } = await supabaseAdmin
               .from("students")
-              .select("id, department_id, religion_id")
+              .select("id, department_id, religion_id, school_id")
               .eq("id", studentId)
               .single();
 
@@ -217,6 +217,10 @@ export async function POST(req: NextRequest) {
               throw new Error("Student not found");
             }
 
+            // Validate same school
+            if (student.school_id && targetClass.school_id && student.school_id !== targetClass.school_id) {
+              throw new Error("Target class does not belong to the same school as the student");
+            }
             // 2. Delete old results for current term only
             const { data: currentTerm } = await supabaseAdmin
               .from("terms")

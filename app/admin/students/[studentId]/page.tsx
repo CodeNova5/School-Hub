@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -55,7 +55,12 @@ export default function AdminStudentPage() {
 	const [loading, setLoading] = useState(true);
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
+	const [isTransferConfirmOpen, setIsTransferConfirmOpen] = useState(false);
 	const [transferTargetClassId, setTransferTargetClassId] = useState('');
+	const [isTransferring, setIsTransferring] = useState(false);
+	const [transferError, setTransferError] = useState('');
+	const transferClassSelectRef = useRef<HTMLSelectElement | null>(null);
+	const transferConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 	const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -72,6 +77,23 @@ export default function AdminStudentPage() {
 	useEffect(() => {
 		if (schoolId && studentId) loadData();
 	}, [schoolId, studentId]);
+
+	// Focus management: focus class select when transfer dialog opens
+	useEffect(() => {
+		if (isTransferOpen) {
+			setTimeout(() => transferClassSelectRef.current?.focus(), 0);
+		}
+	}, [isTransferOpen]);
+
+	// Focus management: focus confirm button when confirm dialog opens
+	useEffect(() => {
+		if (isTransferConfirmOpen) {
+			setTimeout(() => {
+				const el = document.getElementById('transfer-confirm-btn') as HTMLButtonElement | null;
+				el?.focus();
+			}, 0);
+		}
+	}, [isTransferConfirmOpen]);
 
 	async function loadData() {
 		setLoading(true);
@@ -158,16 +180,15 @@ export default function AdminStudentPage() {
 	}
 
 	async function handleTransfer() {
-		if (!student || !transferTargetClassId) { toast.error('Select a target class'); return; }
-		try {
-			const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transfer-students', studentIds: [student.id], targetClassId: transferTargetClassId }) });
-			const data = await res.json();
-			if (!res.ok) { toast.error(data.error || 'Transfer failed'); return; }
-			toast.success(data.message || 'Student transferred');
-			// refresh
-			loadData();
-			setIsTransferOpen(false);
-		} catch (e: any) { toast.error('Transfer failed: ' + e.message); }
+			if (!student || !transferTargetClassId) { return { success: false, error: 'Select a target class' }; }
+			try {
+				const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transfer-students', studentIds: [student.id], targetClassId: transferTargetClassId }) });
+				const data = await res.json();
+				if (!res.ok) {
+					return { success: false, error: data.error || 'Transfer failed' };
+				}
+				return { success: true, data };
+			} catch (e: any) { return { success: false, error: e.message || 'Transfer failed' }; }
 	}
 
 	async function handleResetPassword() {
@@ -467,17 +488,55 @@ export default function AdminStudentPage() {
 						<div>
 							<p className="text-sm text-slate-500 mt-1">Move {student.first_name} {student.last_name} to another class</p>
 							<label htmlFor="transferClassSelect" className="sr-only">Select target class</label>
-							<select id="transferClassSelect" value={transferTargetClassId} onChange={(e) => setTransferTargetClassId(e.target.value)} className="w-full mt-4 px-3 py-2 border rounded" aria-label="Target class">
+							<select id="transferClassSelect" ref={transferClassSelectRef} value={transferTargetClassId} onChange={(e) => setTransferTargetClassId(e.target.value)} className="w-full mt-4 px-3 py-2 border rounded" aria-label="Target class">
 								<option value="">Select class</option>
 								{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
 							</select>
 							<div className="flex justify-end gap-2 mt-4">
 								<Button variant="outline" onClick={() => { setIsTransferOpen(false); setTransferTargetClassId(''); }}>Cancel</Button>
-								<Button onClick={handleTransfer} aria-disabled={!transferTargetClassId} aria-label="Confirm transfer">Transfer</Button>
+								<Button onClick={() => setIsTransferConfirmOpen(true)} disabled={!transferTargetClassId} aria-label="Confirm transfer">Transfer</Button>
 							</div>
 						</div>
 					</DialogContent>
 				</Dialog>
+
+				{/* Transfer confirmation */}
+				<AlertDialog open={isTransferConfirmOpen} onOpenChange={(open) => { setIsTransferConfirmOpen(open); if (!open) setTransferError(''); }}>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Confirm transfer</AlertDialogTitle>
+							<AlertDialogDescription>
+								Move {student.first_name} {student.last_name} to {classes.find((c) => c.id === transferTargetClassId)?.name || 'the selected class'}?
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						{transferError ? (
+							<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{transferError}</div>
+						) : null}
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction id="transfer-confirm-btn" onClick={async () => {
+								setTransferError('');
+								setIsTransferring(true);
+								try {
+									const result = await handleTransfer();
+									if (result.success) {
+										toast.success(result.data?.message || 'Student transferred');
+										setIsTransferConfirmOpen(false);
+										setIsTransferOpen(false);
+										setTransferTargetClassId('');
+										await loadData();
+									} else {
+										setTransferError(result.error || 'Transfer failed');
+									}
+								} catch (err: any) {
+									setTransferError(err?.message || 'Transfer failed');
+								} finally {
+									setIsTransferring(false);
+								}
+							}} disabled={isTransferring}>{isTransferring ? 'Transferring…' : 'Confirm transfer'}</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
 
 				<AlertDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
 					<AlertDialogContent>

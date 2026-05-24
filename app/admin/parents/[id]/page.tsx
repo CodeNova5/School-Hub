@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -36,12 +36,9 @@ interface ParentDetails {
   students: ParentStudent[];
 }
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function AdminParentEditPage({ params }: PageProps) {
-  const resolvedParams = use(params);
+export default function AdminParentEditPage() {
+  const params = useParams<{ id: string }>();
+  const parentId = params?.id;
   const router = useRouter();
   const { toast } = useToast();
   
@@ -51,10 +48,20 @@ export default function AdminParentEditPage({ params }: PageProps) {
   const [form, setForm] = useState({ name: "", email: "", phone: "", is_active: false });
 
   useEffect(() => {
+    if (!parentId) {
+      toast({
+        title: "Error",
+        description: "Missing parent identifier",
+        variant: "destructive",
+      });
+      router.push("/admin/parents");
+      return;
+    }
+
     async function fetchParentDetails() {
       try {
         setLoading(true);
-        const response = await fetch(`/api/admin/parents/${resolvedParams.id}`);
+        const response = await fetch(`/api/admin/parents/${parentId}`);
         const payload = await response.json();
         
         if (!response.ok || !payload.success) {
@@ -81,7 +88,7 @@ export default function AdminParentEditPage({ params }: PageProps) {
       }
     }
     fetchParentDetails();
-  }, [resolvedParams.id, router, toast]);
+  }, [parentId, router, toast]);
 
   async function handleCommitChanges() {
     try {
@@ -90,7 +97,7 @@ export default function AdminParentEditPage({ params }: PageProps) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: resolvedParams.id,
+          id: parentId,
           name: form.name,
           email: form.email,
           phone: form.phone,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -9,6 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft, 
@@ -46,6 +56,9 @@ export default function AdminParentEditPage() {
   const [saving, setSaving] = useState(false);
   const [parent, setParent] = useState<ParentDetails | null>(null);
   const [form, setForm] = useState({ name: "", email: "", phone: "", is_active: false });
+  const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
+  const [hasChanges, setHasChanges] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
 
   useEffect(() => {
     if (!parentId) {
@@ -76,6 +89,8 @@ export default function AdminParentEditPage() {
           phone: parentData.phone || "",
           is_active: parentData.is_active,
         });
+        setErrors({});
+        setHasChanges(false);
       } catch (error: any) {
         toast({
           title: "Error",
@@ -87,11 +102,37 @@ export default function AdminParentEditPage() {
         setLoading(false);
       }
     }
-    fetchParentDetails();
+      fetchParentDetails();
   }, [parentId, router, toast]);
+
+    // Track unsaved changes
+    useEffect(() => {
+      if (!parent) return;
+      const changed = (
+        parent.name !== form.name ||
+        parent.email !== form.email ||
+        (parent.phone || "") !== form.phone ||
+        parent.is_active !== form.is_active
+      );
+      setHasChanges(changed);
+    }, [form, parent]);
+
+    // Warn on window/tab close when there are unsaved changes
+    useEffect(() => {
+      function handleBeforeUnload(e: BeforeUnloadEvent) {
+        if (!hasChanges) return;
+        e.preventDefault();
+        e.returnValue = "You have unsaved changes.";
+      }
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [hasChanges]);
 
   async function handleCommitChanges() {
     try {
+      // client-side validation
+      const valid = validateForm();
+      if (!valid) return;
       setSaving(true);
       const response = await fetch("/api/admin/parents", {
         method: "PATCH",
@@ -126,6 +167,36 @@ export default function AdminParentEditPage() {
     }
   }
 
+  const validateForm = useCallback(() => {
+    const nextErrors: { name?: string; email?: string } = {};
+    if (!form.name || form.name.trim().length < 2) nextErrors.name = "Provide a valid display name.";
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!form.email || !emailRegex.test(form.email)) nextErrors.email = "Provide a valid email address.";
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }, [form]);
+
+  function handleCancelChanges() {
+    if (!parent) return;
+    setForm({ name: parent.name, email: parent.email, phone: parent.phone || "", is_active: parent.is_active });
+    setErrors({});
+    setHasChanges(false);
+    toast({ title: "Reverted", description: "Unsaved changes were discarded." });
+  }
+
+  function handleBackClick() {
+    if (hasChanges) {
+      setShowDiscardDialog(true);
+      return;
+    }
+    router.push("/admin/parents");
+  }
+
+  function confirmLeaveWithoutSaving() {
+    setShowDiscardDialog(false);
+    router.push("/admin/parents");
+  }
+
   if (loading) {
     return (
       <DashboardLayout role="admin">
@@ -139,15 +210,37 @@ export default function AdminParentEditPage() {
 
   return (
     <DashboardLayout role="admin">
+      <AlertDialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your changes have not been saved yet. Leaving now will reset this form.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay here</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLeaveWithoutSaving}>Discard and leave</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6 animate-in fade-in duration-200">
         
         {/* Navigation Action Bar */}
         <div className="flex items-center justify-between">
-          <Button asChild variant="ghost" size="sm" className="rounded-lg gap-2 text-slate-600 hover:bg-slate-100">
-            <Link href="/admin/parents">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" className="rounded-lg gap-2 text-slate-600 hover:bg-slate-100" onClick={handleBackClick}>
               <ArrowLeft className="h-4 w-4" /> Back to Directory
-            </Link>
-          </Button>
+            </Button>
+            <div className="text-sm">
+              <p className="text-base font-semibold text-slate-900">{parent?.name || "Parent"}</p>
+              <p className="text-xs text-slate-400">{parent?.email}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-indigo-50 text-indigo-700 font-bold border-indigo-200 rounded px-2">{parent?.student_count || 0} children</Badge>
+            {hasChanges && <span className="text-xs text-amber-600 italic">Unsaved changes</span>}
+          </div>
         </div>
 
         {/* Split Section Layout: Content Forms */}
@@ -163,16 +256,18 @@ export default function AdminParentEditPage() {
               <div className="space-y-1">
                 <Label htmlFor="edit-name" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Full Name</Label>
                 <Input id="edit-name" value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} className="h-10 mt-1 rounded-lg" />
+                {errors.name && <p className="text-xs text-rose-600 mt-1">{errors.name}</p>}
               </div>
 
               <div className="space-y-1">
                 <Label htmlFor="edit-email" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Communication Email Address</Label>
                 <Input id="edit-email" type="email" value={form.email} onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))} className="h-10 mt-1 rounded-lg" />
+                {errors.email && <p className="text-xs text-rose-600 mt-1">{errors.email}</p>}
               </div>
 
               <div className="space-y-1">
                 <Label htmlFor="edit-phone" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Secure Telephone Line</Label>
-                <Input id="edit-phone" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} className="h-10 mt-1 rounded-lg" />
+                <Input id="edit-phone" type="tel" value={form.phone} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} className="h-10 mt-1 rounded-lg" />
               </div>
 
               {/* Toggle Panel Container */}
@@ -194,10 +289,15 @@ export default function AdminParentEditPage() {
               </div>
 
               <div className="flex items-center justify-end border-t border-slate-100 pt-4 mt-4">
-                <Button className="rounded-lg bg-indigo-600 hover:bg-indigo-700 shadow-xs gap-2 px-4 h-10" onClick={handleCommitChanges} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Commit Changes
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" className="rounded-lg" onClick={handleCancelChanges} disabled={!hasChanges || saving}>
+                    Cancel
+                  </Button>
+                  <Button aria-label="commit-changes" className="rounded-lg bg-indigo-600 hover:bg-indigo-700 shadow-xs gap-2 px-4 h-10" onClick={handleCommitChanges} disabled={saving || !hasChanges}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {saving ? "Saving..." : "Commit Changes"}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -214,21 +314,33 @@ export default function AdminParentEditPage() {
             <CardContent className="p-5 space-y-3 max-h-[480px] overflow-y-auto">
               {parent && parent.students.length > 0 ? (
                 parent.students.map((student) => (
-                  <div key={student.id} className="rounded-lg border border-slate-150 bg-slate-50/50 p-3.5 flex items-start gap-3">
-                    <div className="p-2 bg-white rounded-md border text-slate-400 mt-0.5">
-                      <GraduationCap className="h-4 w-4 text-slate-500" />
+                  <Link
+                    key={student.id}
+                    href={`/admin/students/${student.id}/report`}
+                    className="group block rounded-lg border border-slate-200 bg-slate-50/60 p-3.5 transition-all hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-white hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-white rounded-md border text-slate-400 mt-0.5 transition-colors group-hover:border-indigo-200 group-hover:text-indigo-600">
+                        <GraduationCap className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-0.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-900 group-hover:text-indigo-700">{student.name}</p>
+                          <span className="text-[11px] font-medium text-slate-400 group-hover:text-indigo-500">Open report</span>
+                        </div>
+                        <p className="text-xs font-mono text-slate-400">{student.student_id || "No active ID"}</p>
+                        <p className="text-xs font-medium text-indigo-600 mt-1.5 bg-indigo-50/80 px-2 py-0.5 rounded w-max">
+                          {student.class_name || "Unassigned Cohort"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-semibold text-slate-900">{student.name}</p>
-                      <p className="text-xs font-mono text-slate-400">{student.student_id || "No active ID"}</p>
-                      <p className="text-xs font-medium text-indigo-600 mt-1.5 bg-indigo-50/80 px-2 py-0.5 rounded w-max">
-                        {student.class_name || "Unassigned Cohort"}
-                      </p>
-                    </div>
-                  </div>
+                  </Link>
                 ))
               ) : (
-                <p className="text-xs text-slate-400 italic text-center py-6">No independent students connected to this entity reference.</p>
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center">
+                  <p className="text-sm font-medium text-slate-700">No connected students yet.</p>
+                  <p className="mt-1 text-xs text-slate-400">When a student is linked to this parent, their profile will appear here.</p>
+                </div>
               )}
             </CardContent>
           </Card>

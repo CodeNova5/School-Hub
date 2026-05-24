@@ -15,10 +15,31 @@ import {
   ArrowLeft,
   BookOpen,
   Loader2,
+  Search,
   School,
   Sparkles,
+  UserPlus,
   Users,
 } from "lucide-react";
+
+interface ExistingGuardian {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  is_active: boolean;
+}
+
+interface GuardianDraft {
+  guardian_id?: string;
+  guardian_name: string;
+  guardian_email: string;
+  guardian_phone: string;
+  relationship_type: string;
+  is_primary_contact: boolean;
+  has_legal_custody: boolean;
+  can_pickup: boolean;
+}
 
 
 function splitFullName(fullName: string) {
@@ -139,7 +160,12 @@ export default function NewStudentPage() {
     admission_date: new Date().toISOString().split("T")[0],
   });
 
-  const [otherGuardians, setOtherGuardians] = useState<Array<Record<string, any>>>([]);
+  const [otherGuardians, setOtherGuardians] = useState<GuardianDraft[]>([]);
+  const [guardianSearch, setGuardianSearch] = useState("");
+  const [debouncedGuardianSearch, setDebouncedGuardianSearch] = useState("");
+  const [guardianSearchResults, setGuardianSearchResults] = useState<ExistingGuardian[]>([]);
+  const [isSearchingGuardians, setIsSearchingGuardians] = useState(false);
+  const [primaryLinkedGuardian, setPrimaryLinkedGuardian] = useState<ExistingGuardian | null>(null);
 
   useEffect(() => {
     if (!schoolId) {
@@ -186,6 +212,97 @@ export default function NewStudentPage() {
     loadOptions();
   }, [schoolId]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedGuardianSearch(guardianSearch.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [guardianSearch]);
+
+  useEffect(() => {
+    if (debouncedGuardianSearch.length < 2) {
+      setGuardianSearchResults([]);
+      setIsSearchingGuardians(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function searchGuardians() {
+      setIsSearchingGuardians(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("q", debouncedGuardianSearch);
+        params.set("limit", "12");
+        params.set("includeInactive", "true");
+
+        const response = await fetch(`/api/admin/guardians/search?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.error || "Failed to search guardians");
+        }
+
+        setGuardianSearchResults(payload.data?.guardians || []);
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          toast.error(error?.message || "Unable to search guardians");
+        }
+      } finally {
+        setIsSearchingGuardians(false);
+      }
+    }
+
+    searchGuardians();
+
+    return () => controller.abort();
+  }, [debouncedGuardianSearch]);
+
+  function useGuardianAsPrimary(guardian: ExistingGuardian) {
+    setPrimaryLinkedGuardian(guardian);
+    setFormData((current) => ({
+      ...current,
+      guardian_name: guardian.name || current.guardian_name,
+      guardian_email: guardian.email || current.guardian_email,
+      guardian_phone: guardian.phone || "",
+    }));
+    setGuardianSearch("");
+    setGuardianSearchResults([]);
+  }
+
+  function addGuardianAsAdditional(guardian: ExistingGuardian) {
+    if (primaryLinkedGuardian?.id === guardian.id) {
+      toast.info("This guardian is already linked as primary");
+      return;
+    }
+
+    const alreadyAdded = otherGuardians.some(
+      (item) => item.guardian_id === guardian.id || item.guardian_email.toLowerCase() === guardian.email.toLowerCase()
+    );
+
+    if (alreadyAdded) {
+      toast.info("This guardian is already in additional contacts");
+      return;
+    }
+
+    setOtherGuardians((current) => [
+      ...current,
+      {
+        guardian_id: guardian.id,
+        guardian_name: guardian.name,
+        guardian_email: guardian.email,
+        guardian_phone: guardian.phone || "",
+        relationship_type: "Guardian",
+        is_primary_contact: false,
+        has_legal_custody: false,
+        can_pickup: true,
+      },
+    ]);
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -224,6 +341,20 @@ export default function NewStudentPage() {
     setIsSubmitting(true);
 
     try {
+      const guardiansPayload = [
+        {
+          guardian_id: primaryLinkedGuardian?.id,
+          guardian_name: formData.guardian_name,
+          guardian_email: formData.guardian_email,
+          guardian_phone: formData.guardian_phone,
+          relationship_type: formData.relationship_type,
+          is_primary_contact: true,
+          has_legal_custody: false,
+          can_pickup: true,
+        },
+        ...otherGuardians,
+      ];
+
       const response = await fetch("/api/create-student", {
         method: "POST",
         headers: {
@@ -234,6 +365,7 @@ export default function NewStudentPage() {
           first_name: firstName,
           last_name: lastName,
           email: formData.email,
+          guardian_id: primaryLinkedGuardian?.id || null,
           guardian_name: formData.guardian_name,
           guardian_email: formData.guardian_email,
           guardian_phone: formData.guardian_phone,
@@ -248,18 +380,7 @@ export default function NewStudentPage() {
           class_id: formData.class_id || null,
           department_id: formData.department_id || null,
           religion_id: formData.religion_id || null,
-          guardians: [
-            {
-              guardian_name: formData.guardian_name,
-              guardian_email: formData.guardian_email,
-              guardian_phone: formData.guardian_phone,
-              relationship_type: formData.relationship_type,
-              is_primary_contact: true,
-              has_legal_custody: false,
-              can_pickup: true,
-            },
-            ...otherGuardians,
-          ],
+          guardians: guardiansPayload,
           admission_date: formData.admission_date,
           notes: formData.notes,
         }),
@@ -445,6 +566,67 @@ export default function NewStudentPage() {
                 icon={Users}
               >
                 <div className="grid gap-4 lg:grid-cols-3">
+                  <FieldGroup className="lg:col-span-3">
+                    <FieldLabel htmlFor="guardian_search">Link Existing Guardian</FieldLabel>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <StyledInput
+                        id="guardian_search"
+                        value={guardianSearch}
+                        onChange={(event) => setGuardianSearch(event.target.value)}
+                        placeholder="Search by guardian name or email"
+                        className="pl-9"
+                      />
+                    </div>
+                    {isSearchingGuardians ? (
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                        Searching guardians...
+                      </div>
+                    ) : debouncedGuardianSearch.length >= 2 ? (
+                      <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2">
+                        {guardianSearchResults.length === 0 ? (
+                          <p className="px-2 py-1 text-xs text-slate-500">No guardians match this search.</p>
+                        ) : (
+                          guardianSearchResults.map((guardian) => (
+                            <div key={guardian.id} className="flex flex-col gap-2 rounded-lg border border-slate-100 p-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{guardian.name}</p>
+                                <p className="text-xs text-slate-500">{guardian.email}</p>
+                                {guardian.phone && <p className="text-xs text-slate-500">{guardian.phone}</p>}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="h-8 rounded-lg"
+                                  onClick={() => addGuardianAsAdditional(guardian)}
+                                >
+                                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                                  Add Extra
+                                </Button>
+                                <Button
+                                  type="button"
+                                  className="h-8 rounded-lg"
+                                  onClick={() => useGuardianAsPrimary(guardian)}
+                                >
+                                  Use as Primary
+                                </Button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">Type at least 2 characters to search existing guardians.</p>
+                    )}
+                  </FieldGroup>
+
+                  {primaryLinkedGuardian && (
+                    <div className="lg:col-span-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                      Primary guardian is linked to existing record: <span className="font-semibold">{primaryLinkedGuardian.name}</span> ({primaryLinkedGuardian.email})
+                    </div>
+                  )}
+
                   <FieldGroup>
                     <FieldLabel htmlFor="guardian_name" required>
                       Guardian Name
@@ -452,7 +634,10 @@ export default function NewStudentPage() {
                     <StyledInput
                       id="guardian_name"
                       value={formData.guardian_name}
-                      onChange={(event) => setFormData((current) => ({ ...current, guardian_name: event.target.value }))}
+                      onChange={(event) => {
+                        setPrimaryLinkedGuardian(null);
+                        setFormData((current) => ({ ...current, guardian_name: event.target.value }));
+                      }}
                       placeholder="e.g. Mr. John Doe"
                       required
                     />
@@ -466,7 +651,10 @@ export default function NewStudentPage() {
                       id="guardian_email"
                       type="email"
                       value={formData.guardian_email}
-                      onChange={(event) => setFormData((current) => ({ ...current, guardian_email: event.target.value }))}
+                      onChange={(event) => {
+                        setPrimaryLinkedGuardian(null);
+                        setFormData((current) => ({ ...current, guardian_email: event.target.value }));
+                      }}
                       placeholder="guardian@example.com"
                       required
                     />
@@ -477,7 +665,10 @@ export default function NewStudentPage() {
                     <StyledInput
                       id="guardian_phone"
                       value={formData.guardian_phone}
-                      onChange={(event) => setFormData((current) => ({ ...current, guardian_phone: event.target.value }))}
+                      onChange={(event) => {
+                        setPrimaryLinkedGuardian(null);
+                        setFormData((current) => ({ ...current, guardian_phone: event.target.value }));
+                      }}
                       placeholder="e.g. +234 801 234 5678"
                     />
                   </FieldGroup>
@@ -511,7 +702,7 @@ export default function NewStudentPage() {
                                 value={g.guardian_name}
                                 onChange={(e) => {
                                   const next = [...otherGuardians];
-                                  next[idx] = { ...next[idx], guardian_name: e.target.value };
+                                  next[idx] = { ...next[idx], guardian_name: e.target.value, guardian_id: undefined };
                                   setOtherGuardians(next);
                                 }}
                                 placeholder="e.g. Mrs. Jane Doe"
@@ -525,7 +716,7 @@ export default function NewStudentPage() {
                                 value={g.guardian_email}
                                 onChange={(e) => {
                                   const next = [...otherGuardians];
-                                  next[idx] = { ...next[idx], guardian_email: e.target.value };
+                                  next[idx] = { ...next[idx], guardian_email: e.target.value, guardian_id: undefined };
                                   setOtherGuardians(next);
                                 }}
                                 placeholder="guardian@example.com"
@@ -538,13 +729,18 @@ export default function NewStudentPage() {
                                 value={g.guardian_phone}
                                 onChange={(e) => {
                                   const next = [...otherGuardians];
-                                  next[idx] = { ...next[idx], guardian_phone: e.target.value };
+                                  next[idx] = { ...next[idx], guardian_phone: e.target.value, guardian_id: undefined };
                                   setOtherGuardians(next);
                                 }}
                                 placeholder="e.g. +234 801 234 5678"
                               />
                             </div>
                           </div>
+                          {g.guardian_id && (
+                            <p className="mt-2 text-xs text-emerald-700">
+                              Linked to existing guardian record
+                            </p>
+                          )}
                           <div className="mt-2 flex items-center justify-end">
                             <Button type="button" variant="outline" onClick={() => {
                               const next = [...otherGuardians];

@@ -95,17 +95,26 @@ function normalizeGuardianInput(studentData: Record<string, any>) {
   };
 }
 
+function getPrimaryGuardianId(studentData: Record<string, any>) {
+  const primaryGuardian = Array.isArray(studentData.guardians) && studentData.guardians.length > 0
+    ? studentData.guardians[0]
+    : null;
+
+  return String(studentData.guardian_id ?? primaryGuardian?.guardian_id ?? "").trim() || null;
+}
+
 export async function POST(req: Request) {
   try {
     const studentData = await req.json();
     const warnings: string[] = [];
     const guardianInput = normalizeGuardianInput(studentData);
+    const primaryGuardianId = getPrimaryGuardianId(studentData);
 
     if (!guardianInput.guardianName) {
       return NextResponse.json({ error: "Guardian name is required" }, { status: 400 });
     }
 
-    if (!guardianInput.guardianEmail) {
+    if (!guardianInput.guardianEmail && !primaryGuardianId) {
       return NextResponse.json({ error: "Guardian email is required" }, { status: 400 });
     }
 
@@ -148,91 +157,110 @@ export async function POST(req: Request) {
       authUserId = authData.user.id;
     }
 
-    // 2️⃣ Check if parent already exists
-    const { data: existingParent } = await supabase
-      .from("parents")
-      .select("*")
-      .eq("email", guardianInput.guardianEmail)
-      .single();
-
     let parentUserId: string;
     let parentRecordId: string | null = null;
     let isNewParent = false;
 
-    if (existingParent) {
-      if (existingParent.school_id && existingParent.school_id !== schoolId) {
-        return NextResponse.json({ error: "Guardian email already belongs to another school" }, { status: 400 });
+    if (primaryGuardianId) {
+      const { data: parentById, error: parentByIdError } = await supabase
+        .from("parents")
+        .select("id, user_id, school_id")
+        .eq("id", primaryGuardianId)
+        .maybeSingle();
+
+      if (parentByIdError) throw parentByIdError;
+      if (!parentById) {
+        return NextResponse.json({ error: "Selected guardian record does not exist" }, { status: 400 });
+      }
+      if (parentById.school_id && parentById.school_id !== schoolId) {
+        return NextResponse.json({ error: "Selected guardian belongs to another school" }, { status: 400 });
       }
 
-      parentUserId = existingParent.user_id;
-      parentRecordId = existingParent.id;
-
-      const { error: parentUpdateError } = await supabase
-        .from("parents")
-        .update({
-          name: guardianInput.guardianName,
-          phone: guardianInput.guardianPhone,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", existingParent.id);
-
-      if (parentUpdateError) throw parentUpdateError;
-      // Do not create new parent or send activation email
+      parentUserId = parentById.user_id;
+      parentRecordId = parentById.id;
     } else {
-      // Create new parent auth user
-      const { data: parentAuthData, error: parentAuthError } = await supabase.auth.admin.createUser({
-        email: guardianInput.guardianEmail,
-        password: crypto.randomUUID(),
-        email_confirm: false,
-        user_metadata: {
-          role: "parent",
-          name: guardianInput.guardianName,
-        },
-      });
-
-      if (parentAuthError) throw parentAuthError;
-      parentUserId = parentAuthData.user.id;
-      isNewParent = true;
-
-      // Generate activation token for parent
-      const rawToken = crypto.randomBytes(32).toString("hex");
-      const tokenHash = crypto
-        .createHash("sha256")
-        .update(rawToken)
-        .digest("hex");
-
-      // Create parent record
-      const { error: parentInsertError } = await supabase.from("parents").insert({
-        user_id: parentUserId,
-        email: guardianInput.guardianEmail,
-        name: guardianInput.guardianName,
-        phone: guardianInput.guardianPhone,
-        is_active: false,
-        activation_token_hash: tokenHash,
-        activation_expires_at: new Date(Date.now() + 86400000),
-        activation_used: false,
-        school_id: schoolId,
-      });
-
-      if (parentInsertError) throw parentInsertError;
-
-      const { data: createdParent, error: parentLookupError } = await supabase
+      // 2️⃣ Check if parent already exists
+      const { data: existingParent } = await supabase
         .from("parents")
-        .select("id")
+        .select("*")
         .eq("email", guardianInput.guardianEmail)
         .single();
 
-      if (parentLookupError || !createdParent?.id) {
-        throw parentLookupError || new Error("Failed to resolve guardian record");
+      if (existingParent) {
+        if (existingParent.school_id && existingParent.school_id !== schoolId) {
+          return NextResponse.json({ error: "Guardian email already belongs to another school" }, { status: 400 });
+        }
+
+        parentUserId = existingParent.user_id;
+        parentRecordId = existingParent.id;
+
+        const { error: parentUpdateError } = await supabase
+          .from("parents")
+          .update({
+            name: guardianInput.guardianName,
+            phone: guardianInput.guardianPhone,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingParent.id);
+
+        if (parentUpdateError) throw parentUpdateError;
+        // Do not create new parent or send activation email
+      } else {
+        // Create new parent auth user
+        const { data: parentAuthData, error: parentAuthError } = await supabase.auth.admin.createUser({
+          email: guardianInput.guardianEmail,
+          password: crypto.randomUUID(),
+          email_confirm: false,
+          user_metadata: {
+            role: "parent",
+            name: guardianInput.guardianName,
+          },
+        });
+
+        if (parentAuthError) throw parentAuthError;
+        parentUserId = parentAuthData.user.id;
+        isNewParent = true;
+
+        // Generate activation token for parent
+        const rawToken = crypto.randomBytes(32).toString("hex");
+        const tokenHash = crypto
+          .createHash("sha256")
+          .update(rawToken)
+          .digest("hex");
+
+        // Create parent record
+        const { error: parentInsertError } = await supabase.from("parents").insert({
+          user_id: parentUserId,
+          email: guardianInput.guardianEmail,
+          name: guardianInput.guardianName,
+          phone: guardianInput.guardianPhone,
+          is_active: false,
+          activation_token_hash: tokenHash,
+          activation_expires_at: new Date(Date.now() + 86400000),
+          activation_used: false,
+          school_id: schoolId,
+        });
+
+        if (parentInsertError) throw parentInsertError;
+
+        const { data: createdParent, error: parentLookupError } = await supabase
+          .from("parents")
+          .select("id")
+          .eq("email", guardianInput.guardianEmail)
+          .single();
+
+        if (parentLookupError || !createdParent?.id) {
+          throw parentLookupError || new Error("Failed to resolve guardian record");
+        }
+
+        parentRecordId = createdParent.id;
+
+        // Store token for email after core create flow succeeds
+        (studentData as any).__parentActivationToken = rawToken;
       }
-
-      parentRecordId = createdParent.id;
-
-      // Store token for email after core create flow succeeds
-      (studentData as any).__parentActivationToken = rawToken;
     }
 
-    if (!parentRecordId) {
+    if (!parentRecordId && guardianInput.guardianEmail) {
       const { data: resolvedParent, error: parentLookupError } = await supabase
         .from("parents")
         .select("id")
@@ -299,6 +327,7 @@ export async function POST(req: Request) {
     }
 
     for (const g of guardiansList) {
+      const gGuardianId = String(g.guardian_id ?? "").trim() || null;
       const gName = String(g.guardian_name ?? g.name ?? "").trim();
       const gEmail = String(g.guardian_email ?? g.email ?? "").trim();
       const gPhone = String(g.guardian_phone ?? g.phone ?? "").trim() || null;
@@ -307,74 +336,96 @@ export async function POST(req: Request) {
       const gHasLegal = Boolean(g.has_legal_custody ?? false);
       const gCanPickup = Boolean(g.can_pickup ?? true);
 
-      if (!gEmail || !gName) {
+      if (!gGuardianId && (!gEmail || !gName)) {
         // skip incomplete guardian entries
         continue;
       }
 
-      // Check for existing parent record
-      const { data: existingP } = await supabase
-        .from("parents")
-        .select("*")
-        .eq("email", gEmail)
-        .single();
-
       let parentId: string | null = null;
       let createdNewParent = false;
 
-      if (existingP) {
-        if (existingP.school_id && existingP.school_id !== schoolId) {
-          warnings.push(`Guardian ${gEmail} already belongs to another school`);
+      if (gGuardianId) {
+        const { data: existingById, error: existingByIdError } = await supabase
+          .from("parents")
+          .select("id, school_id")
+          .eq("id", gGuardianId)
+          .maybeSingle();
+
+        if (existingByIdError) throw existingByIdError;
+
+        if (!existingById) {
+          warnings.push("One linked guardian could not be found");
           continue;
         }
 
-        parentId = existingP.id;
+        if (existingById.school_id && existingById.school_id !== schoolId) {
+          warnings.push("One linked guardian belongs to another school");
+          continue;
+        }
 
-        const { error: updateErr } = await supabase
-          .from("parents")
-          .update({ name: gName, phone: gPhone, updated_at: new Date().toISOString() })
-          .eq("id", existingP.id);
-
-        if (updateErr) throw updateErr;
+        parentId = existingById.id;
       } else {
-        // Create supabase auth user for parent
-        const { data: parentAuthData, error: parentAuthError } = await supabase.auth.admin.createUser({
-          email: gEmail,
-          password: crypto.randomUUID(),
-          email_confirm: false,
-          user_metadata: { role: "parent", name: gName },
-        });
-
-        if (parentAuthError) throw parentAuthError;
-
-        const rawToken = crypto.randomBytes(32).toString("hex");
-        const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
-
-        const { error: parentInsertError } = await supabase.from("parents").insert({
-          user_id: parentAuthData.user.id,
-          email: gEmail,
-          name: gName,
-          phone: gPhone,
-          is_active: false,
-          activation_token_hash: tokenHash,
-          activation_expires_at: new Date(Date.now() + 86400000),
-          activation_used: false,
-          school_id: schoolId,
-        });
-
-        if (parentInsertError) throw parentInsertError;
-
-        const { data: createdP, error: parentLookupError } = await supabase
+        // Check for existing parent record
+        const { data: existingP } = await supabase
           .from("parents")
-          .select("id")
+          .select("*")
           .eq("email", gEmail)
           .single();
 
-        if (parentLookupError || !createdP?.id) throw parentLookupError || new Error("Failed to resolve created guardian");
+        if (existingP) {
+          if (existingP.school_id && existingP.school_id !== schoolId) {
+            warnings.push(`Guardian ${gEmail} already belongs to another school`);
+            continue;
+          }
 
-        parentId = createdP.id;
-        createdNewParent = true;
-        parentActivationTokens.push({ email: gEmail, token: rawToken });
+          parentId = existingP.id;
+
+          const { error: updateErr } = await supabase
+            .from("parents")
+            .update({ name: gName, phone: gPhone, updated_at: new Date().toISOString() })
+            .eq("id", existingP.id);
+
+          if (updateErr) throw updateErr;
+        } else {
+          // Create supabase auth user for parent
+          const { data: parentAuthData, error: parentAuthError } = await supabase.auth.admin.createUser({
+            email: gEmail,
+            password: crypto.randomUUID(),
+            email_confirm: false,
+            user_metadata: { role: "parent", name: gName },
+          });
+
+          if (parentAuthError) throw parentAuthError;
+
+          const rawToken = crypto.randomBytes(32).toString("hex");
+          const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+          const { error: parentInsertError } = await supabase.from("parents").insert({
+            user_id: parentAuthData.user.id,
+            email: gEmail,
+            name: gName,
+            phone: gPhone,
+            is_active: false,
+            activation_token_hash: tokenHash,
+            activation_expires_at: new Date(Date.now() + 86400000),
+            activation_used: false,
+            school_id: schoolId,
+          });
+
+          if (parentInsertError) throw parentInsertError;
+
+          const { data: createdP, error: parentLookupError } = await supabase
+            .from("parents")
+            .select("id")
+            .eq("email", gEmail)
+            .single();
+
+          if (parentLookupError || !createdP?.id) throw parentLookupError || new Error("Failed to resolve created guardian");
+
+          parentId = createdP.id;
+          createdNewParent = true;
+          parentActivationTokens.push({ email: gEmail, token: rawToken });
+        }
       }
 
       if (!parentId) continue;

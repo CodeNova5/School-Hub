@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
 import { useSchoolContext } from '@/hooks/use-school-context';
@@ -18,7 +19,7 @@ import { filterAttendanceByPeriod } from '@/lib/student-utils';
 import { EditStudentModal } from '@/components/edit-student-modal';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Upload, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Users, ShieldAlert, RefreshCcw, KeyRound } from 'lucide-react';
 import {
 	Dialog,
 	DialogContent,
@@ -46,6 +47,15 @@ export default function AdminStudentPage() {
 	const [isTransferOpen, setIsTransferOpen] = useState(false);
 	const [transferTargetClassId, setTransferTargetClassId] = useState('');
 	const [isDeleting, setIsDeleting] = useState(false);
+	const [isResettingPassword, setIsResettingPassword] = useState(false);
+	const [isEmailChangeOpen, setIsEmailChangeOpen] = useState(false);
+	const [emailStep, setEmailStep] = useState<'email' | 'code'>('email');
+	const [newEmail, setNewEmail] = useState('');
+	const [verificationCode, setVerificationCode] = useState('');
+	const [emailChangeError, setEmailChangeError] = useState('');
+	const [isSendingCode, setIsSendingCode] = useState(false);
+	const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+	const [isApplyingEmailChange, setIsApplyingEmailChange] = useState(false);
 
 	useEffect(() => {
 		if (schoolId && studentId) loadData();
@@ -148,6 +158,135 @@ export default function AdminStudentPage() {
 		} catch (e: any) { toast.error('Transfer failed: ' + e.message); }
 	}
 
+	async function handleResetPassword() {
+		if (!student?.email) {
+			toast.error('Student email is missing');
+			return;
+		}
+
+		const confirmed = window.confirm(`Send a password reset email to ${student.email}?`);
+		if (!confirmed) return;
+
+		try {
+			setIsResettingPassword(true);
+			const response = await fetch('/api/admin/reset-password', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ studentId: student.id }),
+			});
+
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.error || 'Failed to send reset email');
+			}
+
+			toast.success('Password reset email sent');
+		} catch (e: any) {
+			toast.error(e.message || 'Failed to send reset email');
+		} finally {
+			setIsResettingPassword(false);
+		}
+	}
+
+	function openEmailChangeDialog() {
+		setNewEmail('');
+		setVerificationCode('');
+		setEmailChangeError('');
+		setEmailStep('email');
+		setIsEmailChangeOpen(true);
+	}
+
+	function closeEmailChangeDialog() {
+		setIsEmailChangeOpen(false);
+		setNewEmail('');
+		setVerificationCode('');
+		setEmailChangeError('');
+		setEmailStep('email');
+	}
+
+	async function handleSendEmailCode() {
+		if (!newEmail.trim()) {
+			setEmailChangeError('Enter a new email address');
+			return;
+		}
+
+		const normalizedEmail = newEmail.trim().toLowerCase();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+			setEmailChangeError('Enter a valid email address');
+			return;
+		}
+
+		setEmailChangeError('');
+		try {
+			setIsSendingCode(true);
+			const response = await fetch('/api/admin/student-email-verification/send', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: normalizedEmail }),
+			});
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.error || 'Failed to send verification code');
+			}
+
+			setNewEmail(normalizedEmail);
+			setEmailStep('code');
+			toast.success('Verification code sent to the new email address');
+		} catch (e: any) {
+			setEmailChangeError(e.message || 'Failed to send verification code');
+		} finally {
+			setIsSendingCode(false);
+		}
+	}
+
+	async function handleVerifyAndApplyEmailChange() {
+		if (!student) return;
+		if (!verificationCode.trim() || verificationCode.trim().length !== 6) {
+			setEmailChangeError('Enter the 6-digit verification code');
+			return;
+		}
+
+		setEmailChangeError('');
+		try {
+			setIsVerifyingCode(true);
+			const verifyResponse = await fetch('/api/admin/student-email-verification/verify', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: newEmail, code: verificationCode.trim() }),
+			});
+			const verifyData = await verifyResponse.json();
+			if (!verifyResponse.ok) {
+				throw new Error(verifyData.error || 'Verification failed');
+			}
+
+			setIsApplyingEmailChange(true);
+			const updateResponse = await fetch('/api/admin/update-student', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					studentId: student.id,
+					updates: { email: newEmail },
+				}),
+			});
+
+			const updateData = await updateResponse.json();
+			if (!updateResponse.ok) {
+				throw new Error(updateData.error || 'Failed to update email');
+			}
+
+			if (updateData.student) {
+				setStudent(updateData.student);
+			}
+			toast.success(updateData.message || 'Student email updated');
+			setIsEmailChangeOpen(false);
+		} catch (e: any) {
+			setEmailChangeError(e.message || 'Failed to update email');
+		} finally {
+			setIsVerifyingCode(false);
+			setIsApplyingEmailChange(false);
+		}
+	}
+
 	if (schoolLoading || loading) return (
 		<DashboardLayout role="admin"><div className="flex items-center justify-center h-96" role="status" aria-live="polite">Loading...</div></DashboardLayout>
 	);
@@ -193,9 +332,6 @@ export default function AdminStudentPage() {
 							<Trash2 className="h-4 w-4 mr-2" />{isDeleting ? 'Deleting…' : 'Delete'}
 						</Button>
 
-						<Button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast.success('Link copied'); }} aria-label="Copy student link" className="rounded-xl px-3 py-2">
-							Share
-						</Button>
 					</div>
 				</div>
 
@@ -335,6 +471,110 @@ export default function AdminStudentPage() {
 						</div>
 					</DialogContent>
 				</Dialog>
+
+				<Dialog open={isEmailChangeOpen} onOpenChange={(open) => (open ? setIsEmailChangeOpen(true) : closeEmailChangeDialog())}>
+					<DialogContent className="sm:max-w-lg rounded-2xl">
+						<DialogHeader>
+							<DialogTitle className="text-lg font-bold text-slate-900">Change Student Email</DialogTitle>
+						</DialogHeader>
+
+						<div className="space-y-4">
+							<div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+								A 6-digit code will be sent to the new email address before the change is applied.
+							</div>
+
+							{emailChangeError ? (
+								<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{emailChangeError}</div>
+							) : null}
+
+							{emailStep === 'email' ? (
+								<div className="space-y-3">
+									<div className="space-y-2">
+										<Label htmlFor="newEmail">New email address</Label>
+										<Input
+											id="newEmail"
+											type="email"
+											value={newEmail}
+											onChange={(e) => setNewEmail(e.target.value)}
+											placeholder="student.new@email.com"
+										/>
+									</div>
+									<div className="flex justify-end gap-2">
+										<Button variant="outline" onClick={closeEmailChangeDialog}>Cancel</Button>
+										<Button onClick={handleSendEmailCode} disabled={isSendingCode}>
+											{isSendingCode ? 'Sending code…' : 'Send Code'}
+										</Button>
+									</div>
+								</div>
+							) : (
+								<div className="space-y-3">
+									<div className="space-y-2">
+										<Label htmlFor="verificationCode">6-digit code</Label>
+										<Input
+											id="verificationCode"
+											inputMode="numeric"
+											maxLength={6}
+											value={verificationCode}
+											onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+											placeholder="123456"
+										/>
+									</div>
+									<p className="text-sm text-slate-500">Code sent to {newEmail}</p>
+									<div className="flex justify-between gap-2">
+										<Button variant="ghost" onClick={() => setEmailStep('email')}>Back</Button>
+										<div className="flex gap-2">
+											<Button variant="outline" onClick={closeEmailChangeDialog}>Cancel</Button>
+											<Button onClick={handleVerifyAndApplyEmailChange} disabled={isVerifyingCode || isApplyingEmailChange}>
+												{isVerifyingCode || isApplyingEmailChange ? 'Updating…' : 'Verify & Update'}
+											</Button>
+										</div>
+									</div>
+								</div>
+							)}
+						</div>
+					</DialogContent>
+				</Dialog>
+
+				<Card className="border-red-200 bg-red-50/50">
+					<CardHeader className="space-y-2">
+						<div className="flex items-center gap-2">
+							<ShieldAlert className="h-5 w-5 text-red-600" />
+							<CardTitle className="text-red-800">Danger Zone</CardTitle>
+						</div>
+						<p className="text-sm text-red-700/80">Sensitive account actions for this student. Use these only when you need to reset access or correct login details.</p>
+					</CardHeader>
+					<CardContent className="grid gap-4 md:grid-cols-2">
+						<Card className="border-red-200 bg-white shadow-sm">
+							<CardHeader className="space-y-2">
+								<div className="flex items-center gap-2">
+									<RefreshCcw className="h-4 w-4 text-red-600" />
+									<CardTitle className="text-base text-slate-900">Reset Password</CardTitle>
+								</div>
+								<p className="text-sm text-slate-500">Send a password reset link to the student&apos;s current email address.</p>
+							</CardHeader>
+							<CardContent>
+								<Button variant="destructive" onClick={handleResetPassword} disabled={isResettingPassword} className="w-full rounded-xl">
+									{isResettingPassword ? 'Sending reset email…' : 'Send Reset Email'}
+								</Button>
+							</CardContent>
+						</Card>
+
+						<Card className="border-red-200 bg-white shadow-sm">
+							<CardHeader className="space-y-2">
+								<div className="flex items-center gap-2">
+									<KeyRound className="h-4 w-4 text-red-600" />
+									<CardTitle className="text-base text-slate-900">Change Email</CardTitle>
+								</div>
+								<p className="text-sm text-slate-500">Requires a 6-digit confirmation code sent to the new email before the change is applied.</p>
+							</CardHeader>
+							<CardContent>
+								<Button variant="outline" onClick={openEmailChangeDialog} className="w-full rounded-xl border-red-200 text-red-700 hover:bg-red-50">
+									Start Email Change
+								</Button>
+							</CardContent>
+						</Card>
+					</CardContent>
+				</Card>
 			</main>
 		</DashboardLayout>
 	);

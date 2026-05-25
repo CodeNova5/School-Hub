@@ -47,6 +47,8 @@ export default function AdminStudentPage() {
 	const [sessions, setSessions] = useState<Session[]>([]);
 	const [terms, setTerms] = useState<Term[]>([]);
 	const [classes, setClasses] = useState<Class[]>([]);
+	const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
+	const [religions, setReligions] = useState<Array<{ id: string; name: string }>>([]);
 	const [attendance, setAttendance] = useState<any[]>([]);
 	const [studentResults, setStudentResults] = useState<any[]>([]);
 	const [guardians, setGuardians] = useState<any[]>([]);
@@ -91,6 +93,9 @@ export default function AdminStudentPage() {
 	const [isSendingCode, setIsSendingCode] = useState(false);
 	const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 	const [isApplyingEmailChange, setIsApplyingEmailChange] = useState(false);
+	const [selectedDepartmentId, setSelectedDepartmentId] = useState('');
+	const [selectedReligionId, setSelectedReligionId] = useState('');
+	const [isSavingAcademicProfile, setIsSavingAcademicProfile] = useState(false);
 
 	useEffect(() => {
 		if (schoolId && studentId) loadData();
@@ -129,6 +134,17 @@ export default function AdminStudentPage() {
 		setLinkHasLegalCustody(false);
 		setLinkCanPickup(true);
 	}, [isLinkParentOpen]);
+
+	useEffect(() => {
+		if (!student) {
+			setSelectedDepartmentId('');
+			setSelectedReligionId('');
+			return;
+		}
+
+		setSelectedDepartmentId(student.department_id || '');
+		setSelectedReligionId(student.religion_id || '');
+	}, [student]);
 
 	useEffect(() => {
 		if (!isLinkParentOpen) return;
@@ -214,6 +230,35 @@ export default function AdminStudentPage() {
 			setTerms(termsData || []);
 			setClasses(classesData || []);
 
+			const [departmentResult, religionResult] = await Promise.allSettled([
+				supabase
+					.from('school_departments')
+					.select('id, name')
+					.eq('school_id', schoolId)
+					.eq('is_active', true)
+					.order('name', { ascending: true }),
+				supabase
+					.from('school_religions')
+					.select('id, name')
+					.eq('school_id', schoolId)
+					.eq('is_active', true)
+					.order('name', { ascending: true }),
+			]);
+
+			if (departmentResult.status === 'fulfilled') {
+				setDepartments(departmentResult.value.data || []);
+			} else {
+				console.error('Failed to load departments', departmentResult.reason);
+				setDepartments([]);
+			}
+
+			if (religionResult.status === 'fulfilled') {
+				setReligions(religionResult.value.data || []);
+			} else {
+				console.error('Failed to load religions', religionResult.reason);
+				setReligions([]);
+			}
+
 			// attendance
 			if (studentData?.id) {
 				const { data: attendanceData } = await supabase.from('attendance').select('*').eq('student_id', studentData.id).eq('school_id', schoolId);
@@ -249,6 +294,39 @@ export default function AdminStudentPage() {
 			router.push('/admin/students');
 		} finally {
 			setLoading(false);
+		}
+	}
+
+	async function handleSaveAcademicProfile() {
+		if (!student) return;
+
+		try {
+			setIsSavingAcademicProfile(true);
+			const response = await fetch('/api/admin/update-student', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					studentId: student.id,
+					updates: {
+						department_id: selectedDepartmentId || null,
+						religion_id: selectedReligionId || null,
+					},
+				}),
+			});
+
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.error || data.message || 'Failed to update academic profile');
+			}
+
+			if (data.student) {
+				setStudent(data.student);
+			}
+			toast.success('Department and religion updated');
+		} catch (error: any) {
+			toast.error(error.message || 'Failed to update academic profile');
+		} finally {
+			setIsSavingAcademicProfile(false);
 		}
 	}
 
@@ -565,6 +643,70 @@ export default function AdminStudentPage() {
 									<div className="flex items-center gap-2"><Hash className="h-4 w-4 text-gray-500" /><span>{student.student_id}</span></div>
 								</div>
 							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="border-slate-200 shadow-sm">
+					<CardHeader>
+						<div className="flex items-center justify-between gap-3">
+							<div className="flex items-center gap-2">
+								<Users className="h-5 w-5 text-indigo-600" />
+								<CardTitle>Department &amp; Religion</CardTitle>
+							</div>
+							<Badge variant="secondary" className="rounded-full px-3 py-1">
+								Academic profile
+							</Badge>
+						</div>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<p className="text-sm text-slate-500">
+							Keep the student&apos;s department and religion aligned with subject filtering and reporting rules.
+						</p>
+
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="studentDepartment">Department</Label>
+								<select
+									id="studentDepartment"
+									value={selectedDepartmentId}
+									onChange={(e) => setSelectedDepartmentId(e.target.value)}
+									className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+								>
+									<option value="">None</option>
+									{departments.map((department) => (
+										<option key={department.id} value={department.id}>
+											{department.name}
+										</option>
+									))}
+								</select>
+							</div>
+
+							<div className="space-y-2">
+								<Label htmlFor="studentReligion">Religion</Label>
+								<select
+									id="studentReligion"
+									value={selectedReligionId}
+									onChange={(e) => setSelectedReligionId(e.target.value)}
+									className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+								>
+									<option value="">None</option>
+									{religions.map((religion) => (
+										<option key={religion.id} value={religion.id}>
+											{religion.name}
+										</option>
+									))}
+								</select>
+							</div>
+						</div>
+
+						<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+							<div className="text-sm text-slate-500">
+								These fields update the student record without opening the full profile editor.
+							</div>
+							<Button onClick={handleSaveAcademicProfile} disabled={isSavingAcademicProfile} className="rounded-xl">
+								{isSavingAcademicProfile ? 'Saving…' : 'Save academic profile'}
+							</Button>
 						</div>
 					</CardContent>
 				</Card>

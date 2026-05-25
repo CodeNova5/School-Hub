@@ -69,6 +69,7 @@ export default function AdminStudentPage() {
 	const [linkParentHasMore, setLinkParentHasMore] = useState(false);
 	const [selectedLinkParentId, setSelectedLinkParentId] = useState('');
 	const [linkRelationshipType, setLinkRelationshipType] = useState('Guardian');
+	const [linkRelationshipCustom, setLinkRelationshipCustom] = useState('');
 	const [linkIsPrimaryContact, setLinkIsPrimaryContact] = useState(false);
 	const [linkHasLegalCustody, setLinkHasLegalCustody] = useState(false);
 	const [linkCanPickup, setLinkCanPickup] = useState(true);
@@ -310,13 +311,15 @@ export default function AdminStudentPage() {
 			try {
 				setIsLinkingParent(true);
 				setLinkParentError('');
+				const relationshipToSend = linkRelationshipType === 'Other' ? (linkRelationshipCustom.trim() || 'Other') : linkRelationshipType;
+
 				const response = await fetch(`/api/admin/students/${student.id}/guardians`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
 						studentId: student.id,
 						guardianId: selectedParent.id,
-						relationshipType: linkRelationshipType,
+						relationshipType: relationshipToSend,
 						isPrimaryContact: linkIsPrimaryContact,
 						hasLegalCustody: linkHasLegalCustody,
 						canPickup: linkCanPickup,
@@ -626,6 +629,7 @@ export default function AdminStudentPage() {
 					<DialogContent className="sm:max-w-2xl rounded-2xl">
 						<DialogHeader>
 							<DialogTitle className="text-lg font-bold text-slate-900">Link existing parent</DialogTitle>
+							<p className="text-sm text-slate-500 mt-1">Search the parent directory and select a parent to link to this student.</p>
 						</DialogHeader>
 
 						<div className="space-y-4">
@@ -648,21 +652,54 @@ export default function AdminStudentPage() {
 							<div className="grid gap-3 md:grid-cols-2">
 								<div className="space-y-2">
 									<Label htmlFor="relationshipType">Relationship</Label>
-									<Input id="relationshipType" value={linkRelationshipType} onChange={(e) => setLinkRelationshipType(e.target.value)} placeholder="Guardian" />
+									<select
+										id="relationshipType"
+										value={linkRelationshipType}
+										onChange={(e) => { setLinkRelationshipType(e.target.value); if (e.target.value !== 'Other') setLinkRelationshipCustom(''); }}
+										className="w-full px-3 py-2 border rounded"
+									>
+										<option value="Guardian">Guardian</option>
+										<option value="Mother">Mother</option>
+										<option value="Father">Father</option>
+										<option value="Grandparent">Grandparent</option>
+										<option value="Sibling">Sibling</option>
+										<option value="Emergency contact">Emergency contact</option>
+										<option value="Other">Other (custom)</option>
+									</select>
+									{linkRelationshipType === 'Other' ? (
+										<Input id="relationshipTypeCustom" value={linkRelationshipCustom} onChange={(e) => setLinkRelationshipCustom(e.target.value)} placeholder="Enter relationship (e.g. Aunt)" />
+									) : null}
 								</div>
-								<div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-600">
-									<label className="flex items-center gap-2">
-										<input type="checkbox" checked={linkIsPrimaryContact} onChange={(e) => setLinkIsPrimaryContact(e.target.checked)} />
-										Primary contact
-									</label>
-									<label className="flex items-center gap-2">
-										<input type="checkbox" checked={linkHasLegalCustody} onChange={(e) => setLinkHasLegalCustody(e.target.checked)} />
-										Has legal custody
-									</label>
-									<label className="flex items-center gap-2">
-										<input type="checkbox" checked={linkCanPickup} onChange={(e) => setLinkCanPickup(e.target.checked)} />
-										Can pickup student
-									</label>
+								<div className="rounded-xl border border-slate-200 p-3 text-sm text-slate-600">
+									<div className="flex flex-col gap-2">
+										<label className="inline-flex items-center gap-2">
+											<input
+												type="checkbox"
+												checked={linkIsPrimaryContact}
+												onChange={(e) => setLinkIsPrimaryContact(e.target.checked)}
+												className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+											/>
+											<span className="select-none">Primary contact</span>
+										</label>
+										<label className="inline-flex items-center gap-2">
+											<input
+												type="checkbox"
+												checked={linkHasLegalCustody}
+												onChange={(e) => setLinkHasLegalCustody(e.target.checked)}
+												className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+											/>
+											<span className="select-none">Has legal custody</span>
+										</label>
+										<label className="inline-flex items-center gap-2">
+											<input
+												type="checkbox"
+												checked={linkCanPickup}
+												onChange={(e) => setLinkCanPickup(e.target.checked)}
+												className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+											/>
+											<span className="select-none">Can pickup student</span>
+										</label>
+									</div>
 								</div>
 							</div>
 
@@ -670,7 +707,7 @@ export default function AdminStudentPage() {
 								<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{linkParentError}</div>
 							) : null}
 
-							<div className="max-h-80 space-y-2 overflow-auto rounded-xl border border-slate-200 p-2">
+							<div className="max-h-80 space-y-2 overflow-auto rounded-xl border border-slate-200 p-2" role="listbox" aria-label="Parent search results">
 								{linkParentLoading ? (
 									<div className="flex items-center justify-center gap-2 py-6 text-sm text-slate-500">
 										<Loader2 className="h-4 w-4 animate-spin" />
@@ -688,18 +725,24 @@ export default function AdminStudentPage() {
 												key={parent.id}
 												type="button"
 												onClick={() => setSelectedLinkParentId(parent.id)}
-												className={`w-full rounded-lg border p-3 text-left transition ${isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'}`}
+												aria-selected={isSelected}
+												role="option"
+												disabled={parent.is_linked_to_student}
+												className={`w-full flex items-start gap-3 rounded-lg border p-3 text-left transition focus:outline-none ${isSelected ? 'ring-2 ring-indigo-300 border-indigo-300 bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'} ${parent.is_linked_to_student ? 'opacity-60 cursor-not-allowed' : ''}`}
 											>
-												<div className="flex items-start justify-between gap-3">
-													<div>
-														<p className="font-semibold text-slate-900">{parent.name}</p>
-														<p className="text-sm text-slate-600">{parent.email}</p>
-														<p className="text-xs text-slate-500">{parent.phone || 'No phone number'}</p>
-													</div>
-													<div className="flex flex-col items-end gap-1 text-xs">
-														<Badge variant={parent.is_active ? 'default' : 'secondary'}>{parent.is_active ? 'Active' : 'Inactive'}</Badge>
-														{parent.is_linked_to_student ? <Badge variant="secondary">Already linked</Badge> : null}
-													</div>
+												<div className="flex items-center gap-3">
+													<Avatar className="h-10 w-10">
+														<AvatarFallback className="bg-blue-100 text-blue-700 text-sm">{getInitials(parent.name.split(' ')[0] || '?', parent.name.split(' ')[1] || '?')}</AvatarFallback>
+													</Avatar>
+												</div>
+												<div className="flex-1">
+													<p className="font-semibold text-slate-900">{parent.name}</p>
+													<p className="text-sm text-slate-600">{parent.email}</p>
+													<p className="text-xs text-slate-500">{parent.phone || 'No phone number'}</p>
+												</div>
+												<div className="flex flex-col items-end gap-1 text-xs">
+													<Badge variant={parent.is_active ? 'default' : 'secondary'}>{parent.is_active ? 'Active' : 'Inactive'}</Badge>
+													{parent.is_linked_to_student ? <Badge variant="secondary">Already linked</Badge> : null}
 												</div>
 											</button>
 										);

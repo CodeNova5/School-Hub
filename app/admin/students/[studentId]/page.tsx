@@ -207,11 +207,49 @@ export default function AdminStudentPage() {
 	}, [linkParentSearch, isLinkParentOpen, studentId]);
 
 	const loadData = async () => {
-		// Original load data implementation
+		setLoading(true);
+		try {
+			const res = await fetch(`/api/admin/students/${studentId}`);
+			const payload = await res.json();
+
+			if (!res.ok) {
+				throw new Error(payload?.error || 'Failed to load student data');
+			}
+
+			// Support APIs that return a flat `data` object or explicit fields
+			const data = payload.data || payload;
+
+			setStudent(data.student ?? null);
+			setSessions(data.sessions ?? []);
+			setTerms(data.terms ?? []);
+			setClasses(data.classes ?? []);
+			setDepartments(data.departments ?? []);
+			setReligions(data.religions ?? []);
+			setAttendance(data.attendance ?? []);
+			setStudentResults(data.results ?? []);
+			setGuardians(data.guardians ?? []);
+		} catch (err: any) {
+			console.error('loadData error', err);
+			toast.error(err?.message || 'Unable to load student data');
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	const handleResetConfirmed = async () => {
-		// Original implementation
+		setIsResetConfirmOpen(false);
+		setIsResettingPassword(true);
+		try {
+			const res = await fetch(`/api/admin/students/${studentId}/send-reset`, { method: 'POST' });
+			const payload = await res.json();
+			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Failed to send reset email');
+			toast.success('Reset email sent');
+		} catch (err: any) {
+			console.error(err);
+			toast.error(err?.message || 'Failed to send reset email');
+		} finally {
+			setIsResettingPassword(false);
+		}
 	};
 
 	const closeEmailChangeDialog = () => {
@@ -228,15 +266,77 @@ export default function AdminStudentPage() {
 	};
 
 	const handleSendEmailCode = async () => {
-		// Original implementation
+		if (!newEmail || !newEmail.includes('@')) {
+			setEmailChangeError('Please enter a valid email address');
+			return;
+		}
+
+		setIsSendingCode(true);
+		setEmailChangeError('');
+		try {
+			const res = await fetch(`/api/admin/students/${studentId}/send-email-code`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: newEmail }),
+			});
+			const payload = await res.json();
+			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Failed to send verification code');
+			setEmailStep('code');
+			toast.success('Verification code sent');
+		} catch (err: any) {
+			console.error(err);
+			setEmailChangeError(err?.message || 'Failed to send code');
+		} finally {
+			setIsSendingCode(false);
+		}
 	};
 
 	const handleVerifyAndApplyEmailChange = async () => {
-		// Original implementation
+		if (verificationCode.length !== 6) {
+			setEmailChangeError('Enter the 6-digit verification code');
+			return;
+		}
+
+		setIsVerifyingCode(true);
+		setIsApplyingEmailChange(true);
+		setEmailChangeError('');
+		try {
+			const res = await fetch(`/api/admin/students/${studentId}/verify-email-code`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ email: newEmail, code: verificationCode }),
+			});
+			const payload = await res.json();
+			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Verification failed');
+			setEmailChangeSuccess('Email updated');
+			setEmailStep('success');
+			// Refresh student data
+			await loadData();
+			toast.success('Student email updated');
+		} catch (err: any) {
+			console.error(err);
+			setEmailChangeError(err?.message || 'Failed to verify code');
+		} finally {
+			setIsVerifyingCode(false);
+			setIsApplyingEmailChange(false);
+		}
 	};
 
 	const handleDelete = async () => {
-		// Original implementation
+		if (!confirm('Are you sure you want to permanently delete this student?')) return;
+		setIsDeleting(true);
+		try {
+			const res = await fetch(`/api/admin/students/${studentId}`, { method: 'DELETE' });
+			const payload = await res.json();
+			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Failed to delete student');
+			toast.success('Student deleted');
+			router.push('/admin/students');
+		} catch (err: any) {
+			console.error(err);
+			toast.error(err?.message || 'Failed to delete student');
+		} finally {
+			setIsDeleting(false);
+		}
 	};
 
 	if (loading) {

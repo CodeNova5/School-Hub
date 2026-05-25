@@ -526,6 +526,9 @@ export default function AdminStudentPage() {
 	const currentTerm = terms.find(t => t.is_current);
 	const filteredAttendance = filterAttendanceByPeriod(attendance, attendancePeriod);
 
+	// currently selected parent object for UI preview
+	const selectedLinkParentObj = linkParentResults.find((p) => p.id === selectedLinkParentId) || null;
+
 	return (
 		<DashboardLayout role="admin">
 			<main className="max-w-5xl mx-auto p-6 space-y-6" id="main-content">
@@ -533,106 +536,9 @@ export default function AdminStudentPage() {
 					<div>
 						<h1 className="text-2xl font-bold">{student.first_name} {student.last_name}</h1>
 						<p className="text-sm text-slate-500">Student profile and academic records</p>
-					</div>
-					<div className="flex items-center gap-3">
-						<Button variant="ghost" size="sm" onClick={() => router.back()} aria-label="Back to students list" className="rounded-xl px-3 py-2 text-slate-700 hover:bg-slate-100">
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Back
-						</Button>
-					</div>
-				</div>
-
-				<Card>
-					<CardContent className="p-4 md:p-6">
-						<div className="flex flex-col md:flex-row gap-4">
-							<figure className="flex-shrink-0">
-								<Avatar className="h-24 w-24">
-									<AvatarImage src={student.photo_url} alt={`Photo of ${student.first_name} ${student.last_name}`} />
-									<AvatarFallback className="bg-blue-100 text-blue-700 text-2xl">{getInitials(student.first_name, student.last_name)}</AvatarFallback>
-								</Avatar>
-								<figcaption className="sr-only">Photo of {student.first_name} {student.last_name}</figcaption>
-							</figure>
-							<div className="flex-1">
-								<div className="flex items-center gap-3">
-									<h2 className="text-xl font-bold">{student.first_name} {student.last_name}</h2>
-									<Badge>{student.status}</Badge>
-								</div>
-								<div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3 text-sm">
-									<div className="flex items-center gap-2"><Mail className="h-4 w-4 text-gray-500" /><span>{student.email}</span></div>
-									<div className="flex items-center gap-2"><Phone className="h-4 w-4 text-gray-500" /><span>{student.phone}</span></div>
-									<div className="flex items-center gap-2"><User className="h-4 w-4 text-gray-500" /><span className="capitalize">{student.gender}</span></div>
-									<div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-500" /><span>Admitted: {new Date(student.admission_date).toLocaleDateString()}</span></div>
-									<div className="flex items-center gap-2"><Hash className="h-4 w-4 text-gray-500" /><span>{student.student_id}</span></div>
-								</div>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
-							<div className="flex items-center justify-between gap-3">
-								<CardTitle>Parent / Guardian</CardTitle>
-								<Button variant="outline" size="sm" onClick={() => setIsLinkParentOpen(true)} className="rounded-xl gap-2">
-									<UserPlus className="h-4 w-4" />
-									Link existing parent
-								</Button>
-							</div>
-					</CardHeader>
-					<CardContent>
-						{guardians && guardians.length > 0 ? (
-							<ul role="list" className="space-y-3">
-								{guardians.map((g) => (
-									<li key={g.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border border-slate-100 bg-slate-50 hover:bg-white transition">
-										<div>
-											<p className="font-semibold">
-												<Link href={`/admin/parents/${g.id}`} className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-200">{g.name}</Link>
-												{g.is_primary && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">Primary</span>}
-											</p>
-											<p className="text-xs text-slate-500">{g.relationship}</p>
-											<p className="text-sm mt-1">{g.email || '—'} · {g.phone || '—'}</p>
-										</div>
-										<div className="flex flex-col items-end gap-2">
-											<div className="text-xs text-slate-400">{g.can_pickup ? 'Can pickup' : ''}</div>
-											<Button
-												variant="ghost"
-												size="sm"
-												className="h-8 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700"
-												onClick={() => { setGuardianToUnlink(g); setIsUnlinkConfirmOpen(true); }}
-											>
-												Remove
-											</Button>
-										</div>
-									</li>
-								))}
-							</ul>
-						) : (
-							<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-								<div>
-									<Label>Name</Label>
-									<div className="font-medium">{student.parent_name || '—'}</div>
-								</div>
-								<div>
-									<Label>Email</Label>
-									<div className="font-medium break-all">{student.parent_email || '—'}</div>
-								</div>
-								<div>
-									<Label>Phone</Label>
-									<div className="font-medium">{student.parent_phone || '—'}</div>
-								</div>
-							</div>
-						)}
-					</CardContent>
-				</Card>
-
-				<Dialog open={isLinkParentOpen} onOpenChange={setIsLinkParentOpen}>
-					<DialogContent className="sm:max-w-2xl rounded-2xl">
-						<DialogHeader>
-							<DialogTitle className="text-lg font-bold text-slate-900">Link existing parent</DialogTitle>
-							<p className="text-sm text-slate-500 mt-1">Search the parent directory and select a parent to link to this student.</p>
-						</DialogHeader>
-
-						<div className="space-y-4">
+					<div className="grid gap-4 md:grid-cols-2">
+						{/* Left: Search + Results */}
+						<div>
 							<div className="space-y-2">
 								<Label htmlFor="parentSearch">Search by name or email</Label>
 								<div className="relative">
@@ -649,14 +555,66 @@ export default function AdminStudentPage() {
 								<p className="text-xs text-slate-500">Type at least 2 characters. Results are filtered on the server and limited for performance.</p>
 							</div>
 
-							<div className="grid gap-3 md:grid-cols-2">
-								<div className="space-y-2">
+							<div className="mt-3 max-h-96 overflow-auto rounded-xl border border-slate-200 bg-white p-2" role="listbox" aria-label="Parent search results">
+								{linkParentLoading ? (
+									<div className="flex items-center justify-center gap-2 py-6 text-sm text-slate-500">
+										<Loader2 className="h-4 w-4 animate-spin" />
+										Searching parents...
+									</div>
+								) : linkParentSearch.trim().length < 2 ? (
+									<div className="py-8 text-center text-sm text-slate-500">Start typing to search the parent directory.</div>
+								) : linkParentResults.length === 0 ? (
+									<div className="py-8 text-center text-sm text-slate-500">No parents matched your search.</div>
+								) : (
+									<ul className="space-y-2">
+										{linkParentResults.map((parent) => {
+											const isSelected = selectedLinkParentId === parent.id;
+											return (
+												<li key={parent.id}>
+													<button
+														type="button"
+														onClick={() => setSelectedLinkParentId(parent.id)}
+														aria-selected={isSelected}
+														role="option"
+														disabled={parent.is_linked_to_student}
+														className={`w-full flex items-center gap-3 rounded-lg border p-3 text-left transition focus:outline-none ${isSelected ? 'ring-2 ring-indigo-300 border-indigo-300 bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'} ${parent.is_linked_to_student ? 'opacity-60 cursor-not-allowed' : ''}`}
+													>
+														<div className="flex items-center gap-3">
+															<Avatar className="h-10 w-10">
+															<AvatarFallback className="bg-blue-100 text-blue-700 text-sm">{getInitials(parent.name.split(' ')[0] || '?', parent.name.split(' ')[1] || '?')}</AvatarFallback>
+															</Avatar>
+														</div>
+														<div className="flex-1">
+															<p className="font-semibold text-slate-900 flex items-center gap-2">
+																{parent.name}
+																{isSelected ? (<span className="inline-flex items-center rounded-full bg-indigo-600 text-white text-xs px-2 py-0.5">Selected</span>) : null}
+															</p>
+															<p className="text-sm text-slate-600">{parent.email}</p>
+															<p className="text-xs text-slate-500">{parent.phone || 'No phone number'}</p>
+														</div>
+														<div className="flex flex-col items-end gap-1 text-xs">
+														<Badge variant={parent.is_active ? 'default' : 'secondary'}>{parent.is_active ? 'Active' : 'Inactive'}</Badge>
+														{parent.is_linked_to_student ? <Badge variant="secondary">Already linked</Badge> : null}
+														</div>
+													</button>
+												</li>
+											);
+										})}
+									</ul>
+								)}
+							</div>
+						</div>
+
+						{/* Right: Options + Preview */}
+						<div>
+							<div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+								<div>
 									<Label htmlFor="relationshipType">Relationship</Label>
 									<select
 										id="relationshipType"
 										value={linkRelationshipType}
 										onChange={(e) => { setLinkRelationshipType(e.target.value); if (e.target.value !== 'Other') setLinkRelationshipCustom(''); }}
-										className="w-full px-3 py-2 border rounded"
+										className="w-full mt-1 px-3 py-2 border rounded"
 									>
 										<option value="Guardian">Guardian</option>
 										<option value="Mother">Mother</option>
@@ -670,97 +628,61 @@ export default function AdminStudentPage() {
 										<Input id="relationshipTypeCustom" value={linkRelationshipCustom} onChange={(e) => setLinkRelationshipCustom(e.target.value)} placeholder="Enter relationship (e.g. Aunt)" />
 									) : null}
 								</div>
-								<div className="rounded-xl border border-slate-200 p-3 text-sm text-slate-600">
-									<div className="flex flex-col gap-2">
-										<label className="inline-flex items-center gap-2">
-											<input
-												type="checkbox"
-												checked={linkIsPrimaryContact}
-												onChange={(e) => setLinkIsPrimaryContact(e.target.checked)}
-												className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-											/>
-											<span className="select-none">Primary contact</span>
-										</label>
-										<label className="inline-flex items-center gap-2">
-											<input
-												type="checkbox"
-												checked={linkHasLegalCustody}
-												onChange={(e) => setLinkHasLegalCustody(e.target.checked)}
-												className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-											/>
-											<span className="select-none">Has legal custody</span>
-										</label>
-										<label className="inline-flex items-center gap-2">
-											<input
-												type="checkbox"
-												checked={linkCanPickup}
-												onChange={(e) => setLinkCanPickup(e.target.checked)}
-												className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-											/>
-											<span className="select-none">Can pickup student</span>
-										</label>
-									</div>
+
+								<div className="grid grid-cols-1 gap-2">
+									<label className="inline-flex items-center gap-2">
+										<input type="checkbox" checked={linkIsPrimaryContact} onChange={(e) => setLinkIsPrimaryContact(e.target.checked)} className="h-4 w-4" />
+										<span>Primary contact</span>
+									</label>
+									<label className="inline-flex items-center gap-2">
+										<input type="checkbox" checked={linkHasLegalCustody} onChange={(e) => setLinkHasLegalCustody(e.target.checked)} className="h-4 w-4" />
+										<span>Has legal custody</span>
+									</label>
+									<label className="inline-flex items-center gap-2">
+										<input type="checkbox" checked={linkCanPickup} onChange={(e) => setLinkCanPickup(e.target.checked)} className="h-4 w-4" />
+										<span>Can pickup student</span>
+									</label>
 								</div>
 							</div>
 
-							{linkParentError ? (
-								<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{linkParentError}</div>
-							) : null}
-
-							<div className="max-h-80 space-y-2 overflow-auto rounded-xl border border-slate-200 p-2" role="listbox" aria-label="Parent search results">
-								{linkParentLoading ? (
-									<div className="flex items-center justify-center gap-2 py-6 text-sm text-slate-500">
-										<Loader2 className="h-4 w-4 animate-spin" />
-										Searching parents...
+							{/* Selected parent preview */}
+							<div className="mt-4 rounded-lg border border-slate-100 bg-white p-3">
+								{selectedLinkParentObj ? (
+									<div className="flex items-center gap-3">
+										<Avatar className="h-12 w-12">
+											<AvatarFallback className="bg-blue-100 text-blue-700 text-sm">{getInitials(selectedLinkParentObj.name.split(' ')[0] || '?', selectedLinkParentObj.name.split(' ')[1] || '?')}</AvatarFallback>
+										</Avatar>
+										<div className="flex-1">
+											<p className="font-semibold">{selectedLinkParentObj.name}</p>
+											<p className="text-sm text-slate-600">{selectedLinkParentObj.email}</p>
+											<p className="text-xs text-slate-500">{selectedLinkParentObj.phone || 'No phone number'}</p>
+										</div>
+										<div className="text-right">
+											<Badge variant={selectedLinkParentObj.is_active ? 'default' : 'secondary'}>{selectedLinkParentObj.is_active ? 'Active' : 'Inactive'}</Badge>
+											{selectedLinkParentObj.is_linked_to_student ? <div className="text-xs text-red-600 mt-1">Already linked</div> : null}
+										</div>
 									</div>
-								) : linkParentSearch.trim().length < 2 ? (
-									<div className="py-6 text-center text-sm text-slate-500">Start typing to search the parent directory.</div>
-								) : linkParentResults.length === 0 ? (
-									<div className="py-6 text-center text-sm text-slate-500">No parents matched your search.</div>
 								) : (
-									linkParentResults.map((parent) => {
-										const isSelected = selectedLinkParentId === parent.id;
-										return (
-											<button
-												key={parent.id}
-												type="button"
-												onClick={() => setSelectedLinkParentId(parent.id)}
-												aria-selected={isSelected}
-												role="option"
-												disabled={parent.is_linked_to_student}
-												className={`w-full flex items-start gap-3 rounded-lg border p-3 text-left transition focus:outline-none ${isSelected ? 'ring-2 ring-indigo-300 border-indigo-300 bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'} ${parent.is_linked_to_student ? 'opacity-60 cursor-not-allowed' : ''}`}
-											>
-												<div className="flex items-center gap-3">
-													<Avatar className="h-10 w-10">
-														<AvatarFallback className="bg-blue-100 text-blue-700 text-sm">{getInitials(parent.name.split(' ')[0] || '?', parent.name.split(' ')[1] || '?')}</AvatarFallback>
-													</Avatar>
-												</div>
-												<div className="flex-1">
-													<p className="font-semibold text-slate-900">{parent.name}</p>
-													<p className="text-sm text-slate-600">{parent.email}</p>
-													<p className="text-xs text-slate-500">{parent.phone || 'No phone number'}</p>
-												</div>
-												<div className="flex flex-col items-end gap-1 text-xs">
-													<Badge variant={parent.is_active ? 'default' : 'secondary'}>{parent.is_active ? 'Active' : 'Inactive'}</Badge>
-													{parent.is_linked_to_student ? <Badge variant="secondary">Already linked</Badge> : null}
-												</div>
-											</button>
-										);
-									})
+									<div className="text-sm text-slate-500">No parent selected. Choose a parent from the list on the left.</div>
 								)}
 							</div>
 
-							{linkParentHasMore ? <p className="text-xs text-slate-500">More matches exist. Refine the search to narrow the list.</p> : null}
+							{linkParentError ? (
+								<div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{linkParentError}</div>
+							) : null}
 
-							<div className="flex justify-end gap-2">
+							<div className="flex justify-end gap-2 mt-4">
 								<Button variant="outline" onClick={() => setIsLinkParentOpen(false)}>Cancel</Button>
 								<Button onClick={handleLinkExistingParent} disabled={isLinkingParent || !selectedLinkParentId || linkParentResults.find((parent) => parent.id === selectedLinkParentId)?.is_linked_to_student}>
-									{isLinkingParent ? 'Linking…' : 'Link parent'}
+									{isLinkingParent ? 'Linking…' : selectedLinkParentObj ? `Link ${selectedLinkParentObj.name}` : 'Link parent'}
 								</Button>
 							</div>
+							</div>
 						</div>
-					</DialogContent>
-				</Dialog>
+					</div>
+						</div>
+					
+
 
 				<AlertDialog open={isUnlinkConfirmOpen} onOpenChange={(open) => { setIsUnlinkConfirmOpen(open); if (!open) setGuardianToUnlink(null); }}>
 					<AlertDialogContent>
@@ -1066,8 +988,8 @@ export default function AdminStudentPage() {
 						</Card>
 					</CardContent>
 				</Card>
+
 			</main>
 		</DashboardLayout>
 	);
 }
-

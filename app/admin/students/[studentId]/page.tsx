@@ -19,7 +19,7 @@ import { filterAttendanceByPeriod } from '@/lib/student-utils';
 import { EditStudentModal } from '@/components/edit-student-modal';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Users, ShieldAlert, RefreshCcw, KeyRound, CheckCircle2, PencilLine, MoveRight } from 'lucide-react';
+import { ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Users, ShieldAlert, RefreshCcw, KeyRound, CheckCircle2, PencilLine, MoveRight, Search, Loader2, UserPlus } from 'lucide-react';
 import {
 	Dialog,
 	DialogContent,
@@ -61,6 +61,20 @@ export default function AdminStudentPage() {
 	const [transferError, setTransferError] = useState('');
 	const transferClassSelectRef = useRef<HTMLSelectElement | null>(null);
 	const transferConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
+	const [isLinkParentOpen, setIsLinkParentOpen] = useState(false);
+	const [linkParentSearch, setLinkParentSearch] = useState('');
+	const [linkParentResults, setLinkParentResults] = useState<Array<{ id: string; name: string; email: string; phone: string | null; is_active: boolean; is_linked_to_student: boolean }>>([]);
+	const [linkParentLoading, setLinkParentLoading] = useState(false);
+	const [linkParentError, setLinkParentError] = useState('');
+	const [linkParentHasMore, setLinkParentHasMore] = useState(false);
+	const [selectedLinkParentId, setSelectedLinkParentId] = useState('');
+	const [linkRelationshipType, setLinkRelationshipType] = useState('Guardian');
+	const [linkIsPrimaryContact, setLinkIsPrimaryContact] = useState(false);
+	const [linkHasLegalCustody, setLinkHasLegalCustody] = useState(false);
+	const [linkCanPickup, setLinkCanPickup] = useState(true);
+	const [isLinkingParent, setIsLinkingParent] = useState(false);
+	const linkParentSearchRef = useRef<HTMLInputElement | null>(null);
+	const linkParentSearchAbortRef = useRef<AbortController | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
 	const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 	const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -94,6 +108,89 @@ export default function AdminStudentPage() {
 			}, 0);
 		}
 	}, [isTransferConfirmOpen]);
+
+	useEffect(() => {
+		if (isLinkParentOpen) {
+			setTimeout(() => linkParentSearchRef.current?.focus(), 0);
+			return;
+		}
+
+		setLinkParentSearch('');
+		setLinkParentResults([]);
+		setLinkParentError('');
+		setLinkParentHasMore(false);
+		setSelectedLinkParentId('');
+		setLinkRelationshipType('Guardian');
+		setLinkIsPrimaryContact(false);
+		setLinkHasLegalCustody(false);
+		setLinkCanPickup(true);
+	}, [isLinkParentOpen]);
+
+	useEffect(() => {
+		if (!isLinkParentOpen) return;
+
+		const query = linkParentSearch.trim();
+
+		if (query.length < 2) {
+			linkParentSearchAbortRef.current?.abort();
+			setLinkParentResults([]);
+			setLinkParentHasMore(false);
+			setLinkParentLoading(false);
+			return;
+		}
+
+		const controller = new AbortController();
+		linkParentSearchAbortRef.current?.abort();
+		linkParentSearchAbortRef.current = controller;
+
+		let cancelled = false;
+
+		async function searchParents() {
+			try {
+				setLinkParentLoading(true);
+				const params = new URLSearchParams({
+					search: query,
+					studentId,
+					pageSize: '8',
+				});
+
+				const response = await fetch(`/api/admin/parents/search?${params.toString()}`, { signal: controller.signal });
+				const payload = await response.json();
+
+				if (!response.ok || !payload.success) {
+					throw new Error(payload.error || 'Failed to search parents');
+				}
+
+				if (cancelled) return;
+
+				setLinkParentResults(payload.data.parents || []);
+				setLinkParentHasMore(Boolean(payload.data.meta?.hasMore));
+				setSelectedLinkParentId((current) => {
+					if (current && (payload.data.parents || []).some((parent: any) => parent.id === current)) {
+						return current;
+					}
+					const firstAvailable = (payload.data.parents || []).find((parent: any) => !parent.is_linked_to_student);
+					return firstAvailable?.id || '';
+				});
+			} catch (error: any) {
+				if (error?.name === 'AbortError' || cancelled) return;
+				setLinkParentResults([]);
+				setLinkParentHasMore(false);
+				setLinkParentError(error.message || 'Failed to search parents');
+			} finally {
+				if (!cancelled) {
+					setLinkParentLoading(false);
+				}
+			}
+		}
+
+		void searchParents();
+
+		return () => {
+			cancelled = true;
+			controller.abort();
+		};
+	}, [linkParentSearch, isLinkParentOpen, studentId]);
 
 	async function loadData() {
 		setLoading(true);
@@ -190,6 +287,54 @@ export default function AdminStudentPage() {
 				return { success: true, data };
 			} catch (e: any) { return { success: false, error: e.message || 'Transfer failed' }; }
 	}
+
+		async function handleLinkExistingParent() {
+			if (!student) {
+				return;
+			}
+
+			const selectedParent = linkParentResults.find((parent) => parent.id === selectedLinkParentId);
+			if (!selectedParent) {
+				setLinkParentError('Select a parent to link');
+				return;
+			}
+
+			if (selectedParent.is_linked_to_student) {
+				setLinkParentError('This parent is already linked to the student');
+				return;
+			}
+
+			try {
+				setIsLinkingParent(true);
+				setLinkParentError('');
+				const response = await fetch(`/api/admin/students/${student.id}/guardians`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						studentId: student.id,
+						guardianId: selectedParent.id,
+						relationshipType: linkRelationshipType,
+						isPrimaryContact: linkIsPrimaryContact,
+						hasLegalCustody: linkHasLegalCustody,
+						canPickup: linkCanPickup,
+					}),
+				});
+
+				const payload = await response.json();
+
+				if (!response.ok || !payload.success) {
+					throw new Error(payload.error || 'Failed to link parent');
+				}
+
+				toast.success('Parent linked to student');
+				setIsLinkParentOpen(false);
+				await loadData();
+			} catch (error: any) {
+				setLinkParentError(error.message || 'Failed to link parent');
+			} finally {
+				setIsLinkingParent(false);
+			}
+		}
 
 	async function handleResetPassword() {
 		if (!student?.email) {
@@ -392,7 +537,13 @@ export default function AdminStudentPage() {
 
 				<Card>
 					<CardHeader>
-						<CardTitle>Parent / Guardian</CardTitle>
+							<div className="flex items-center justify-between gap-3">
+								<CardTitle>Parent / Guardian</CardTitle>
+								<Button variant="outline" size="sm" onClick={() => setIsLinkParentOpen(true)} className="rounded-xl gap-2">
+									<UserPlus className="h-4 w-4" />
+									Link existing parent
+								</Button>
+							</div>
 					</CardHeader>
 					<CardContent>
 						{guardians && guardians.length > 0 ? (
@@ -429,6 +580,103 @@ export default function AdminStudentPage() {
 						)}
 					</CardContent>
 				</Card>
+
+				<Dialog open={isLinkParentOpen} onOpenChange={setIsLinkParentOpen}>
+					<DialogContent className="sm:max-w-2xl rounded-2xl">
+						<DialogHeader>
+							<DialogTitle className="text-lg font-bold text-slate-900">Link existing parent</DialogTitle>
+						</DialogHeader>
+
+						<div className="space-y-4">
+							<div className="space-y-2">
+								<Label htmlFor="parentSearch">Search by name or email</Label>
+								<div className="relative">
+									<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+									<Input
+										id="parentSearch"
+										ref={linkParentSearchRef}
+										value={linkParentSearch}
+										onChange={(e) => setLinkParentSearch(e.target.value)}
+										placeholder="Search parents by name or email"
+										className="pl-9"
+									/>
+								</div>
+								<p className="text-xs text-slate-500">Type at least 2 characters. Results are filtered on the server and limited for performance.</p>
+							</div>
+
+							<div className="grid gap-3 md:grid-cols-2">
+								<div className="space-y-2">
+									<Label htmlFor="relationshipType">Relationship</Label>
+									<Input id="relationshipType" value={linkRelationshipType} onChange={(e) => setLinkRelationshipType(e.target.value)} placeholder="Guardian" />
+								</div>
+								<div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 p-3 text-sm text-slate-600">
+									<label className="flex items-center gap-2">
+										<input type="checkbox" checked={linkIsPrimaryContact} onChange={(e) => setLinkIsPrimaryContact(e.target.checked)} />
+										Primary contact
+									</label>
+									<label className="flex items-center gap-2">
+										<input type="checkbox" checked={linkHasLegalCustody} onChange={(e) => setLinkHasLegalCustody(e.target.checked)} />
+										Has legal custody
+									</label>
+									<label className="flex items-center gap-2">
+										<input type="checkbox" checked={linkCanPickup} onChange={(e) => setLinkCanPickup(e.target.checked)} />
+										Can pickup student
+									</label>
+								</div>
+							</div>
+
+							{linkParentError ? (
+								<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{linkParentError}</div>
+							) : null}
+
+							<div className="max-h-80 space-y-2 overflow-auto rounded-xl border border-slate-200 p-2">
+								{linkParentLoading ? (
+									<div className="flex items-center justify-center gap-2 py-6 text-sm text-slate-500">
+										<Loader2 className="h-4 w-4 animate-spin" />
+										Searching parents...
+									</div>
+								) : linkParentSearch.trim().length < 2 ? (
+									<div className="py-6 text-center text-sm text-slate-500">Start typing to search the parent directory.</div>
+								) : linkParentResults.length === 0 ? (
+									<div className="py-6 text-center text-sm text-slate-500">No parents matched your search.</div>
+								) : (
+									linkParentResults.map((parent) => {
+										const isSelected = selectedLinkParentId === parent.id;
+										return (
+											<button
+												key={parent.id}
+												type="button"
+												onClick={() => setSelectedLinkParentId(parent.id)}
+												className={`w-full rounded-lg border p-3 text-left transition ${isSelected ? 'border-indigo-300 bg-indigo-50' : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'}`}
+											>
+												<div className="flex items-start justify-between gap-3">
+													<div>
+														<p className="font-semibold text-slate-900">{parent.name}</p>
+														<p className="text-sm text-slate-600">{parent.email}</p>
+														<p className="text-xs text-slate-500">{parent.phone || 'No phone number'}</p>
+													</div>
+													<div className="flex flex-col items-end gap-1 text-xs">
+														<Badge variant={parent.is_active ? 'default' : 'secondary'}>{parent.is_active ? 'Active' : 'Inactive'}</Badge>
+														{parent.is_linked_to_student ? <Badge variant="secondary">Already linked</Badge> : null}
+													</div>
+												</div>
+											</button>
+										);
+									})
+								)}
+							</div>
+
+							{linkParentHasMore ? <p className="text-xs text-slate-500">More matches exist. Refine the search to narrow the list.</p> : null}
+
+							<div className="flex justify-end gap-2">
+								<Button variant="outline" onClick={() => setIsLinkParentOpen(false)}>Cancel</Button>
+								<Button onClick={handleLinkExistingParent} disabled={isLinkingParent || !selectedLinkParentId || linkParentResults.find((parent) => parent.id === selectedLinkParentId)?.is_linked_to_student}>
+									{isLinkingParent ? 'Linking…' : 'Link parent'}
+								</Button>
+							</div>
+						</div>
+					</DialogContent>
+				</Dialog>
 
 				<Tabs defaultValue="attendance" className="w-full">
 					<TabsList className="grid w-full grid-cols-2">

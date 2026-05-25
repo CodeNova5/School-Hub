@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -20,9 +20,10 @@ import { EditStudentModal } from '@/components/edit-student-modal';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { 
-	ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Users, ShieldAlert, 
-	RefreshCcw, KeyRound, CheckCircle2, PencilLine, MoveRight, Search, Loader2, 
-	UserPlus, Settings, BookOpen, Zap, Award, Clock
+	ArrowLeft, Calendar, Mail, Phone, User, Hash, Trash2, Users, 
+	ShieldAlert, RefreshCcw, KeyRound, CheckCircle2, PencilLine, 
+	MoveRight, Search, Loader2, UserPlus, GraduationCap, Heart, 
+	BookOpen, FileText, CheckCircle
 } from 'lucide-react';
 import {
 	Dialog,
@@ -66,7 +67,6 @@ export default function AdminStudentPage() {
 	const [isTransferring, setIsTransferring] = useState(false);
 	const [transferError, setTransferError] = useState('');
 	const transferClassSelectRef = useRef<HTMLSelectElement | null>(null);
-	const transferConfirmButtonRef = useRef<HTMLButtonElement | null>(null);
 	const [isLinkParentOpen, setIsLinkParentOpen] = useState(false);
 	const [linkParentSearch, setLinkParentSearch] = useState('');
 	const [linkParentResults, setLinkParentResults] = useState<Array<{ id: string; name: string; email: string; phone: string | null; is_active: boolean; is_linked_to_student: boolean }>>([]);
@@ -105,14 +105,12 @@ export default function AdminStudentPage() {
 		if (schoolId && studentId) loadData();
 	}, [schoolId, studentId]);
 
-	// Focus management: focus class select when transfer dialog opens
 	useEffect(() => {
 		if (isTransferOpen) {
 			setTimeout(() => transferClassSelectRef.current?.focus(), 0);
 		}
 	}, [isTransferOpen]);
 
-	// Focus management: focus confirm button when confirm dialog opens
 	useEffect(() => {
 		if (isTransferConfirmOpen) {
 			setTimeout(() => {
@@ -187,943 +185,1098 @@ export default function AdminStudentPage() {
 
 				if (cancelled) return;
 
-				setLinkParentResults(payload.data);
-				setLinkParentHasMore(payload.hasMore);
-				setLinkParentError('');
-			} catch (err: any) {
-				if (err.name === 'AbortError' || cancelled) return;
-				setLinkParentError((err as Error).message);
+				setLinkParentResults(payload.data.parents || []);
+				setLinkParentHasMore(Boolean(payload.data.meta?.hasMore));
+				setSelectedLinkParentId((current) => {
+					if (current && (payload.data.parents || []).some((parent: any) => parent.id === current)) {
+						return current;
+					}
+					const firstAvailable = (payload.data.parents || []).find((parent: any) => !parent.is_linked_to_student);
+					return firstAvailable?.id || '';
+				});
+			} catch (error: any) {
+				if (error?.name === 'AbortError' || cancelled) return;
+				setLinkParentResults([]);
+				setLinkParentHasMore(false);
+				setLinkParentError(error.message || 'Failed to search parents');
 			} finally {
-				setLinkParentLoading(false);
+				if (!cancelled) {
+					setLinkParentLoading(false);
+				}
 			}
 		}
 
-		const timer = setTimeout(() => searchParents(), 300);
+		void searchParents();
 
 		return () => {
 			cancelled = true;
-			clearTimeout(timer);
+			controller.abort();
 		};
 	}, [linkParentSearch, isLinkParentOpen, studentId]);
 
-	const loadData = async () => {
+	async function loadData() {
 		setLoading(true);
 		try {
-			const res = await fetch(`/api/admin/students/${studentId}`);
-			const payload = await res.json();
+			if (!schoolId) throw new Error('School ID missing');
 
-			if (!res.ok) {
-				throw new Error(payload?.error || 'Failed to load student data');
+			const [{ data: studentData, error: studentError }, { data: sessionsData }, { data: termsData }, { data: classesData }] = await Promise.all([
+				supabase.from('students').select(`*, classes(id,name), school_departments(id,name)`).eq('school_id', schoolId).eq('id', studentId).maybeSingle(),
+				supabase.from('sessions').select('*').eq('school_id', schoolId).order('name', { ascending: false }),
+				supabase.from('terms').select('*').eq('school_id', schoolId).order('start_date', { ascending: false }),
+				supabase.from('classes').select('*').eq('school_id', schoolId).order('name', { ascending: true }),
+			]);
+
+			if (studentError) throw studentError;
+			setStudent(studentData || null);
+			setSessions(sessionsData || []);
+			setTerms(termsData || []);
+			setClasses(classesData || []);
+
+			const [departmentResult, religionResult] = await Promise.allSettled([
+				supabase
+					.from('school_departments')
+					.select('id, name')
+					.eq('school_id', schoolId)
+					.eq('is_active', true)
+					.order('name', { ascending: true }),
+				supabase
+					.from('school_religions')
+					.select('id, name')
+					.eq('school_id', schoolId)
+					.eq('is_active', true)
+					.order('name', { ascending: true }),
+			]);
+
+			if (departmentResult.status === 'fulfilled') {
+				setDepartments(departmentResult.value.data || []);
+			} else {
+				console.error('Failed to load departments', departmentResult.reason);
+				setDepartments([]);
 			}
 
-			// Support APIs that return a flat `data` object or explicit fields
-			const data = payload.data || payload;
+			if (religionResult.status === 'fulfilled') {
+				setReligions(religionResult.value.data || []);
+			} else {
+				console.error('Failed to load religions', religionResult.reason);
+				setReligions([]);
+			}
 
-			setStudent(data.student ?? null);
-			setSessions(data.sessions ?? []);
-			setTerms(data.terms ?? []);
-			setClasses(data.classes ?? []);
-			setDepartments(data.departments ?? []);
-			setReligions(data.religions ?? []);
-			setAttendance(data.attendance ?? []);
-			setStudentResults(data.results ?? []);
-			setGuardians(data.guardians ?? []);
-		} catch (err: any) {
-			console.error('loadData error', err);
-			toast.error(err?.message || 'Unable to load student data');
+			if (studentData?.id) {
+				const { data: attendanceData } = await supabase.from('attendance').select('*').eq('student_id', studentData.id).eq('school_id', schoolId);
+				setAttendance(attendanceData || []);
+			}
+
+			if (studentData?.id) {
+				const { data: guardianRows, error: guardianError } = await supabase
+					.from('student_guardian_links')
+					.select(`id, relationship_type, is_primary_contact, has_legal_custody, can_pickup, parents(id, name, email, phone)`)
+					.eq('school_id', schoolId)
+					.eq('student_id', studentData.id);
+				if (guardianError) {
+					console.error('Failed to load guardians', guardianError);
+				} else {
+					const mapped = (guardianRows || []).map((r: any) => ({
+						id: r.parents?.id || r.guardian_id || r.id,
+						name: r.parents?.name || 'Unknown',
+						email: r.parents?.email || '',
+						phone: r.parents?.phone || '',
+						relationship: r.relationship_type,
+						is_primary: r.is_primary_contact,
+						can_pickup: r.can_pickup,
+					}));
+					setGuardians(mapped);
+				}
+			}
+
+		} catch (e: any) {
+			console.error(e);
+			toast.error('Failed to load student: ' + (e.message || 'Unknown'));
+			router.push('/admin/students');
 		} finally {
 			setLoading(false);
 		}
-	};
+	}
 
-	const handleResetConfirmed = async () => {
-		setIsResetConfirmOpen(false);
-		setIsResettingPassword(true);
+	async function handleSaveAcademicProfile() {
+		if (!student) return;
+
 		try {
-			const res = await fetch(`/api/admin/students/${studentId}/send-reset`, { method: 'POST' });
-			const payload = await res.json();
-			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Failed to send reset email');
-			toast.success('Reset email sent');
-		} catch (err: any) {
-			console.error(err);
-			toast.error(err?.message || 'Failed to send reset email');
+			setIsSavingAcademicProfile(true);
+			const response = await fetch('/api/admin/update-student', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					studentId: student.id,
+					updates: {
+						department_id: selectedDepartmentId || null,
+						religion_id: selectedReligionId || null,
+					},
+				}),
+			});
+
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.error || data.message || 'Failed to update academic profile');
+			}
+
+			if (data.student) {
+				setStudent(data.student);
+			}
+			toast.success('Department and religion updated successfully');
+		} catch (error: any) {
+			toast.error(error.message || 'Failed to update academic profile');
+		} finally {
+			setIsSavingAcademicProfile(false);
+		}
+	}
+
+	async function handleDelete() {
+		if (!student) return;
+		if (!confirm(`Permanently delete ${student.first_name} ${student.last_name}?`)) return;
+		setIsDeleting(true);
+		try {
+			const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-student', studentId: student.id, userId: student.user_id }) });
+			const body = await res.json();
+			if (!res.ok) { throw new Error(body.error || 'Failed to delete'); }
+			toast.success('Student record removed completely');
+			router.push('/admin/students');
+		} catch (e: any) {
+			toast.error('Delete failed: ' + (e.message || 'Unknown'));
+		} finally { setIsDeleting(false); }
+	}
+
+	function handleManageSubjects() { if (student) router.push(`/admin/students/${student.id}/subjects`); }
+
+	function handleViewReport() {
+		if (!student) return;
+		const currentSession = sessions.find(s => s.is_current);
+		const currentTerm = terms.find(t => t.is_current);
+		const params = new URLSearchParams();
+		if (currentSession) params.set('session', currentSession.id);
+		if (currentTerm) params.set('term', currentTerm.id);
+		router.push(`/admin/students/${student.id}/report?${params.toString()}`);
+	}
+
+	async function handleTransfer() {
+			if (!student || !transferTargetClassId) { return { success: false, error: 'Select a target class' }; }
+			try {
+				const res = await fetch('/api/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'transfer-students', studentIds: [student.id], targetClassId: transferTargetClassId }) });
+				const data = await res.json();
+				if (!res.ok) {
+					return { success: false, error: data.error || 'Transfer failed' };
+				}
+				return { success: true, data };
+			} catch (e: any) { return { success: false, error: e.message || 'Transfer failed' }; }
+	}
+
+	async function handleLinkExistingParent() {
+		if (!student) return;
+
+		const selectedParent = linkParentResults.find((parent) => parent.id === selectedLinkParentId);
+		if (!selectedParent) {
+			setLinkParentError('Select a parent to link');
+			return;
+		}
+
+		if (selectedParent.is_linked_to_student) {
+			setLinkParentError('This parent is already linked to the student');
+			return;
+		}
+
+		try {
+			setIsLinkingParent(true);
+			setLinkParentError('');
+			const relationshipToSend = linkRelationshipType === 'Other' ? (linkRelationshipCustom.trim() || 'Other') : linkRelationshipType;
+
+			const response = await fetch(`/api/admin/students/${student.id}/guardians`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					studentId: student.id,
+					guardianId: selectedParent.id,
+					relationshipType: relationshipToSend,
+					isPrimaryContact: linkIsPrimaryContact,
+					hasLegalCustody: linkHasLegalCustody,
+					canPickup: linkCanPickup,
+				}),
+			});
+
+			const payload = await response.json();
+
+			if (!response.ok || !payload.success) {
+				throw new Error(payload.error || 'Failed to link parent');
+			}
+
+			toast.success('Parent linked to student successfully');
+			setIsLinkParentOpen(false);
+			await loadData();
+		} catch (error: any) {
+			setLinkParentError(error.message || 'Failed to link parent');
+		} finally {
+			setIsLinkingParent(false);
+		}
+	}
+
+	async function handleResetPassword() {
+		if (!student?.email) {
+			toast.error('Student email is missing');
+			return;
+		}
+
+		try {
+			setIsResettingPassword(true);
+			const response = await fetch('/api/admin/reset-password', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ studentId: student.id }),
+			});
+
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.error || 'Failed to send reset email');
+			}
+
+			toast.success('Password reset email dispatched');
+		} catch (e: any) {
+			toast.error(e.message || 'Failed to send reset email');
 		} finally {
 			setIsResettingPassword(false);
 		}
-	};
+	}
 
-	const closeEmailChangeDialog = () => {
-		setIsEmailChangeOpen(false);
-		setEmailStep('email');
+	function openEmailChangeDialog() {
 		setNewEmail('');
 		setVerificationCode('');
 		setEmailChangeError('');
 		setEmailChangeSuccess('');
-	};
-
-	const openEmailChangeDialog = () => {
+		setEmailStep('email');
 		setIsEmailChangeOpen(true);
-	};
+	}
 
-	const handleSendEmailCode = async () => {
-		if (!newEmail || !newEmail.includes('@')) {
-			setEmailChangeError('Please enter a valid email address');
+	function closeEmailChangeDialog() {
+		setIsEmailChangeOpen(false);
+		setNewEmail('');
+		setVerificationCode('');
+		setEmailChangeError('');
+		setEmailChangeSuccess('');
+		setEmailStep('email');
+	}
+
+	async function handleSendEmailCode() {
+		if (!newEmail.trim()) {
+			setEmailChangeError('Enter a new email address');
 			return;
 		}
 
-		setIsSendingCode(true);
+		const normalizedEmail = newEmail.trim().toLowerCase();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+			setEmailChangeError('Enter a valid email address');
+			return;
+		}
+
 		setEmailChangeError('');
 		try {
-			const res = await fetch(`/api/admin/students/${studentId}/send-email-code`, {
+			setIsSendingCode(true);
+			const response = await fetch('/api/admin/student-email-verification/send', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: newEmail }),
+				body: JSON.stringify({ email: normalizedEmail }),
 			});
-			const payload = await res.json();
-			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Failed to send verification code');
+			const data = await response.json();
+			if (!response.ok) {
+				throw new Error(data.error || 'Failed to send verification code');
+			}
+
+			setNewEmail(normalizedEmail);
 			setEmailStep('code');
-			toast.success('Verification code sent');
-		} catch (err: any) {
-			console.error(err);
-			setEmailChangeError(err?.message || 'Failed to send code');
+			toast.success('Verification code sent to the new email address');
+		} catch (e: any) {
+			setEmailChangeError(e.message || 'Failed to send verification code');
 		} finally {
 			setIsSendingCode(false);
 		}
-	};
+	}
 
-	const handleVerifyAndApplyEmailChange = async () => {
-		if (verificationCode.length !== 6) {
+	async function handleVerifyAndApplyEmailChange() {
+		if (!student) return;
+		if (!verificationCode.trim() || verificationCode.trim().length !== 6) {
 			setEmailChangeError('Enter the 6-digit verification code');
 			return;
 		}
 
-		setIsVerifyingCode(true);
-		setIsApplyingEmailChange(true);
 		setEmailChangeError('');
+		setEmailChangeSuccess('');
 		try {
-			const res = await fetch(`/api/admin/students/${studentId}/verify-email-code`, {
+			setIsVerifyingCode(true);
+			const verifyResponse = await fetch('/api/admin/student-email-verification/verify', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: newEmail, code: verificationCode }),
+				body: JSON.stringify({ email: newEmail, code: verificationCode.trim() }),
 			});
-			const payload = await res.json();
-			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Verification failed');
-			setEmailChangeSuccess('Email updated');
+			const verifyData = await verifyResponse.json();
+			if (!verifyResponse.ok) {
+				throw new Error(verifyData.error || 'Verification failed');
+			}
+
+			setIsApplyingEmailChange(true);
+			const updateResponse = await fetch('/api/admin/update-student', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					studentId: student.id,
+					updates: { email: newEmail },
+				}),
+			});
+
+			const updateData = await updateResponse.json();
+			if (!updateResponse.ok) {
+				throw new Error(updateData.error || 'Failed to update email');
+			}
+
+			if (updateData.student) {
+				setStudent(updateData.student);
+			}
+			const successMessage = updateData.message || 'Student email updated successfully';
+			setEmailChangeSuccess(successMessage);
 			setEmailStep('success');
-			// Refresh student data
-			await loadData();
-			toast.success('Student email updated');
-		} catch (err: any) {
-			console.error(err);
-			setEmailChangeError(err?.message || 'Failed to verify code');
+			toast.success(successMessage);
+		} catch (e: any) {
+			setEmailChangeError(e.message || 'Failed to update email');
 		} finally {
 			setIsVerifyingCode(false);
 			setIsApplyingEmailChange(false);
 		}
-	};
+	}
 
-	const handleDelete = async () => {
-		if (!confirm('Are you sure you want to permanently delete this student?')) return;
-		setIsDeleting(true);
+	function handleResetConfirmed() {
+		setIsResetConfirmOpen(false);
+		void handleResetPassword();
+	}
+
+	async function handleUnlinkParent() {
+		if (!student || !guardianToUnlink) return;
+
 		try {
-			const res = await fetch(`/api/admin/students/${studentId}`, { method: 'DELETE' });
-			const payload = await res.json();
-			if (!res.ok || !payload.success) throw new Error(payload?.error || 'Failed to delete student');
-			toast.success('Student deleted');
-			router.push('/admin/students');
-		} catch (err: any) {
-			console.error(err);
-			toast.error(err?.message || 'Failed to delete student');
+			setIsUnlinkingParent(true);
+			const response = await fetch(`/api/admin/students/${student.id}/guardians?guardianId=${guardianToUnlink.id}`, {
+				method: 'DELETE',
+			});
+
+			const payload = await response.json();
+
+			if (!response.ok || !payload.success) {
+				throw new Error(payload.error || 'Failed to remove parent');
+			}
+
+			toast.success('Parent relationship terminated');
+			setIsUnlinkConfirmOpen(false);
+			setGuardianToUnlink(null);
+			await loadData();
+		} catch (error: any) {
+			toast.error(error.message || 'Failed to remove parent');
 		} finally {
-			setIsDeleting(false);
+			setIsUnlinkingParent(false);
 		}
-	};
-
-	if (loading) {
-		return (
-			<DashboardLayout role='admin'>
-				<main className="flex items-center justify-center min-h-screen">
-					<Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-				</main>
-			</DashboardLayout>
-		);
 	}
 
-	if (!student) {
-		return (
-			<DashboardLayout role='admin'>
-				<main className="p-6">
-					<div className="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-						<User className="mx-auto h-12 w-12 text-slate-300 mb-3" />
-						<p className="text-slate-600 font-medium">Student not found</p>
-					</div>
-				</main>
-			</DashboardLayout>
-		);
-	}
+	if (schoolLoading || loading) return (
+		<DashboardLayout role="admin">
+			<div className="flex flex-col items-center justify-center h-[60vh] gap-3" role="status" aria-live="polite">
+				<Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+				<p className="text-sm font-medium text-slate-500">Loading profile data...</p>
+			</div>
+		</DashboardLayout>
+	);
+
+	if (schoolError || !schoolId) return (
+		<DashboardLayout role="admin">
+			<div className="flex items-center justify-center h-96 text-red-500 font-medium">
+				{schoolError || 'School environment context not available'}
+			</div>
+		</DashboardLayout>
+	);
+
+	if (!student) return (
+		<DashboardLayout role="admin">
+			<div className="flex items-center justify-center h-96 text-slate-500 font-medium">
+				Student record could not be found
+			</div>
+		</DashboardLayout>
+	);
+
+	const getInitials = (f: string, l: string) => `${(f || '?')[0]}${(l || '?')[0]}`.toUpperCase();
+	const filteredAttendance = filterAttendanceByPeriod(attendance, attendancePeriod);
 
 	return (
-		<DashboardLayout role='admin'>
-			<main className="flex-1 bg-gradient-to-br from-slate-50 to-slate-100/50 min-h-screen">
-				{/* Header Section */}
-				<div className="border-b border-slate-200 bg-white shadow-sm">
-					<div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-						{/* Back Button */}
-						<Link href="/admin/students" className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-							<ArrowLeft className="h-4 w-4" />
-							Back to Students
-						</Link>
-
-						{/* Student Hero Card */}
-						<div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-							<div className="flex gap-4 sm:gap-6">
-								<div className="relative">
-									<Avatar className="h-20 w-20 sm:h-24 sm:w-24 ring-4 ring-indigo-100">
-										<AvatarImage src={student.photo_url || undefined} alt={student.first_name} />
-										<AvatarFallback className="bg-gradient-to-br from-indigo-400 to-purple-500 text-white text-lg font-semibold">
-											{(student.first_name?.[0] || '') + (student.last_name?.[0] || '')}
-										</AvatarFallback>
-									</Avatar>
-									<div className="absolute bottom-0 right-0 h-5 w-5 rounded-full border-2 border-white bg-emerald-500"></div>
-								</div>
-								<div className="flex flex-col justify-end gap-2 pb-1">
-									<div>
-										<h1 className="text-2xl font-bold text-slate-900">
-											{student.first_name} {student.last_name}
-										</h1>
-										<p className="text-sm text-slate-500 font-medium">Student ID: {studentId.slice(0, 8)}</p>
-									</div>
-									<div className="flex flex-wrap gap-2">
-										<Badge className="bg-indigo-100 text-indigo-700 border-0 font-medium">
-											{classes.find(c => c.id === student.class_id)?.name || '—'}
-										</Badge>
-										{student.status === 'active' ? (
-											<Badge className="bg-emerald-100 text-emerald-700 border-0">Active</Badge>
-										) : (
-											<Badge className="bg-slate-100 text-slate-700 border-0">Inactive</Badge>
-										)}
-									</div>
-								</div>
-							</div>
-
-							{/* Quick Action Buttons */}
-							<div className="flex gap-2 flex-wrap sm:flex-nowrap sm:justify-end">
-								<Button 
-									onClick={() => setIsEditOpen(true)} 
-									className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium"
-								>
-									<PencilLine className="h-4 w-4" />
-									Edit Profile
-								</Button>
-								<Button 
-									variant="outline"
-									onClick={() => setIsLinkParentOpen(true)}
-									className="gap-2 rounded-xl font-medium border-slate-200"
-								>
-									<UserPlus className="h-4 w-4" />
-									Add Guardian
-								</Button>
-							</div>
+		<DashboardLayout role="admin">
+			<main className="max-w-7xl mx-auto p-4 md:p-8 space-y-8" id="main-content">
+				
+				{/* Top Action Bar */}
+				<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+					<div className="space-y-1">
+						<div className="flex items-center gap-2 text-sm text-slate-500">
+							<GraduationCap className="h-4 w-4" />
+							<span>Student Registry Administration</span>
 						</div>
+						<h1 className="text-3xl font-bold tracking-tight text-slate-900">{student.first_name} {student.last_name}</h1>
 					</div>
+					<Button variant="outline" size="sm" onClick={() => router.back()} aria-label="Back to students list" className="rounded-xl px-4 py-2 text-slate-700 hover:bg-slate-50 border-slate-200 transition-all self-start sm:self-auto shadow-sm">
+						<ArrowLeft className="h-4 w-4 mr-2 text-slate-500" />
+						Back to Registry
+					</Button>
 				</div>
 
-				{/* Main Content */}
-				<div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-					{/* Contact & Personal Info Section */}
-					<div className="grid gap-6 md:grid-cols-2">
-						{/* Contact Information */}
-						<Card className="border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-							<CardHeader className="pb-4">
-								<div className="flex items-center gap-3">
-									<div className="rounded-lg bg-blue-100 p-2">
-										<Mail className="h-5 w-5 text-blue-600" />
+				{/* Grid Dynamic Layout */}
+				<div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+					
+					{/* Left Profile Sidebar Summary */}
+					<div className="space-y-6 lg:col-span-1">
+						<Card className="overflow-hidden border-slate-200/80 shadow-md shadow-slate-100/50 bg-gradient-to-b from-slate-50/50 to-white">
+							<div className="h-24 bg-gradient-to-r from-indigo-500 to-purple-600 relative" />
+							<CardContent className="p-6 pt-0 relative flex flex-col items-center text-center">
+								<figure className="-mt-12 mb-4 relative z-10">
+									<Avatar className="h-24 w-24 border-4 border-white shadow-xl ring-1 ring-slate-100">
+										<AvatarImage src={student.photo_url} alt={`${student.first_name} ${student.last_name}`} />
+										<AvatarFallback className="bg-gradient-to-tr from-indigo-100 to-purple-100 text-indigo-700 text-2xl font-bold">{getInitials(student.first_name, student.last_name)}</AvatarFallback>
+									</Avatar>
+								</figure>
+
+								<div className="space-y-1">
+									<h2 className="text-xl font-bold text-slate-900">{student.first_name} {student.last_name}</h2>
+									<p className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md inline-block">ID: {student.student_id}</p>
+								</div>
+
+								<div className="mt-3">
+									<Badge className={`rounded-full px-3 py-0.5 text-xs font-medium border ${
+										student.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-700 border-slate-200'
+									}`}>{student.status}</Badge>
+								</div>
+
+								<div className="w-full border-t border-slate-100 my-5" />
+
+								<div className="w-full space-y-4 text-left text-sm">
+									<div className="flex items-center gap-3 text-slate-600 hover:text-slate-900 transition-colors">
+										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Mail className="h-4 w-4" /></div>
+										<span className="truncate font-medium">{student.email}</span>
 									</div>
-									<CardTitle className="text-lg">Contact Information</CardTitle>
+									<div className="flex items-center gap-3 text-slate-600 hover:text-slate-900 transition-colors">
+										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Phone className="h-4 w-4" /></div>
+										<span className="font-medium">{student.phone || '—'}</span>
+									</div>
+									<div className="flex items-center gap-3 text-slate-600">
+										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><User className="h-4 w-4" /></div>
+										<span className="capitalize font-medium">{student.gender}</span>
+									</div>
+									<div className="flex items-center gap-3 text-slate-600">
+										<div className="p-2 bg-slate-100 rounded-lg text-slate-500"><Calendar className="h-4 w-4" /></div>
+										<span className="font-medium">Admitted: {new Date(student.admission_date).toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric'})}</span>
+									</div>
 								</div>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div>
-									<p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</p>
-									<p className="text-sm text-slate-900 font-medium mt-1 break-all">{student.email}</p>
-								</div>
-								<div>
-									<p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Phone</p>
-									<p className="text-sm text-slate-900 font-medium mt-1">{student.phone || '—'}</p>
-								</div>
-								<div>
-									<p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Date of Birth</p>
-									<p className="text-sm text-slate-900 font-medium mt-1">
-										{student.date_of_birth ? new Date(student.date_of_birth).toLocaleDateString() : '—'}
-									</p>
-								</div>
-								<Button 
-									variant="ghost" 
-									onClick={() => setIsEmailChangeOpen(true)}
-									className="w-full justify-start gap-2 text-indigo-600 hover:bg-indigo-50 mt-2 rounded-lg"
-								>
-									<KeyRound className="h-4 w-4" />
-									Change Email
-								</Button>
 							</CardContent>
 						</Card>
 
-						{/* Academic Profile */}
-						<Card className="border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-							<CardHeader className="pb-4">
-								<div className="flex items-center gap-3">
-									<div className="rounded-lg bg-purple-100 p-2">
-										<BookOpen className="h-5 w-5 text-purple-600" />
-									</div>
-									<CardTitle className="text-lg">Academic Profile</CardTitle>
+						{/* Academic Information Quick Controls */}
+						<Card className="border-slate-200/80 shadow-sm">
+							<CardHeader className="pb-3 border-b border-slate-50 bg-slate-50/50">
+								<div className="flex items-center gap-2">
+									<BookOpen className="h-4 w-4 text-indigo-600" />
+									<CardTitle className="text-base font-semibold text-slate-900">Academic Profile</CardTitle>
 								</div>
 							</CardHeader>
-							<CardContent className="space-y-4">
-								<div>
-									<p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Department</p>
-									<select 
-										value={selectedDepartmentId} 
+							<CardContent className="p-5 space-y-4">
+								<div className="space-y-1.5">
+									<Label htmlFor="studentDepartment" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Classification/Department</Label>
+									<select
+										id="studentDepartment"
+										value={selectedDepartmentId}
 										onChange={(e) => setSelectedDepartmentId(e.target.value)}
-										className="w-full mt-1 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+										className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
 									>
-										<option value="">Select Department</option>
-										{departments.map((dept) => (
-											<option key={dept.id} value={dept.id}>{dept.name}</option>
+										<option value="">No Custom Department Specified</option>
+										{departments.map((department) => (
+											<option key={department.id} value={department.id}>{department.name}</option>
 										))}
 									</select>
 								</div>
-								<div>
-									<p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Religion</p>
-									<select 
-										value={selectedReligionId} 
+
+								<div className="space-y-1.5">
+									<Label htmlFor="studentReligion" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Religion Core Filtering</Label>
+									<select
+										id="studentReligion"
+										value={selectedReligionId}
 										onChange={(e) => setSelectedReligionId(e.target.value)}
-										className="w-full mt-1 text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+										className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
 									>
-										<option value="">Select Religion</option>
-										{religions.map((rel) => (
-											<option key={rel.id} value={rel.id}>{rel.name}</option>
+										<option value="">No Core Specified</option>
+										{religions.map((religion) => (
+											<option key={religion.id} value={religion.id}>{religion.name}</option>
 										))}
 									</select>
 								</div>
+
 								<Button 
-									onClick={() => setIsSavingAcademicProfile(true)}
-									disabled={isSavingAcademicProfile}
-									className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium mt-2"
+									onClick={handleSaveAcademicProfile} 
+									disabled={isSavingAcademicProfile} 
+									className="w-full rounded-xl mt-2 bg-indigo-600 hover:bg-indigo-700 shadow-sm text-sm"
 								>
-									{isSavingAcademicProfile ? 'Saving…' : 'Save Changes'}
+									{isSavingAcademicProfile ? (
+										<span className="flex items-center gap-2 justify-center"><Loader2 className="h-4 w-4 animate-spin"/> Updating Profile...</span>
+									) : 'Save Meta Data Updates'}
 								</Button>
 							</CardContent>
 						</Card>
 					</div>
 
-					{/* Guardians Section */}
-					<Card className="border-slate-200 shadow-sm">
-						<CardHeader className="pb-4 border-b border-slate-100">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-3">
-									<div className="rounded-lg bg-pink-100 p-2">
-										<Users className="h-5 w-5 text-pink-600" />
+					{/* Right Content Management Space */}
+					<div className="space-y-6 lg:col-span-2">
+						
+						{/* Guardians Card */}
+						<Card className="border-slate-200 shadow-sm overflow-hidden">
+							<CardHeader className="flex flex-row items-center justify-between gap-4 bg-slate-50/50 border-b border-slate-100 p-5">
+								<div className="space-y-0.5">
+									<div className="flex items-center gap-2">
+										<Heart className="h-4 w-4 text-rose-500" />
+										<CardTitle className="text-lg font-bold text-slate-900">Parent &amp; Guardian Links</CardTitle>
 									</div>
-									<div>
-										<CardTitle className="text-lg">Guardians & Contacts</CardTitle>
-										<p className="text-xs text-slate-500 mt-1">{guardians.length} guardian{guardians.length !== 1 ? 's' : ''} linked</p>
-									</div>
+									<CardDescription className="text-xs">Manage active account links for parents or direct contacts.</CardDescription>
 								</div>
-								<Button 
-									onClick={() => setIsLinkParentOpen(true)}
-									size="sm"
-									className="gap-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg"
-								>
-									<UserPlus className="h-4 w-4" />
-									Add
+								<Button variant="outline" size="sm" onClick={() => setIsLinkParentOpen(true)} className="rounded-xl gap-2 border-slate-200 text-slate-700 hover:bg-slate-100 transition-all shadow-sm shrink-0">
+									<UserPlus className="h-4 w-4 text-indigo-600" />
+									Link Directory Entry
 								</Button>
-							</div>
-						</CardHeader>
-						<CardContent className="pt-6">
-							{guardians.length === 0 ? (
-								<div className="text-center py-8">
-									<Users className="h-12 w-12 text-slate-200 mx-auto mb-3" />
-									<p className="text-slate-500 text-sm font-medium">No guardians linked yet</p>
-									<Button 
-										onClick={() => setIsLinkParentOpen(true)}
-										variant="outline"
-										className="mt-4 rounded-lg"
-									>
-										Link First Guardian
-									</Button>
-								</div>
-							) : (
-								<div className="space-y-3">
-									{guardians.map((guardian) => (
-										<div key={guardian.id} className="rounded-lg border border-slate-100 bg-slate-50 p-4 flex items-start justify-between hover:bg-slate-100 transition-colors">
-											<div className="flex gap-3 flex-1">
-												<Avatar className="h-10 w-10 ring-2 ring-slate-200 flex-shrink-0">
-													<AvatarFallback className="bg-gradient-to-br from-pink-300 to-rose-400 text-white text-xs font-semibold">
-														{(guardian.name?.[0] || '?').toUpperCase()}
-													</AvatarFallback>
-												</Avatar>
-												<div className="flex-1 min-w-0">
-													<p className="font-medium text-slate-900">{guardian.name}</p>
-													<p className="text-xs text-slate-500">{guardian.relationship_type}</p>
-													{guardian.email && <p className="text-xs text-slate-500 truncate">{guardian.email}</p>}
-													<div className="flex gap-1 mt-2 flex-wrap">
-														{guardian.is_primary_contact && (
-															<Badge className="bg-amber-100 text-amber-700 text-xs border-0">Primary</Badge>
-														)}
-														{guardian.has_legal_custody && (
-															<Badge className="bg-indigo-100 text-indigo-700 text-xs border-0">Legal Custody</Badge>
-														)}
-														{guardian.can_pickup && (
-															<Badge className="bg-emerald-100 text-emerald-700 text-xs border-0">Can Pickup</Badge>
-														)}
+							</CardHeader>
+							<CardContent className="p-5">
+								{guardians && guardians.length > 0 ? (
+									<ul role="list" className="space-y-3">
+										{guardians.map((g) => (
+											<li key={g.id} className="flex items-start justify-between gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all duration-200">
+												<div className="space-y-1">
+													<div className="flex items-center gap-2 flex-wrap">
+														<Link href={`/admin/parents/${g.id}`} className="font-semibold text-slate-900 hover:text-indigo-600 hover:underline focus:outline-none">{g.name}</Link>
+														<Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider px-2 py-0 bg-white text-slate-600 border-slate-200">{g.relationship}</Badge>
+														{g.is_primary && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 uppercase tracking-wide">Primary Contact</span>}
+													</div>
+													<div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1 pt-1">
+														<span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {g.email || '—'}</span>
+														<span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {g.phone || '—'}</span>
 													</div>
 												</div>
+												<div className="flex flex-col items-end justify-between self-stretch shrink-0">
+													<span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${g.can_pickup ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-400'}`}>
+														{g.can_pickup ? 'Authorized Pick-up' : 'No Pick-up Access'}
+													</span>
+													<Button
+														variant="ghost"
+														size="sm"
+														className="h-7 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700 rounded-lg font-medium px-2"
+														onClick={() => { setGuardianToUnlink(g); setIsUnlinkConfirmOpen(true); }}
+													>
+														Unlink
+													</Button>
+												</div>
+											</li>
+										))}
+									</ul>
+								) : (
+									<div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100 border-dashed">
+										<div className="space-y-0.5">
+											<Label className="text-[11px] uppercase tracking-wider font-bold text-slate-400">Legacy Contact Name</Label>
+											<div className="font-medium text-slate-800">{student.parent_name || '—'}</div>
+										</div>
+										<div className="space-y-0.5">
+											<Label className="text-[11px] uppercase tracking-wider font-bold text-slate-400">Legacy Email Contact</Label>
+											<div className="font-medium text-slate-800 break-all">{student.parent_email || '—'}</div>
+										</div>
+										<div className="space-y-0.5">
+											<Label className="text-[11px] uppercase tracking-wider font-bold text-slate-400">Legacy Contact Phone</Label>
+											<div className="font-medium text-slate-800">{student.parent_phone || '—'}</div>
+										</div>
+									</div>
+								)}
+							</CardContent>
+						</Card>
+
+						{/* Academic & Attendance Records Block */}
+						<Tabs defaultValue="attendance" className="w-full">
+							<TabsList className="grid w-full grid-cols-2 p-1 bg-slate-100 rounded-xl">
+								<TabsTrigger value="attendance" className="text-sm font-medium rounded-lg py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Attendance Records</TabsTrigger>
+								<TabsTrigger value="results" className="text-sm font-medium rounded-lg py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">Academic Results Terminal</TabsTrigger>
+							</TabsList>
+
+							<TabsContent value="attendance" className="space-y-4 mt-4 focus-visible:outline-none">
+								<Card className="border-slate-200 shadow-sm">
+									<CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 border-b border-slate-50">
+										<CardTitle className="text-base font-bold text-slate-900">Attendance Track Metrics</CardTitle>
+										<div className="flex items-center gap-2">
+											<Label htmlFor="attendancePeriodSelect" className="text-xs text-slate-500 font-medium">Period Window</Label>
+											<select id="attendancePeriodSelect" value={attendancePeriod} onChange={(e) => setAttendancePeriod(e.target.value as any)} className="px-2.5 py-1 text-xs font-medium border border-slate-200 rounded-lg bg-white shadow-sm outline-none" aria-label="Attendance period font-medium">
+												<option value="daily">Daily View</option>
+												<option value="weekly">Weekly Window</option>
+												<option value="monthly">Monthly Cycle</option>
+												<option value="term">Current Term</option>
+												<option value="session">Full Session</option>
+											</select>
+										</div>
+									</CardHeader>
+									<CardContent className="p-5 space-y-6">
+										<div className="flex flex-col sm:flex-row sm:items-center gap-4 bg-gradient-to-r from-indigo-50/60 to-blue-50/40 p-4 rounded-xl border border-indigo-100/40">
+											<div className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-2xl tracking-tight shadow-sm" aria-live="polite" aria-atomic="true">
+												{student.average_attendance}%
 											</div>
-											<Button 
-												variant="ghost"
-												size="sm"
-												onClick={() => {
-													setGuardianToUnlink(guardian);
-													setIsUnlinkConfirmOpen(true);
-												}}
-												className="text-red-600 hover:bg-red-50 rounded-lg ml-2 flex-shrink-0"
-											>
-												<Trash2 className="h-4 w-4" />
+											<div className="space-y-1 flex-1">
+												<div className="text-sm font-semibold text-slate-800">Aggregated Attendance Rating</div>
+												<div className="w-full bg-slate-200/70 rounded-full h-2 overflow-hidden">
+													<div className="bg-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${student.average_attendance}%` }} />
+												</div>
+											</div>
+										</div>
+										<AttendanceTimeline attendance={filteredAttendance} />
+									</CardContent>
+								</Card>
+							</TabsContent>
+
+							<TabsContent value="results" className="space-y-4 mt-4 focus-visible:outline-none">
+								<Card className="border-slate-200 shadow-sm">
+									<CardHeader className="p-5 border-b border-slate-50">
+										<CardTitle className="text-base font-bold text-slate-900">Performance Matrix Summary</CardTitle>
+									</CardHeader>
+									<CardContent className="p-5 space-y-4">
+										<div className="overflow-hidden rounded-xl border border-slate-100 shadow-inner">
+											<ResultsTable results={studentResults} />
+										</div>
+										<div className="flex flex-wrap gap-2 pt-2">
+											<Button onClick={handleManageSubjects} aria-label="Manage subjects" className="bg-slate-900 hover:bg-slate-800 text-white text-xs rounded-xl px-4 py-2 font-medium shadow-sm">
+												Configure Registrations
+											</Button>
+											<Button variant="outline" onClick={handleViewReport} aria-label="View report" className="text-xs rounded-xl px-4 py-2 font-medium shadow-sm border-slate-200 text-slate-700 hover:bg-slate-50">
+												<FileText className="h-3.5 w-3.5 mr-1.5 text-slate-500" /> Print Term Report Sheet
 											</Button>
 										</div>
-									))}
+									</CardContent>
+								</Card>
+							</TabsContent>
+						</Tabs>
+
+						{/* Identity Danger & Operations Hub Zone */}
+						<Card className="border-rose-100 bg-gradient-to-b from-rose-50/30 to-rose-50/10 rounded-2xl overflow-hidden shadow-sm">
+							<CardHeader className="p-5 border-b border-rose-100/60 bg-rose-50/50">
+								<div className="flex items-center gap-2">
+									<ShieldAlert className="h-5 w-5 text-rose-600" />
+									<CardTitle className="text-lg font-bold text-rose-950">Administrative Account Actions</CardTitle>
 								</div>
-							)}
-						</CardContent>
-					</Card>
-
-					{/* Academic Performance & Attendance */}
-					<Tabs defaultValue="results" className="space-y-6">
-						<TabsList className="bg-slate-200 rounded-xl p-1">
-							<TabsTrigger value="results" className="gap-2 rounded-lg">
-								<Award className="h-4 w-4" />
-								Academic Results
-							</TabsTrigger>
-							<TabsTrigger value="attendance" className="gap-2 rounded-lg">
-								<Clock className="h-4 w-4" />
-								Attendance
-							</TabsTrigger>
-						</TabsList>
-
-						{/* Results Tab */}
-						<TabsContent value="results">
-							<Card className="border-slate-200 shadow-sm">
-								<CardHeader className="pb-4 border-b border-slate-100">
-									<div className="flex items-center gap-3">
-										<div className="rounded-lg bg-amber-100 p-2">
-											<Award className="h-5 w-5 text-amber-600" />
-										</div>
-										<div>
-											<CardTitle>Academic Results</CardTitle>
-											<p className="text-xs text-slate-500 mt-1">Performance across all subjects and terms</p>
-										</div>
-									</div>
-								</CardHeader>
-								<CardContent className="pt-6 overflow-x-auto">
-									{studentResults.length > 0 ? (
-										<ResultsTable results={studentResults} />
-									) : (
-										<div className="text-center py-8">
-											<Award className="h-12 w-12 text-slate-200 mx-auto mb-3" />
-											<p className="text-slate-500 text-sm font-medium">No results recorded yet</p>
-										</div>
-									)}
-								</CardContent>
-							</Card>
-						</TabsContent>
-
-						{/* Attendance Tab */}
-						<TabsContent value="attendance">
-							<Card className="border-slate-200 shadow-sm">
-								<CardHeader className="pb-4 border-b border-slate-100">
-									<div className="flex items-center justify-between">
-										<div className="flex items-center gap-3">
-											<div className="rounded-lg bg-teal-100 p-2">
-												<Clock className="h-5 w-5 text-teal-600" />
-											</div>
-											<div>
-												<CardTitle>Attendance Record</CardTitle>
-												<p className="text-xs text-slate-500 mt-1">Track presence over time</p>
-											</div>
-										</div>
-										<select 
-											value={attendancePeriod}
-											onChange={(e) => setAttendancePeriod(e.target.value as any)}
-											className="text-sm px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500"
-										>
-											<option value="daily">Daily</option>
-											<option value="weekly">Weekly</option>
-											<option value="monthly">Monthly</option>
-											<option value="term">Term</option>
-											<option value="session">Session</option>
-										</select>
-									</div>
-								</CardHeader>
-								<CardContent className="pt-6">
-									{attendance.length > 0 ? (
-										<AttendanceTimeline 
-											attendance={filterAttendanceByPeriod(attendance, attendancePeriod)}
-										/>
-									) : (
-										<div className="text-center py-8">
-											<Calendar className="h-12 w-12 text-slate-200 mx-auto mb-3" />
-											<p className="text-slate-500 text-sm font-medium">No attendance records yet</p>
-										</div>
-									)}
-								</CardContent>
-							</Card>
-						</TabsContent>
-					</Tabs>
-
-					{/* Danger Zone */}
-					<Card className="border-red-200 bg-red-50/30">
-						<CardHeader className="pb-4 border-b border-red-100">
-							<div className="flex items-center gap-3">
-								<div className="rounded-lg bg-red-100 p-2">
-									<ShieldAlert className="h-5 w-5 text-red-600" />
-								</div>
-								<div>
-									<CardTitle className="text-red-900">Danger Zone</CardTitle>
-									<p className="text-xs text-red-700/70 mt-1 font-medium">Advanced account management – use with caution</p>
-								</div>
-							</div>
-						</CardHeader>
-						<CardContent className="pt-6">
-							<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-								{/* Reset Password Card */}
-								<Card className="border-red-200/50 bg-white shadow-sm hover:shadow-md transition-shadow">
-									<CardHeader className="pb-3">
+								<CardDescription className="text-xs text-rose-800/80">Execute sensitive system configuration mutations and credential modifications for this student account.</CardDescription>
+							</CardHeader>
+							<CardContent className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+								
+								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
+									<CardHeader className="p-4 pb-2 space-y-1">
 										<div className="flex items-center gap-2">
-											<RefreshCcw className="h-5 w-5 text-red-600" />
-											<CardTitle className="text-base">Reset Password</CardTitle>
+											<RefreshCcw className="h-4 w-4 text-rose-600" />
+											<h3 className="font-bold text-slate-900 text-sm">Dispatched Password Reset</h3>
 										</div>
-										<p className="text-xs text-slate-600 mt-2">Send reset link to current email</p>
+										<p className="text-xs text-slate-500 leading-relaxed">Sends a localized cryptographic token password configuration reset pathway directory link directly onto the current identity profile email index.</p>
 									</CardHeader>
-									<CardContent>
-										<Button 
-											variant="destructive" 
-											onClick={() => setIsResetConfirmOpen(true)}
-											disabled={isResettingPassword}
-											className="w-full rounded-lg font-medium"
-										>
-											{isResettingPassword ? 'Sending…' : 'Send Reset Link'}
+									<CardContent className="p-4 pt-2">
+										<Button variant="outline" onClick={() => setIsResetConfirmOpen(true)} disabled={isResettingPassword} className="w-full text-xs rounded-xl font-semibold border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300">
+											{isResettingPassword ? 'Processing Link Dispatched...' : 'Trigger Password Reset Link'}
 										</Button>
 									</CardContent>
 								</Card>
 
-								{/* Change Email Card */}
-								<Card className="border-red-200/50 bg-white shadow-sm hover:shadow-md transition-shadow">
-									<CardHeader className="pb-3">
+								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
+									<CardHeader className="p-4 pb-2 space-y-1">
 										<div className="flex items-center gap-2">
-											<Mail className="h-5 w-5 text-red-600" />
-											<CardTitle className="text-base">Change Email</CardTitle>
+											<KeyRound className="h-4 w-4 text-rose-600" />
+											<h3 className="font-bold text-slate-900 text-sm">Email Access Configuration</h3>
 										</div>
-										<p className="text-xs text-slate-600 mt-2">Update with verification code</p>
+										<p className="text-xs text-slate-500 leading-relaxed">Modifies authentication state routing addresses. Requires interactive multi-factor confirmation tokens verification processing execution loops.</p>
 									</CardHeader>
-									<CardContent>
-										<Button 
-											variant="outline"
-											onClick={openEmailChangeDialog}
-											className="w-full rounded-lg font-medium border-red-200 text-red-700 hover:bg-red-50"
-										>
-											Change Email
+									<CardContent className="p-4 pt-2">
+										<Button variant="outline" onClick={openEmailChangeDialog} className="w-full text-xs rounded-xl font-semibold border-slate-200 text-slate-700 hover:bg-slate-50">
+											Initiate Email Lifecycle Switch
 										</Button>
 									</CardContent>
 								</Card>
 
-								{/* Transfer Student Card */}
-								<Card className="border-red-200/50 bg-white shadow-sm hover:shadow-md transition-shadow">
-									<CardHeader className="pb-3">
+								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
+									<CardHeader className="p-4 pb-2 space-y-1">
 										<div className="flex items-center gap-2">
-											<MoveRight className="h-5 w-5 text-red-600" />
-											<CardTitle className="text-base">Transfer Class</CardTitle>
+											<PencilLine className="h-4 w-4 text-indigo-600" />
+											<h3 className="font-bold text-slate-900 text-sm">Profile Manifest Matrix</h3>
 										</div>
-										<p className="text-xs text-slate-600 mt-2">Move to another class</p>
+										<p className="text-xs text-slate-500 leading-relaxed">Updates primitive fields including core data strings, localized text configurations, bio vectors and parent fallback properties arrays.</p>
 									</CardHeader>
-									<CardContent>
-										<Button 
-											variant="outline"
-											onClick={() => setIsTransferOpen(true)}
-											className="w-full rounded-lg font-medium border-red-200 text-red-700 hover:bg-red-50"
-										>
-											Transfer
+									<CardContent className="p-4 pt-2">
+										<Button onClick={() => setIsEditOpen(true)} className="w-full text-xs rounded-xl font-semibold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm">
+											Open Structural Profiler Editor
 										</Button>
 									</CardContent>
 								</Card>
 
-								{/* Delete Student Card */}
-								<Card className="border-red-200/50 bg-white shadow-sm hover:shadow-md transition-shadow md:col-span-2 lg:col-span-1">
-									<CardHeader className="pb-3">
+								<Card className="border-slate-200/60 bg-white shadow-sm flex flex-col justify-between">
+									<CardHeader className="p-4 pb-2 space-y-1">
 										<div className="flex items-center gap-2">
-											<Trash2 className="h-5 w-5 text-red-600" />
-											<CardTitle className="text-base">Delete Student</CardTitle>
+											<MoveRight className="h-4 w-4 text-indigo-600" />
+											<h3 className="font-bold text-slate-900 text-sm">Transfer Class Placement</h3>
 										</div>
-										<p className="text-xs text-slate-600 mt-2">Permanently remove record</p>
+										<p className="text-xs text-slate-500 leading-relaxed">Migrates student records across educational tiers while managing associated contextual grading trees cleanly.</p>
 									</CardHeader>
-									<CardContent>
-										<Button 
-											variant="destructive"
-											onClick={handleDelete}
-											disabled={isDeleting}
-											className="w-full rounded-lg font-medium"
-										>
-											{isDeleting ? 'Deleting…' : 'Delete'}
+									<CardContent className="p-4 pt-2">
+										<Button variant="outline" onClick={() => setIsTransferOpen(true)} className="w-full text-xs rounded-xl font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+											Initialize Tier Transfer Loop
 										</Button>
 									</CardContent>
 								</Card>
-							</div>
-						</CardContent>
-					</Card>
+
+								<Card className="border-rose-200 bg-rose-50/20 shadow-sm sm:col-span-2 lg:col-span-1 xl:col-span-2 flex flex-col justify-between">
+									<CardHeader className="p-4 pb-2 space-y-1">
+										<div className="flex items-center gap-2">
+											<Trash2 className="h-4 w-4 text-rose-600" />
+											<h3 className="font-bold text-rose-950 text-sm">Purge Record Database</h3>
+										</div>
+										<p className="text-xs text-rose-800/80 leading-relaxed">Permanently drops student entity frames, related grading records, attendance charts, and related identity framework entries across all tables. This action is irreversible.</p>
+									</CardHeader>
+									<CardContent className="p-4 pt-2">
+										<Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="w-full text-xs rounded-xl font-semibold bg-rose-600 hover:bg-rose-700 shadow-sm">
+											{isDeleting ? 'Purging Entity Stack...' : 'Purge All Student Records'}
+										</Button>
+									</CardContent>
+								</Card>
+
+							</CardContent>
+						</Card>
+					</div>
 				</div>
+			</main>
 
-				{/* Edit Student Modal */}
-				<EditStudentModal
-					isOpen={isEditOpen}
-					onClose={() => setIsEditOpen(false)}
-					student={student}
-					onSuccess={() => {
-						setIsEditOpen(false);
-						loadData();
-					}}
-				/>
+			{/* Directories Links Linkage Modals Box */}
+			<Dialog open={isLinkParentOpen} onOpenChange={setIsLinkParentOpen}>
+				<DialogContent className="sm:max-w-2xl rounded-2xl p-6 overflow-hidden border border-slate-100 shadow-2xl">
+					<DialogHeader className="pb-4 border-b border-slate-50">
+						<DialogTitle className="text-xl font-bold text-slate-900">Link Existing Parent Account</DialogTitle>
+						<p className="text-xs text-slate-500 mt-1">Query database structures to link centralized parent data models to this student framework directly.</p>
+					</DialogHeader>
 
-				{/* Transfer Dialog */}
-				<Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
-					<DialogContent className="sm:max-w-md rounded-2xl">
-						<DialogHeader>
-							<DialogTitle className="text-lg">Transfer Student to Another Class</DialogTitle>
-						</DialogHeader>
-
-						{transferError && (
-							<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-								{transferError}
-							</div>
-						)}
-
-						<div className="space-y-4">
-							<div>
-								<Label htmlFor="transfer-class" className="text-sm font-medium">Select Destination Class</Label>
-								<select
-									ref={transferClassSelectRef}
-									id="transfer-class"
-									value={transferTargetClassId}
-									onChange={(e) => setTransferTargetClassId(e.target.value)}
-									className="w-full mt-2 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-								>
-									<option value="">Choose a class…</option>
-									{classes.map((cls) => (
-										<option key={cls.id} value={cls.id}>{cls.name}</option>
-									))}
-								</select>
-							</div>
-
-							<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-								<p className="font-medium mb-1">Note:</p>
-								<p>The student's current class assignment will be updated. All academic records will remain intact.</p>
-							</div>
-
-							<div className="flex gap-2 justify-end">
-								<Button variant="outline" onClick={() => setIsTransferOpen(false)} className="rounded-lg">
-									Cancel
-								</Button>
-								<Button 
-									onClick={() => setIsTransferConfirmOpen(true)}
-									disabled={!transferTargetClassId || isTransferring}
-									className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
-								>
-									{isTransferring ? 'Transferring…' : 'Next'}
-								</Button>
-							</div>
-						</div>
-					</DialogContent>
-				</Dialog>
-
-				{/* Transfer Confirmation Dialog */}
-				<AlertDialog open={isTransferConfirmOpen} onOpenChange={setIsTransferConfirmOpen}>
-					<AlertDialogContent className="rounded-2xl">
-						<AlertDialogHeader>
-							<AlertDialogTitle>Confirm Transfer</AlertDialogTitle>
-							<AlertDialogDescription>
-								Are you sure you want to transfer {student.first_name} to {classes.find(c => c.id === transferTargetClassId)?.name}? This cannot be undone.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
-							<AlertDialogAction id="transfer-confirm-btn" className="bg-indigo-600 hover:bg-indigo-700 rounded-lg">
-								Confirm Transfer
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
-
-				{/* Link Parent Dialog */}
-				<Dialog open={isLinkParentOpen} onOpenChange={setIsLinkParentOpen}>
-					<DialogContent className="sm:max-w-lg rounded-2xl max-h-[80vh] overflow-y-auto">
-						<DialogHeader>
-							<DialogTitle className="text-lg">Link a Guardian</DialogTitle>
-						</DialogHeader>
-
-						{linkParentError && (
-							<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-								{linkParentError}
-							</div>
-						)}
-
-						<div className="space-y-4">
-							{/* Search */}
+					<div className="space-y-5 pt-4">
+						<div className="space-y-1.5">
+							<Label htmlFor="parentSearch" className="text-xs font-semibold text-slate-700">Search Context</Label>
 							<div className="relative">
-								<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+								<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 								<Input
+									id="parentSearch"
 									ref={linkParentSearchRef}
-									type="text"
-									placeholder="Search by name or email…"
 									value={linkParentSearch}
 									onChange={(e) => setLinkParentSearch(e.target.value)}
-									className="pl-10 rounded-lg border-slate-200"
+									placeholder="Query via Name string index, email mapping strings, etc..."
+									className="pl-10 rounded-xl border-slate-200 text-sm focus-visible:ring-indigo-100 focus-visible:border-indigo-400"
 								/>
 							</div>
+							<p className="text-[11px] text-slate-400">Provide an evaluation string slice containing at least 2 characters to trigger query evaluations.</p>
+						</div>
 
-							{/* Results */}
-							{linkParentResults.length > 0 && (
-								<div className="space-y-2 max-h-48 overflow-y-auto">
-									{linkParentResults.map((parent) => (
-										<div
+						<div className="grid gap-4 md:grid-cols-2">
+							<div className="space-y-1.5">
+								<Label htmlFor="relationshipType" className="text-xs font-semibold text-slate-700">Relationship Classification Tag</Label>
+								<select
+									id="relationshipType"
+									value={linkRelationshipType}
+									onChange={(e) => { setLinkRelationshipType(e.target.value); if (e.target.value !== 'Other') setLinkRelationshipCustom(''); }}
+									className="w-full px-3 py-2 border border-slate-200 bg-white rounded-xl text-sm shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+								>
+									<option value="Guardian">Legal Guardian</option>
+									<option value="Mother">Biological/Legal Mother</option>
+									<option value="Father">Biological/Legal Father</option>
+									<option value="Grandparent">Grandparent Tier</option>
+									<option value="Sibling">Sibling Direct Contact</option>
+									<option value="Emergency contact">Proxy Emergency Contact</option>
+									<option value="Other">Custom Unlisted Designation</option>
+								</select>
+								{linkRelationshipType === 'Other' && (
+									<Input id="relationshipTypeCustom" value={linkRelationshipCustom} onChange={(e) => setLinkRelationshipCustom(e.target.value)} placeholder="Specify configuration tag (e.g., Aunt)" className="mt-2 rounded-xl text-sm border-slate-200" />
+								)}
+							</div>
+							<div className="rounded-xl border border-slate-100 bg-slate-50/50 p-4 text-xs text-slate-600 flex flex-col justify-center gap-2.5">
+								<label className="inline-flex items-center gap-2.5 cursor-pointer">
+									<input
+										type="checkbox"
+										checked={linkIsPrimaryContact}
+										onChange={(e) => setLinkIsPrimaryContact(e.target.checked)}
+										className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+									/>
+									<span className="select-none font-medium text-slate-700">Designate Primary Contact Node</span>
+								</label>
+								<label className="inline-flex items-center gap-2.5 cursor-pointer">
+									<input
+										type="checkbox"
+										checked={linkHasLegalCustody}
+										onChange={(e) => setLinkHasLegalCustody(e.target.checked)}
+										className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+									/>
+									<span className="select-none font-medium text-slate-700">Maintains Retained Legal Custody</span>
+								</label>
+								<label className="inline-flex items-center gap-2.5 cursor-pointer">
+									<input
+										type="checkbox"
+										checked={linkCanPickup}
+										onChange={(e) => setLinkCanPickup(e.target.checked)}
+										className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+									/>
+									<span className="select-none font-medium text-slate-700">Authorized Campus Pick-up Clearing</span>
+								</label>
+							</div>
+						</div>
+
+						{linkParentError && (
+							<div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3 text-xs font-medium text-rose-700">{linkParentError}</div>
+						)}
+
+						<div className="max-h-60 space-y-2 overflow-auto rounded-xl border border-slate-100 bg-slate-50/30 p-2" role="listbox" aria-label="Parent search results">
+							{linkParentLoading ? (
+								<div className="flex items-center justify-center gap-2 py-8 text-xs font-medium text-slate-400">
+									<Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+									Executing Remote Directory Scanning...
+								</div>
+							) : linkParentSearch.trim().length < 2 ? (
+								<div className="py-8 text-center text-xs font-medium text-slate-400">Input parameter queries inside field boxes to map records.</div>
+							) : linkParentResults.length === 0 ? (
+								<div className="py-8 text-center text-xs font-medium text-slate-400">Zero entries returned for this parameter array.</div>
+							) : (
+								linkParentResults.map((parent) => {
+									const isSelected = selectedLinkParentId === parent.id;
+									return (
+										<button
 											key={parent.id}
+											type="button"
 											onClick={() => setSelectedLinkParentId(parent.id)}
-											className={`rounded-lg border-2 p-3 cursor-pointer transition-all ${
-												selectedLinkParentId === parent.id
-													? 'border-indigo-500 bg-indigo-50'
-													: 'border-slate-200 hover:border-slate-300 bg-white'
-											}`}
+											aria-selected={isSelected}
+											role="option"
+											disabled={parent.is_linked_to_student}
+											className={`w-full flex items-start gap-3 rounded-xl border p-3 text-left transition-all focus:outline-none ${isSelected ? 'ring-2 ring-indigo-500/20 border-indigo-500 bg-indigo-50/40' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-sm'} ${parent.is_linked_to_student ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
 										>
-											<p className="font-medium text-sm text-slate-900">{parent.name}</p>
-											<p className="text-xs text-slate-600">{parent.email}</p>
-											{parent.phone && <p className="text-xs text-slate-600">{parent.phone}</p>}
-										</div>
-									))}
-								</div>
-							)}
-
-							{/* Relationship Details */}
-							{selectedLinkParentId && (
-								<div className="space-y-4 border-t pt-4">
-									<div>
-										<Label htmlFor="relationship" className="text-sm font-medium">Relationship Type</Label>
-										<select
-											id="relationship"
-											value={linkRelationshipType}
-											onChange={(e) => setLinkRelationshipType(e.target.value)}
-											className="w-full mt-2 px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-										>
-											<option value="Guardian">Guardian</option>
-											<option value="Parent">Parent</option>
-											<option value="Grandparent">Grandparent</option>
-											<option value="Uncle/Aunt">Uncle/Aunt</option>
-											<option value="Other">Other</option>
-										</select>
-									</div>
-
-									{linkRelationshipType === 'Other' && (
-										<div>
-											<Label htmlFor="custom-relation" className="text-sm font-medium">Specify Relationship</Label>
-											<Input
-												id="custom-relation"
-												value={linkRelationshipCustom}
-												onChange={(e) => setLinkRelationshipCustom(e.target.value)}
-												placeholder="e.g., Family Friend"
-												className="mt-2 rounded-lg"
-											/>
-										</div>
-									)}
-
-									<div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-4">
-										<label className="flex items-center gap-3 cursor-pointer">
-											<input
-												type="checkbox"
-												checked={linkIsPrimaryContact}
-												onChange={(e) => setLinkIsPrimaryContact(e.target.checked)}
-												className="rounded"
-											/>
-											<span className="text-sm font-medium text-slate-900">Primary Contact</span>
-										</label>
-										<label className="flex items-center gap-3 cursor-pointer">
-											<input
-												type="checkbox"
-												checked={linkHasLegalCustody}
-												onChange={(e) => setLinkHasLegalCustody(e.target.checked)}
-												className="rounded"
-											/>
-											<span className="text-sm font-medium text-slate-900">Has Legal Custody</span>
-										</label>
-										<label className="flex items-center gap-3 cursor-pointer">
-											<input
-												type="checkbox"
-												checked={linkCanPickup}
-												onChange={(e) => setLinkCanPickup(e.target.checked)}
-												className="rounded"
-											/>
-											<span className="text-sm font-medium text-slate-900">Can Pickup Student</span>
-										</label>
-									</div>
-
-									<div className="flex gap-2 justify-end">
-										<Button variant="outline" onClick={() => setIsLinkParentOpen(false)} className="rounded-lg">
-											Cancel
-										</Button>
-										<Button 
-											onClick={async () => {
-												// Link parent implementation
-												setIsLinkParentOpen(false);
-											}}
-											disabled={isLinkingParent}
-											className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
-										>
-											{isLinkingParent ? 'Linking…' : 'Link Guardian'}
-										</Button>
-									</div>
-								</div>
-							)}
-
-							{!selectedLinkParentId && linkParentSearch && linkParentResults.length === 0 && !linkParentLoading && (
-								<div className="text-center py-6">
-									<Users className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-									<p className="text-sm text-slate-500">No guardians found matching your search</p>
-								</div>
-							)}
-
-							{linkParentLoading && (
-								<div className="flex justify-center py-6">
-									<Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-								</div>
+											<Avatar className="h-9 w-9 shrink-0">
+												<AvatarFallback className="bg-slate-100 text-slate-700 text-xs font-bold">{getInitials(parent.name.split(' ')[0] || '?', parent.name.split(' ')[1] || '?')}</AvatarFallback>
+											</Avatar>
+											<div className="flex-1 min-w-0">
+												<p className="font-semibold text-slate-900 text-sm truncate">{parent.name}</p>
+												<p className="text-xs text-slate-500 truncate">{parent.email}</p>
+												<p className="text-[11px] text-slate-400 font-medium mt-0.5">{parent.phone || 'No Linked Phone Line'}</p>
+											</div>
+											<div className="flex flex-col items-end gap-1.5 shrink-0 text-[10px]">
+												<Badge variant={parent.is_active ? 'default' : 'secondary'} className="text-[9px] px-1.5 py-0 uppercase tracking-wider font-bold">{parent.is_active ? 'Active' : 'Inactive'}</Badge>
+												{parent.is_linked_to_student && <Badge variant="secondary" className="text-[9px] bg-slate-200/60 text-slate-600 px-1.5 py-0 font-medium">Already Linked</Badge>}
+											</div>
+										</button>
+									);
+								})
 							)}
 						</div>
-					</DialogContent>
-				</Dialog>
 
-				{/* Unlink Confirmation */}
-				<AlertDialog open={isUnlinkConfirmOpen} onOpenChange={setIsUnlinkConfirmOpen}>
-					<AlertDialogContent className="rounded-2xl">
-						<AlertDialogHeader>
-							<AlertDialogTitle>Remove Guardian</AlertDialogTitle>
-							<AlertDialogDescription>
-								Are you sure you want to unlink {guardianToUnlink?.name} from this student? This cannot be undone.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
-							<AlertDialogAction className="bg-red-600 hover:bg-red-700 rounded-lg">
-								Remove Guardian
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+						{linkParentHasMore && <p className="text-[10px] text-slate-400 italic">Truncation bounds reached. Refine parameters to reveal hidden database rows.</p>}
 
-				{/* Password Reset Confirmation */}
-				<AlertDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
-					<AlertDialogContent className="rounded-2xl">
-						<AlertDialogHeader>
-							<AlertDialogTitle>Send Password Reset Email</AlertDialogTitle>
-							<AlertDialogDescription>
-								A reset link will be sent to <span className="font-semibold">{student.email}</span>. The student will need to use it to set a new password.
-							</AlertDialogDescription>
-						</AlertDialogHeader>
-						<AlertDialogFooter>
-							<AlertDialogCancel className="rounded-lg">Cancel</AlertDialogCancel>
-							<AlertDialogAction onClick={handleResetConfirmed} className="bg-red-600 hover:bg-red-700 rounded-lg">
-								Send Reset Email
-							</AlertDialogAction>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
+						<div className="flex justify-end gap-2 pt-2 border-t border-slate-50">
+							<Button variant="outline" onClick={() => setIsLinkParentOpen(false)} className="rounded-xl text-xs font-medium border-slate-200">Cancel</Button>
+							<Button 
+								onClick={handleLinkExistingParent} 
+								disabled={isLinkingParent || !selectedLinkParentId || linkParentResults.find((parent) => parent.id === selectedLinkParentId)?.is_linked_to_student}
+								className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 font-medium shadow-sm"
+							>
+								{isLinkingParent ? 'Binding Mapping Node...' : 'Commit Mapping Association'}
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 
-				{/* Email Change Dialog */}
-				<Dialog open={isEmailChangeOpen} onOpenChange={(open) => (open ? setIsEmailChangeOpen(true) : closeEmailChangeDialog())}>
-					<DialogContent className="sm:max-w-lg rounded-2xl">
-						<DialogHeader>
-							<DialogTitle className="text-lg font-bold text-slate-900">Change Student Email</DialogTitle>
-						</DialogHeader>
+			{/* Interactive Structural Alert Dialogboxes */}
+			<AlertDialog open={isUnlinkConfirmOpen} onOpenChange={(open) => { setIsUnlinkConfirmOpen(open); if (!open) setGuardianToUnlink(null); }}>
+				<AlertDialogContent className="rounded-2xl border border-slate-100">
+					<AlertDialogHeader>
+						<AlertDialogTitle className="text-lg font-bold text-slate-900">Sever Contact Mapping Relationship?</AlertDialogTitle>
+						<AlertDialogDescription className="text-sm text-slate-500">
+							This breaks relationship matrices between entry context item <span className="font-semibold text-slate-900">{guardianToUnlink?.name}</span> and student file tracking parameters. This configuration can be linked back later if needed.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter className="gap-2 sm:gap-0">
+						<AlertDialogCancel className="rounded-xl text-xs font-medium border-slate-200">Cancel Operation</AlertDialogCancel>
+						<AlertDialogAction onClick={handleUnlinkParent} disabled={isUnlinkingParent} className="rounded-xl text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white">
+							{isUnlinkingParent ? 'Breaking Link...' : 'Terminate Linked Account'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
-						<div className="space-y-4">
-							<div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 font-medium">
-								A 6-digit code will be sent to verify the new email address.
-							</div>
+			<EditStudentModal student={student} isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} onSuccess={(updated: Student) => { setStudent(updated); toast.success('Student core configuration schema updated'); }} />
 
-							{emailChangeError && (
-								<div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-									{emailChangeError}
-								</div>
-							)}
+			{/* Operational Modal Transitions */}
+			<Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+				<DialogContent id="transfer-dialog" className="rounded-2xl sm:max-w-md p-6 border border-slate-100 shadow-2xl">
+					<DialogHeader>
+						<DialogTitle className="text-lg font-bold text-slate-900">Execute Registry Student Tier Transfer</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4 pt-2">
+						<p className="text-xs text-slate-500 leading-relaxed">Changes framework paths, registry tracking lists, and curriculum lines for student entry record <span className="font-semibold text-slate-700">{student.first_name} {student.last_name}</span>.</p>
+						<div className="space-y-1">
+							<Label htmlFor="transferClassSelect" className="text-xs font-semibold text-slate-700">Target Structural Placement Tier</Label>
+							<select 
+								id="transferClassSelect" 
+								ref={transferClassSelectRef} 
+								value={transferTargetClassId} 
+								onChange={(e) => setTransferTargetClassId(e.target.value)} 
+								className="w-full px-3 py-2 text-sm border border-slate-200 bg-white rounded-xl shadow-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" 
+								aria-label="Target class selection dropdown"
+							>
+								<option value="">Select Target Class Assignment Matrix...</option>
+								{classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+							</select>
+						</div>
+						<div className="flex justify-end gap-2 pt-2">
+							<Button variant="outline" onClick={() => { setIsTransferOpen(false); setTransferTargetClassId(''); }} className="rounded-xl text-xs border-slate-200">Abort</Button>
+							<Button onClick={() => setIsTransferConfirmOpen(true)} disabled={!transferTargetClassId} className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 font-medium shadow-sm">
+								Proceed to Confirmation
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 
-							{emailStep === 'success' ? (
-								<div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 space-y-3">
-									<div className="flex items-start gap-3">
-										<CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-										<div>
-											<p className="font-semibold text-emerald-900">Email Updated Successfully</p>
-											<p className="text-sm text-emerald-800 mt-1">New login email: <span className="font-medium">{newEmail}</span></p>
-										</div>
+			{/* Sub-tier Transfer Approvals Confirmation */}
+			<AlertDialog open={isTransferConfirmOpen} onOpenChange={(open) => { setIsTransferConfirmOpen(open); if (!open) setTransferError(''); }}>
+				<AlertDialogContent className="rounded-2xl border border-slate-100">
+					<AlertDialogHeader>
+						<AlertDialogTitle className="text-lg font-bold text-slate-900">Authorize Record Class Placement Mutation?</AlertDialogTitle>
+						<AlertDialogDescription className="text-sm text-slate-500">
+							Confirm migration path for <span className="font-semibold text-slate-800">{student.first_name} {student.last_name}</span> into registry destination slot: <span className="font-bold text-indigo-600">{classes.find((c) => c.id === transferTargetClassId)?.name || 'Unspecified Node'}</span>.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					{transferError && (
+						<div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{transferError}</div>
+					)}
+					<AlertDialogFooter className="gap-2 sm:gap-0">
+						<AlertDialogCancel className="rounded-xl text-xs font-medium border-slate-200">Abort Route</AlertDialogCancel>
+						<AlertDialogAction id="transfer-confirm-btn" onClick={async () => {
+							setTransferError('');
+							setIsTransferring(true);
+							try {
+								const result = await handleTransfer();
+								if (result.success) {
+									toast.success(result.data?.message || 'Tier transfer structural operations passed');
+									setIsTransferConfirmOpen(false);
+									setIsTransferOpen(false);
+									setTransferTargetClassId('');
+									await loadData();
+								} else {
+									setTransferError(result.error || 'Operations stack structural failure exception');
+								}
+							} catch (err: any) {
+								setTransferError(err?.message || 'Structural network operation failure');
+							} finally {
+								setIsTransferring(false);
+							}
+						}} disabled={isTransferring} className="rounded-xl text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm">
+							{isTransferring ? 'Re-writing System Blocks...' : 'Authorize Placement Re-route'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* Credential Reset Controls Container */}
+			<AlertDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
+				<AlertDialogContent className="rounded-2xl border border-slate-100">
+					<AlertDialogHeader>
+						<AlertDialogTitle className="text-lg font-bold text-slate-900">Dispatch Interactive Password Re-assignment Protocol?</AlertDialogTitle>
+						<AlertDialogDescription className="text-sm text-slate-500">
+							This forces access suspension and sends a recovery token directly to the target mailbox <span className="font-medium text-slate-900">{student.email}</span>.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter className="gap-2 sm:gap-0">
+						<AlertDialogCancel className="rounded-xl text-xs font-medium border-slate-200">Abort Reset</AlertDialogCancel>
+						<AlertDialogAction onClick={handleResetConfirmed} className="rounded-xl text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white shadow-sm">
+							Transmit Cryptographic Reset Token
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* Email Swapping Lifecycle Manager Modal */}
+			<Dialog open={isEmailChangeOpen} onOpenChange={(open) => (open ? setIsEmailChangeOpen(true) : closeEmailChangeDialog())}>
+				<DialogContent className="sm:max-w-lg rounded-2xl p-6 border border-slate-100 shadow-2xl">
+					<DialogHeader>
+						<DialogTitle className="text-lg font-bold text-slate-900">Modify Security Route Email</DialogTitle>
+					</DialogHeader>
+
+					<div className="space-y-4 pt-2">
+						<div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs text-amber-900 leading-relaxed flex gap-2.5 items-start">
+							<ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+							<span>Security checkpoint: An operational authentication code token will be delivered onto the new mailbox address destination before execution loops close.</span>
+						</div>
+
+						{emailChangeError && (
+							<div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{emailChangeError}</div>
+						)}
+
+						{emailStep === 'success' ? (
+							<div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
+								<div className="flex items-start gap-3">
+									<CheckCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+									<div className="space-y-1">
+										<p className="font-bold text-emerald-900 text-sm">System Database Record Updated</p>
+										<p className="text-xs text-emerald-800 leading-relaxed">{emailChangeSuccess}</p>
+										<p className="text-xs font-mono bg-white border border-emerald-100 rounded-md px-2 py-1 text-emerald-900 inline-block mt-1">Active ID: {newEmail}</p>
 									</div>
-									<Button onClick={closeEmailChangeDialog} className="w-full bg-emerald-600 hover:bg-emerald-700 rounded-lg">
-										Done
+								</div>
+								<div className="flex justify-end">
+									<Button onClick={closeEmailChangeDialog} className="rounded-xl text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white px-4">Close Dialogue</Button>
+								</div>
+							</div>
+						) : emailStep === 'email' ? (
+							<div className="space-y-4">
+								<div className="space-y-1.5">
+									<Label htmlFor="newEmail" className="text-xs font-semibold text-slate-700">New Authentication Email Route Target</Label>
+									<Input
+										id="newEmail"
+										type="email"
+										value={newEmail}
+										onChange={(e) => setNewEmail(e.target.value)}
+										placeholder="e.g., student.new.record@school.edu"
+										className="rounded-xl border-slate-200 text-sm focus-visible:ring-indigo-100"
+									/>
+								</div>
+								<div className="flex justify-end gap-2 pt-2">
+									<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-xl text-xs border-slate-200">Cancel</Button>
+									<Button onClick={handleSendEmailCode} disabled={isSendingCode} className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 font-medium text-white shadow-sm">
+										{isSendingCode ? 'Transmitting Token...' : 'Generate Dispatch Verification Token'}
 									</Button>
 								</div>
-							) : null}
-
-							{emailStep === 'email' ? (
-								<div className="space-y-3">
-									<div>
-										<Label htmlFor="newEmail" className="text-sm font-medium">New Email Address</Label>
-										<Input
-											id="newEmail"
-											type="email"
-											value={newEmail}
-											onChange={(e) => setNewEmail(e.target.value)}
-											placeholder="student.new@email.com"
-											className="mt-2 rounded-lg"
-										/>
-									</div>
-									<div className="flex gap-2 justify-end">
-										<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-lg">Cancel</Button>
-										<Button onClick={handleSendEmailCode} disabled={isSendingCode} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">
-											{isSendingCode ? 'Sending code…' : 'Send Code'}
+							</div>
+						) : (
+							<div className="space-y-4">
+								<div className="space-y-1.5">
+									<Label htmlFor="verificationCode" className="text-xs font-semibold text-slate-700">6-Digit Verification Check Token</Label>
+									<Input
+										id="verificationCode"
+										inputMode="numeric"
+										maxLength={6}
+										value={verificationCode}
+										onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+										placeholder="******"
+										className="rounded-xl border-slate-200 text-center tracking-widest text-lg font-bold font-mono focus-visible:ring-indigo-100"
+									/>
+								</div>
+								<p className="text-xs text-slate-400">Security checkpoint payload sent onto entry address: <span className="font-semibold text-slate-600">{newEmail}</span></p>
+								<div className="flex justify-between gap-2 pt-2 border-t border-slate-50">
+									<Button variant="ghost" onClick={() => setEmailStep('email')} className="rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-100">Return to Mail Entry</Button>
+									<div className="flex gap-2">
+										<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-xl text-xs border-slate-200">Abort Changing</Button>
+										<Button onClick={handleVerifyAndApplyEmailChange} disabled={isVerifyingCode || isApplyingEmailChange} className="rounded-xl text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm">
+											{isVerifyingCode || isApplyingEmailChange ? 'Re-writing Identity Frames...' : 'Confirm Authentication Swap'}
 										</Button>
 									</div>
 								</div>
-							) : (
-								<div className="space-y-3">
-									<div>
-										<Label htmlFor="verificationCode" className="text-sm font-medium">6-Digit Verification Code</Label>
-										<Input
-											id="verificationCode"
-											inputMode="numeric"
-											maxLength={6}
-											value={verificationCode}
-											onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-											placeholder="123456"
-											className="mt-2 rounded-lg text-center text-lg tracking-widest"
-										/>
-									</div>
-									<p className="text-sm text-slate-500">Code sent to {newEmail}</p>
-									<div className="flex justify-between gap-2">
-										<Button variant="ghost" onClick={() => setEmailStep('email')} className="rounded-lg">Back</Button>
-										<div className="flex gap-2">
-											<Button variant="outline" onClick={closeEmailChangeDialog} className="rounded-lg">Cancel</Button>
-											<Button onClick={handleVerifyAndApplyEmailChange} disabled={isVerifyingCode || isApplyingEmailChange} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">
-												{isVerifyingCode || isApplyingEmailChange ? 'Updating…' : 'Verify & Update'}
-											</Button>
-										</div>
-									</div>
-								</div>
-							)}
-						</div>
-					</DialogContent>
-				</Dialog>
-			</main>
+							</div>
+						)}
+					</div>
+				</DialogContent>
+			</Dialog>
 		</DashboardLayout>
 	);
 }

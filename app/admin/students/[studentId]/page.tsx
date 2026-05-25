@@ -73,6 +73,9 @@ export default function AdminStudentPage() {
 	const [linkHasLegalCustody, setLinkHasLegalCustody] = useState(false);
 	const [linkCanPickup, setLinkCanPickup] = useState(true);
 	const [isLinkingParent, setIsLinkingParent] = useState(false);
+	const [isUnlinkConfirmOpen, setIsUnlinkConfirmOpen] = useState(false);
+	const [guardianToUnlink, setGuardianToUnlink] = useState<any | null>(null);
+	const [isUnlinkingParent, setIsUnlinkingParent] = useState(false);
 	const linkParentSearchRef = useRef<HTMLInputElement | null>(null);
 	const linkParentSearchAbortRef = useRef<AbortController | null>(null);
 	const [isDeleting, setIsDeleting] = useState(false);
@@ -475,6 +478,34 @@ export default function AdminStudentPage() {
 		void handleResetPassword();
 	}
 
+	async function handleUnlinkParent() {
+		if (!student || !guardianToUnlink) {
+			return;
+		}
+
+		try {
+			setIsUnlinkingParent(true);
+			const response = await fetch(`/api/admin/students/${student.id}/guardians?guardianId=${guardianToUnlink.id}`, {
+				method: 'DELETE',
+			});
+
+			const payload = await response.json();
+
+			if (!response.ok || !payload.success) {
+				throw new Error(payload.error || 'Failed to remove parent');
+			}
+
+			toast.success('Parent removed from student');
+			setIsUnlinkConfirmOpen(false);
+			setGuardianToUnlink(null);
+			await loadData();
+		} catch (error: any) {
+			toast.error(error.message || 'Failed to remove parent');
+		} finally {
+			setIsUnlinkingParent(false);
+		}
+	}
+
 	if (schoolLoading || loading) return (
 		<DashboardLayout role="admin"><div className="flex items-center justify-center h-96" role="status" aria-live="polite">Loading...</div></DashboardLayout>
 	);
@@ -558,7 +589,17 @@ export default function AdminStudentPage() {
 											<p className="text-xs text-slate-500">{g.relationship}</p>
 											<p className="text-sm mt-1">{g.email || '—'} · {g.phone || '—'}</p>
 										</div>
-										<div className="text-xs text-slate-400">{g.can_pickup ? 'Can pickup' : ''}</div>
+										<div className="flex flex-col items-end gap-2">
+											<div className="text-xs text-slate-400">{g.can_pickup ? 'Can pickup' : ''}</div>
+											<Button
+												variant="ghost"
+												size="sm"
+												className="h-8 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700"
+												onClick={() => { setGuardianToUnlink(g); setIsUnlinkConfirmOpen(true); }}
+											>
+												Remove
+											</Button>
+										</div>
 									</li>
 								))}
 							</ul>
@@ -677,6 +718,23 @@ export default function AdminStudentPage() {
 						</div>
 					</DialogContent>
 				</Dialog>
+
+				<AlertDialog open={isUnlinkConfirmOpen} onOpenChange={(open) => { setIsUnlinkConfirmOpen(open); if (!open) setGuardianToUnlink(null); }}>
+					<AlertDialogContent>
+						<AlertDialogHeader>
+							<AlertDialogTitle>Remove parent?</AlertDialogTitle>
+							<AlertDialogDescription>
+								This will unlink {guardianToUnlink?.name || 'this parent'} from {student.first_name} {student.last_name}.
+							</AlertDialogDescription>
+						</AlertDialogHeader>
+						<AlertDialogFooter>
+							<AlertDialogCancel>Cancel</AlertDialogCancel>
+							<AlertDialogAction onClick={handleUnlinkParent} disabled={isUnlinkingParent}>
+								{isUnlinkingParent ? 'Removing…' : 'Remove parent'}
+							</AlertDialogAction>
+						</AlertDialogFooter>
+					</AlertDialogContent>
+				</AlertDialog>
 
 				<Tabs defaultValue="attendance" className="w-full">
 					<TabsList className="grid w-full grid-cols-2">

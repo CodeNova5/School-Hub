@@ -17,18 +17,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  ArrowLeft, 
-  Loader2, 
-  Save, 
-  Layers, 
-  UserPlus, 
-  Hash, 
-  CheckCircle2, 
-  AlertCircle 
+import {
+  ArrowLeft,
+  Loader2,
+  Save,
+  Layers,
+  UserPlus,
+  Hash,
+  CheckCircle2,
+  AlertCircle,
+  Edit2,
+  X
 } from "lucide-react";
-import type { Subject, Class as SchoolClass, Teacher, ClassLevel } from "@/lib/types";
+import type { Subject, Class as SchoolClass, Teacher, ClassLevel, Department, Religion, EducationLevel } from "@/lib/types";
 import { generateUniqueSubjectCode } from "@/lib/subject-code-generator";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface SubjectClassAllocation {
   class_id: string;
@@ -49,6 +53,14 @@ export default function SubjectAllocationWorkspacePage() {
   const [subject, setSubject] = useState<Subject | null>(null);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [targetClasses, setTargetClasses] = useState<SchoolClass[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [religions, setReligions] = useState<Religion[]>([]);
+  const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
+
+  /* ── Edit Form States ── */
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<Subject>>({});
+  const [savingSubject, setSavingSubject] = useState(false);
   
   /* ── Operational Matrix State ── */
   const [allocations, setAllocations] = useState<Record<string, SubjectClassAllocation>>({});
@@ -76,14 +88,36 @@ export default function SubjectAllocationWorkspacePage() {
 
       if (subError || !subjectData) throw new Error("Master subject not found.");
       setSubject(subjectData as Subject);
+      setEditFormData(subjectData as Subject);
 
-      // 2. Fetch Teachers for assignments
-      const { data: teacherData } = await supabase
-        .from("teachers")
-        .select("id, first_name, last_name, staff_id")
-        .eq("school_id", schoolId)
-        .order("first_name", { ascending: true });
-      setTeachers((teacherData ?? []) as Teacher[]);
+      // 2. Fetch Teachers, Departments, Religions, and Education Levels
+      const [teacherRes, deptRes, religionRes, levelRes] = await Promise.all([
+        supabase
+          .from("teachers")
+          .select("id, first_name, last_name, staff_id")
+          .eq("school_id", schoolId)
+          .order("first_name", { ascending: true }),
+        supabase
+          .from("departments")
+          .select("*")
+          .eq("school_id", schoolId)
+          .order("name", { ascending: true }),
+        supabase
+          .from("religions")
+          .select("*")
+          .eq("school_id", schoolId)
+          .order("name", { ascending: true }),
+        supabase
+          .from("education_levels")
+          .select("*")
+          .eq("school_id", schoolId)
+          .order("order_sequence", { ascending: true })
+      ]);
+
+      setTeachers((teacherRes.data ?? []) as Teacher[]);
+      setDepartments((deptRes.data ?? []) as Department[]);
+      setReligions((religionRes.data ?? []) as Religion[]);
+      setEducationLevels((levelRes.data ?? []) as EducationLevel[]);
 
       // 3. Find structural track matches (Class Levels targeting this education level)
       const { data: levelData } = await supabase
@@ -203,6 +237,47 @@ export default function SubjectAllocationWorkspacePage() {
       return updated;
     });
     toast.success("Applied tutor macro routing overrides across active selections");
+  };
+
+  const handleEditFormChange = (field: string, value: any) => {
+    setEditFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const saveSubjectChanges = async () => {
+    if (!schoolId || !subject) return;
+
+    setSavingSubject(true);
+    try {
+      const { error } = await supabase
+        .from("subjects")
+        .update({
+          name: editFormData.name,
+          education_level_id: editFormData.education_level_id,
+          department_id: editFormData.department_id,
+          religion_id: editFormData.religion_id,
+          is_optional: editFormData.is_optional,
+        })
+        .eq("id", subject.id)
+        .eq("school_id", schoolId);
+
+      if (error) throw error;
+
+      setSubject(editFormData as Subject);
+      setIsEditing(false);
+      toast.success("Subject details updated successfully");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update subject");
+    } finally {
+      setSavingSubject(false);
+    }
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditFormData(subject || {});
   };
 
   /* ═══════════════════════════════════════
@@ -330,6 +405,160 @@ export default function SubjectAllocationWorkspacePage() {
             </div>
           </div>
         </div>
+
+        {/* Subject Edit Form Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle>Subject Configuration</CardTitle>
+              <CardDescription>Edit master subject properties</CardDescription>
+            </div>
+            {!isEditing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(true)}
+                className="gap-2"
+              >
+                <Edit2 className="h-4 w-4" />
+                Edit
+              </Button>
+            )}
+          </CardHeader>
+
+          <CardContent>
+            {!isEditing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Subject Title</span>
+                  <p className="text-sm font-medium">{subject?.name}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Education Level</span>
+                  <p className="text-sm font-medium">{subject?.education_level?.name || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Department</span>
+                  <p className="text-sm font-medium">{subject?.department?.name || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Religious Alignment</span>
+                  <p className="text-sm font-medium">{subject?.religion?.name || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Classification</span>
+                  <p className="text-sm font-medium">{subject?.is_optional ? "🟠 Elective" : "🔵 Mandatory"}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Subject Title *</label>
+                    <Input
+                      value={editFormData.name || ""}
+                      onChange={(e) => handleEditFormChange("name", e.target.value)}
+                      placeholder="e.g. Agricultural Science"
+                      className="h-9"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Education Level</label>
+                    <Select
+                      value={editFormData.education_level_id || ""}
+                      onValueChange={(value) => handleEditFormChange("education_level_id", value || null)}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select education level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {educationLevels.map((level) => (
+                          <SelectItem key={level.id} value={level.id}>
+                            {level.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
+                    <Select
+                      value={editFormData.department_id || ""}
+                      onValueChange={(value) => handleEditFormChange("department_id", value || null)}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Religious Alignment</label>
+                    <Select
+                      value={editFormData.religion_id || ""}
+                      onValueChange={(value) => handleEditFormChange("religion_id", value || null)}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Select religion" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">None</SelectItem>
+                        {religions.map((religion) => (
+                          <SelectItem key={religion.id} value={religion.id}>
+                            {religion.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                  <Switch
+                    checked={editFormData.is_optional || false}
+                    onCheckedChange={(checked) => handleEditFormChange("is_optional", checked)}
+                  />
+                  <div>
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block">Elective Designation</span>
+                    <span className="text-xs text-muted-foreground">Is this subject optional for student pathways?</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={cancelEdit}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={saveSubjectChanges}
+                    disabled={savingSubject}
+                    className="gap-2"
+                  >
+                    {savingSubject ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Global Action Macro Bar */}
         <div className="bg-muted/40 border rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">

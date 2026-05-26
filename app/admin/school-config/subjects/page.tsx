@@ -121,7 +121,7 @@ export default function SubjectManagementPage() {
   const [spForm, setSpForm] = useState(blankSubjectPreset());
   const [selectedPresetLevelId, setSelectedPresetLevelId] = useState<string>("");
   const [loadDefaultsConfirmOpen, setLoadDefaultsConfirmOpen] = useState(false);
-  const [subjectTabValue, setSubjectTabValue] = useState("operational");
+  const [subjectTabValue, setSubjectTabValue] = useState("presets");
 
   /* ── Bulk Creation Dialog State ── */
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
@@ -700,13 +700,41 @@ export default function SubjectManagementPage() {
 
         {/* ── Configuration Context Subtabs ── */}
         <Tabs value={subjectTabValue} onValueChange={setSubjectTabValue} className="w-full">
-          <TabsList className="grid w-full max-w-[400px] grid-cols-2">
-            <TabsTrigger value="operational">Operational Catalog</TabsTrigger>
-            <TabsTrigger value="presets">Level Presets</TabsTrigger>
-          </TabsList>
+          {/* ── Progressive Architecture Tabs Indicator ── */}
+          <div className="mb-2">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2 p-1 bg-muted/60 rounded-xl">
+              <TabsTrigger
+                value="presets"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2"
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted-foreground/20 text-xs font-bold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                  1
+                </span>
+                Level Presets <span className="text-xs text-muted-foreground font-normal">(Setup Blueprint)</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="operational"
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5 text-sm font-medium transition-all flex items-center justify-center gap-2"
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted-foreground/20 text-xs font-bold">
+                  2
+                </span>
+                Operational Catalog <span className="text-xs text-muted-foreground font-normal">(Live Master List)</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* ══════════════════════════════════════ TAB COMPONENT: OPERATIONAL CATALOG ══════════════════════════════════════ */}
           <TabsContent value="operational" className="space-y-4 mt-4">
+            <div className="bg-blue-50/40 border border-blue-200/60 rounded-xl p-4 mb-4 flex gap-3 items-start">
+              <Library className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="text-sm font-semibold text-blue-900">Step 2: Deploy & Allocate Master Catalog</h4>
+                <p className="text-xs text-blue-700/90 mt-0.5 leading-relaxed">
+                  This is your school's live inventory of active subjects. From here, you can propagate master parameters down to actual physical classrooms by clicking <strong>"Assign Classes"</strong>, generating unique tracking codes contextually.
+                </p>
+              </div>
+            </div>
             
             {/* Filter controls row */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-card p-4 rounded-xl border">
@@ -866,6 +894,15 @@ export default function SubjectManagementPage() {
 
           {/* ══════════════════════════════════════ TAB COMPONENT: LEVEL PRESETS ══════════════════════════════════════ */}
           <TabsContent value="presets" className="mt-4">
+            <div className="bg-amber-50/50 border border-amber-200/60 rounded-xl p-4 mb-4 flex gap-3 items-start">
+              <Sparkles className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <h4 className="text-sm font-semibold text-amber-900">Step 1: Define Your Level Blueprints</h4>
+                <p className="text-xs text-amber-700/90 mt-0.5 leading-relaxed">
+                  Configure the required curriculum templates for each educational track. Use <strong>"Load Standards"</strong> to instantly populate standard Nigerian tracks. Presets defined here serve as structural rules when manufacturing your operational data.
+                </p>
+              </div>
+            </div>
             <div className="rounded-xl border bg-card overflow-hidden">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-b bg-muted/30">
                 <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -1105,8 +1142,15 @@ export default function SubjectManagementPage() {
                   <div className="border rounded-xl divide-y">
                     {applyClassesForTarget.map((c) => {
                       const isSelected = selectedClassIds.includes(c.id);
+                      const codePreview = applyTargetSubject?.name
+                        ? `${applyTargetSubject.name.substring(0, 3).toUpperCase()}-${c.name.replace(/\s+/g, "")}`
+                        : "AUTO-GEN";
+
                       return (
-                        <div key={c.id} className="flex items-center justify-between p-3 gap-4 hover:bg-muted/10">
+                        <div
+                          key={c.id}
+                          className={`flex items-center justify-between p-3.5 gap-4 border rounded-xl transition-all ${isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/10"}`}
+                        >
                           <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
@@ -1119,15 +1163,20 @@ export default function SubjectManagementPage() {
                                   setSelectedClassIds(selectedClassIds.filter((id) => id !== c.id));
                                 }
                               }}
-                              className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                              className="h-4 w-4 rounded border-gray-300 accent-primary text-primary focus:ring-primary"
                             />
-                            <Label htmlFor={`chk-${c.id}`} className="font-medium cursor-pointer">
-                              {c.name}
-                            </Label>
+                            <div>
+                              <Label htmlFor={`chk-${c.id}`} className="block cursor-pointer text-sm font-semibold">
+                                {c.name}
+                              </Label>
+                              <span className="text-[11px] text-muted-foreground">
+                                Code strategy: <code className="rounded bg-muted px-1 py-0.5 text-[10px]">{codePreview}</code>
+                              </span>
+                            </div>
                           </div>
 
-                          {isSelected && (
-                            <div className="w-[240px]">
+                          {isSelected ? (
+                            <div className="w-[240px] animate-in fade-in slide-in-from-right-1 duration-150">
                               <Select
                                 value={teacherByClassId[c.id] || "unassigned"}
                                 onValueChange={(val) =>
@@ -1137,7 +1186,7 @@ export default function SubjectManagementPage() {
                                   })
                                 }
                               >
-                                <SelectTrigger className="h-8 text-xs">
+                                <SelectTrigger className="h-8 text-xs border-primary/30">
                                   <SelectValue placeholder="Assign Tutor" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1150,6 +1199,8 @@ export default function SubjectManagementPage() {
                                 </SelectContent>
                               </Select>
                             </div>
+                          ) : (
+                            <span className="px-2 text-xs italic text-muted-foreground">Not participating</span>
                           )}
                         </div>
                       );

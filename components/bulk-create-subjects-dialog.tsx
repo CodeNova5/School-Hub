@@ -20,7 +20,10 @@ import { generateUniqueSubjectCode } from "@/lib/subject-code-generator";
 
 interface BulkCreateSubjectsProps {
   schoolId: string;
-  onSuccess: () => void;
+  onSuccess?: () => void;
+  onComplete?: () => void;
+  onClose?: () => void;
+  open?: boolean;
   educationLevels: EducationLevel[];
   departments: Department[];
   religions: Religion[];
@@ -41,6 +44,9 @@ type WizardStep = "level" | "subjects" | "teachers" | "confirm";
 export function BulkCreateSubjectsDialog({
   schoolId,
   onSuccess,
+  onComplete,
+  onClose,
+  open,
   educationLevels,
   departments,
   religions,
@@ -303,7 +309,8 @@ export function BulkCreateSubjectsDialog({
           `${createdCount} subject${createdCount !== 1 ? "s" : ""} created successfully`
         );
         handleClose();
-        onSuccess();
+        onSuccess && onSuccess();
+        onComplete && onComplete();
       }
 
       if (failedSubjects.length > 0) {
@@ -318,7 +325,11 @@ export function BulkCreateSubjectsDialog({
   }
 
   function handleClose() {
-    setIsOpen(false);
+    if (onClose) {
+      onClose();
+    } else {
+      setIsOpen(false);
+    }
     setCurrentStep("level");
     setSelectedEducationLevelId("");
     setSubjectsToCreate([]);
@@ -344,6 +355,19 @@ export function BulkCreateSubjectsDialog({
     }
   }
 
+  // Support controlled `open` prop while remaining uncontrolled by default
+  const controlledOpen = open !== undefined ? open : isOpen;
+  function handleOpenChange(next: boolean) {
+    if (open !== undefined) {
+      // If parent controls open, notify onClose when closing
+      if (!next) {
+        onClose && onClose();
+      }
+    } else {
+      setIsOpen(next);
+    }
+  }
+
   function updateSubjectTeacher(subjectId: string, teacherId: string) {
     setSubjectsToCreate(
       subjectsToCreate.map((s) =>
@@ -353,13 +377,15 @@ export function BulkCreateSubjectsDialog({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300">
-          <Zap className="mr-2 h-5 w-5" />
-          Bulk Create Subjects
-        </Button>
-      </DialogTrigger>
+    <Dialog open={controlledOpen} onOpenChange={handleOpenChange}>
+      {open === undefined && (
+        <DialogTrigger asChild>
+          <Button className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white px-6 py-2 rounded-lg shadow-lg hover:shadow-xl transition-all duration-300">
+            <Zap className="mr-2 h-5 w-5" />
+            Bulk Create Subjects
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="max-h-[90vh] overflow-y-auto border-0 shadow-2xl max-w-3xl">
         <DialogHeader>

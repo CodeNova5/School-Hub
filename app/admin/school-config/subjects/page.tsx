@@ -1288,16 +1288,19 @@ export default function SubjectManagementPage() {
         </AlertDialog>
 
         {/* ── Bulk Management Context ── */}
-        {bulkDialogOpen && (
-          <BulkCreateSubjectsDialog
-            open={bulkDialogOpen}
-            onClose={() => setBulkDialogOpen(false)}
-            onComplete={() => {
-              fetchOperationalSubjects();
-              fetchSubjectPresets();
-            }}
-          />
-        )}
+        <BulkCreateSubjectsDialog
+          schoolId={schoolId!}
+          open={bulkDialogOpen}
+          onClose={() => setBulkDialogOpen(false)}
+          onComplete={() => {
+            fetchOperationalSubjects();
+            fetchSubjectPresets();
+          }}
+          educationLevels={educationLevels}
+          departments={departments}
+          religions={religions}
+          teachers={teachers}
+        />
 
       </div>
     </DashboardLayout>

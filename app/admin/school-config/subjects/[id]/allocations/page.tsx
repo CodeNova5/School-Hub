@@ -255,9 +255,9 @@ export default function SubjectAllocationWorkspacePage() {
         .from("subjects")
         .update({
           name: editFormData.name,
-          education_level_id: editFormData.education_level_id,
-          department_id: editFormData.department_id,
-          religion_id: editFormData.religion_id,
+          education_level_id: editFormData.education_level_id === "none" ? null : editFormData.education_level_id,
+          department_id: editFormData.department_id === "none" ? null : editFormData.department_id,
+          religion_id: editFormData.religion_id === "none" ? null : editFormData.religion_id,
           is_optional: editFormData.is_optional,
         })
         .eq("id", subject.id)
@@ -466,14 +466,14 @@ export default function SubjectAllocationWorkspacePage() {
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Education Level</label>
                     <Select
-                      value={editFormData.education_level_id || ""}
-                      onValueChange={(value) => handleEditFormChange("education_level_id", value || null)}
+                      value={editFormData.education_level_id || "none"}
+                      onValueChange={(value) => handleEditFormChange("education_level_id", value === "none" ? null : value)}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select education level" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {educationLevels.map((level) => (
                           <SelectItem key={level.id} value={level.id}>
                             {level.name}
@@ -486,14 +486,14 @@ export default function SubjectAllocationWorkspacePage() {
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</label>
                     <Select
-                      value={editFormData.department_id || ""}
-                      onValueChange={(value) => handleEditFormChange("department_id", value || null)}
+                      value={editFormData.department_id || "none"}
+                      onValueChange={(value) => handleEditFormChange("department_id", value === "none" ? null : value)}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {departments.map((dept) => (
                           <SelectItem key={dept.id} value={dept.id}>
                             {dept.name}
@@ -506,14 +506,14 @@ export default function SubjectAllocationWorkspacePage() {
                   <div className="space-y-2">
                     <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Religious Alignment</label>
                     <Select
-                      value={editFormData.religion_id || ""}
-                      onValueChange={(value) => handleEditFormChange("religion_id", value || null)}
+                      value={editFormData.religion_id || "none"}
+                      onValueChange={(value) => handleEditFormChange("religion_id", value === "none" ? null : value)}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue placeholder="Select religion" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="none">None</SelectItem>
                         {religions.map((religion) => (
                           <SelectItem key={religion.id} value={religion.id}>
                             {religion.name}

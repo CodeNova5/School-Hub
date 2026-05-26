@@ -104,7 +104,7 @@ const LEVEL_SUBJECTS = {
     // Core Subjects
     { name: "English Language" },
     { name: "General Mathematics" },
-    { name: "Citizenship and Heritage Studies" },
+    { name: "Civic Education" },
     { name: "Digital Technologies" },
 
 

@@ -81,7 +81,7 @@ export default function SubjectAllocationWorkspacePage() {
       // 1. Fetch Master Subject details
       const { data: subjectData, error: subError } = await supabase
         .from("subjects")
-        .select("*")
+        .select("*, education_level:school_education_levels(*), department:school_departments(*), religion:school_religions(*)")
         .eq("id", subjectId)
         .eq("school_id", schoolId)
         .single();
@@ -265,8 +265,8 @@ export default function SubjectAllocationWorkspacePage() {
 
       if (error) throw error;
 
-      setSubject(editFormData as Subject);
       setIsEditing(false);
+      await initializeWorkspace();
       toast.success("Subject details updated successfully");
     } catch (err: any) {
       toast.error(err?.message || "Failed to update subject");

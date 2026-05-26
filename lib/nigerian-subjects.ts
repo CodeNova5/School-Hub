@@ -13,23 +13,42 @@ export interface PredefinedSubject {
   isOptional?: boolean;
 }
 
+function normalizeSubjectName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function subjectMatches(subjectName: string, candidates: string[]): boolean {
+  const normalizedSubjectName = normalizeSubjectName(subjectName);
+  return candidates.some(
+    (candidate) => normalizeSubjectName(candidate) === normalizedSubjectName
+  );
+}
+
 // Subject categories for intelligent department/category mapping
 export const SUBJECT_CATEGORIES = {
-  science: ["Physics", "Chemistry", "Biology", "Integrated Science", "Basic Science", "Further Mathematics"],
-  arts: ["Literature in English", "French Language", "Arabic Language", "Technical Drawing"],
-  social: ["History", "Geography", "Economics", "Government", "Civic Education", "Social Studies"],
-  language: ["English Language", "French Language", "Arabic Language"],
-  practical: [
-    "Physical Education",
-    "Computer Studies",
+  science: [
+    "Physics",
+    "Chemistry",
+    "Biology",
+    "Integrated Science",
+    "Basic Science",
+    "Further Mathematics",
     "Agricultural Science",
-    "Home Economics",
-    "Music",
-    "Visual Arts",
-    "Art & Craft",
-    "Technical Drawing",
+    "Health Education",
+    "Foods & Nutrition",
   ],
-  religion: ["Religious Studies"],
+  arts: [
+    "Literature in English",
+    "French Language",
+    "Arabic Language",
+    "Technical Drawing",
+    "Visual Arts",
+    "Music",
+    "Home Management",
+    "Catering Craft",
+  ],
+  commercial: ["Accounting", "Commerce", "Marketing", "Business Studies"],
+  religion: ["Christian Religious Studies", "Islamic Religious Studies"],
 };
 
 // Core predefined subjects organized by standard Nigerian level types
@@ -47,80 +66,74 @@ const LEVEL_SUBJECTS = {
   ],
 
   primary: [
-    { name: "English Language" },
+    { name: "English Studies" },
     { name: "Mathematics" },
-    { name: "Social Studies" },
+    { name: "Yoruba" },
+    { name: "Social and Citizenship Studies" },
     { name: "Basic Science" },
-    { name: "Physical Education" },
-    { name: "National Values Education" },
-    { name: "Agricultural Science" },
-    { name: "Computer Studies" },
-    { name: "Music" },
-    { name: "Chess" },
-    { name: "Visual Arts" },
+    { name: "Physical & Health Education" },
+    { name: "Pre-vocational Studies" },
+    { name: "Nigerian History" },
+    { name: "Basic Digital Literacy" },
+    { name: "Cultural & Creative Arts" },
     { name: "Christian Religious Studies" },
     { name: "Islamic Religious Studies" },
-    { name: "French Language" },
-    { name: "Arabic Language" },
+    { name: "French Language", isOptional: true },
+    { name: "Arabic Language", isOptional: true },
   ],
 
   jss: [
     { name: "English Language" },
     { name: "Mathematics" },
-    { name: "Basic Science" },
-    { name: "Social Studies" },
-    { name: "History" },
-    { name: "Geography" },
-    { name: "Civic Education" },
-    { name: "PHE" },
-    { name: "Music" },
-    { name: "Visual Arts" },
-    { name: "French Language" },
-    { name: "Arabic Language" },
+    { name: "Yoruba" },
+    { name: "Intermediate Science" },
+    { name: "Physical & Health Education" },
+    { name: "Digital Technologies" },
     { name: "Christian Religious Studies" },
     { name: "Islamic Religious Studies" },
-    { name: "Computer Studies" },
-    { name: "Art & Craft" },
-    { name: "Data Processing" },
-    { name: "Chess" },
-    { name: "Agricultural Science" },
-    { name: "Home Economics" },
-    { name: "Business Studies" },
-    { name: "Technical Drawing" },
+    { name: "Social and Citizenship Studies" },
+    { name: "Nigerian History" },
+    { name: "Cultural & Creative Arts" },
+    { name: "Trade subjects" },
+     { name: "Business Studies" },
+    { name: "French Language", isOptional: true },
+    { name: "Arabic Language", isOptional: true }
   ],
 
   sss: [
     // Core Subjects
     { name: "English Language" },
-    { name: "Mathematics" },
-    { name: "Physical Education" },
-    { name: "Civic Education" },
+    { name: "General Mathematics" },
+    { name: "Citizenship and Heritage Studies" },
+    { name: "Digital Technologies" },
+
 
     // Science Subjects
     { name: "Physics" },
     { name: "Chemistry" },
     { name: "Biology" },
     { name: "Further Mathematics" },
+    { name: "Agricultural Science" },
+    { name: "Health Education" },
+    { name: "Foods & Nutrition" },
+    { name: "Technical Drawing" },
 
-    // Social Sciences
-    { name: "History" },
-    { name: "Geography" },
-    { name: "Economics" },
-    { name: "Government" },
-    
+
     // Arts & Humanities
     { name: "Literature in English" },
     { name: "French Language" },
     { name: "Arabic Language" },
-    { name: "Technical Drawing" },
-
-    // Electives & Optional
-    { name: "Computer Studies" },
-    { name: "Agricultural Science" },
-    { name: "Music" },
     { name: "Visual Arts" },
-    { name: "Business Studies" },
-    { name: "Chess" },
+    { name: "Music" },
+    { name: "Home Economics" },
+    { name: "Home Management" },
+    { name: "Catering Craft" },
+    { name: "One Nigerian Language", isOptional: true },
+
+    // Business Subjects
+    { name: "Accounting" },
+    { name: "Commerce" },
+    { name: "Marketing" },
 
     // Religious Studies
     { name: "Christian Religious Studies" },
@@ -196,7 +209,12 @@ function detectReligionType(subjectName: string): "christian" | "islamic" | null
   if (lower.includes("christian") || lower.includes("crs")) {
     return "christian";
   }
-  if (lower.includes("islamic") || lower.includes("irs") || lower.includes("muslim")) {
+  if (
+    lower.includes("islamic") ||
+    lower.includes("irs") ||
+    lower.includes("muslim") ||
+    lower.includes("islam")
+  ) {
     return "islamic";
   }
   return null;
@@ -218,7 +236,7 @@ export function getSmartDepartmentId(
   // Find category for this subject
   let subjectCategory: string | null = null;
   for (const [category, subjects] of Object.entries(SUBJECT_CATEGORIES)) {
-    if (subjects.includes(subjectName)) {
+    if (subjectMatches(subjectName, subjects)) {
       subjectCategory = category;
       break;
     }
@@ -230,7 +248,8 @@ export function getSmartDepartmentId(
   const categoryKeywords: Record<string, string[]> = {
     science: ["science", "stem", "stem education", "pure science"],
     arts: ["arts", "humanities", "literature", "english", "language", "social arts"],
-    social: ["social", "social science", "social studies", "humanities", "commercial"],
+    business: ["business", "commercial", "accounting", "commerce", "marketing", "economics"],
+    practical: ["technical", "vocational", "practical", "trade", "stem", "technology"],
   };
 
   const keywords = categoryKeywords[subjectCategory] || [];
@@ -343,7 +362,14 @@ export function validateReligionSubject(
  * Identifies if a subject is religion-specific
  */
 export function isReligionSubject(subjectName: string): boolean {
-  return subjectName.toLowerCase().includes("religious");
+  const lower = subjectName.toLowerCase();
+  return (
+    lower.includes("christian") ||
+    lower.includes("islamic") ||
+    lower.includes("crs") ||
+    lower.includes("irs") ||
+    lower.includes("religious studies")
+  );
 }
 
 /**

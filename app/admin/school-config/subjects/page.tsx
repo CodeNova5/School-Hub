@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -85,7 +84,6 @@ const blankOperationalSubject = () => ({
 ───────────────────────────────────────────── */
 export default function SubjectManagementPage() {
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
-  const router = useRouter();
 
   /* ── Structural Dependencies States ── */
   const [educationLevels, setEducationLevels] = useState<EducationLevel[]>([]);
@@ -859,7 +857,7 @@ export default function SubjectManagementPage() {
                                   variant="outline"
                                   size="sm"
                                   className="h-7 text-xs px-2"
-                                  onClick={() => router.push(`/admin/school-config/subjects/${subject.id}/allocations`)}
+                                  onClick={() => openApplyDialog(subject)}
                                 >
                                   Assign Classes
                                 </Button>

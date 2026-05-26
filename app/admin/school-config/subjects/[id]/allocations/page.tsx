@@ -98,17 +98,17 @@ export default function SubjectAllocationWorkspacePage() {
           .eq("school_id", schoolId)
           .order("first_name", { ascending: true }),
         supabase
-          .from("departments")
+          .from("school_departments")
           .select("*")
           .eq("school_id", schoolId)
           .order("name", { ascending: true }),
         supabase
-          .from("religions")
+          .from("school_religions")
           .select("*")
           .eq("school_id", schoolId)
           .order("name", { ascending: true }),
         supabase
-          .from("education_levels")
+          .from("school_education_levels")
           .select("*")
           .eq("school_id", schoolId)
           .order("order_sequence", { ascending: true })

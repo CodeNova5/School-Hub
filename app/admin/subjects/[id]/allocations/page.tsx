@@ -7,17 +7,9 @@ import { useSchoolContext } from "@/hooks/use-school-context";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -55,20 +47,8 @@ export default function SubjectAllocationWorkspacePage() {
 
   /* ── Metadata States ── */
   const [subject, setSubject] = useState<Subject | null>(null);
-  const [educationLevels, setEducationLevels] = useState<{ id: string; name: string }[]>([]);
-  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
-  const [religions, setReligions] = useState<{ id: string; name: string }[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [targetClasses, setTargetClasses] = useState<SchoolClass[]>([]);
-  const [subjectEditDialogOpen, setSubjectEditDialogOpen] = useState(false);
-  const [subjectEditSaving, setSubjectEditSaving] = useState(false);
-  const [subjectEditForm, setSubjectEditForm] = useState({
-    name: "",
-    education_level_id: "",
-    department_id: "",
-    religion_id: "",
-    is_optional: false,
-  });
   
   /* ── Operational Matrix State ── */
   const [allocations, setAllocations] = useState<Record<string, SubjectClassAllocation>>({});
@@ -96,36 +76,6 @@ export default function SubjectAllocationWorkspacePage() {
 
       if (subError || !subjectData) throw new Error("Master subject not found.");
       setSubject(subjectData as Subject);
-      
-      setSubjectEditForm({
-        name: subjectData.name || "",
-        education_level_id: subjectData.education_level_id || "",
-        department_id: subjectData.department_id || "",
-        religion_id: subjectData.religion_id || "",
-        is_optional: Boolean(subjectData.is_optional),
-      });
-
-      const [levelResult, departmentResult, religionResult] = await Promise.all([
-        supabase
-          .from("school_education_levels")
-          .select("id, name")
-          .eq("school_id", schoolId)
-          .order("order_sequence", { ascending: true }),
-        supabase
-          .from("school_departments")
-          .select("id, name")
-          .eq("school_id", schoolId)
-          .order("name", { ascending: true }),
-        supabase
-          .from("school_religions")
-          .select("id, name")
-          .eq("school_id", schoolId)
-          .order("name", { ascending: true }),
-      ]);
-
-      setEducationLevels((levelResult.data ?? []) as { id: string; name: string }[]);
-      setDepartments((departmentResult.data ?? []) as { id: string; name: string }[]);
-      setReligions((religionResult.data ?? []) as { id: string; name: string }[]);
 
       // 2. Fetch Teachers for assignments
       const { data: teacherData } = await supabase
@@ -317,64 +267,6 @@ export default function SubjectAllocationWorkspacePage() {
     }
   };
 
-  function openSubjectEditDialog() {
-    if (!subject) return;
-
-    setSubjectEditForm({
-      name: subject.name || "",
-      education_level_id: subject.education_level_id || "",
-      department_id: subject.department_id || "",
-      religion_id: subject.religion_id || "",
-      is_optional: Boolean(subject.is_optional),
-    });
-    setSubjectEditDialogOpen(true);
-  }
-
-  async function saveSubjectDetails(e: React.FormEvent) {
-    e.preventDefault();
-    if (!schoolId || !subject) return;
-
-    const payload = {
-      name: subjectEditForm.name.trim(),
-      education_level_id: subjectEditForm.education_level_id || null,
-      department_id: subjectEditForm.department_id || null,
-      religion_id: subjectEditForm.religion_id || null,
-      is_optional: subjectEditForm.is_optional,
-    };
-
-    if (!payload.name) {
-      toast.error("Subject name is required");
-      return;
-    }
-
-    if (!payload.education_level_id) {
-      toast.error("Education level is required");
-      return;
-    }
-
-    setSubjectEditSaving(true);
-    try {
-      const { data, error } = await supabase
-        .from("subjects")
-        .update(payload)
-        .eq("id", subject.id)
-        .eq("school_id", schoolId)
-        .select("*")
-        .single();
-
-      if (error) throw error;
-
-      setSubject(data as Subject);
-      setSubjectEditDialogOpen(false);
-      toast.success("Master subject updated");
-      initializeWorkspace();
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to update master subject");
-    } finally {
-      setSubjectEditSaving(false);
-    }
-  }
-
   /* ── Guarding Parent Lifecycle Layouts ── */
   if (schoolLoading || pageLoading) {
     return (
@@ -395,25 +287,14 @@ export default function SubjectAllocationWorkspacePage() {
         
         {/* Workspace Back Link Action Bar */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => router.push("/admin/subjects")}
-              className="gap-1.5 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-4 w-4" /> Back to Subject Catalog
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openSubjectEditDialog}
-              disabled={!subject}
-              className="gap-1.5"
-            >
-              Edit Master Subject
-            </Button>
-          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => router.push("/admin/subjects")}
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" /> Back to Subject Catalog
+          </Button>
           {trackingModifiedCount > 0 && (
             <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 animate-bounce">
               ⚠️ {trackingModifiedCount} Unsaved allocation edits pending
@@ -478,108 +359,6 @@ export default function SubjectAllocationWorkspacePage() {
             Publish Allocations Tracking Matrix
           </Button>
         </div>
-
-        <Dialog open={subjectEditDialogOpen} onOpenChange={setSubjectEditDialogOpen}>
-          <DialogContent>
-            <form onSubmit={saveSubjectDetails}>
-              <DialogHeader>
-                <DialogTitle>Edit Master Subject</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-1">
-                  <Label htmlFor="subject-edit-name">Subject Name</Label>
-                  <Input
-                    id="subject-edit-name"
-                    value={subjectEditForm.name}
-                    onChange={(e) => setSubjectEditForm({ ...subjectEditForm, name: e.target.value })}
-                    placeholder="e.g. Agricultural Science"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="subject-edit-level">Education Level</Label>
-                    <Select
-                      value={subjectEditForm.education_level_id}
-                      onValueChange={(val) => setSubjectEditForm({ ...subjectEditForm, education_level_id: val })}
-                    >
-                      <SelectTrigger id="subject-edit-level">
-                        <SelectValue placeholder="Select level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {educationLevels.map((level) => (
-                          <SelectItem key={level.id} value={level.id}>
-                            {level.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="subject-edit-department">Department</Label>
-                    <Select
-                      value={subjectEditForm.department_id}
-                      onValueChange={(val) => setSubjectEditForm({ ...subjectEditForm, department_id: val })}
-                    >
-                      <SelectTrigger id="subject-edit-department">
-                        <SelectValue placeholder="General (None)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">General (None)</SelectItem>
-                        {departments.map((department) => (
-                          <SelectItem key={department.id} value={department.id}>
-                            {department.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <Label htmlFor="subject-edit-religion">Religion</Label>
-                  <Select
-                    value={subjectEditForm.religion_id}
-                    onValueChange={(val) => setSubjectEditForm({ ...subjectEditForm, religion_id: val })}
-                  >
-                    <SelectTrigger id="subject-edit-religion">
-                      <SelectValue placeholder="None (Secular)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">None (Secular)</SelectItem>
-                      {religions.map((religion) => (
-                        <SelectItem key={religion.id} value={religion.id}>
-                          {religion.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <div className="space-y-0.5">
-                    <Label>Optional Subject</Label>
-                    <p className="text-xs text-muted-foreground">Mark this subject as elective or compulsory.</p>
-                  </div>
-                  <Switch
-                    checked={subjectEditForm.is_optional}
-                    onCheckedChange={(checked) => setSubjectEditForm({ ...subjectEditForm, is_optional: checked })}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setSubjectEditDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={subjectEditSaving}>
-                  {subjectEditSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Subject
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
 
         {/* Allocations Matrix Grid Layout */}
         <div className="border rounded-2xl bg-card overflow-hidden">

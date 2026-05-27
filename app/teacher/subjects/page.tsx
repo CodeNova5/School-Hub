@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Subject, Class, Teacher } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { Search, BookOpen, Users, User as UserIcon } from 'lucide-react';
+import { Search, BookOpen, User as UserIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCurrentUser, getTeacherByUserId } from '@/lib/auth';
 import { useSchoolContext } from '@/hooks/use-school-context';

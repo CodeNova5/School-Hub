@@ -164,6 +164,7 @@ export function Sidebar({
     { href: "/teacher/students", label: "Students", icon: <Users className="h-5 w-5" /> },
     { href: "/teacher/ai-assistant", label: "AI Assistant", icon: <Sparkles className="h-5 w-5" /> },
     { href: "/teacher/subjects", label: "Subjects", icon: <BookOpen className="h-5 w-5" /> },
+    { href: "/teacher/question-bank", label: "Question Bank", icon: <ClipboardList className="h-5 w-5" /> },
     { href: "/teacher/live-classes", label: "Live Classes", icon: <Radio className="h-5 w-5" /> },
     { href: "/teacher/results", label: "Results", icon: <GraduationCap className="h-5 w-5" /> },
     { href: "/teacher/assignments", label: "Assignments", icon: <FileText className="h-5 w-5" /> },

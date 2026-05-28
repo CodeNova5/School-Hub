@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -126,11 +127,47 @@ export default function TeacherQuestionBankPage() {
     void loadContext();
   }, []);
 
+  // Shallow routing: keep tab state bookmarkable via ?tab=...&bank=...
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'banks' | 'topics' | 'generate' | 'questions'>('banks');
+
+  useEffect(() => {
+    const tab = searchParams?.get('tab');
+    if (tab === 'banks' || tab === 'topics' || tab === 'generate' || tab === 'questions') {
+      setActiveTab(tab);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function changeTab(tab: typeof activeTab) {
+    setActiveTab(tab);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      if (selectedBankId) url.searchParams.set('bank', selectedBankId);
+      else url.searchParams.delete('bank');
+      router.replace(window.location.pathname + url.search);
+    } catch (err) {
+      // fallback: router.replace with a minimal query
+      const q = `?tab=${tab}${selectedBankId ? `&bank=${selectedBankId}` : ''}`;
+      router.replace(window.location.pathname + q);
+    }
+  }
+
   useEffect(() => {
     if (selectedBankId) {
       void loadBankQuestions(selectedBankId);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('bank', selectedBankId);
+        url.searchParams.set('tab', activeTab);
+        router.replace(window.location.pathname + url.search);
+      } catch (err) {
+        router.replace(window.location.pathname + `?tab=${activeTab}&bank=${selectedBankId}`);
+      }
     }
-  }, [selectedBankId]);
+  }, [selectedBankId, activeTab]);
 
   // Sync automatic target values when standard parameters flip
   useEffect(() => {
@@ -341,7 +378,7 @@ export default function TeacherQuestionBankPage() {
       }
 
       toast.success(`Generated ${payload.generatedCount || 0} question(s) directly into bank`);
-      setIsGenPanelOpen(false);
+      setActiveTab('questions');
       setGenerateTopicsText('');
       await loadBankQuestions(selectedBankId);
     } catch (error) {
@@ -462,6 +499,16 @@ export default function TeacherQuestionBankPage() {
               <Layers className="h-6 w-6 text-blue-600" /> AI Question Engine
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">Generate, audit, curate, and scaffold student-ready assessments instantly.</p>
+              <div className="mt-3">
+                <Tabs value={activeTab} onValueChange={(v) => changeTab(v as any)}>
+                  <TabsList className="bg-transparent p-0">
+                    <TabsTrigger value="banks">Banks</TabsTrigger>
+                    <TabsTrigger value="topics">Topics</TabsTrigger>
+                    <TabsTrigger value="generate">Generate</TabsTrigger>
+                    <TabsTrigger value="questions">Questions</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
           </div>
           <div className="flex items-center gap-2 w-full md:w-auto">
             {/* Create Bank Dialog Launcher */}
@@ -608,8 +655,9 @@ export default function TeacherQuestionBankPage() {
             {selectedBank ? (
               <Card className="border-blue-200/70 bg-gradient-to-b from-blue-50/20 to-white overflow-hidden shadow-sm">
                 <button 
-                  onClick={() => setIsGenPanelOpen(!isGenPanelOpen)}
+                  onClick={() => changeTab(activeTab === 'generate' ? 'banks' : 'generate')}
                   className="w-full flex items-center justify-between p-5 text-left border-none focus:outline-none"
+                  aria-expanded={activeTab === 'generate'}
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-100/80 rounded-lg text-blue-700">
@@ -623,11 +671,11 @@ export default function TeacherQuestionBankPage() {
                     </div>
                   </div>
                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    {isGenPanelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    {activeTab === 'generate' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </Button>
                 </button>
 
-                {isGenPanelOpen && (
+                {activeTab === 'generate' && (
                   <>
                     <Separator className="bg-blue-100/50" />
                     <CardContent className="p-6 space-y-5">

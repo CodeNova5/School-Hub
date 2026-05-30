@@ -403,7 +403,7 @@ export default function TeacherQuestionBankDetailPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="max-w-4xl mx-auto space-y-8 pb-16">
+      <div className="max-w-7xl mx-auto space-y-8 pb-16">
         {/* Simplified Header / Hero Section with Integrated AI Trigger */}
         <section className="rounded-2xl border border-slate-800 bg-slate-950 p-6 text-white shadow-sm space-y-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
@@ -589,7 +589,7 @@ export default function TeacherQuestionBankDetailPage() {
 
       {/* Generation Wizard Modal */}
       <Dialog open={isGenerateModalOpen} onOpenChange={handleCloseGenerateModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader className="flex flex-row items-center justify-between border-b pb-3">
             <div>
               <DialogTitle className="text-base font-semibold">Generate with AI</DialogTitle>
@@ -607,7 +607,7 @@ export default function TeacherQuestionBankDetailPage() {
               ))}
             </div>
 
-            <div className="min-h-[120px]">
+            <div className="min-h-[160px]">
               {generateStep === 1 && (
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold">Target Volume</Label>
@@ -618,19 +618,19 @@ export default function TeacherQuestionBankDetailPage() {
               {generateStep === 2 && (
                 <div className="space-y-3">
                   <Label className="text-xs font-semibold">Focus Subjects / Core Topics</Label>
-                  <div className="flex flex-wrap gap-1 border p-2 rounded-lg bg-white max-h-24 overflow-y-auto">
+                  <div className="flex flex-wrap gap-2 border p-3 rounded-lg bg-white max-h-48 overflow-y-auto">
                     {generatedTopicHints.map((topic) => {
                       const selected = selectedGenerateTopics.some((item) => item.toLowerCase() === topic.toLowerCase());
                       return (
-                        <button key={topic} type="button" onClick={() => toggleGenerateTopic(topic)} className={`text-[11px] px-2 py-0.5 border rounded-md ${selected ? 'bg-violet-600 text-white border-violet-600' : 'bg-slate-50 text-slate-600'}`}>
+                        <button key={topic} type="button" onClick={() => toggleGenerateTopic(topic)} className={`text-xs px-3 py-1.5 border rounded-md font-medium ${selected ? 'bg-violet-600 text-white border-violet-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
                           {topic}
                         </button>
                       );
                     })}
                   </div>
-                  <div className="flex gap-1.5">
-                    <Input value={manualTopicInput} onChange={(e) => setManualTopicInput(e.target.value)} placeholder="Custom parameter topic..." className="h-8 text-xs" />
-                    <Button size="sm" type="button" variant="outline" onClick={addManualTopic} className="h-8 text-xs">Add</Button>
+                  <div className="flex gap-2 pt-2">
+                    <Input value={manualTopicInput} onChange={(e) => setManualTopicInput(e.target.value)} placeholder="Custom parameter topic..." className="h-9 text-sm" />
+                    <Button size="sm" type="button" variant="outline" onClick={addManualTopic} className="h-9 text-sm px-4">Add</Button>
                   </div>
                 </div>
               )}

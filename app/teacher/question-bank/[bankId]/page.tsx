@@ -532,6 +532,8 @@ export default function TeacherQuestionBankDetailPage() {
     { step: 5, title: 'Review' },
   ];
 
+  const hasQuestionGroups = topicGroups.length > 0;
+
   return (
     <DashboardLayout role="teacher">
       <div className="max-w-7xl mx-auto space-y-8 pb-16">
@@ -597,8 +599,158 @@ export default function TeacherQuestionBankDetailPage() {
                 <Sparkles className="h-4 w-4 mr-2" />
                 Generate with AI
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  const target = document.getElementById('question-groups');
+                  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+              >
+                Manage groups
+              </Button>
             </div>
           )}
+        </div>
+
+        <div id="question-groups" className="space-y-6">
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="text-base">Question Groups</CardTitle>
+                  <CardDescription>
+                    Save reusable topic bundles, edit them later, and load them straight into generation.
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="w-fit">{topicGroups.length} saved</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 space-y-5">
+              {!isEditable && (
+                <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <div>You can view saved groups here, but only the bank owner can create or edit them.</div>
+                </div>
+              )}
+
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-gray-700">Group Title</Label>
+                    <Input
+                      value={groupTitleInput}
+                      onChange={(e) => setGroupTitleInput(e.target.value)}
+                      disabled={!isEditable || topicGroupsLoading}
+                      placeholder="e.g. Fractions revision set"
+                      className="h-10 text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-gray-700">Topics</Label>
+                    <Textarea
+                      value={groupTopicsInput}
+                      onChange={(e) => setGroupTopicsInput(e.target.value)}
+                      disabled={!isEditable || topicGroupsLoading}
+                      placeholder="Fractions, decimals, ratios"
+                      rows={3}
+                      className="resize-none text-sm"
+                    />
+                    <p className="text-xs text-gray-500">Separate topics with commas. These labels are reused during AI generation.</p>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      size="sm"
+                      onClick={handleSaveTopicGroup}
+                      disabled={!isEditable || topicGroupsLoading}
+                      className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      {topicGroupsLoading ? 'Saving...' : editingGroupId ? 'Update Group' : 'Create Group'}
+                    </Button>
+                    {editingGroupId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={cancelEditGroup}
+                        disabled={topicGroupsLoading}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {hasQuestionGroups ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {topicGroups.map((group) => (
+                        <div key={group.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <p className="font-semibold text-gray-900">{group.title}</p>
+                              <p className="text-xs text-gray-500">Created {formatDate(group.created_at)}</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => startEditGroup(group)}
+                                disabled={topicGroupsLoading || !isEditable}
+                                className="h-8 w-8 text-gray-500 hover:text-gray-900"
+                                aria-label={`Edit ${group.title}`}
+                              >
+                                <PencilLine className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDeleteTopicGroup(group.id)}
+                                disabled={topicGroupsLoading || !isEditable}
+                                className="h-8 w-8 text-gray-500 hover:text-red-600"
+                                aria-label={`Delete ${group.title}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {(group.topics || []).length > 0 ? (
+                              group.topics.map((topic) => (
+                                <Badge key={`${group.id}-${topic}`} variant="secondary" className="bg-gray-100 text-gray-700">
+                                  {topic}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-500">No topics defined</span>
+                            )}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-4 w-full"
+                            onClick={() => applyTopicGroup(group)}
+                          >
+                            Load into generator
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/70 px-4 py-5 text-sm text-gray-500">
+                      No groups yet. Create one to bundle topics for later generation.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Main Content Grid */}
@@ -821,124 +973,6 @@ export default function TeacherQuestionBankDetailPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
-                <div className="space-y-1">
-                  <CardTitle className="text-base">Question Groups</CardTitle>
-                  <CardDescription>Save reusable topic bundles and reuse them in AI generation.</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="p-5 space-y-5">
-                <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-gray-700">Group Title</Label>
-                    <Input
-                      value={groupTitleInput}
-                      onChange={(e) => setGroupTitleInput(e.target.value)}
-                      disabled={!isEditable || topicGroupsLoading}
-                      placeholder="e.g. Fractions revision set"
-                      className="h-10 text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-semibold text-gray-700">Topics</Label>
-                    <Textarea
-                      value={groupTopicsInput}
-                      onChange={(e) => setGroupTopicsInput(e.target.value)}
-                      disabled={!isEditable || topicGroupsLoading}
-                      placeholder="Fractions, decimals, ratios"
-                      rows={3}
-                      className="text-sm resize-none"
-                    />
-                    <p className="text-xs text-gray-500">Separate topics with commas. These labels will be reused when generating questions.</p>
-                  </div>
-
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button
-                      size="sm"
-                      onClick={handleSaveTopicGroup}
-                      disabled={!isEditable || topicGroupsLoading}
-                      className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      {topicGroupsLoading ? 'Saving...' : editingGroupId ? 'Update Group' : 'Create Group'}
-                    </Button>
-                    {editingGroupId && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={cancelEditGroup}
-                        disabled={topicGroupsLoading}
-                        className="flex-1"
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-gray-900">Saved groups</p>
-                    <Badge variant="outline" className="text-xs">{topicGroups.length}</Badge>
-                  </div>
-
-                  {topicGroups.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/70 px-4 py-5 text-sm text-gray-500">
-                      No groups yet. Create one above to bundle topics for later generation.
-                    </div>
-                  ) : (
-                    <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                      {topicGroups.map((group) => (
-                        <div key={group.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-1">
-                              <p className="font-semibold text-gray-900">{group.title}</p>
-                              <p className="text-xs text-gray-500">Created {formatDate(group.created_at)}</p>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => startEditGroup(group)}
-                                disabled={topicGroupsLoading}
-                                className="h-8 w-8 text-gray-500 hover:text-gray-900"
-                                aria-label={`Edit ${group.title}`}
-                              >
-                                <PencilLine className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleDeleteTopicGroup(group.id)}
-                                disabled={topicGroupsLoading}
-                                className="h-8 w-8 text-gray-500 hover:text-red-600"
-                                aria-label={`Delete ${group.title}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {(group.topics || []).length > 0 ? (
-                              group.topics.map((topic) => (
-                                <Badge key={`${group.id}-${topic}`} variant="secondary" className="bg-gray-100 text-gray-700">
-                                  {topic}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-gray-500">No topics defined</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>

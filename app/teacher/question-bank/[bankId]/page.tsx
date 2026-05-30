@@ -95,6 +95,8 @@ export default function TeacherQuestionBankDetailPage() {
   const [generateCount, setGenerateCount] = useState('5');
   const [generateDifficulty, setGenerateDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [generateQuestionType, setGenerateQuestionType] = useState<'objective' | 'theory'>('objective');
+  const [selectedGenerateTopics, setSelectedGenerateTopics] = useState<string[]>([]);
+  const [manualTopicInput, setManualTopicInput] = useState('');
   const [generateStep, setGenerateStep] = useState(1);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
@@ -134,6 +136,23 @@ export default function TeacherQuestionBankDetailPage() {
 
     return [selectedSubjectClassLabel];
   }, [questions, selectedSubjectClassLabel]);
+
+  const effectiveGenerateTopics = useMemo(() => {
+    const combined = [...selectedGenerateTopics];
+    const seen = new Set<string>();
+
+    return combined.filter((topic) => {
+      const normalized = topic.trim().toLowerCase();
+      if (!normalized || seen.has(normalized)) {
+        return false;
+      }
+
+      seen.add(normalized);
+      return true;
+    });
+  }, [selectedGenerateTopics]);
+
+  const topicPreviewList = effectiveGenerateTopics.length > 0 ? effectiveGenerateTopics : generatedTopicHints;
 
   const filteredQuestions = useMemo(() => {
     const query = questionSearch.trim().toLowerCase();
@@ -215,8 +234,14 @@ export default function TeacherQuestionBankDetailPage() {
       return;
     }
 
-    const count = Math.min(Math.max(Number(generateCount) || 5, 1), 30);
-    const topics = generatedTopicHints.length > 0 ? generatedTopicHints : [selectedSubjectClassLabel];
+    const parsedCount = Number(generateCount);
+    if (!Number.isFinite(parsedCount) || parsedCount < 1) {
+      toast.error('Enter a valid number of questions between 1 and 30');
+      return;
+    }
+
+    const count = Math.min(Math.max(Math.floor(parsedCount), 1), 30);
+    const topics = effectiveGenerateTopics.length > 0 ? effectiveGenerateTopics : [selectedSubjectClassLabel];
 
     setIsGenerating(true);
     try {
@@ -260,14 +285,53 @@ export default function TeacherQuestionBankDetailPage() {
 
   function handleOpenGenerateModal() {
     setGenerateStep(1);
+    const initialTopics = generatedTopicHints.length > 0 ? generatedTopicHints : [selectedSubjectClassLabel];
+    setSelectedGenerateTopics(initialTopics);
+    setManualTopicInput('');
     setIsGenerateModalOpen(true);
   }
 
   function handleCloseGenerateModal() {
     if (!isGenerating) {
       setGenerateStep(1);
+      setManualTopicInput('');
       setIsGenerateModalOpen(false);
     }
+  }
+
+  function toggleGenerateTopic(topic: string) {
+    const value = topic.trim();
+    if (!value) return;
+
+    setSelectedGenerateTopics((prev) => {
+      const exists = prev.some((item) => item.toLowerCase() === value.toLowerCase());
+      if (exists) {
+        return prev.filter((item) => item.toLowerCase() !== value.toLowerCase());
+      }
+
+      return [...prev, value];
+    });
+  }
+
+  function addManualTopic() {
+    const value = manualTopicInput.trim();
+    if (!value) {
+      return;
+    }
+
+    setSelectedGenerateTopics((prev) => {
+      const exists = prev.some((item) => item.toLowerCase() === value.toLowerCase());
+      if (exists) {
+        return prev;
+      }
+
+      return [...prev, value];
+    });
+    setManualTopicInput('');
+  }
+
+  function removeGenerateTopic(topic: string) {
+    setSelectedGenerateTopics((prev) => prev.filter((item) => item.toLowerCase() !== topic.toLowerCase()));
   }
 
   function getDifficultyStyles(difficulty: QuestionRecord['difficulty']) {
@@ -344,9 +408,10 @@ export default function TeacherQuestionBankDetailPage() {
 
   const generateStepLabels = [
     { step: 1, title: 'Amount' },
-    { step: 2, title: 'Difficulty' },
-    { step: 3, title: 'Type' },
-    { step: 4, title: 'Review' },
+    { step: 2, title: 'Topics' },
+    { step: 3, title: 'Difficulty' },
+    { step: 4, title: 'Type' },
+    { step: 5, title: 'Review' },
   ];
 
   if (!bank) {
@@ -609,7 +674,7 @@ export default function TeacherQuestionBankDetailPage() {
               <div className="space-y-2 rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Topic hints used by AI</p>
                 <div className="flex flex-wrap gap-2">
-                  {generatedTopicHints.map((topic) => (
+                  {topicPreviewList.map((topic) => (
                     <Badge key={topic} variant="outline" className="bg-white text-slate-700 border-slate-200">
                       {topic}
                     </Badge>
@@ -767,25 +832,103 @@ export default function TeacherQuestionBankDetailPage() {
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label className="text-base font-semibold">How many questions?</Label>
-                    <p className="text-sm text-slate-500">Select the number of questions to generate.</p>
+                    <p className="text-sm text-slate-500">Enter the number of questions to generate (1 to 30).</p>
                   </div>
-                  <select
+                  <Input
+                    type="number"
+                    min={1}
+                    max={30}
+                    step={1}
                     value={generateCount}
                     onChange={(e) => setGenerateCount(e.target.value)}
                     disabled={isGenerating}
-                    className="h-11 w-full rounded-lg border border-slate-300 bg-white px-4 text-base focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:bg-slate-100"
-                  >
-                    <option value="1">1 question</option>
-                    <option value="3">3 questions</option>
-                    <option value="5">5 questions</option>
-                    <option value="10">10 questions</option>
-                    <option value="15">15 questions</option>
-                    <option value="20">20 questions</option>
-                  </select>
+                    placeholder="e.g. 12"
+                    className="h-11"
+                  />
                 </div>
               )}
 
               {generateStep === 2 && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Which topics should be included?</Label>
+                    <p className="text-sm text-slate-500">Pick suggested topics and optionally add your own custom topic.</p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Suggested topics</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {generatedTopicHints.map((topic) => {
+                        const selected = selectedGenerateTopics.some((item) => item.toLowerCase() === topic.toLowerCase());
+
+                        return (
+                          <button
+                            key={topic}
+                            type="button"
+                            onClick={() => toggleGenerateTopic(topic)}
+                            disabled={isGenerating}
+                            className={`rounded-full border px-3 py-1.5 text-sm transition-all ${
+                              selected
+                                ? 'border-violet-600 bg-violet-600 text-white'
+                                : 'border-slate-300 bg-white text-slate-700 hover:border-violet-300'
+                            }`}
+                          >
+                            {topic}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-topic">Add custom topic</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="manual-topic"
+                        value={manualTopicInput}
+                        onChange={(e) => setManualTopicInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addManualTopic();
+                          }
+                        }}
+                        disabled={isGenerating}
+                        placeholder="e.g. Quadratic equations"
+                      />
+                      <Button type="button" variant="outline" onClick={addManualTopic} disabled={isGenerating || !manualTopicInput.trim()}>
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-3">
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Topics selected ({effectiveGenerateTopics.length})</p>
+                    {effectiveGenerateTopics.length === 0 ? (
+                      <p className="mt-2 text-sm text-slate-500">No topic selected yet. Add at least one topic.</p>
+                    ) : (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {effectiveGenerateTopics.map((topic) => (
+                          <Badge key={topic} variant="outline" className="bg-slate-50 text-slate-700 border-slate-300 pr-1">
+                            <span className="pl-2">{topic}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeGenerateTopic(topic)}
+                              disabled={isGenerating}
+                              className="ml-1 rounded-sm p-1 hover:bg-slate-200"
+                              aria-label={`Remove ${topic}`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {generateStep === 3 && (
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label className="text-base font-semibold">Difficulty level?</Label>
@@ -815,7 +958,7 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
               )}
 
-              {generateStep === 3 && (
+              {generateStep === 4 && (
                 <div className="space-y-3">
                   <div className="space-y-2">
                     <Label className="text-base font-semibold">Question type?</Label>
@@ -841,7 +984,7 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
               )}
 
-              {generateStep === 4 && (
+              {generateStep === 5 && (
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-base font-semibold">Review your settings</Label>
@@ -863,13 +1006,13 @@ export default function TeacherQuestionBankDetailPage() {
                       </div>
                       <div className="rounded-lg bg-white p-4 shadow-sm">
                         <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Topics</p>
-                        <p className="mt-2 text-lg font-bold text-slate-900">{generatedTopicHints.length}</p>
+                        <p className="mt-2 text-lg font-bold text-slate-900">{effectiveGenerateTopics.length}</p>
                       </div>
                     </div>
                     <div className="rounded-lg bg-slate-100 p-3">
                       <p className="text-xs font-medium text-slate-600 uppercase tracking-widest">Topics that will guide AI:</p>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {generatedTopicHints.map((topic) => (
+                        {effectiveGenerateTopics.map((topic) => (
                           <Badge key={topic} variant="outline" className="bg-white text-slate-700 border-slate-300">
                             {topic}
                           </Badge>
@@ -891,10 +1034,13 @@ export default function TeacherQuestionBankDetailPage() {
                 Back
               </Button>
 
-              {generateStep < 4 ? (
+              {generateStep < 5 ? (
                 <Button
-                  onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 4))}
-                  disabled={isGenerating}
+                  onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 5))}
+                  disabled={
+                    isGenerating ||
+                    (generateStep === 2 && effectiveGenerateTopics.length === 0)
+                  }
                   className="flex-1 bg-violet-600 hover:bg-violet-700"
                 >
                   Next

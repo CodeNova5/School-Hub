@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
 type SubjectClassItem = {
@@ -94,6 +94,7 @@ export default function TeacherQuestionBankDetailPage() {
   const [groupTitleInput, setGroupTitleInput] = useState('');
   const [groupTopicsInput, setGroupTopicsInput] = useState('');
   const [isQuestionGroupsModalOpen, setIsQuestionGroupsModalOpen] = useState(false);
+  const [isBankSettingsModalOpen, setIsBankSettingsModalOpen] = useState(false);
   const [questionCount, setQuestionCount] = useState(0);
   const [questionsError, setQuestionsError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -610,75 +611,25 @@ export default function TeacherQuestionBankDetailPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full sm:w-auto"
-                onClick={() => {
-                  const target = document.getElementById('question-groups');
-                  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
+                className="border-slate-200"
+                onClick={() => setIsQuestionGroupsModalOpen(true)}
               >
-                Manage groups
+                <FolderKanban className="h-4 w-4 mr-2" />
+                Manage Groups
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-slate-200"
+                onClick={() => setIsBankSettingsModalOpen(true)}
+              >
+                <Settings2 className="h-4 w-4 mr-2" />
+                Bank Settings
               </Button>
             </div>
           )}
         </div>
 
-        <div id="question-groups" className="space-y-6">
-          <Card className="overflow-hidden border-slate-200/80 bg-white shadow-sm">
-            <div className="border-b border-slate-200/70 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 px-6 py-6 text-white sm:px-7">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="max-w-2xl space-y-3">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-medium text-slate-100 backdrop-blur-sm">
-                    <FolderKanban className="h-3.5 w-3.5" />
-                    Question Groups
-                  </div>
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Question Groups</h2>
-                    <p className="max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
-                      Create reusable topic collections for faster question generation.
-                    </p>
-                  </div>
-                </div>
-                <Badge className="w-fit border-white/10 bg-white/10 px-3 py-1.5 text-sm font-medium text-white backdrop-blur-sm">
-                  {topicGroups.length} {topicGroups.length === 1 ? 'Group' : 'Groups'}
-                </Badge>
-              </div>
-            </div>
-
-            <CardContent className="p-6 sm:p-7">
-              <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div className="space-y-3">
-                  <p className="text-sm text-slate-600">
-                    Open the modal to create, edit, delete, or apply topic groups without leaving the page.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {topicGroups.slice(0, 3).map((group) => (
-                      <Badge
-                        key={group.id}
-                        variant="secondary"
-                        className="rounded-full border border-indigo-100 bg-indigo-50/90 text-indigo-700 shadow-sm"
-                      >
-                        {group.title}
-                      </Badge>
-                    ))}
-                    {topicGroups.length === 0 && <span className="text-sm text-slate-400">No saved groups yet.</span>}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-200"
-                    onClick={() => setIsQuestionGroupsModalOpen(true)}
-                  >
-                    <FolderKanban className="h-4 w-4 mr-2" />
-                    Manage Groups
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -814,95 +765,139 @@ export default function TeacherQuestionBankDetailPage() {
             </Card>
           </div>
 
-          {/* Sidebar - Bank Settings */}
+          {/* Sidebar - Bank Summary */}
           <div className="lg:col-span-1 space-y-6">
             <Card className="border-gray-200 shadow-sm sticky top-6">
               <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
-                <CardTitle className="text-base">Bank Settings</CardTitle>
+                <CardTitle className="text-base">Bank Summary</CardTitle>
+                <CardDescription>
+                  Use the heading button to edit the bank details.
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-5 space-y-4">
-                {!isEditable && (
-                  <div className="flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-semibold">View Only</div>
-                      <div className="text-xs mt-1">You can view this bank but cannot make changes</div>
+                <div className="grid gap-3 text-sm">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bank Title</div>
+                    <div className="mt-1 font-medium text-gray-900">{title || bank.title}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Subject & Class</div>
+                    <div className="mt-1 font-medium text-gray-900">
+                      {subjectClassLabelMap.get(subjectClassId) || 'Not selected'}
                     </div>
                   </div>
-                )}
-
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-700">Bank Title</Label>
-                    <Input
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      disabled={!isEditable}
-                      placeholder="e.g. Mathematics"
-                      className="h-10 text-sm mt-2"
-                    />
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Visibility</div>
+                    <div className="mt-1 font-medium text-gray-900 capitalize">
+                      {visibility === 'public_school' ? 'Shared with School' : 'Private (Only Me)'}
+                    </div>
                   </div>
-
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-700">Description</Label>
-                    <Textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      disabled={!isEditable}
-                      placeholder="Add a description..."
-                      rows={3}
-                      className="text-sm mt-2 resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-700">Subject & Class</Label>
-                    <select
-                      value={subjectClassId}
-                      onChange={(e) => setSubjectClassId(e.target.value)}
-                      disabled={!isEditable}
-                      className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
-                    >
-                      <option value="">Select subject & class</option>
-                      {subjectClasses.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {subjectClassLabelMap.get(item.id)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-semibold text-gray-700">Visibility</Label>
-                    <select
-                      value={visibility}
-                      onChange={(e) => setVisibility(e.target.value as any)}
-                      disabled={!isEditable}
-                      className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
-                    >
-                      <option value="private">Private (Only Me)</option>
-                      <option value="public_school">Shared with School</option>
-                    </select>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Questions</div>
+                    <div className="mt-1 font-medium text-gray-900">
+                      {questionCount} {questionCount === 1 ? 'question' : 'questions'}
+                    </div>
                   </div>
                 </div>
-
-                {isEditable && (
-                  <Button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    size="sm"
-                    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                )}
               </CardContent>
             </Card>
 
           </div>
         </div>
       </div>
+
+      <Dialog open={isBankSettingsModalOpen} onOpenChange={setIsBankSettingsModalOpen}>
+        <DialogContent className="w-[96vw] max-w-2xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
+          <DialogHeader className="space-y-2 border-b border-slate-200/80 bg-slate-50/80 px-6 py-5 sm:px-7">
+            <DialogTitle className="text-xl font-bold tracking-tight text-slate-950">Bank Settings</DialogTitle>
+            <DialogDescription className="max-w-2xl text-sm leading-6 text-slate-600">
+              Update the title, description, subject/class, and visibility for this question bank.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 px-6 py-6 sm:px-7">
+            {!isEditable && (
+              <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div>You can view this bank, but only the creator can edit its settings.</div>
+              </div>
+            )}
+
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700">Bank Title</Label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={!isEditable}
+                  placeholder="e.g. Mathematics"
+                  className="h-11 border-slate-200 bg-white text-sm shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700">Description</Label>
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={!isEditable}
+                  placeholder="Add a description..."
+                  rows={4}
+                  className="resize-none border-slate-200 bg-white text-sm shadow-sm"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700">Subject & Class</Label>
+                <select
+                  value={subjectClassId}
+                  onChange={(e) => setSubjectClassId(e.target.value)}
+                  disabled={!isEditable}
+                  className="w-full h-11 rounded-md border border-slate-200 bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
+                >
+                  <option value="">Select subject & class</option>
+                  {subjectClasses.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {subjectClassLabelMap.get(item.id)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold text-slate-700">Visibility</Label>
+                <select
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as any)}
+                  disabled={!isEditable}
+                  className="w-full h-11 rounded-md border border-slate-200 bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
+                >
+                  <option value="private">Private (Only Me)</option>
+                  <option value="public_school">Shared with School</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+              <Button
+                onClick={handleSave}
+                disabled={isSaving || !isEditable}
+                className="flex-1 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsBankSettingsModalOpen(false)}
+                className="flex-1 border-slate-200"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isQuestionGroupsModalOpen} onOpenChange={setIsQuestionGroupsModalOpen}>
         <DialogContent className="w-[96vw] max-w-5xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">

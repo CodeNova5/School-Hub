@@ -601,13 +601,10 @@ export default function TeacherQuestionBankDetailPage() {
           <div className="flex flex-col gap-4 overflow-y-auto flex-grow pb-6">
             <div className="flex flex-wrap gap-2 bg-gradient-to-r from-slate-50 to-slate-100 p-3 rounded-lg border border-slate-200 flex-shrink-0">
               {generateStepLabels.map((item) => (
-                <div key={item.step} className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
-                  generateStep === item.step 
-                    ? 'bg-violet-600 text-white shadow-md' 
-                    : generateStep > item.step 
-                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-                    : 'bg-white text-slate-500 border border-slate-200'
-                }`}>
+                <div
+                  key={item.step}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${generateStep === item.step ? 'bg-violet-600 text-white shadow-md' : generateStep > item.step ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white text-slate-500 border border-slate-200'}`}
+                >
                   {item.step}. {item.title}
                 </div>
               ))}
@@ -661,11 +658,7 @@ export default function TeacherQuestionBankDetailPage() {
                     {(['easy', 'medium', 'hard'] as const).map((level) => {
                       const icons = { easy: '⭐', medium: '⭐⭐', hard: '⭐⭐⭐' };
                       return (
-                        <button key={level} type="button" onClick={() => setGenerateDifficulty(level)} className={`py-3 text-sm font-semibold border-2 rounded-lg capitalize transition-all ${
-                          generateDifficulty === level 
-                            ? level === 'easy' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : level === 'medium' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-rose-50 border-rose-500 text-rose-700'
-                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                        }`}>
+                        <button key={level} type="button" onClick={() => setGenerateDifficulty(level)} className={`py-3 text-sm font-semibold border-2 rounded-lg capitalize transition-all ${generateDifficulty === level ? (level === 'easy' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : level === 'medium' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-rose-50 border-rose-500 text-rose-700') : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>
                           <div className="text-lg mb-1">{icons[level as keyof typeof icons]}</div>
                           {level}
                         </button>
@@ -683,11 +676,7 @@ export default function TeacherQuestionBankDetailPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {(['objective', 'theory'] as const).map((type) => (
-                      <button key={type} type="button" onClick={() => setGenerateQuestionType(type)} className={`py-3 text-sm font-semibold border-2 rounded-lg transition-all ${
-                        generateQuestionType === type 
-                          ? 'bg-violet-50 border-violet-500 text-violet-700' 
-                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                      }`}>
+                      <button key={type} type="button" onClick={() => setGenerateQuestionType(type)} className={`py-3 text-sm font-semibold border-2 rounded-lg transition-all ${generateQuestionType === type ? 'bg-violet-50 border-violet-500 text-violet-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>
                         <div className="text-lg mb-1">{type === 'objective' ? '🎯' : '✍️'}</div>
                         {type === 'objective' ? 'Multiple Choice' : 'Written Theory'}
                       </button>
@@ -729,11 +718,10 @@ export default function TeacherQuestionBankDetailPage() {
                   <p className="text-xs text-slate-600 bg-blue-50 border border-blue-200 px-3 py-2 rounded-md">💡 Click "Compile Execution" to generate your questions with AI</p>
                 </div>
               )}
-                </div>
-              </div>
+            </div>
+          </div>
 
-              {/* Sticky action bar outside the scrollable area to avoid overlap */}
-          <div className="sticky bottom-0 bg-white z-30 p-4 border-t border-slate-200 flex gap-3">
+          <div className="flex gap-3 border-t border-slate-200 pt-4 flex-shrink-0">
             <Button size="sm" variant="outline" onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))} disabled={isGenerating || generateStep === 1} className="flex-1 h-10">
               ← Back
             </Button>

@@ -9,10 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, BookOpen, Layers, Lock, Globe2, SlidersHorizontal, Search, Calendar } from 'lucide-react';
+import {
+  Plus, BookOpen, Layers, Lock, Globe2
+} from 'lucide-react';
+
+import { SlidersHorizontal, Search } from 'lucide-react';
 import { useSchoolContext } from '@/hooks/use-school-context';
+
 
 type SubjectClassItem = {
   id: string;
@@ -181,26 +186,26 @@ export default function TeacherQuestionBankPage() {
   function getVisibilityMeta(visibility: QuestionBankItem['visibility']) {
     if (visibility === 'public_school') {
       return {
-        label: 'Shared',
+        label: 'Shared with school',
         icon: Globe2,
-        className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900',
+        className: 'bg-sky-50 text-sky-700 border-sky-200',
       };
     }
 
     return {
       label: 'Private',
       icon: Lock,
-      className: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+      className: 'bg-gray-50 text-gray-700 border-gray-200',
     };
   }
 
   if (schoolLoading || isLoading) {
     return (
       <DashboardLayout role="teacher">
-        <div className="flex min-h-[50vh] items-center justify-center px-4">
-          <div className="text-center space-y-2">
-            <div className="mx-auto h-6 w-6 rounded-full border-2 border-slate-900 border-t-transparent animate-spin dark:border-white" />
-            <p className="text-xs text-slate-500">Loading your question banks...</p>
+        <div className="flex min-h-[70vh] items-center justify-center px-4">
+          <div className="text-center space-y-4">
+            <div className="mx-auto h-10 w-10 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+            <p className="text-sm font-medium text-gray-500">Loading question bank overview…</p>
           </div>
         </div>
       </DashboardLayout>
@@ -209,90 +214,123 @@ export default function TeacherQuestionBankPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="max-w-6xl mx-auto space-y-8 pb-16">
-        
-        {/* Premium Dark Hero Section */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-950 p-6 text-white shadow-sm space-y-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-5">
-            <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 border border-slate-800 px-2.5 py-1 text-xs text-slate-400">
-                <Layers className="h-3.5 w-3.5 text-blue-400" />
-                Management Console
+      <div className="space-y-8 pb-12">
+        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white shadow-[0_24px_60px_-24px_rgba(15,23,42,0.75)]">
+          <div className="grid gap-8 px-6 py-8 lg:grid-cols-[1.4fr_0.9fr] lg:px-8 lg:py-10">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-200">
+                <Layers className="h-3.5 w-3.5" />
+                Question bank overview
               </div>
-              <h1 className="text-2xl font-semibold tracking-tight">Question Bank Directory</h1>
-              <p className="text-sm text-slate-400 max-w-xl">
-                Configure structured container shells linked to primary classes. Populate and organize assessment items step-by-step inside each safe repository.
-              </p>
+              <div className="space-y-3 max-w-2xl">
+                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  Create each bank here, then build the questions later.
+                </h1>
+                <p className="max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
+                  This page stays focused on bank setup and properties only: title, linked subject/class, visibility,
+                  and a short description to keep your structure tidy from the start.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={() => setIsBankModalOpen(true)} className="gap-2 bg-white text-slate-950 hover:bg-slate-100">
+                  <Plus className="h-4 w-4" /> New question bank
+                </Button>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+                  <BookOpen className="h-4 w-4 text-sky-300" />
+                  {stats.total} bank{stats.total === 1 ? '' : 's'} tracked
+                </div>
+              </div>
             </div>
-            <Button 
-              onClick={() => setIsBankModalOpen(true)} 
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm gap-1.5 sm:self-start w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4" /> New Question Bank
-            </Button>
-          </div>
 
-          {/* Inline Flat Summary Metrics row (Avoids redundant cards block below) */}
-          <div className="grid grid-cols-2 gap-4 sm:flex sm:items-center sm:gap-8 text-sm">
-            <div className="space-y-0.5">
-              <span className="text-slate-500 text-xs">Total Indexes</span>
-              <p className="text-xl font-semibold text-slate-100">{stats.total}</p>
-            </div>
-            <div className="space-y-0.5 border-l border-slate-800 pl-4 sm:pl-8">
-              <span className="text-slate-500 text-xs">Personal Shells</span>
-              <p className="text-xl font-semibold text-slate-100">{stats.mine}</p>
-            </div>
-            <div className="space-y-0.5 border-l border-slate-800 pl-4 sm:pl-8">
-              <span className="text-slate-500 text-xs">Network Shared</span>
-              <p className="text-xl font-semibold text-slate-100">{stats.shared}</p>
-            </div>
-            <div className="space-y-0.5 border-l border-slate-800 pl-4 sm:pl-8">
-              <span className="text-slate-500 text-xs">Linked Subject/Classes</span>
-              <p className="text-xl font-semibold text-slate-100">{stats.subjectClasses}</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <Card className="border-white/10 bg-white/5 text-white backdrop-blur-sm">
+                <CardContent className="p-4">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Banks created</p>
+                  <p className="mt-2 text-2xl font-semibold">{stats.total}</p>
+                  <p className="mt-1 text-sm text-slate-300">Current overview of all visible and owned banks.</p>
+                </CardContent>
+              </Card>
+              <Card className="border-white/10 bg-white/5 text-white backdrop-blur-sm">
+                <CardContent className="p-4">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Your banks</p>
+                  <p className="mt-2 text-2xl font-semibold">{stats.mine}</p>
+                  <p className="mt-1 text-sm text-slate-300">Banks created under your teacher profile.</p>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </section>
 
-        {/* Catalog Search & Filtering Layout */}
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
-          <CardHeader className="space-y-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardContent className="p-5">
+              <p className="text-sm text-gray-500">Total banks</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.total}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <p className="text-sm text-gray-500">Your banks</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.mine}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <p className="text-sm text-gray-500">Shared with school</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.shared}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <p className="text-sm text-gray-500">Subject/class links</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">{stats.subjectClasses}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="space-y-4 border-b border-slate-100 bg-slate-50/60">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <CardTitle className="text-base font-medium">Bank Shell Registry</CardTitle>
-                <CardDescription className="text-xs">Browse, target, and edit structural scopes.</CardDescription>
+                <CardTitle className="text-lg">Bank registry</CardTitle>
+                <CardDescription>
+                  Search by title or subject/class, then create a new bank when you need a fresh container.
+                </CardDescription>
               </div>
+              <Button variant="outline" onClick={() => setIsBankModalOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" /> New bank
+              </Button>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-[1fr_220px_220px]">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 text-xs h-9"
-                  placeholder="Filter title, details or tags..."
+                  className="pl-10"
+                  placeholder="Search banks, descriptions, or linked subjects..."
                 />
               </div>
               <div className="relative">
-                <SlidersHorizontal className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <SlidersHorizontal className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-gray-400" />
                 <select
                   value={filterVisibility}
                   onChange={(e) => setFilterVisibility(e.target.value as FilterVisibility)}
-                  className="h-9 w-full rounded-md border border-input bg-white dark:bg-slate-950 pl-9 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="h-10 w-full rounded-md border border-input bg-white pl-10 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                 >
-                  <option value="all">All network rules</option>
-                  <option value="private">Private Scope Only</option>
-                  <option value="public_school">Shared System Wide</option>
+                  <option value="all">All visibility</option>
+                  <option value="private">Private only</option>
+                  <option value="public_school">Shared only</option>
                 </select>
               </div>
-              <div className="relative sm:col-span-2 lg:col-span-1">
+              <div className="relative">
                 <select
                   value={bankSubjectClassId}
                   onChange={(e) => setBankSubjectClassId(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-white dark:bg-slate-950 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                 >
-                  <option value="">Default dynamic subjects</option>
+                  <option value="">Default subject/class</option>
                   {subjectClasses.map((item) => (
                     <option key={item.id} value={item.id}>
                       {subjectClassLabelMap.get(item.id)}
@@ -305,57 +343,66 @@ export default function TeacherQuestionBankPage() {
 
           <CardContent className="p-6">
             {filteredBanks.length === 0 ? (
-              <div className="py-12 text-center space-y-3 max-w-sm mx-auto">
-                <BookOpen className="mx-auto h-6 w-6 text-slate-300" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">No active indexes discovered</p>
-                  <p className="text-xs text-slate-400">Modify active keyword metrics or register your first primary question bank shell profile.</p>
-                </div>
-                <Button size="sm" variant="outline" className="text-xs" onClick={() => setIsBankModalOpen(true)}>
-                  <Plus className="h-3 w-3 mr-1" /> Initial Entry
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-14 text-center">
+                <BookOpen className="mx-auto h-10 w-10 text-slate-300" />
+                <h2 className="mt-4 text-lg font-semibold text-slate-900">
+                  {banks.length === 0 ? 'No question banks yet' : 'No banks match your filters'}
+                </h2>
+                <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
+                  Start by creating a bank for a subject/class combination. That gives you a clean container before
+                  questions are added later.
+                </p>
+                <Button className="mt-6 gap-2" onClick={() => setIsBankModalOpen(true)}>
+                  <Plus className="h-4 w-4" /> Create a bank
                 </Button>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {filteredBanks.map((bank) => {
                   const visibilityMeta = getVisibilityMeta(bank.visibility);
                   const VisibilityIcon = visibilityMeta.icon;
-                  const subjectClassLabel = subjectClassLabelMap.get(bank.subject_class_id) || 'General Category Context';
+                  const subjectClassLabel = subjectClassLabelMap.get(bank.subject_class_id) || 'Unknown subject/class';
 
                   return (
-                    <Card key={bank.id} className="border-slate-200 dark:border-slate-800 shadow-none hover:shadow-md transition-all duration-200 flex flex-col justify-between">
-                      <CardHeader className="space-y-2 p-4 pb-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-0.5">
-                            <CardTitle className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100 line-clamp-1">{bank.title}</CardTitle>
-                            <CardDescription className="text-xs font-medium text-blue-600 dark:text-blue-400 line-clamp-1">{subjectClassLabel}</CardDescription>
+                    <Card key={bank.id} className="border-slate-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+                      <CardHeader className="space-y-3 pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <CardTitle className="text-base leading-snug">{bank.title}</CardTitle>
+                            <CardDescription className="text-sm">{subjectClassLabel}</CardDescription>
                           </div>
-                          <Badge variant="outline" className={`shrink-0 text-[10px] px-2 py-0.5 gap-1 font-medium ${visibilityMeta.className}`}>
-                            <VisibilityIcon className="h-3 w-3" />
+                          <Badge variant="outline" className={`shrink-0 gap-1.5 ${visibilityMeta.className}`}>
+                            <VisibilityIcon className="h-3.5 w-3.5" />
                             {visibilityMeta.label}
                           </Badge>
                         </div>
                       </CardHeader>
-                      
-                      <CardContent className="p-4 pt-1 space-y-4 flex flex-col justify-between h-full">
-                        <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                          {bank.description || 'No analytical description logged for this storage shell context element yet.'}
+                      <CardContent className="space-y-4 pb-5">
+                        <p className="line-clamp-3 text-sm leading-6 text-slate-600">
+                          {bank.description || 'No description was added for this bank yet.'}
                         </p>
 
-                        <div className="space-y-1.5 border-t border-slate-100 dark:border-slate-800 pt-3 text-[11px] text-slate-400">
-                          <div className="flex items-center justify-between">
-                            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> Managed</span>
-                            <span className="font-medium text-slate-700 dark:text-slate-300">{formatDate(bank.updated_at || bank.created_at)}</span>
+                        <div className="grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500">Created</span>
+                            <span className="font-medium text-slate-900">{formatDate(bank.created_at)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500">Updated</span>
+                            <span className="font-medium text-slate-900">{formatDate(bank.updated_at || bank.created_at)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500">Bank ID</span>
+                            <span className="max-w-[10rem] truncate font-mono text-xs text-slate-900">{bank.id}</span>
                           </div>
                         </div>
 
                         <Button
-                          variant="secondary"
-                          size="sm"
-                          className="w-full text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 mt-2"
+                          variant="outline"
+                          className="w-full gap-2"
                           onClick={() => router.push(`/teacher/question-bank/${bank.id}`)}
                         >
-                          Configure Questions
+                          Open properties
                         </Button>
                       </CardContent>
                     </Card>
@@ -367,49 +414,48 @@ export default function TeacherQuestionBankPage() {
         </Card>
       </div>
 
-      {/* Creation Modal Element */}
       <Dialog open={isBankModalOpen} onOpenChange={setIsBankModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader className="border-b pb-3">
-            <DialogTitle className="text-base font-semibold">Create Question Bank Shell</DialogTitle>
-            <DialogDescription className="text-xs">
-              Establish core metadata configuration nodes before initializing dynamic quiz parameters.
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Create question bank</DialogTitle>
+            <DialogDescription>
+              Set up the bank shell first. You can add and manage questions after the structure is in place.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="space-y-1">
-              <Label htmlFor="bank-title" className="text-xs">Primary Shell Title</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="bank-title">Bank title</Label>
               <Input
                 id="bank-title"
                 value={bankTitle}
                 onChange={(e) => setBankTitle(e.target.value)}
-                placeholder="e.g. JSS2 Mathematics Third Term Core"
-                className="h-9 text-sm"
+                placeholder="e.g. JSS2 Mathematics Term 3"
               />
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="bank-description" className="text-xs">Description Meta</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="bank-description">
+                Description <span className="font-normal text-gray-400">(optional)</span>
+              </Label>
               <Textarea
                 id="bank-description"
                 value={bankDescription}
                 onChange={(e) => setBankDescription(e.target.value)}
-                placeholder="Summarize target criteria metrics for testing use..."
+                placeholder="Explain what this bank will be used for."
                 rows={3}
-                className="text-sm resize-none"
               />
             </div>
 
-            <div className="grid gap-3 grid-cols-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Affiliated Class Link</Label>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Subject & class</Label>
                 <select
                   value={bankSubjectClassId}
                   onChange={(e) => setBankSubjectClassId(e.target.value)}
-                  className="h-9 w-full rounded-md border border-input bg-white dark:bg-slate-950 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                 >
-                  <option value="">Select match</option>
+                  <option value="">Select subject/class</option>
                   {subjectClasses.map((item) => (
                     <option key={item.id} value={item.id}>
                       {subjectClassLabelMap.get(item.id)}
@@ -418,26 +464,26 @@ export default function TeacherQuestionBankPage() {
                 </select>
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-xs">Security Context</Label>
+              <div className="space-y-1.5">
+                <Label>Visibility</Label>
                 <select
                   value={bankVisibility}
                   onChange={(e) => setBankVisibility(e.target.value as 'private' | 'public_school')}
-                  className="h-9 w-full rounded-md border border-input bg-white dark:bg-slate-950 px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                 >
-                  <option value="private">Private (Only Me)</option>
-                  <option value="public_school">Shared with School Network</option>
+                  <option value="private">Private - only me</option>
+                  <option value="public_school">Shared with school</option>
                 </select>
               </div>
             </div>
           </div>
 
-          <DialogFooter className="border-t pt-3 gap-2">
-            <Button size="sm" variant="outline" onClick={() => setIsBankModalOpen(false)} className="text-xs">
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBankModalOpen(false)}>
               Cancel
             </Button>
-            <Button size="sm" onClick={handleCreateBank} disabled={isCreatingBank} className="text-xs bg-blue-600 hover:bg-blue-700 text-white">
-              {isCreatingBank ? 'Creating...' : 'Initialize Index Container'}
+            <Button onClick={handleCreateBank} disabled={isCreatingBank}>
+              {isCreatingBank ? 'Creating...' : 'Create bank'}
             </Button>
           </DialogFooter>
         </DialogContent>

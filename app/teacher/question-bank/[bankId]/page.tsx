@@ -94,6 +94,7 @@ export default function TeacherQuestionBankDetailPage() {
   const [generateCount, setGenerateCount] = useState('5');
   const [generateDifficulty, setGenerateDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [generateQuestionType, setGenerateQuestionType] = useState<'objective' | 'theory'>('objective');
+  const [generateStep, setGenerateStep] = useState(1);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -244,6 +245,7 @@ export default function TeacherQuestionBankDetailPage() {
 
       setQuestions((prev) => [...generatedQuestions, ...prev]);
       setQuestionCount((prev) => prev + generatedQuestions.length);
+      setGenerateStep(1);
       toast.success(`Generated ${generatedQuestions.length} question${generatedQuestions.length === 1 ? '' : 's'}`);
     } catch (error) {
       console.error(error);
@@ -324,6 +326,13 @@ export default function TeacherQuestionBankDetailPage() {
   }
 
   const canGenerateQuestions = isEditable && !!bank && !!subjectClassId;
+
+  const generateStepLabels = [
+    { step: 1, title: 'Amount' },
+    { step: 2, title: 'Difficulty' },
+    { step: 3, title: 'Type' },
+    { step: 4, title: 'Review' },
+  ];
 
   if (!bank) {
     return (
@@ -499,12 +508,15 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredQuestions.map((question) => (
+                  {filteredQuestions.map((question, index) => (
                     <Card key={question.id} className="border-slate-200">
                       <CardContent className="space-y-4 p-5">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="space-y-3">
                             <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline" className="bg-slate-900 text-white border-slate-900">
+                                Q{index + 1}
+                              </Badge>
                               <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
                                 {question.topic}
                               </Badge>
@@ -579,49 +591,103 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-                <div className="space-y-1.5">
-                  <Label>Amount</Label>
-                  <select
-                    value={generateCount}
-                    onChange={(e) => setGenerateCount(e.target.value)}
-                    disabled={!canGenerateQuestions}
-                    className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  >
-                    <option value="1">1</option>
-                    <option value="3">3</option>
-                    <option value="5">5</option>
-                    <option value="10">10</option>
-                    <option value="15">15</option>
-                    <option value="20">20</option>
-                  </select>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap gap-2">
+                  {generateStepLabels.map((item) => {
+                    const active = generateStep === item.step;
+                    const completed = generateStep > item.step;
+
+                    return (
+                      <button
+                        key={item.step}
+                        type="button"
+                        onClick={() => canGenerateQuestions && setGenerateStep(item.step)}
+                        disabled={!canGenerateQuestions}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          active
+                            ? 'bg-slate-900 text-white'
+                            : completed
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'border border-slate-200 bg-white text-slate-500'
+                        }`}
+                      >
+                        {item.step}. {item.title}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label>Difficulty</Label>
-                  <select
-                    value={generateDifficulty}
-                    onChange={(e) => setGenerateDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
-                    disabled={!canGenerateQuestions}
-                    className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  >
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                  </select>
-                </div>
+                <div className="mt-4 space-y-4">
+                  {generateStep === 1 && (
+                    <div className="space-y-1.5">
+                      <Label>Amount</Label>
+                      <select
+                        value={generateCount}
+                        onChange={(e) => setGenerateCount(e.target.value)}
+                        disabled={!canGenerateQuestions}
+                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      >
+                        <option value="1">1</option>
+                        <option value="3">3</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="20">20</option>
+                      </select>
+                    </div>
+                  )}
 
-                <div className="space-y-1.5">
-                  <Label>Type</Label>
-                  <select
-                    value={generateQuestionType}
-                    onChange={(e) => setGenerateQuestionType(e.target.value as 'objective' | 'theory')}
-                    disabled={!canGenerateQuestions}
-                    className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
-                  >
-                    <option value="objective">Objective</option>
-                    <option value="theory">Theory</option>
-                  </select>
+                  {generateStep === 2 && (
+                    <div className="space-y-1.5">
+                      <Label>Difficulty</Label>
+                      <select
+                        value={generateDifficulty}
+                        onChange={(e) => setGenerateDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
+                        disabled={!canGenerateQuestions}
+                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      >
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {generateStep === 3 && (
+                    <div className="space-y-1.5">
+                      <Label>Type</Label>
+                      <select
+                        value={generateQuestionType}
+                        onChange={(e) => setGenerateQuestionType(e.target.value as 'objective' | 'theory')}
+                        disabled={!canGenerateQuestions}
+                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
+                      >
+                        <option value="objective">Objective</option>
+                        <option value="theory">Theory</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {generateStep === 4 && (
+                    <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-500">Amount</span>
+                        <span className="font-medium text-slate-900">{generateCount}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-500">Difficulty</span>
+                        <span className="font-medium text-slate-900 capitalize">{generateDifficulty}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-500">Type</span>
+                        <span className="font-medium text-slate-900 capitalize">{generateQuestionType}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-500">Topics</span>
+                        <span className="font-medium text-slate-900">{generatedTopicHints.length}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -636,10 +702,35 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
               </div>
 
-              <Button onClick={handleGenerateQuestions} disabled={!canGenerateQuestions || isGenerating} className="w-full gap-2">
-                <Sparkles className="h-4 w-4" />
-                {isGenerating ? 'Generating...' : 'Generate questions'}
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))}
+                  disabled={!canGenerateQuestions || generateStep === 1 || isGenerating}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+
+                {generateStep < 4 ? (
+                  <Button
+                    onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 4))}
+                    disabled={!canGenerateQuestions || isGenerating}
+                    className="flex-1"
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleGenerateQuestions}
+                    disabled={!canGenerateQuestions || isGenerating}
+                    className="flex-1 gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {isGenerating ? 'Generating...' : 'Generate questions'}
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

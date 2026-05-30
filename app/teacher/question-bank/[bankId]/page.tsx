@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { ArrowLeft, BookOpen, Globe2, Layers, Lock, Save, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { ArrowLeft, BookOpen, Globe2, Layers, Lock, Save, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 type SubjectClassItem = {
@@ -95,6 +96,7 @@ export default function TeacherQuestionBankDetailPage() {
   const [generateDifficulty, setGenerateDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [generateQuestionType, setGenerateQuestionType] = useState<'objective' | 'theory'>('objective');
   const [generateStep, setGenerateStep] = useState(1);
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -246,12 +248,25 @@ export default function TeacherQuestionBankDetailPage() {
       setQuestions((prev) => [...generatedQuestions, ...prev]);
       setQuestionCount((prev) => prev + generatedQuestions.length);
       setGenerateStep(1);
+      setIsGenerateModalOpen(false);
       toast.success(`Generated ${generatedQuestions.length} question${generatedQuestions.length === 1 ? '' : 's'}`);
     } catch (error) {
       console.error(error);
       toast.error('Failed to generate questions');
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  function handleOpenGenerateModal() {
+    setGenerateStep(1);
+    setIsGenerateModalOpen(true);
+  }
+
+  function handleCloseGenerateModal() {
+    if (!isGenerating) {
+      setGenerateStep(1);
+      setIsGenerateModalOpen(false);
     }
   }
 
@@ -591,106 +606,6 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
               )}
 
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-wrap gap-2">
-                  {generateStepLabels.map((item) => {
-                    const active = generateStep === item.step;
-                    const completed = generateStep > item.step;
-
-                    return (
-                      <button
-                        key={item.step}
-                        type="button"
-                        onClick={() => canGenerateQuestions && setGenerateStep(item.step)}
-                        disabled={!canGenerateQuestions}
-                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                          active
-                            ? 'bg-slate-900 text-white'
-                            : completed
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'border border-slate-200 bg-white text-slate-500'
-                        }`}
-                      >
-                        {item.step}. {item.title}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-4 space-y-4">
-                  {generateStep === 1 && (
-                    <div className="space-y-1.5">
-                      <Label>Amount</Label>
-                      <select
-                        value={generateCount}
-                        onChange={(e) => setGenerateCount(e.target.value)}
-                        disabled={!canGenerateQuestions}
-                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
-                      >
-                        <option value="1">1</option>
-                        <option value="3">3</option>
-                        <option value="5">5</option>
-                        <option value="10">10</option>
-                        <option value="15">15</option>
-                        <option value="20">20</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {generateStep === 2 && (
-                    <div className="space-y-1.5">
-                      <Label>Difficulty</Label>
-                      <select
-                        value={generateDifficulty}
-                        onChange={(e) => setGenerateDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
-                        disabled={!canGenerateQuestions}
-                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
-                      >
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard">Hard</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {generateStep === 3 && (
-                    <div className="space-y-1.5">
-                      <Label>Type</Label>
-                      <select
-                        value={generateQuestionType}
-                        onChange={(e) => setGenerateQuestionType(e.target.value as 'objective' | 'theory')}
-                        disabled={!canGenerateQuestions}
-                        className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:cursor-not-allowed disabled:bg-slate-100"
-                      >
-                        <option value="objective">Objective</option>
-                        <option value="theory">Theory</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {generateStep === 4 && (
-                    <div className="space-y-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-                      <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-slate-500">Amount</span>
-                        <span className="font-medium text-slate-900">{generateCount}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-slate-500">Difficulty</span>
-                        <span className="font-medium text-slate-900 capitalize">{generateDifficulty}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-slate-500">Type</span>
-                        <span className="font-medium text-slate-900 capitalize">{generateQuestionType}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-slate-500">Topics</span>
-                        <span className="font-medium text-slate-900">{generatedTopicHints.length}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               <div className="space-y-2 rounded-2xl bg-slate-50 p-4">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Topic hints used by AI</p>
                 <div className="flex flex-wrap gap-2">
@@ -702,35 +617,14 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))}
-                  disabled={!canGenerateQuestions || generateStep === 1 || isGenerating}
-                  className="flex-1"
-                >
-                  Back
-                </Button>
-
-                {generateStep < 4 ? (
-                  <Button
-                    onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 4))}
-                    disabled={!canGenerateQuestions || isGenerating}
-                    className="flex-1"
-                  >
-                    Next
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleGenerateQuestions}
-                    disabled={!canGenerateQuestions || isGenerating}
-                    className="flex-1 gap-2"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    {isGenerating ? 'Generating...' : 'Generate questions'}
-                  </Button>
-                )}
-              </div>
+              <Button
+                onClick={handleOpenGenerateModal}
+                disabled={!canGenerateQuestions}
+                className="w-full gap-2 bg-violet-600 hover:bg-violet-700"
+              >
+                <Sparkles className="h-4 w-4" />
+                Generate questions with AI
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -818,6 +712,207 @@ export default function TeacherQuestionBankDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={isGenerateModalOpen} onOpenChange={handleCloseGenerateModal}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-xl">Generate Questions with AI</DialogTitle>
+                <DialogDescription className="mt-1">
+                  Configure your generation parameters step by step.
+                </DialogDescription>
+              </div>
+              <button
+                onClick={handleCloseGenerateModal}
+                disabled={isGenerating}
+                className="rounded-md p-1 hover:bg-slate-100 disabled:opacity-50"
+              >
+                <X className="h-5 w-5 text-slate-500" />
+              </button>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap gap-2">
+                {generateStepLabels.map((item) => {
+                  const active = generateStep === item.step;
+                  const completed = generateStep > item.step;
+
+                  return (
+                    <button
+                      key={item.step}
+                      type="button"
+                      onClick={() => !isGenerating && setGenerateStep(item.step)}
+                      disabled={isGenerating}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium transition-all ${
+                        active
+                          ? 'bg-violet-600 text-white shadow-md'
+                          : completed
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'border border-slate-300 bg-white text-slate-600'
+                      }`}
+                    >
+                      <span className="mr-1">{item.step}.</span>
+                      {item.title}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {generateStep === 1 && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">How many questions?</Label>
+                    <p className="text-sm text-slate-500">Select the number of questions to generate.</p>
+                  </div>
+                  <select
+                    value={generateCount}
+                    onChange={(e) => setGenerateCount(e.target.value)}
+                    disabled={isGenerating}
+                    className="h-11 w-full rounded-lg border border-slate-300 bg-white px-4 text-base focus:outline-none focus:ring-2 focus:ring-violet-500/40 disabled:bg-slate-100"
+                  >
+                    <option value="1">1 question</option>
+                    <option value="3">3 questions</option>
+                    <option value="5">5 questions</option>
+                    <option value="10">10 questions</option>
+                    <option value="15">15 questions</option>
+                    <option value="20">20 questions</option>
+                  </select>
+                </div>
+              )}
+
+              {generateStep === 2 && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Difficulty level?</Label>
+                    <p className="text-sm text-slate-500">Choose how challenging the questions should be.</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['easy', 'medium', 'hard'] as const).map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => setGenerateDifficulty(level)}
+                        disabled={isGenerating}
+                        className={`rounded-lg border-2 py-3 px-4 font-medium transition-all ${
+                          generateDifficulty === level
+                            ? level === 'easy'
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                              : level === 'medium'
+                                ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                : 'border-rose-500 bg-rose-50 text-rose-700'
+                            : 'border-slate-300 bg-white text-slate-700'
+                        }`}
+                      >
+                        {level.charAt(0).toUpperCase() + level.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {generateStep === 3 && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Question type?</Label>
+                    <p className="text-sm text-slate-500">Select the format of the questions.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['objective', 'theory'] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setGenerateQuestionType(type)}
+                        disabled={isGenerating}
+                        className={`rounded-lg border-2 py-3 px-4 font-medium transition-all ${
+                          generateQuestionType === type
+                            ? 'border-violet-500 bg-violet-50 text-violet-700'
+                            : 'border-slate-300 bg-white text-slate-700'
+                        }`}
+                      >
+                        {type === 'objective' ? 'Multiple Choice' : 'Theory'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {generateStep === 4 && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Review your settings</Label>
+                    <p className="text-sm text-slate-500">Everything looks good? Click Generate to create the questions.</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-lg bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Amount</p>
+                        <p className="mt-2 text-2xl font-bold text-slate-900">{generateCount}</p>
+                      </div>
+                      <div className="rounded-lg bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Difficulty</p>
+                        <p className="mt-2 text-lg font-bold capitalize text-slate-900">{generateDifficulty}</p>
+                      </div>
+                      <div className="rounded-lg bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Type</p>
+                        <p className="mt-2 text-lg font-bold text-slate-900">{generateQuestionType === 'objective' ? 'Multiple Choice' : 'Theory'}</p>
+                      </div>
+                      <div className="rounded-lg bg-white p-4 shadow-sm">
+                        <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Topics</p>
+                        <p className="mt-2 text-lg font-bold text-slate-900">{generatedTopicHints.length}</p>
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-slate-100 p-3">
+                      <p className="text-xs font-medium text-slate-600 uppercase tracking-widest">Topics that will guide AI:</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {generatedTopicHints.map((topic) => (
+                          <Badge key={topic} variant="outline" className="bg-white text-slate-700 border-slate-300">
+                            {topic}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 border-t border-slate-200 pt-6">
+              <Button
+                variant="outline"
+                onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))}
+                disabled={isGenerating || generateStep === 1}
+                className="flex-1"
+              >
+                Back
+              </Button>
+
+              {generateStep < 4 ? (
+                <Button
+                  onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 4))}
+                  disabled={isGenerating}
+                  className="flex-1 bg-violet-600 hover:bg-violet-700"
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleGenerateQuestions}
+                  disabled={isGenerating}
+                  className="flex-1 gap-2 bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {isGenerating ? 'Generating...' : 'Generate questions'}
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

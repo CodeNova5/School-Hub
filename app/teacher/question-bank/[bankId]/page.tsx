@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { ArrowLeft, BookOpen, Globe2, Layers, Lock, Save, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Globe2, Lock, Save, Search, Sparkles, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 type SubjectClassItem = {
@@ -92,7 +92,7 @@ export default function TeacherQuestionBankDetailPage() {
   const [topicGroupsLoading, setTopicGroupsLoading] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupTitleInput, setGroupTitleInput] = useState('');
-  const [groupTopicsInput, setGroupTopicsInput] = useState(''); // comma separated
+  const [groupTopicsInput, setGroupTopicsInput] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
   const [questionsError, setQuestionsError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -205,7 +205,6 @@ export default function TeacherQuestionBankDetailPage() {
       }
 
       if (!groupsResponse.ok || 'error' in groupsPayload) {
-        // non-fatal: just show none
         setTopicGroups([]);
       } else {
         setTopicGroups(groupsPayload.groups || []);
@@ -312,9 +311,6 @@ export default function TeacherQuestionBankDetailPage() {
     });
   }
 
-  /****************************************************************************
-   * Content / Actions Array Helpers
-   ****************************************************************************/
   function addManualTopic() {
     const value = manualTopicInput.trim();
     if (!value) return;
@@ -338,7 +334,7 @@ export default function TeacherQuestionBankDetailPage() {
       case 'medium':
         return 'bg-amber-50 text-amber-700 border-amber-200';
       case 'hard':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
+        return 'bg-red-50 text-red-700 border-red-200';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
     }
@@ -384,9 +380,6 @@ export default function TeacherQuestionBankDetailPage() {
     }
   }
 
-  /****************************************************************************
-   * Topic Groups Management
-   ****************************************************************************/
   function startEditGroup(group: TopicGroupRecord) {
     setEditingGroupId(group.id);
     setGroupTitleInput(group.title || '');
@@ -477,9 +470,9 @@ export default function TeacherQuestionBankDetailPage() {
     return (
       <DashboardLayout role="teacher">
         <div className="flex min-h-[50vh] items-center justify-center">
-          <div className="text-center space-y-2">
-            <div className="mx-auto h-6 w-6 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
-            <p className="text-xs text-gray-500">Loading bank...</p>
+          <div className="text-center space-y-3">
+            <div className="mx-auto h-8 w-8 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
+            <p className="text-sm text-gray-500 font-medium">Loading your question bank...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -490,13 +483,18 @@ export default function TeacherQuestionBankDetailPage() {
     return (
       <DashboardLayout role="teacher">
         <div className="flex min-h-[50vh] items-center justify-center px-4">
-          <Card className="w-full max-w-md border-slate-200 shadow-sm text-center p-6 space-y-4">
-            <BookOpen className="mx-auto h-8 w-8 text-slate-300" />
-            <div className="space-y-1">
-              <h1 className="text-lg font-medium text-slate-900">Question bank not found</h1>
-              <p className="text-sm text-slate-500">This bank may have been removed or you may lack access permissions.</p>
+          <Card className="w-full max-w-md border-gray-200 shadow-sm text-center p-8 space-y-4">
+            <div className="flex justify-center">
+              <BookOpen className="h-12 w-12 text-gray-300" />
             </div>
-            <Button variant="outline" onClick={() => router.push('/teacher/question-bank')}>Back to overview</Button>
+            <div className="space-y-2">
+              <h1 className="text-lg font-semibold text-gray-900">Question bank not found</h1>
+              <p className="text-sm text-gray-500">This bank may have been removed or you may lack access permissions.</p>
+            </div>
+            <Button variant="outline" onClick={() => router.push('/teacher/question-bank')} className="w-full">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to overview
+            </Button>
           </Card>
         </div>
       </DashboardLayout>
@@ -508,410 +506,544 @@ export default function TeacherQuestionBankDetailPage() {
     { step: 1, title: 'Amount' },
     { step: 2, title: 'Topics' },
     { step: 3, title: 'Difficulty' },
-    { step: 4, title: 'Type' },
+    { step: 4, title: 'Format' },
     { step: 5, title: 'Review' },
   ];
 
   return (
     <DashboardLayout role="teacher">
       <div className="max-w-7xl mx-auto space-y-8 pb-16">
-        {/* Simplified Header / Hero Section with Integrated AI Trigger */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-950 p-6 text-white shadow-sm space-y-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-800 pb-4">
-            <div className="space-y-1">
-              <Button
-                variant="link"
-                className="h-auto p-0 text-xs text-slate-400 hover:text-white gap-1"
-                onClick={() => router.push('/teacher/question-bank')}
-              >
-                <ArrowLeft className="h-3 w-3" /> Back to overview
-              </Button>
-              <h1 className="text-2xl font-semibold tracking-tight">{bank.title}</h1>
-              {bank.description && <p className="text-sm text-slate-400 max-w-xl">{bank.description}</p>}
-            </div>
-            <div className="flex flex-wrap gap-2 sm:self-start">
-              <Badge variant="outline" className="bg-slate-900 text-slate-300 border-slate-800 gap-1">
-                {visibility === 'public_school' ? <Globe2 className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-                {visibility === 'public_school' ? 'Shared' : 'Private'}
-              </Badge>
-              <Badge variant="outline" className="bg-slate-900 text-white border-slate-800">
-                {questionCount} question{questionCount === 1 ? '' : 's'}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium">
-                <Sparkles className="h-3.5 w-3.5 text-violet-400" />
-                Need more questions?
-              </div>
-              <p className="text-xs text-slate-400">Expand this bank instantly using targeted AI generation filters.</p>
-            </div>
+        {/* Header Section */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 text-sm">
             <Button
-              onClick={handleOpenGenerateModal}
-              disabled={!canGenerateQuestions}
+              variant="ghost"
               size="sm"
-              className="bg-violet-600 hover:bg-violet-700 text-white font-medium shadow-sm w-full sm:w-auto"
+              className="h-auto p-0 text-gray-500 hover:text-gray-900"
+              onClick={() => router.push('/teacher/question-bank')}
             >
-              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              Generate with AI
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
             </Button>
           </div>
-        </section>
 
-        {/* Primary Questions Block */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="space-y-4 border-b border-slate-100 bg-slate-50/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-medium">Questions catalog</CardTitle>
-                <CardDescription className="text-xs">Manage current compiled problems inside this bank index.</CardDescription>
-              </div>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-3">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-3 h-3.5 w-3.5 text-slate-400" />
-                <Input
-                  value={questionSearch}
-                  onChange={(e) => setQuestionSearch(e.target.value)}
-                  className="pl-9 text-xs h-9"
-                  placeholder="Search topic or text..."
-                />
-              </div>
-              <select
-                value={questionDifficultyFilter}
-                onChange={(e) => setQuestionDifficultyFilter(e.target.value as any)}
-                className="h-9 w-full rounded-md border border-input bg-white px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-              >
-                <option value="all">All difficulties</option>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-              <select
-                value={questionTypeFilter}
-                onChange={(e) => setQuestionTypeFilter(e.target.value as any)}
-                className="h-9 w-full rounded-md border border-input bg-white px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-              >
-                <option value="all">All types</option>
-                <option value="objective">Objective</option>
-                <option value="theory">Theory</option>
-              </select>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-6">
-            {questionsError && <div className="p-3 text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg mb-4">{questionsError}</div>}
-
-            {filteredQuestions.length === 0 ? (
-              <div className="py-12 text-center space-y-2">
-                <BookOpen className="mx-auto h-6 w-6 text-slate-300" />
-                <p className="text-sm font-medium text-slate-600">No matching questions found</p>
-                <p className="text-xs text-slate-400">Clear your filter configurations or initiate the AI helper above.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100 space-y-6">
-                {filteredQuestions.map((question, index) => (
-                  <div key={question.id} className={`space-y-3 ${index > 0 ? 'pt-6' : ''}`}>
-                    <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className="text-xs font-semibold text-slate-400 mr-1">#{index + 1}</span>
-                      <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-[10px] px-2 py-0.5">
-                        {question.topic}
-                      </Badge>
-                      <Badge variant="outline" className={`${getDifficultyStyles(question.difficulty)} text-[10px] px-2 py-0.5`}>
-                        {question.difficulty}
-                      </Badge>
-                      <Badge variant="outline" className="bg-white text-slate-600 border-slate-200 text-[10px] px-2 py-0.5">
-                        {question.question_type === 'objective' ? 'Objective' : 'Theory'}
-                      </Badge>
-                    </div>
-
-                    <p className="text-sm font-medium text-slate-900 leading-relaxed">{question.question_text}</p>
-
-                    {question.question_type === 'objective' && question.options.length > 0 && (
-                      <div className="grid gap-1.5 sm:grid-cols-2 ml-4">
-                        {question.options.map((option, idx) => (
-                          <div key={idx} className="text-xs text-slate-600 border border-slate-100 bg-slate-50/50 px-3 py-1.5 rounded-lg">
-                            <span className="font-medium text-slate-400 mr-1">{String.fromCharCode(65 + idx)}.</span> {option}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="bg-slate-50/60 p-3 rounded-lg text-xs space-y-1.5 border border-slate-100">
-                      <div><span className="text-slate-400 font-medium">Correct Answer:</span> <span className="text-slate-800">{question.correct_answer || 'None'}</span></div>
-                      {question.explanation && <div><span className="text-slate-400 font-medium">Explanation:</span> <span className="text-slate-700">{question.explanation}</span></div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Topic Groups Management */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-medium">Topic groups</CardTitle>
-                <CardDescription className="text-xs">Create and manage reusable topic groups for this bank</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-6 space-y-4">
-            {!isEditable && <div className="p-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200/60 rounded-md">🔒 View-only topic groups</div>}
-
-            <div className="space-y-3">
-              <div className="grid sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                  <Label className="text-xs">Group title</Label>
-                  <Input value={groupTitleInput} onChange={(e) => setGroupTitleInput(e.target.value)} disabled={!isEditable} className="h-9 text-sm" placeholder="e.g. Algebra topics" />
-                </div>
-
-                <div>
-                  <Label className="text-xs">Topics (comma separated)</Label>
-                  <Input value={groupTopicsInput} onChange={(e) => setGroupTopicsInput(e.target.value)} disabled={!isEditable} className="h-9 text-sm" placeholder="fractions, equations, graphs" />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                {editingGroupId ? (
-                  <>
-                    <Button size="sm" variant="outline" onClick={cancelEditGroup} disabled={!isEditable}>Cancel</Button>
-                    <Button size="sm" onClick={handleSaveTopicGroup} disabled={!isEditable}>Save group</Button>
-                  </>
-                ) : (
-                  <Button size="sm" onClick={handleSaveTopicGroup} disabled={!isEditable}>Create group</Button>
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <div className="space-y-2 flex-1">
+                <h1 className="text-4xl font-bold tracking-tight text-gray-900">{bank.title}</h1>
+                {bank.description && (
+                  <p className="text-gray-600 text-lg max-w-2xl">{bank.description}</p>
                 )}
               </div>
-
-              <div className="pt-2 border-t border-slate-100">
-                {topicGroups.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-500">No topic groups defined for this bank yet.</div>
-                ) : (
-                  <div className="space-y-3">
-                    {topicGroups.map((group) => (
-                      <div key={group.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border border-slate-100 bg-white">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <Layers className="h-4 w-4 text-slate-500" />
-                            <div className="font-semibold text-sm text-slate-800">{group.title}</div>
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {group.topics.map((t, idx) => (
-                              <Badge key={idx} variant="outline" className="text-[11px] px-2 py-0.5">{t}</Badge>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex-shrink-0 flex items-center gap-2">
-                          <Button size="sm" variant="outline" onClick={() => startEditGroup(group)} disabled={!isEditable}>Edit</Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDeleteTopicGroup(group.id)} disabled={!isEditable}><X className="h-3 w-3" /></Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="h-fit">
+                  {visibility === 'public_school' ? (
+                    <>
+                      <Globe2 className="h-3 w-3 mr-1" />
+                      Shared
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-3 w-3 mr-1" />
+                      Private
+                    </>
+                  )}
+                </Badge>
+                <Badge variant="outline" className="h-fit">
+                  {questionCount} {questionCount === 1 ? 'question' : 'questions'}
+                </Badge>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Core Profile Parameters / Settings Block */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-            <CardTitle className="text-base font-medium">Bank properties configuration</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6 space-y-4">
-            {!isEditable && <div className="p-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200/60 rounded-md">🔒 View-only schema entry</div>}
-            
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2 space-y-1">
-                <Label htmlFor="bank-title" className="text-xs">Bank title</Label>
-                <Input id="bank-title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!isEditable} placeholder="e.g. Mathematics" className="h-9 text-sm" />
-              </div>
-
-              <div className="sm:col-span-2 space-y-1">
-                <Label htmlFor="bank-description" className="text-xs">Description</Label>
-                <Textarea id="bank-description" value={description} onChange={(e) => setDescription(e.target.value)} disabled={!isEditable} placeholder="Enter description details..." rows={2} className="text-sm resize-none" />
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="subject-class" className="text-xs">Subject affiliation</Label>
-                <select id="subject-class" value={subjectClassId} onChange={(e) => setSubjectClassId(e.target.value)} disabled={!isEditable} className="h-9 w-full rounded-md border border-input bg-white px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-slate-50" >
-                  <option value="">Select configuration match</option>
-                  {subjectClasses.map((item) => (
-                    <option key={item.id} value={item.id}>{subjectClassLabelMap.get(item.id)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <Label htmlFor="visibility-select" className="text-xs">Visibility control</Label>
-                <select id="visibility-select" value={visibility} onChange={(e) => setVisibility(e.target.value as any)} disabled={!isEditable} className="h-9 w-full rounded-md border border-input bg-white px-3 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-slate-50" >
-                  <option value="private">Private (Only Me)</option>
-                  <option value="public_school">Shared with School Network</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4 border-t border-slate-100 justify-end">
-              <Button size="sm" onClick={handleSave} disabled={!isEditable || isSaving}>
-                <Save className="h-3.5 w-3.5 mr-1" /> {isSaving ? 'Saving...' : 'Save changes'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Generation Wizard Modal */}
-      <Dialog open={isGenerateModalOpen} onOpenChange={handleCloseGenerateModal}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-x-hidden w-full mx-4 md:mx-0">
-          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4 flex-shrink-0">
-            <div>
-              <DialogTitle className="text-lg font-semibold">Generate with AI</DialogTitle>
-              <DialogDescription className="text-xs text-slate-500">Configure your question generation parameters</DialogDescription>
-            </div>
-            <button onClick={handleCloseGenerateModal} disabled={isGenerating} className="rounded-md p-1 hover:bg-slate-100 transition-colors"><X className="h-4 w-4 text-slate-500" /></button>
-          </DialogHeader>
-
-          <div className="flex flex-col gap-4 overflow-y-auto flex-grow pb-6">
-            <div className="flex flex-wrap gap-2 bg-gradient-to-r from-slate-50 to-slate-100 p-3 rounded-lg border border-slate-200 flex-shrink-0">
-              {generateStepLabels.map((item) => (
-                <div
-                  key={item.step}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${generateStep === item.step ? 'bg-violet-600 text-white shadow-md' : generateStep > item.step ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white text-slate-500 border border-slate-200'}`}
-                >
-                  {item.step}. {item.title}
-                </div>
-              ))}
-            </div>
-
-            <div className="min-h-[200px] space-y-4">
-              {generateStep === 1 && (
-                <div className="space-y-3 animate-fade-in">
-                  <Label className="text-sm font-semibold text-slate-900">How many questions would you like to generate?</Label>
-                  <div className="space-y-2">
-                    <Input type="number" min={1} max={30} value={generateCount} onChange={(e) => setGenerateCount(e.target.value)} disabled={isGenerating} className="h-10 text-sm" placeholder="Enter number (1-30)" />
-                    <p className="text-xs text-slate-500">Generate between 1 and 30 questions at a time.</p>
-                  </div>
-                </div>
-              )}
-
-              {generateStep === 2 && (
-                <div className="space-y-3 animate-fade-in">
-                  <div>
-                    <Label className="text-sm font-semibold text-slate-900">Select Topics for Generation</Label>
-                    <p className="text-xs text-slate-500 mt-1">Choose topics from your existing questions or add custom ones</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 border-2 border-slate-200 p-4 rounded-lg bg-slate-50/30 min-h-32">
-                    {generatedTopicHints.length > 0 ? (
-                      generatedTopicHints.map((topic) => {
-                        const selected = selectedGenerateTopics.some((item) => item.toLowerCase() === topic.toLowerCase());
-                        return (
-                          <button key={topic} type="button" onClick={() => toggleGenerateTopic(topic)} className={`text-sm px-3 py-2 border rounded-lg font-medium transition-all ${selected ? 'bg-violet-600 text-white border-violet-600 shadow-md' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50'}`}>
-                            {topic}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <p className="text-xs text-slate-500 w-full text-center py-6">No topics found. Add a custom topic below.</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input value={manualTopicInput} onChange={(e) => setManualTopicInput(e.target.value)} placeholder="Type a custom topic..." className="h-10 text-sm" />
-                    <Button size="sm" type="button" variant="outline" onClick={addManualTopic} className="h-10 text-sm px-4">Add</Button>
-                  </div>
-                </div>
-              )}
-
-              {generateStep === 3 && (
-                <div className="space-y-3 animate-fade-in">
-                  <div>
-                    <Label className="text-sm font-semibold text-slate-900">Select Difficulty Level</Label>
-                    <p className="text-xs text-slate-500 mt-1">Choose the complexity level for generated questions</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {(['easy', 'medium', 'hard'] as const).map((level) => {
-                      const icons = { easy: '⭐', medium: '⭐⭐', hard: '⭐⭐⭐' };
-                      return (
-                        <button key={level} type="button" onClick={() => setGenerateDifficulty(level)} className={`py-3 text-sm font-semibold border-2 rounded-lg capitalize transition-all ${generateDifficulty === level ? (level === 'easy' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : level === 'medium' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-rose-50 border-rose-500 text-rose-700') : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-                          <div className="text-lg mb-1">{icons[level as keyof typeof icons]}</div>
-                          {level}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {generateStep === 4 && (
-                <div className="space-y-3 animate-fade-in">
-                  <div>
-                    <Label className="text-sm font-semibold text-slate-900">Choose Question Format</Label>
-                    <p className="text-xs text-slate-500 mt-1">Select the type of questions to generate</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {(['objective', 'theory'] as const).map((type) => (
-                      <button key={type} type="button" onClick={() => setGenerateQuestionType(type)} className={`py-3 text-sm font-semibold border-2 rounded-lg transition-all ${generateQuestionType === type ? 'bg-violet-50 border-violet-500 text-violet-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'}`}>
-                        <div className="text-lg mb-1">{type === 'objective' ? '🎯' : '✍️'}</div>
-                        {type === 'objective' ? 'Multiple Choice' : 'Written Theory'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {generateStep === 5 && (
-                <div className="space-y-3 animate-fade-in">
-                  <div className="bg-gradient-to-br from-violet-50 to-violet-100/50 p-5 rounded-lg border-2 border-violet-200">
-                    <div className="font-semibold text-slate-900 pb-4 flex items-center gap-2">
-                      <span className="text-lg">✓</span>
-                      Review Your Settings
-                    </div>
-                    <div className="space-y-3 text-sm">
-                      <div className="flex items-center justify-between bg-white/60 px-3 py-2.5 rounded-md">
-                        <span className="text-slate-600">Questions to Generate:</span>
-                        <span className="font-semibold text-violet-700 text-base">{generateCount}</span>
-                      </div>
-                      <div className="flex items-center justify-between bg-white/60 px-3 py-2.5 rounded-md">
-                        <span className="text-slate-600">Difficulty Level:</span>
-                        <span className="font-semibold text-violet-700 capitalize">{generateDifficulty === 'easy' ? '⭐ Easy' : generateDifficulty === 'medium' ? '⭐⭐ Medium' : '⭐⭐⭐ Hard'}</span>
-                      </div>
-                      <div className="flex items-center justify-between bg-white/60 px-3 py-2.5 rounded-md">
-                        <span className="text-slate-600">Question Type:</span>
-                        <span className="font-semibold text-violet-700">{generateQuestionType === 'objective' ? '🎯 Multiple Choice' : '✍️ Written Theory'}</span>
-                      </div>
-                      <div className="bg-white/60 px-3 py-3 rounded-md">
-                        <span className="text-slate-600 block mb-2">Topics:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {effectiveGenerateTopics.map((topic, idx) => (
-                            <span key={idx} className="bg-violet-200 text-violet-900 px-2 py-1 rounded text-xs font-medium break-words max-w-full">{topic}</span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-600 bg-blue-50 border border-blue-200 px-3 py-2 rounded-md">💡 Click "Compile Execution" to generate your questions with AI</p>
-                </div>
-              )}
             </div>
           </div>
 
-          <div className="flex gap-3 border-t border-slate-200 pt-4 flex-shrink-0">
-            <Button size="sm" variant="outline" onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))} disabled={isGenerating || generateStep === 1} className="flex-1 h-10">
+          {/* CTA Section */}
+          {isEditable && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+                  <Sparkles className="h-4 w-4" />
+                  Expand your question bank with AI
+                </div>
+                <p className="text-sm text-blue-700">Generate questions tailored to specific topics and difficulty levels</p>
+              </div>
+              <Button
+                onClick={handleOpenGenerateModal}
+                disabled={!canGenerateQuestions}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium w-full sm:w-auto"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate with AI
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Questions Section - Takes up 2 columns on large screens */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="border-gray-200 shadow-sm">
+              <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
+                <div className="space-y-4">
+                  <div>
+                    <CardTitle>Questions Catalog</CardTitle>
+                    <CardDescription>
+                      {filteredQuestions.length} of {questions.length} question{questions.length !== 1 ? 's' : ''}
+                    </CardDescription>
+                  </div>
+
+                  {/* Search and Filters */}
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="relative sm:col-span-1">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        value={questionSearch}
+                        onChange={(e) => setQuestionSearch(e.target.value)}
+                        className="pl-9 h-10 text-sm"
+                        placeholder="Search questions..."
+                      />
+                    </div>
+                    <select
+                      value={questionDifficultyFilter}
+                      onChange={(e) => setQuestionDifficultyFilter(e.target.value as any)}
+                      className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    >
+                      <option value="all">All difficulties</option>
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                    <select
+                      value={questionTypeFilter}
+                      onChange={(e) => setQuestionTypeFilter(e.target.value as any)}
+                      className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    >
+                      <option value="all">All types</option>
+                      <option value="objective">Objective</option>
+                      <option value="theory">Theory</option>
+                    </select>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                {questionsError && (
+                  <div className="flex gap-3 p-4 mb-6 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    {questionsError}
+                  </div>
+                )}
+
+                {filteredQuestions.length === 0 ? (
+                  <div className="py-16 text-center space-y-3">
+                    <BookOpen className="mx-auto h-8 w-8 text-gray-300" />
+                    <div>
+                      <p className="text-base font-medium text-gray-700">No matching questions found</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {questions.length === 0 
+                          ? "Get started by generating questions with AI above"
+                          : "Try adjusting your filters"}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {filteredQuestions.map((question, index) => (
+                      <div key={question.id} className="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
+                        {/* Question Header */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline" className="bg-gray-50 border-gray-200">
+                              {question.topic}
+                            </Badge>
+                            <Badge variant="outline" className={`${getDifficultyStyles(question.difficulty)} border`}>
+                              {question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1)}
+                            </Badge>
+                            <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                              {question.question_type === 'objective' ? 'Multiple Choice' : 'Essay'}
+                            </Badge>
+                          </div>
+                          <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+                        </div>
+
+                        {/* Question Text */}
+                        <p className="text-base text-gray-900 font-medium mb-4 leading-relaxed">
+                          {question.question_text}
+                        </p>
+
+                        {/* Options for Objective Questions */}
+                        {question.question_type === 'objective' && question.options.length > 0 && (
+                          <div className="grid gap-2 sm:grid-cols-2 mb-4 pl-4">
+                            {question.options.map((option, idx) => (
+                              <div
+                                key={idx}
+                                className="text-sm text-gray-700 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                              >
+                                <span className="font-semibold text-gray-400 mr-2">
+                                  {String.fromCharCode(65 + idx)}.
+                                </span>
+                                {option}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Answer and Explanation */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3 text-sm">
+                          <div className="flex gap-2">
+                            <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <div className="font-semibold text-gray-700">Correct Answer</div>
+                              <div className="text-gray-600 mt-1">{question.correct_answer || 'Not specified'}</div>
+                            </div>
+                          </div>
+                          {question.explanation && (
+                            <div className="border-t border-blue-200 pt-3">
+                              <div className="font-semibold text-gray-700 mb-1">Explanation</div>
+                              <div className="text-gray-600">{question.explanation}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar - Bank Settings */}
+          <div className="lg:col-span-1 space-y-6">
+            <Card className="border-gray-200 shadow-sm sticky top-6">
+              <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
+                <CardTitle className="text-base">Bank Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 space-y-4">
+                {!isEditable && (
+                  <div className="flex gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-semibold">View Only</div>
+                      <div className="text-xs mt-1">You can view this bank but cannot make changes</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-700">Bank Title</Label>
+                    <Input
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      disabled={!isEditable}
+                      placeholder="e.g. Mathematics"
+                      className="h-10 text-sm mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-700">Description</Label>
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      disabled={!isEditable}
+                      placeholder="Add a description..."
+                      rows={3}
+                      className="text-sm mt-2 resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-700">Subject & Class</Label>
+                    <select
+                      value={subjectClassId}
+                      onChange={(e) => setSubjectClassId(e.target.value)}
+                      disabled={!isEditable}
+                      className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
+                    >
+                      <option value="">Select subject & class</option>
+                      {subjectClasses.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {subjectClassLabelMap.get(item.id)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-700">Visibility</Label>
+                    <select
+                      value={visibility}
+                      onChange={(e) => setVisibility(e.target.value as any)}
+                      disabled={!isEditable}
+                      className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
+                    >
+                      <option value="private">Private (Only Me)</option>
+                      <option value="public_school">Shared with School</option>
+                    </select>
+                  </div>
+                </div>
+
+                {isEditable && (
+                  <Button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    size="sm"
+                    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Generation Modal */}
+      <Dialog open={isGenerateModalOpen} onOpenChange={handleCloseGenerateModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col w-[95vw] mx-auto overflow-x-hidden">
+          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4 flex-shrink-0">
+            <div className="space-y-1">
+              <DialogTitle className="text-xl font-bold">Generate Questions with AI</DialogTitle>
+              <DialogDescription className="text-sm">Step {generateStep} of 5 — Configure your generation settings</DialogDescription>
+            </div>
+            <button
+              onClick={handleCloseGenerateModal}
+              disabled={isGenerating}
+              className="rounded-lg p-1 hover:bg-gray-100 transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+          </DialogHeader>
+
+          {/* Progress Steps */}
+          <div className="flex gap-2 px-6 py-4 bg-gray-50 -mx-6 flex-shrink-0">
+            {generateStepLabels.map((item) => (
+              <div key={item.step} className="flex-1">
+                <button
+                  className={`w-full text-xs font-medium px-3 py-2 rounded-lg transition-all ${
+                    generateStep === item.step
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : generateStep > item.step
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-white text-gray-500 border border-gray-200'
+                  }`}
+                >
+                  {item.step}. {item.title}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Step Content */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            {generateStep === 1 && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <Label className="text-sm font-semibold text-gray-900">How many questions to generate?</Label>
+                  <p className="text-xs text-gray-600 mt-1">Choose between 1 and 30 questions</p>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={generateCount}
+                  onChange={(e) => setGenerateCount(e.target.value)}
+                  disabled={isGenerating}
+                  className="h-11 text-base"
+                  placeholder="Enter number"
+                />
+                <div className="flex gap-2 text-xs">
+                  {[5, 10, 15, 20].map((num) => (
+                    <button
+                      key={num}
+                      onClick={() => setGenerateCount(num.toString())}
+                      className="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50 text-gray-700 transition-colors"
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {generateStep === 2 && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <Label className="text-sm font-semibold text-gray-900">Select Topics</Label>
+                  <p className="text-xs text-gray-600 mt-1">Choose from existing topics or add custom ones</p>
+                </div>
+                <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-lg min-h-[100px] border border-gray-200">
+                  {generatedTopicHints.length > 0 ? (
+                    generatedTopicHints.map((topic) => {
+                      const selected = selectedGenerateTopics.some(
+                        (item) => item.toLowerCase() === topic.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={topic}
+                          onClick={() => toggleGenerateTopic(topic)}
+                          className={`text-sm px-3 py-2 rounded-lg font-medium transition-all ${
+                            selected
+                              ? 'bg-blue-600 text-white shadow-sm'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          {topic}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-gray-500 w-full text-center py-8">Add a custom topic below</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={manualTopicInput}
+                    onChange={(e) => setManualTopicInput(e.target.value)}
+                    placeholder="Add custom topic..."
+                    className="h-10 text-sm"
+                    onKeyDown={(e) => e.key === 'Enter' && addManualTopic()}
+                  />
+                  <Button size="sm" variant="outline" onClick={addManualTopic} className="h-10 px-4">
+                    Add
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {generateStep === 3 && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <Label className="text-sm font-semibold text-gray-900">Difficulty Level</Label>
+                  <p className="text-xs text-gray-600 mt-1">Select the complexity level for questions</p>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['easy', 'medium', 'hard'] as const).map((level) => {
+                    const icons = { easy: '⭐', medium: '⭐⭐', hard: '⭐⭐⭐' };
+                    const colors = {
+                      easy: 'emerald',
+                      medium: 'amber',
+                      hard: 'red',
+                    };
+                    const color = colors[level];
+                    const isSelected = generateDifficulty === level;
+                    return (
+                      <button
+                        key={level}
+                        onClick={() => setGenerateDifficulty(level)}
+                        className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${
+                          isSelected
+                            ? `bg-${color}-50 border-${color}-500 text-${color}-700`
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="text-xl mb-2">{icons[level]}</div>
+                        <div className="capitalize">{level}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {generateStep === 4 && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div>
+                  <Label className="text-sm font-semibold text-gray-900">Question Format</Label>
+                  <p className="text-xs text-gray-600 mt-1">Choose the type of questions to generate</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['objective', 'theory'] as const).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setGenerateQuestionType(type)}
+                      className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${
+                        generateQuestionType === type
+                          ? 'bg-blue-50 border-blue-500 text-blue-700'
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-xl mb-2">{type === 'objective' ? '🎯' : '✍️'}</div>
+                      <div>{type === 'objective' ? 'Multiple Choice' : 'Essay'}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {generateStep === 5 && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 space-y-4">
+                  <div className="font-semibold text-blue-900 flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5" />
+                    Review Your Settings
+                  </div>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between bg-white/60 px-4 py-3 rounded-lg">
+                      <span className="text-gray-700">Questions to Generate</span>
+                      <span className="font-semibold text-blue-700">{generateCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-white/60 px-4 py-3 rounded-lg">
+                      <span className="text-gray-700">Difficulty Level</span>
+                      <span className="font-semibold text-blue-700 capitalize">{generateDifficulty}</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-white/60 px-4 py-3 rounded-lg">
+                      <span className="text-gray-700">Question Format</span>
+                      <span className="font-semibold text-blue-700">
+                        {generateQuestionType === 'objective' ? 'Multiple Choice' : 'Essay'}
+                      </span>
+                    </div>
+                    <div className="bg-white/60 px-4 py-3 rounded-lg">
+                      <span className="text-gray-700 block mb-2">Topics</span>
+                      <div className="flex flex-wrap gap-2">
+                        {effectiveGenerateTopics.map((topic, idx) => (
+                          <span key={idx} className="bg-blue-200 text-blue-900 px-3 py-1 rounded text-xs font-medium">
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-lg text-sm text-emerald-800 flex gap-3">
+                  <CheckCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <div>Ready to generate! Click the button below to create your questions.</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 border-t border-gray-200 pt-4 flex-shrink-0 px-6 pb-6">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))}
+              disabled={isGenerating || generateStep === 1}
+              className="flex-1 h-11"
+            >
               ← Back
             </Button>
             {generateStep < 5 ? (
-              <Button size="sm" onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 5))} disabled={isGenerating || (generateStep === 2 && effectiveGenerateTopics.length === 0)} className="flex-1 h-10 bg-violet-600 hover:bg-violet-700 text-white font-medium">
+              <Button
+                size="sm"
+                onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 5))}
+                disabled={isGenerating || (generateStep === 2 && effectiveGenerateTopics.length === 0)}
+                className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              >
                 Next →
               </Button>
             ) : (
-              <Button size="sm" onClick={handleGenerateQuestions} disabled={isGenerating} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium">
+              <Button
+                size="sm"
+                onClick={handleGenerateQuestions}
+                disabled={isGenerating}
+                className="flex-1 h-11 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              >
                 <Sparkles className="h-4 w-4 mr-2" />
                 {isGenerating ? 'Generating...' : 'Generate Questions'}
               </Button>

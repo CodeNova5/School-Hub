@@ -47,6 +47,14 @@ type QuestionRecord = {
   updated_at?: string;
 };
 
+type TopicGroupRecord = {
+  id: string;
+  title: string;
+  topics: string[];
+  created_by_teacher_id: string;
+  created_at: string;
+};
+
 type ContextPayload = {
   teacherId: string;
   subjectClasses: SubjectClassItem[];
@@ -80,6 +88,11 @@ export default function TeacherQuestionBankDetailPage() {
   const [subjectClasses, setSubjectClasses] = useState<SubjectClassItem[]>([]);
   const [bank, setBank] = useState<BankRecord | null>(null);
   const [questions, setQuestions] = useState<QuestionRecord[]>([]);
+  const [topicGroups, setTopicGroups] = useState<TopicGroupRecord[]>([]);
+  const [topicGroupsLoading, setTopicGroupsLoading] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [groupTitleInput, setGroupTitleInput] = useState('');
+  const [groupTopicsInput, setGroupTopicsInput] = useState(''); // comma separated
   const [questionCount, setQuestionCount] = useState(0);
   const [questionsError, setQuestionsError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -162,15 +175,17 @@ export default function TeacherQuestionBankDetailPage() {
     setIsLoading(true);
     setQuestionsError('');
     try {
-      const [contextResponse, bankResponse, questionsResponse] = await Promise.all([
+      const [contextResponse, bankResponse, questionsResponse, groupsResponse] = await Promise.all([
         fetch('/api/teacher/question-bank/context', { cache: 'no-store' }),
         fetch(`/api/teacher/question-bank/banks/${bankId}`, { cache: 'no-store' }),
         fetch(`/api/teacher/question-bank/banks/${bankId}/questions`, { cache: 'no-store' }),
+        fetch(`/api/teacher/question-bank/banks/${bankId}/topic-groups`, { cache: 'no-store' }),
       ]);
 
       const contextPayload = (await contextResponse.json()) as ContextPayload | { error: string };
       const bankPayload = (await bankResponse.json()) as BankPayload | { error: string };
       const questionsPayload = (await questionsResponse.json()) as QuestionsPayload | { error: string };
+      const groupsPayload = (await groupsResponse.json()) as { groups?: TopicGroupRecord[] } | { error: string };
 
       if (!contextResponse.ok || 'error' in contextPayload) {
         toast.error('Failed to load question bank data');
@@ -187,6 +202,13 @@ export default function TeacherQuestionBankDetailPage() {
         setQuestionsError('error' in questionsPayload ? questionsPayload.error : 'Failed to load questions');
       } else {
         setQuestions(questionsPayload.questions || []);
+      }
+
+      if (!groupsResponse.ok || 'error' in groupsPayload) {
+        // non-fatal: just show none
+        setTopicGroups([]);
+      } else {
+        setTopicGroups(groupsPayload.groups || []);
       }
 
       setTeacherId(contextPayload.teacherId || '');
@@ -359,6 +381,95 @@ export default function TeacherQuestionBankDetailPage() {
       toast.error('Failed to update question bank');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  /****************************************************************************
+   * Topic Groups Management
+   ****************************************************************************/
+  function startEditGroup(group: TopicGroupRecord) {
+    setEditingGroupId(group.id);
+    setGroupTitleInput(group.title || '');
+    setGroupTopicsInput((group.topics || []).join(', '));
+  }
+
+  function cancelEditGroup() {
+    setEditingGroupId(null);
+    setGroupTitleInput('');
+    setGroupTopicsInput('');
+  }
+
+  async function handleSaveTopicGroup() {
+    if (!isEditable) {
+      toast.error('You can only manage topic groups for banks you created');
+      return;
+    }
+
+    const title = groupTitleInput.trim();
+    const topics = groupTopicsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    if (!title) {
+      toast.error('Provide a title for the topic group');
+      return;
+    }
+
+    try {
+      const method = editingGroupId ? 'PATCH' : 'POST';
+      const url = editingGroupId
+        ? `/api/teacher/question-bank/banks/${bankId}/topic-groups/${editingGroupId}`
+        : `/api/teacher/question-bank/banks/${bankId}/topic-groups`;
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, topics }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok) {
+        toast.error(payload?.error || 'Failed to save topic group');
+        return;
+      }
+
+      const savedGroup = payload.group as TopicGroupRecord;
+      if (editingGroupId) {
+        setTopicGroups((prev) => prev.map((g) => (g.id === savedGroup.id ? savedGroup : g)));
+        toast.success('Topic group updated');
+      } else {
+        setTopicGroups((prev) => [savedGroup, ...prev]);
+        toast.success('Topic group created');
+      }
+
+      cancelEditGroup();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to save topic group');
+    }
+  }
+
+  async function handleDeleteTopicGroup(id: string) {
+    if (!isEditable) {
+      toast.error('You can only manage topic groups for banks you created');
+      return;
+    }
+
+    if (!confirm('Delete this topic group? This action cannot be undone.')) return;
+
+    try {
+      const res = await fetch(`/api/teacher/question-bank/banks/${bankId}/topic-groups/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const payload = await res.json();
+        toast.error(payload?.error || 'Failed to delete topic group');
+        return;
+      }
+      setTopicGroups((prev) => prev.filter((g) => g.id !== id));
+      toast.success('Topic group deleted');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete topic group');
     }
   }
 
@@ -537,6 +648,76 @@ export default function TeacherQuestionBankDetailPage() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Topic Groups Management */}
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-medium">Topic groups</CardTitle>
+                <CardDescription className="text-xs">Create and manage reusable topic groups for this bank</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-6 space-y-4">
+            {!isEditable && <div className="p-2.5 text-xs text-amber-800 bg-amber-50 border border-amber-200/60 rounded-md">🔒 View-only topic groups</div>}
+
+            <div className="space-y-3">
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <Label className="text-xs">Group title</Label>
+                  <Input value={groupTitleInput} onChange={(e) => setGroupTitleInput(e.target.value)} disabled={!isEditable} className="h-9 text-sm" placeholder="e.g. Algebra topics" />
+                </div>
+
+                <div>
+                  <Label className="text-xs">Topics (comma separated)</Label>
+                  <Input value={groupTopicsInput} onChange={(e) => setGroupTopicsInput(e.target.value)} disabled={!isEditable} className="h-9 text-sm" placeholder="fractions, equations, graphs" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                {editingGroupId ? (
+                  <>
+                    <Button size="sm" variant="outline" onClick={cancelEditGroup} disabled={!isEditable}>Cancel</Button>
+                    <Button size="sm" onClick={handleSaveTopicGroup} disabled={!isEditable}>Save group</Button>
+                  </>
+                ) : (
+                  <Button size="sm" onClick={handleSaveTopicGroup} disabled={!isEditable}>Create group</Button>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                {topicGroups.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500">No topic groups defined for this bank yet.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {topicGroups.map((group) => (
+                      <div key={group.id} className="flex items-start justify-between gap-4 p-3 rounded-lg border border-slate-100 bg-white">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Layers className="h-4 w-4 text-slate-500" />
+                            <div className="font-semibold text-sm text-slate-800">{group.title}</div>
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {group.topics.map((t, idx) => (
+                              <Badge key={idx} variant="outline" className="text-[11px] px-2 py-0.5">{t}</Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex-shrink-0 flex items-center gap-2">
+                          <Button size="sm" variant="outline" onClick={() => startEditGroup(group)} disabled={!isEditable}>Edit</Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDeleteTopicGroup(group.id)} disabled={!isEditable}><X className="h-3 w-3" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 

@@ -439,7 +439,7 @@ export default function TeacherQuestionBankDetailPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="space-y-8 pb-12">
+      <div className="space-y-6 pb-12">
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white shadow-[0_24px_60px_-24px_rgba(15,23,42,0.75)]">
           <div className="grid gap-8 px-6 py-8 lg:grid-cols-[1.25fr_0.9fr] lg:px-8 lg:py-10">
             <div className="space-y-4">
@@ -494,30 +494,36 @@ export default function TeacherQuestionBankDetailPage() {
           </div>
         </section>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardContent className="p-5">
-              <p className="text-sm text-gray-500">Question count</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{questionCount}</p>
+        <div className="grid gap-3 md:grid-cols-4">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Questions</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">{questionCount}</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-5">
-              <p className="text-sm text-gray-500">Visibility</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Visibility</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">
                 {visibility === 'public_school' ? 'Shared' : 'Private'}
               </p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-5">
-              <p className="text-sm text-gray-500">Bank ID</p>
-              <p className="mt-2 truncate text-sm font-semibold text-gray-900">{bank.id}</p>
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Created</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{formatDate(bank.created_at)}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs uppercase tracking-widest text-slate-500 font-medium">Updated</p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">{formatDate(bank.updated_at || bank.created_at)}</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.95fr]">
+        <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="space-y-4 border-b border-slate-100 bg-slate-50/60">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -654,89 +660,102 @@ export default function TeacherQuestionBankDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="space-y-2 border-b border-slate-100 bg-slate-50/60">
+          <Card className="border-slate-200 shadow-sm lg:sticky lg:top-6 lg:h-fit">
+            <CardHeader className="space-y-3 border-b border-slate-100 bg-gradient-to-br from-violet-50 to-violet-50/50">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-4 w-4 text-violet-500" />
+                <Sparkles className="h-5 w-5 text-violet-600" />
                 Generate with AI
               </CardTitle>
-              <CardDescription>
-                Add more questions using the topics already present in this bank, or fall back to the subject/class label.
+              <CardDescription className="text-sm">
+                Create new questions from selected topics.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5 p-6">
               {!isEditable && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  AI generation is available only for banks you created.
+                <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-800 font-medium">
+                  🔒 Available only for banks you created
                 </div>
               )}
 
-              <div className="space-y-2 rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Topic hints used by AI</p>
-                <div className="flex flex-wrap gap-2">
-                  {topicPreviewList.map((topic) => (
-                    <Badge key={topic} variant="outline" className="bg-white text-slate-700 border-slate-200">
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-widest text-slate-600 font-semibold">Topics for AI</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {topicPreviewList.slice(0, 4).map((topic) => (
+                    <Badge key={topic} variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 text-xs">
                       {topic}
                     </Badge>
                   ))}
+                  {topicPreviewList.length > 4 && (
+                    <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 text-xs">
+                      +{topicPreviewList.length - 4} more
+                    </Badge>
+                  )}
                 </div>
               </div>
 
               <Button
                 onClick={handleOpenGenerateModal}
                 disabled={!canGenerateQuestions}
-                className="w-full gap-2 bg-violet-600 hover:bg-violet-700"
+                className="w-full gap-2 bg-violet-600 hover:bg-violet-700 text-white font-medium shadow-md"
               >
                 <Sparkles className="h-4 w-4" />
-                Generate questions with AI
+                {isGenerating ? 'Generating...' : 'Generate questions'}
               </Button>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs text-slate-600 space-y-1">
+                <p className="font-medium text-slate-700">Quick tip:</p>
+                <p>Select specific topics and choose how many questions you need in the next step.</p>
+              </div>
             </CardContent>
           </Card>
         </div>
 
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/60">
-            <CardTitle className="text-lg">Edit bank properties</CardTitle>
-            <CardDescription>
-              Keep the structure tidy before you begin filling the bank with questions.
+          <CardHeader className="border-b border-slate-100 bg-gradient-to-br from-slate-50 to-slate-50/50">
+            <CardTitle className="text-lg font-semibold">Bank settings</CardTitle>
+            <CardDescription className="text-sm">
+              Configure title, description, subject, and visibility.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5 p-6">
+          <CardContent className="space-y-6 p-6">
             {!isEditable && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                This bank is shared with you, so the properties are read-only.
+              <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-xs text-amber-800 font-medium">
+                🔒 Read-only — this bank is shared with you
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label htmlFor="bank-title">Bank title</Label>
-              <Input
-                id="bank-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={!isEditable}
-                placeholder="e.g. JSS2 Mathematics Term 3"
-              />
-            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="md:col-span-2 space-y-1.5">
+                <Label htmlFor="bank-title" className="font-medium">Bank title</Label>
+                <Input
+                  id="bank-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  disabled={!isEditable}
+                  placeholder="e.g. JSS2 Mathematics Term 3"
+                  className="text-base"
+                />
+              </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="bank-description">
-                Description <span className="font-normal text-gray-400">(optional)</span>
-              </Label>
-              <Textarea
-                id="bank-description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={!isEditable}
-                placeholder="Explain what this bank will be used for."
-                rows={4}
-              />
-            </div>
+              <div className="md:col-span-2 space-y-1.5">
+                <Label htmlFor="bank-description" className="font-medium">
+                  Description <span className="font-normal text-slate-400">(optional)</span>
+                </Label>
+                <Textarea
+                  id="bank-description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={!isEditable}
+                  placeholder="Explain what this bank will be used for."
+                  rows={3}
+                  className="text-base resize-none"
+                />
+              </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Subject & class</Label>
+                <Label htmlFor="subject-class" className="font-medium">Subject & class</Label>
                 <select
+                  id="subject-class"
                   value={subjectClassId}
                   onChange={(e) => setSubjectClassId(e.target.value)}
                   disabled={!isEditable}
@@ -752,8 +771,9 @@ export default function TeacherQuestionBankDetailPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Visibility</Label>
+                <Label htmlFor="visibility-select" className="font-medium">Visibility</Label>
                 <select
+                  id="visibility-select"
                   value={visibility}
                   onChange={(e) => setVisibility(e.target.value as 'private' | 'public_school')}
                   disabled={!isEditable}
@@ -765,13 +785,13 @@ export default function TeacherQuestionBankDetailPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <Button onClick={handleSave} disabled={!isEditable || isSaving} className="gap-2">
+            <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-slate-200">
+              <Button onClick={handleSave} disabled={!isEditable || isSaving} className="gap-2 font-medium">
                 <Save className="h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save properties'}
+                {isSaving ? 'Saving...' : 'Save changes'}
               </Button>
-              <Button variant="outline" onClick={() => router.push('/teacher/question-bank')}>
-                Back to overview
+              <Button variant="outline" onClick={() => router.push('/teacher/question-bank')} className="font-medium">
+                Back
               </Button>
             </div>
           </CardContent>

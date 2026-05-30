@@ -905,35 +905,35 @@ export default function TeacherQuestionBankDetailPage() {
       </div>
 
       <Dialog open={isQuestionGroupsModalOpen} onOpenChange={setIsQuestionGroupsModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
-          <DialogHeader className="space-y-2 border-b pb-4">
-            <DialogTitle className="text-xl font-bold">Question Groups</DialogTitle>
-            <DialogDescription>
-              Create reusable topic collections and use them when generating questions.
+        <DialogContent className="w-[96vw] max-w-5xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
+          <DialogHeader className="space-y-2 border-b border-slate-200/80 bg-slate-50/80 px-6 py-5 sm:px-7">
+            <DialogTitle className="text-xl font-bold tracking-tight text-slate-950">Question Groups</DialogTitle>
+            <DialogDescription className="max-w-2xl text-sm leading-6 text-slate-600">
+              Create reusable topic collections, then apply them directly to AI generation.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 pt-2">
+          <div className="space-y-5 px-6 py-6 sm:px-7">
             {!isEditable && (
-              <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <div>You can view saved groups here, but only the bank owner can create or edit them.</div>
               </div>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+            <div className="grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
               <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50 p-5 shadow-sm sm:p-6">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 border-b border-slate-200/60 pb-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                     {editingGroupId ? 'Edit Group' : 'Create New Group'}
                   </p>
                   <h3 className="text-lg font-semibold text-slate-950">
                     {editingGroupId ? 'Edit Group' : 'Create New Group'}
                   </h3>
-                  <p className="text-sm text-slate-500">Save frequently used topic combinations.</p>
+                  <p className="text-sm leading-6 text-slate-500">Save frequently used topic combinations for faster generation.</p>
                 </div>
 
-                <div className="mt-6 space-y-4">
+                <div className="mt-5 space-y-4">
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold text-slate-700">Group Title</Label>
                     <Input
@@ -965,7 +965,7 @@ export default function TeacherQuestionBankDetailPage() {
                       <span>Live preview</span>
                       <span>{groupTopicPreview.length} topics</span>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-3 flex min-h-12 flex-wrap gap-2">
                       {groupTopicPreview.length > 0 ? (
                         groupTopicPreview.map((topic) => (
                           <span
@@ -1007,15 +1007,25 @@ export default function TeacherQuestionBankDetailPage() {
               </div>
 
               <div className="space-y-4">
+                <div className="flex items-end justify-between gap-4 border-b border-slate-200/60 pb-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Saved groups</p>
+                    <p className="mt-1 text-sm text-slate-500">Use, edit, or delete existing topic collections.</p>
+                  </div>
+                  <Badge variant="secondary" className="rounded-full border border-slate-200 bg-slate-50 text-slate-700">
+                    {topicGroups.length} total
+                  </Badge>
+                </div>
+
                 {hasQuestionGroups ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
                     {topicGroups.map((group) => {
                       const topicCount = (group.topics || []).length;
 
                       return (
                         <div
                           key={group.id}
-                          className="group rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70"
+                          className="group flex h-full flex-col rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex min-w-0 items-start gap-3">

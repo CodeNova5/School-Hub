@@ -9,35 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import {
-  Sparkles, Plus, Copy, Pencil, Trash2, Save, X,
-  FolderOpen, BookOpen, Layers, ChevronDown, ChevronUp,
-  Eye, EyeOff, HelpCircle, CheckCircle2, Lock, Globe2
+  Plus, BookOpen, Layers, Lock, Globe2
 } from 'lucide-react';
 
-type SubjectClassItem = {
-  id: string;
-  subjects?: { id: string; name: string } | null;
-  classes?: { id: string; name: string } | null;
-};
-"use client";
-
-import { useEffect, useMemo, useState } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { SlidersHorizontal, Search } from 'lucide-react';
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { supabase } from '@/lib/supabase';
-import { BookOpen, Globe2, Layers, Lock, Plus, Search, SlidersHorizontal } from 'lucide-react';
-import { toast } from 'sonner';
+
 
 type SubjectClassItem = {
   id: string;

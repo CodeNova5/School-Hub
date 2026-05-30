@@ -10,12 +10,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { 
-  Sparkles, Plus, Copy, Pencil, Trash2, Save, X, 
-  FolderOpen, BookOpen, Layers, Settings2, SlidersHorizontal,
-  ChevronDown, ChevronUp, Eye, EyeOff, HelpCircle, CheckCircle2
+import {
+  Sparkles, Plus, Copy, Pencil, Trash2, Save, X,
+  FolderOpen, BookOpen, Layers, ChevronDown, ChevronUp,
+  Eye, EyeOff, HelpCircle, CheckCircle2, Lock, Globe2
 } from 'lucide-react';
 
 type SubjectClassItem = {
@@ -63,6 +62,12 @@ type ContextPayload = {
 const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 const QUESTION_TYPES = ['objective', 'theory'] as const;
 
+const difficultyStyles = {
+  hard: 'border-red-200 text-red-700 bg-red-50',
+  medium: 'border-amber-200 text-amber-700 bg-amber-50',
+  easy: 'border-emerald-200 text-emerald-700 bg-emerald-50',
+};
+
 export default function TeacherQuestionBankPage() {
   // Global View States
   const [isLoading, setIsLoading] = useState(true);
@@ -73,7 +78,7 @@ export default function TeacherQuestionBankPage() {
   const [isGenPanelOpen, setIsGenPanelOpen] = useState(false);
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const [isTopicModalOpen, setIsTopicModalOpen] = useState(false);
-  
+
   // Context Data
   const [teacherId, setTeacherId] = useState('');
   const [subjectClasses, setSubjectClasses] = useState<SubjectClassItem[]>([]);
@@ -132,7 +137,6 @@ export default function TeacherQuestionBankPage() {
     }
   }, [selectedBankId]);
 
-  // Sync automatic target values when standard parameters flip
   useEffect(() => {
     if (selectedBank) {
       setGenerateSubjectClassId(selectedBank.subject_class_id);
@@ -193,7 +197,7 @@ export default function TeacherQuestionBankPage() {
 
   function parseTopicsFromText(input: string): string[] {
     return input
-      .split(/\n|,/) 
+      .split(/\n|,/)
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
   }
@@ -206,10 +210,9 @@ export default function TeacherQuestionBankPage() {
 
   async function handleCreateBank() {
     if (!bankTitle.trim() || !bankSubjectClassId) {
-      toast.error('Enter bank title and select subject/class');
+      toast.error('Enter a title and select subject/class');
       return;
     }
-
     setIsCreatingBank(true);
     try {
       const response = await fetch('/api/teacher/question-bank/banks', {
@@ -227,14 +230,13 @@ export default function TeacherQuestionBankPage() {
         toast.error(payload?.error || 'Failed to create bank');
         return;
       }
-
       const createdBank = payload.bank as QuestionBank;
       setBanks((prev) => [createdBank, ...prev]);
       setSelectedBankId(createdBank.id);
       setBankTitle('');
       setBankDescription('');
       setIsBankModalOpen(false);
-      toast.success('Question bank created successfully');
+      toast.success('Question bank created');
     } catch (error) {
       console.error(error);
       toast.error('Failed to create bank');
@@ -245,18 +247,14 @@ export default function TeacherQuestionBankPage() {
 
   async function handleGenerateTopics() {
     if (!topicSetSubjectClassId) {
-      toast.error('Select subject/class first');
+      toast.error('Select a subject/class first');
       return;
     }
-
     try {
       const response = await fetch('/api/teacher/question-bank/topics/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subjectClassId: topicSetSubjectClassId,
-          count: 12,
-        }),
+        body: JSON.stringify({ subjectClassId: topicSetSubjectClassId, count: 12 }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -265,7 +263,7 @@ export default function TeacherQuestionBankPage() {
       }
       const topics = Array.isArray(payload.topics) ? payload.topics : [];
       setManualTopicsText(topics.join('\n'));
-      toast.success('AI suggestions added to text field');
+      toast.success('AI suggestions added');
     } catch (error) {
       console.error(error);
       toast.error('Failed to generate topics');
@@ -278,17 +276,12 @@ export default function TeacherQuestionBankPage() {
       toast.error('Name, subject/class, and at least one topic are required');
       return;
     }
-
     setIsSavingTopicSet(true);
     try {
       const response = await fetch('/api/teacher/question-bank/topics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: topicSetName,
-          subjectClassId: topicSetSubjectClassId,
-          topics,
-        }),
+        body: JSON.stringify({ name: topicSetName, subjectClassId: topicSetSubjectClassId, topics }),
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -301,7 +294,7 @@ export default function TeacherQuestionBankPage() {
       setTopicSetName('');
       setManualTopicsText('');
       setIsTopicModalOpen(false);
-      toast.success('Topic set saved for reuse');
+      toast.success('Topic set saved');
     } catch (error) {
       console.error(error);
       toast.error('Failed to save topic set');
@@ -312,12 +305,10 @@ export default function TeacherQuestionBankPage() {
 
   async function handleGenerateQuestions() {
     const fallbackTopics = parseTopicsFromText(generateTopicsText);
-
     if (!selectedBankId || !generateSubjectClassId) {
-      toast.error('Select an active bank and subject/class to target');
+      toast.error('Select a bank and subject/class first');
       return;
     }
-
     setIsGenerating(true);
     try {
       const response = await fetch('/api/teacher/question-bank/questions/generate', {
@@ -336,11 +327,10 @@ export default function TeacherQuestionBankPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        toast.error(payload?.error || 'Question generation failed');
+        toast.error(payload?.error || 'Generation failed');
         return;
       }
-
-      toast.success(`Generated ${payload.generatedCount || 0} question(s) directly into bank`);
+      toast.success(`${payload.generatedCount || 0} question(s) added to bank`);
       setIsGenPanelOpen(false);
       setGenerateTopicsText('');
       await loadBankQuestions(selectedBankId);
@@ -382,10 +372,9 @@ export default function TeacherQuestionBankPage() {
         toast.error(payload?.error || 'Failed to update question');
         return;
       }
-
       setQuestions((prev) => prev.map((q) => (q.id === questionId ? payload.question : q)));
       cancelEditQuestion();
-      toast.success('Question updated successfully');
+      toast.success('Question updated');
     } catch (error) {
       console.error(error);
       toast.error('Failed to update question');
@@ -403,7 +392,7 @@ export default function TeacherQuestionBankPage() {
         return;
       }
       setQuestions((prev) => prev.filter((q) => q.id !== questionId));
-      toast.success('Question removed');
+      toast.success('Question deleted');
     } catch (error) {
       console.error(error);
       toast.error('Failed to delete question');
@@ -413,10 +402,9 @@ export default function TeacherQuestionBankPage() {
   async function duplicateQuestion(questionId: string) {
     const targetBankId = myBanks[0]?.id;
     if (!targetBankId) {
-      toast.error('Create your own bank before duplicating shared questions');
+      toast.error('Create your own bank before copying shared questions');
       return;
     }
-
     try {
       const response = await fetch(`/api/teacher/question-bank/questions/${questionId}/duplicate`, {
         method: 'POST',
@@ -425,26 +413,26 @@ export default function TeacherQuestionBankPage() {
       });
       const payload = await response.json();
       if (!response.ok) {
-        toast.error(payload?.error || 'Failed to duplicate question');
+        toast.error(payload?.error || 'Failed to copy question');
         return;
       }
-      toast.success('Question duplicated into your personal bank workspace');
+      toast.success('Question copied to your bank');
       if (selectedBankId === targetBankId) {
         await loadBankQuestions(targetBankId);
       }
     } catch (error) {
       console.error(error);
-      toast.error('Failed to duplicate question');
+      toast.error('Failed to copy question');
     }
   }
 
   if (isLoading) {
     return (
       <DashboardLayout role="teacher">
-        <div className="h-screen flex items-center justify-center bg-gray-50/50">
-          <div className="text-center space-y-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
-            <p className="text-sm font-medium text-gray-500">Syncing Question Engine Context...</p>
+        <div className="h-screen flex items-center justify-center bg-gray-50">
+          <div className="text-center space-y-4">
+            <div className="h-10 w-10 rounded-full border-2 border-blue-600 border-t-transparent animate-spin mx-auto" />
+            <p className="text-sm text-gray-500 font-medium">Loading your question banks…</p>
           </div>
         </div>
       </DashboardLayout>
@@ -453,83 +441,122 @@ export default function TeacherQuestionBankPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="flex flex-col space-y-6 max-w-[1600px] mx-auto min-h-screen pb-12">
-        
-        {/* Top Minimal Action Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
+      <div className="flex flex-col gap-6 max-w-[1600px] mx-auto min-h-screen pb-16 px-1">
+
+        {/* ── Page Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2">
-              <Layers className="h-6 w-6 text-blue-600" /> AI Question Engine
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center gap-2.5">
+              <Layers className="h-6 w-6 text-blue-600 shrink-0" />
+              Question Banks
             </h1>
-            <p className="text-sm text-gray-500 mt-0.5">Generate, audit, curate, and scaffold student-ready assessments instantly.</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Generate, review, and manage exam questions with AI assistance.
+            </p>
           </div>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            {/* Create Bank Dialog Launcher */}
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* New Bank Dialog */}
             <Dialog open={isBankModalOpen} onOpenChange={setIsBankModalOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="shadow-sm border-gray-200">
-                  <Plus className="h-4 w-4 mr-1.5 text-gray-500" /> New Question Bank
+                <Button variant="outline" size="sm" className="gap-1.5 border-gray-200 shadow-sm">
+                  <Plus className="h-4 w-4" /> New Bank
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[480px]">
+              <DialogContent className="sm:max-w-[460px]">
                 <DialogHeader>
-                  <DialogTitle>Create Question Bank Container</DialogTitle>
-                  <DialogDescription>Setup a repository to hold target assessment criteria.</DialogDescription>
+                  <DialogTitle>Create Question Bank</DialogTitle>
+                  <DialogDescription>
+                    A bank holds questions for a specific subject and class.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
-                  <div className="space-y-1">
-                    <Label htmlFor="bankTitle">Bank Title</Label>
-                    <Input id="bankTitle" value={bankTitle} onChange={(e) => setBankTitle(e.target.value)} placeholder="e.g., JSS2 Mathematics Term 3 Mock" />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankTitle">Bank name</Label>
+                    <Input
+                      id="bankTitle"
+                      value={bankTitle}
+                      onChange={(e) => setBankTitle(e.target.value)}
+                      placeholder="e.g., JSS2 Mathematics – Term 3 Mock"
+                    />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="bankDesc">Description (Optional)</Label>
-                    <Textarea id="bankDesc" value={bankDescription} onChange={(e) => setBankDescription(e.target.value)} rows={2} placeholder="Briefly describe target testing goals..." />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankDesc">
+                      Description <span className="text-gray-400 font-normal">(optional)</span>
+                    </Label>
+                    <Textarea
+                      id="bankDesc"
+                      value={bankDescription}
+                      onChange={(e) => setBankDescription(e.target.value)}
+                      rows={2}
+                      placeholder="Briefly describe the purpose of this bank…"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label>Subject/Class Track</Label>
-                      <select className="w-full border rounded-md px-3 h-10 text-sm bg-white" value={bankSubjectClassId} onChange={(e) => setBankSubjectClassId(e.target.value)}>
+                    <div className="space-y-1.5">
+                      <Label>Subject & class</Label>
+                      <select
+                        className="w-full border border-input rounded-md px-3 h-10 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        value={bankSubjectClassId}
+                        onChange={(e) => setBankSubjectClassId(e.target.value)}
+                      >
                         {subjectClasses.map((item) => (
                           <option key={item.id} value={item.id}>{getSubjectClassLabel(item.id)}</option>
                         ))}
                       </select>
                     </div>
-                    <div className="space-y-1">
-                      <Label>Privacy Guard</Label>
-                      <select className="w-full border rounded-md px-3 h-10 text-sm bg-white" value={bankVisibility} onChange={(e) => setBankVisibility(e.target.value as any)}>
-                        <option value="private">Private (Only You)</option>
-                        <option value="public_school">Shared with School</option>
+                    <div className="space-y-1.5">
+                      <Label>Visibility</Label>
+                      <select
+                        className="w-full border border-input rounded-md px-3 h-10 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        value={bankVisibility}
+                        onChange={(e) => setBankVisibility(e.target.value as any)}
+                      >
+                        <option value="private">Private – only me</option>
+                        <option value="public_school">Shared with school</option>
                       </select>
                     </div>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsBankModalOpen(false)}>Cancel</Button>
-                  <Button onClick={handleCreateBank} disabled={isCreatingBank}>{isCreatingBank ? "Creating..." : "Build Bank"}</Button>
+                  <Button onClick={handleCreateBank} disabled={isCreatingBank}>
+                    {isCreatingBank ? 'Creating…' : 'Create bank'}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
 
-            {/* Create Topic Set Dialog Launcher */}
+            {/* Save Topic Set Dialog */}
             <Dialog open={isTopicModalOpen} onOpenChange={setIsTopicModalOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="shadow-sm border-gray-200">
-                  <BookOpen className="h-4 w-4 mr-1.5 text-gray-500" /> Save Topic Group
+                <Button variant="outline" size="sm" className="gap-1.5 border-gray-200 shadow-sm">
+                  <BookOpen className="h-4 w-4" /> Save Topics
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[480px]">
                 <DialogHeader>
-                  <DialogTitle>Define Reusable Topic Set</DialogTitle>
-                  <DialogDescription>Group syllabus structures for recurring assessment generation passes.</DialogDescription>
+                  <DialogTitle>Save Topic Set</DialogTitle>
+                  <DialogDescription>
+                    Create a reusable collection of topics for faster question generation.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
-                  <div className="space-y-1">
-                    <Label>Topic Group Name</Label>
-                    <Input value={topicSetName} onChange={(e) => setTopicSetName(e.target.value)} placeholder="e.g., Week 1-6 Calculus Intro" />
+                  <div className="space-y-1.5">
+                    <Label>Set name</Label>
+                    <Input
+                      value={topicSetName}
+                      onChange={(e) => setTopicSetName(e.target.value)}
+                      placeholder="e.g., Weeks 1–6 Calculus Intro"
+                    />
                   </div>
-                  <div className="space-y-1">
-                    <Label>Subject & Target Class Mapping</Label>
-                    <select className="w-full border rounded-md px-3 h-10 text-sm bg-white" value={topicSetSubjectClassId} onChange={(e) => setTopicSetSubjectClassId(e.target.value)}>
+                  <div className="space-y-1.5">
+                    <Label>Subject & class</Label>
+                    <select
+                      className="w-full border border-input rounded-md px-3 h-10 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      value={topicSetSubjectClassId}
+                      onChange={(e) => setTopicSetSubjectClassId(e.target.value)}
+                    >
                       {subjectClasses.map((item) => (
                         <option key={item.id} value={item.id}>{getSubjectClassLabel(item.id)}</option>
                       ))}
@@ -537,40 +564,54 @@ export default function TeacherQuestionBankPage() {
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <Label>Scope Breakdown Rules</Label>
-                      <Button variant="link" size="sm" onClick={handleGenerateTopics} className="h-auto p-0 text-blue-600 gap-1 text-xs">
-                        <Sparkles className="h-3.5 w-3.5" /> Auto-Suggest via AI
-                      </Button>
+                      <Label>Topics</Label>
+                      <button
+                        onClick={handleGenerateTopics}
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> Suggest with AI
+                      </button>
                     </div>
-                    <Textarea rows={5} value={manualTopicsText} onChange={(e) => setManualTopicsText(e.target.value)} placeholder="Separate items using commas or lines..." />
+                    <Textarea
+                      rows={5}
+                      value={manualTopicsText}
+                      onChange={(e) => setManualTopicsText(e.target.value)}
+                      placeholder="Enter one topic per line, or separate with commas…"
+                    />
+                    <p className="text-xs text-gray-400">Each line or comma-separated value becomes one topic.</p>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsTopicModalOpen(false)}>Cancel</Button>
-                  <Button onClick={handleSaveTopicSet} disabled={isSavingTopicSet}>{isSavingTopicSet ? "Saving..." : "Save Configuration"}</Button>
+                  <Button onClick={handleSaveTopicSet} disabled={isSavingTopicSet}>
+                    {isSavingTopicSet ? 'Saving…' : 'Save topic set'}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
         </div>
 
-        {/* Dynamic Split Screening Layout Workspace */}
+        {/* ── Main Content Grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          
-          {/* Navigation Explorer Column */}
-          <div className="lg:col-span-4 xl:col-span-3 space-y-5">
-            <Card className="shadow-sm border-gray-200/80">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                  <FolderOpen className="h-4 w-4 text-gray-400" /> Scope Repositories
+
+          {/* ── Sidebar: Bank List ── */}
+          <div className="lg:col-span-4 xl:col-span-3">
+            <Card className="border-gray-200 shadow-sm">
+              <CardHeader className="pb-3 border-b border-gray-100">
+                <CardTitle className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                  <FolderOpen className="h-3.5 w-3.5" /> Your Banks
                 </CardTitle>
-                <CardDescription>Select an active bank container to query entries.</CardDescription>
               </CardHeader>
-              <CardContent className="px-2 pb-2">
+              <CardContent className="p-2">
                 {banks.length === 0 ? (
-                  <div className="text-center p-6 text-gray-400 text-xs">No repositories available. Create one above.</div>
+                  <div className="text-center py-10 px-4">
+                    <FolderOpen className="h-8 w-8 text-gray-300 mx-auto mb-2 stroke-1" />
+                    <p className="text-sm text-gray-500 font-medium">No banks yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Click "New Bank" above to get started.</p>
+                  </div>
                 ) : (
-                  <div className="space-y-1 max-h-[640px] overflow-y-auto pr-1">
+                  <div className="space-y-0.5 max-h-[620px] overflow-y-auto">
                     {banks.map((bank) => {
                       const isActive = selectedBankId === bank.id;
                       const isMine = bank.created_by_teacher_id === teacherId;
@@ -578,20 +619,31 @@ export default function TeacherQuestionBankPage() {
                         <button
                           key={bank.id}
                           onClick={() => setSelectedBankId(bank.id)}
-                          className={`w-full text-left p-3 rounded-lg transition-all flex flex-col gap-1 ${
-                            isActive 
-                              ? 'bg-blue-50/70 border border-blue-200 text-blue-900 shadow-xs' 
-                              : 'hover:bg-gray-50 text-gray-700 border border-transparent'
+                          className={`w-full text-left px-3 py-2.5 rounded-lg transition-all flex flex-col gap-0.5 ${
+                            isActive
+                              ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                              : 'hover:bg-gray-50 border border-transparent'
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <span className="font-medium text-sm line-clamp-2 leading-tight">{bank.title}</span>
-                            <Badge variant={bank.visibility === 'public_school' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0 scale-90 origin-right shrink-0">
+                            <span className={`font-medium text-sm line-clamp-2 leading-snug ${isActive ? 'text-blue-900' : 'text-gray-800'}`}>
+                              {bank.title}
+                            </span>
+                            <span className={`shrink-0 mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide rounded-full px-1.5 py-0.5 ${
+                              bank.visibility === 'public_school'
+                                ? 'bg-sky-100 text-sky-700'
+                                : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {bank.visibility === 'public_school'
+                                ? <Globe2 className="h-2.5 w-2.5" />
+                                : <Lock className="h-2.5 w-2.5" />}
                               {bank.visibility === 'public_school' ? 'Shared' : 'Private'}
-                            </Badge>
+                            </span>
                           </div>
-                          <span className="text-[11px] text-gray-400 mt-1 block truncate">{getSubjectClassLabel(bank.subject_class_id)}</span>
-                          <span className="text-[10px] uppercase tracking-wider font-semibold opacity-60">{isMine ? '● Workspace Owner' : '○ Curated Resource'}</span>
+                          <span className="text-[11px] text-gray-400 truncate">{getSubjectClassLabel(bank.subject_class_id)}</span>
+                          {isMine && (
+                            <span className="text-[10px] text-blue-500 font-medium mt-0.5">My bank</span>
+                          )}
                         </button>
                       );
                     })}
@@ -601,102 +653,141 @@ export default function TeacherQuestionBankPage() {
             </Card>
           </div>
 
-          {/* Action Canvas Area */}
-          <div className="lg:col-span-8 xl:col-span-9 space-y-6">
-            
-            {/* Context-Aware Re-architected Collapsible AI Question Suite */}
+          {/* ── Main Panel ── */}
+          <div className="lg:col-span-8 xl:col-span-9 space-y-5">
+
+            {/* ── AI Generate Panel ── */}
             {selectedBank ? (
-              <Card className="border-blue-200/70 bg-gradient-to-b from-blue-50/20 to-white overflow-hidden shadow-sm">
-                <button 
+              <Card className="border-blue-200/80 overflow-hidden shadow-sm">
+                <button
                   onClick={() => setIsGenPanelOpen(!isGenPanelOpen)}
-                  className="w-full flex items-center justify-between p-5 text-left border-none focus:outline-none"
+                  className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-blue-50/40 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100/80 rounded-lg text-blue-700">
-                      <Sparkles className="h-5 w-5" />
+                    <div className="p-2 bg-blue-100 rounded-lg text-blue-600 shrink-0">
+                      <Sparkles className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="text-base font-semibold text-gray-900">AI Blueprint Ingestion Pipeline</h2>
+                      <p className="text-sm font-semibold text-gray-900">Generate questions with AI</p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Targeting bank: <span className="text-blue-700 font-medium">{selectedBank.title}</span>
+                        Adding to <span className="text-blue-700 font-medium">{selectedBank.title}</span>
                       </p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <div className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 transition-colors shrink-0">
                     {isGenPanelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
+                  </div>
                 </button>
 
                 {isGenPanelOpen && (
                   <>
-                    <Separator className="bg-blue-100/50" />
-                    <CardContent className="p-6 space-y-5">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-gray-500">Syllabus Execution Track</Label>
-                          <select className="w-full border rounded-md px-3 h-9 text-xs bg-white" value={generateSubjectClassId} onChange={(e) => setGenerateSubjectClassId(e.target.value)}>
+                    <Separator className="bg-blue-100" />
+                    <CardContent className="p-5 space-y-4 bg-blue-50/20">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">Subject & class</Label>
+                          <select
+                            className="w-full border border-input rounded-md px-2.5 h-9 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                            value={generateSubjectClassId}
+                            onChange={(e) => setGenerateSubjectClassId(e.target.value)}
+                          >
                             {subjectClasses.map((item) => (
                               <option key={item.id} value={item.id}>{getSubjectClassLabel(item.id)}</option>
                             ))}
                           </select>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-gray-500">Topic Sets Grouping</Label>
-                          <select className="w-full border rounded-md px-3 h-9 text-xs bg-white" value={generateTopicSetId} onChange={(e) => setGenerateTopicSetId(e.target.value)}>
-                            <option value="">-- Use Explicit Prompting Below --</option>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">Topic set</Label>
+                          <select
+                            className="w-full border border-input rounded-md px-2.5 h-9 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                            value={generateTopicSetId}
+                            onChange={(e) => setGenerateTopicSetId(e.target.value)}
+                          >
+                            <option value="">Enter topics manually</option>
                             {selectedSubjectClassTopics.map((set) => (
                               <option key={set.id} value={set.id}>{set.name}</option>
                             ))}
                           </select>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-gray-500">Target Taxonomy Depth</Label>
-                          <select className="w-full border rounded-md px-3 h-9 text-xs bg-white" value={generateDifficulty} onChange={(e) => setGenerateDifficulty(e.target.value as any)}>
-                            {DIFFICULTIES.map((lvl) => <option key={lvl} value={lvl}>{lvl.toUpperCase()}</option>)}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">Difficulty</Label>
+                          <select
+                            className="w-full border border-input rounded-md px-2.5 h-9 text-xs bg-white capitalize focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                            value={generateDifficulty}
+                            onChange={(e) => setGenerateDifficulty(e.target.value as any)}
+                          >
+                            {DIFFICULTIES.map((lvl) => (
+                              <option key={lvl} value={lvl} className="capitalize">{lvl}</option>
+                            ))}
                           </select>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-gray-500">Structural Format</Label>
-                          <select className="w-full border rounded-md px-3 h-9 text-xs bg-white" value={generateQuestionType} onChange={(e) => setGenerateQuestionType(e.target.value as any)}>
-                            {QUESTION_TYPES.map((ty) => <option key={ty} value={ty}>{ty.toUpperCase()}</option>)}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">Question type</Label>
+                          <select
+                            className="w-full border border-input rounded-md px-2.5 h-9 text-xs bg-white capitalize focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                            value={generateQuestionType}
+                            onChange={(e) => setGenerateQuestionType(e.target.value as any)}
+                          >
+                            {QUESTION_TYPES.map((ty) => (
+                              <option key={ty} value={ty} className="capitalize">{ty}</option>
+                            ))}
                           </select>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-                        <div className="md:col-span-3 space-y-1">
-                          <Label className="text-xs text-gray-500">Custom/Fallback Topic Scaffolding Prompt</Label>
-                          <Input 
-                            value={generateTopicsText} 
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                        <div className="md:col-span-3 space-y-1.5">
+                          <Label className="text-xs text-gray-500">
+                            Topics <span className="text-gray-400">(comma or line-separated — ignored if topic set selected)</span>
+                          </Label>
+                          <Input
+                            value={generateTopicsText}
                             onChange={(e) => setGenerateTopicsText(e.target.value)}
-                            placeholder="e.g., Quadratic equations, factorization parameters..." 
+                            placeholder="e.g., Quadratic equations, factorisation, number bases…"
                             disabled={!!generateTopicSetId}
                             className="h-9 text-xs"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-gray-500">Batch Run Size</Label>
-                          <Input type="number" min={1} max={30} value={generateCount} onChange={(e) => setGenerateCount(Number(e.target.value))} className="h-9 text-xs" />
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-gray-500">How many to generate</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={generateCount}
+                            onChange={(e) => setGenerateCount(Number(e.target.value))}
+                            className="h-9 text-xs"
+                          />
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-center pt-2 border-t border-dashed border-gray-100">
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-blue-100/60">
                         <div className="flex items-center gap-2">
-                          <Label className="text-xs text-gray-400">Direct Ingestion Visibility:</Label>
-                          <select className="border-none text-xs bg-transparent font-medium text-gray-600 focus:ring-0" value={generateVisibility} onChange={(e) => setGenerateVisibility(e.target.value as any)}>
-                            <option value="private">Private Draft</option>
-                            <option value="public_school">School Library Instance</option>
+                          <Label className="text-xs text-gray-500 whitespace-nowrap">Generated questions visible to:</Label>
+                          <select
+                            className="border border-input rounded-md px-2 h-8 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                            value={generateVisibility}
+                            onChange={(e) => setGenerateVisibility(e.target.value as any)}
+                          >
+                            <option value="private">Only me</option>
+                            <option value="public_school">Whole school</option>
                           </select>
                         </div>
-                        <Button size="sm" onClick={handleGenerateQuestions} disabled={isGenerating} className="bg-blue-600 hover:bg-blue-700 shadow-sm px-4">
+                        <Button
+                          size="sm"
+                          onClick={handleGenerateQuestions}
+                          disabled={isGenerating}
+                          className="bg-blue-600 hover:bg-blue-700 shadow-sm gap-2 px-5"
+                        >
                           {isGenerating ? (
                             <>
-                              <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-2" />
-                              Synthesizing...
+                              <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                              Generating…
                             </>
                           ) : (
                             <>
-                              <Sparkles className="h-4 w-4 mr-1.5" /> Execute Generation
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Generate questions
                             </>
                           )}
                         </Button>
@@ -707,168 +798,265 @@ export default function TeacherQuestionBankPage() {
               </Card>
             ) : null}
 
-            {/* Questions Stream Grid */}
+            {/* ── Questions List ── */}
             <Card className="shadow-sm border-gray-200">
               <CardHeader className="flex flex-row items-center justify-between border-b border-gray-100 pb-4">
                 <div>
-                  <CardTitle className="text-lg font-bold text-gray-900">
-                    {selectedBank ? selectedBank.title : "Select Container"}
+                  <CardTitle className="text-base font-bold text-gray-900">
+                    {selectedBank ? selectedBank.title : 'Select a bank'}
                   </CardTitle>
                   {selectedBank?.description && (
-                    <CardDescription className="text-xs mt-0.5">{selectedBank.description}</CardDescription>
+                    <CardDescription className="mt-0.5 text-xs">{selectedBank.description}</CardDescription>
                   )}
                 </div>
-                <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 bg-gray-50 text-gray-600">
-                  {questions.length} Question{questions.length === 1 ? '' : 's'} Logged
-                </Badge>
+                {questions.length > 0 && (
+                  <Badge variant="outline" className="font-mono text-xs bg-gray-50 text-gray-600 shrink-0">
+                    {questions.length} question{questions.length === 1 ? '' : 's'}
+                  </Badge>
+                )}
               </CardHeader>
-              
-              <CardContent className="p-6 space-y-4">
+
+              <CardContent className="p-5 space-y-4">
                 {isLoadingQuestions ? (
-                  <div className="space-y-3 py-6">
-                    <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />
-                    <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+                  <div className="space-y-3 py-4">
+                    {[1, 2].map((n) => (
+                      <div key={n} className="space-y-2 animate-pulse">
+                        <div className="h-4 bg-gray-100 rounded w-1/3" />
+                        <div className="h-16 bg-gray-100 rounded" />
+                      </div>
+                    ))}
                   </div>
                 ) : questions.length === 0 ? (
-                  <div className="text-center py-16 border border-dashed rounded-xl border-gray-200 bg-gray-50/40">
-                    <HelpCircle className="h-10 w-10 text-gray-300 mx-auto stroke-1" />
-                    <h3 className="text-sm font-semibold text-gray-700 mt-3">No questions active inside this bank</h3>
-                    <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">Trigger the AI generation suite template above to build immediate exam options.</p>
+                  <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/40">
+                    <HelpCircle className="h-9 w-9 text-gray-300 mx-auto mb-3 stroke-1" />
+                    <p className="text-sm font-semibold text-gray-700">No questions in this bank yet</p>
+                    <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+                      Use the AI generator above to add questions instantly.
+                    </p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {questions.map((question, idx) => {
                       const isMine = question.created_by_teacher_id === teacherId;
                       const isEditing = editingQuestionId === question.id;
 
                       return (
-                        <div key={question.id} className="border border-gray-100 rounded-xl p-5 hover:shadow-md hover:border-gray-200 transition-all bg-white relative group">
-                          
-                          {/* Metadata Ribbon */}
-                          <div className="flex flex-wrap items-center gap-2 text-xs mb-3">
-                            <span className="font-mono font-bold text-gray-300 mr-1">#{idx + 1}</span>
-                            <Badge variant="secondary" className="bg-gray-100 text-gray-700 uppercase font-semibold text-[10px] tracking-wider px-2 py-0.5">{question.question_type}</Badge>
-                            <Badge variant="outline" className={`text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 ${
-                              question.difficulty === 'hard' ? 'border-red-200 text-red-700 bg-red-50/30' :
-                              question.difficulty === 'medium' ? 'border-amber-200 text-amber-700 bg-amber-50/30' :
-                              'border-emerald-200 text-emerald-700 bg-emerald-50/30'
-                            }`}>{question.difficulty}</Badge>
-                            <Badge variant="secondary" className="bg-blue-50/50 text-blue-700 border border-blue-100/40 font-normal px-2 py-0.5">{question.topic}</Badge>
-                            <div className="ml-auto flex items-center gap-1.5 text-gray-400 text-xs">
-                              {question.visibility === 'public_school' ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                              <span className="text-[11px] font-medium hidden sm:inline">{question.visibility === 'public_school' ? 'Shared View' : 'Private Scope'}</span>
+                        <div
+                          key={question.id}
+                          className="border border-gray-200 rounded-xl bg-white hover:border-gray-300 hover:shadow-sm transition-all group"
+                        >
+                          <div className="p-5">
+                            {/* Question Meta Row */}
+                            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                              <span className="text-xs text-gray-400 font-mono mr-1">#{idx + 1}</span>
+
+                              <span className={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full border ${difficultyStyles[question.difficulty]}`}>
+                                {question.difficulty}
+                              </span>
+
+                              <Badge variant="secondary" className="text-[10px] uppercase font-semibold tracking-wide bg-gray-100 text-gray-600 border-0">
+                                {question.question_type}
+                              </Badge>
+
+                              <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 font-normal">
+                                {question.topic}
+                              </Badge>
+
+                              <span className="ml-auto flex items-center gap-1 text-gray-400 text-xs">
+                                {question.visibility === 'public_school'
+                                  ? <Eye className="h-3.5 w-3.5" />
+                                  : <EyeOff className="h-3.5 w-3.5" />}
+                                <span className="hidden sm:inline text-[11px]">
+                                  {question.visibility === 'public_school' ? 'Shared' : 'Private'}
+                                </span>
+                              </span>
                             </div>
-                          </div>
 
-                          {/* Dynamic Body State Rendering */}
-                          {isEditing ? (
-                            <div className="space-y-3 bg-gray-50/50 p-4 rounded-xl border border-gray-200/60 mt-2">
-                              <div className="grid grid-cols-2 gap-3">
+                            {/* Edit Form or Display */}
+                            {isEditing ? (
+                              <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200 mt-2">
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">Topic</Label>
+                                    <Input
+                                      value={editingDraft.topic || ''}
+                                      onChange={(e) => setEditingDraft((p) => ({ ...p, topic: e.target.value }))}
+                                      className="h-8 bg-white text-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">Difficulty</Label>
+                                    <select
+                                      className="w-full border border-input rounded-md px-2 h-8 text-xs bg-white"
+                                      value={editingDraft.difficulty}
+                                      onChange={(e) => setEditingDraft((p) => ({ ...p, difficulty: e.target.value as any }))}
+                                    >
+                                      {DIFFICULTIES.map((l) => (
+                                        <option key={l} value={l} className="capitalize">{l}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
                                 <div className="space-y-1">
-                                  <Label className="text-xs text-gray-500">Topic Identifier</Label>
-                                  <Input value={editingDraft.topic || ''} onChange={(e) => setEditingDraft(p => ({ ...p, topic: e.target.value }))} className="h-8 bg-white" />
+                                  <Label className="text-xs text-gray-500">Question text</Label>
+                                  <Textarea
+                                    rows={3}
+                                    value={editingDraft.question_text || ''}
+                                    onChange={(e) => setEditingDraft((p) => ({ ...p, question_text: e.target.value }))}
+                                    className="bg-white"
+                                  />
                                 </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs text-gray-500">Taxonomy Rank</Label>
-                                  <select className="w-full border rounded-md px-2 h-8 text-xs bg-white" value={editingDraft.difficulty} onChange={(e) => setEditingDraft(p => ({ ...p, difficulty: e.target.value as any }))}>
-                                    {DIFFICULTIES.map((l) => <option key={l} value={l}>{l}</option>)}
-                                  </select>
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-gray-500">Core Content Question Formula</Label>
-                                <Textarea rows={3} value={editingDraft.question_text || ''} onChange={(e) => setEditingDraft(p => ({ ...p, question_text: e.target.value }))} className="bg-white" />
-                              </div>
-                              
-                              {question.question_type === 'objective' && (
-                                <div className="space-y-1">
-                                  <Label className="text-xs text-gray-500">Multiple Choice Matrix (one option per line)</Label>
-                                  <Textarea rows={4} value={(editingDraft.options || []).join('\n')} onChange={(e) => setEditingDraft(p => ({ ...p, options: parseTopicsFromText(e.target.value) }))} placeholder="Option A&#10;Option B" className="bg-white" />
-                                </div>
-                              )}
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                  <Label className="text-xs text-gray-500">Target Correct Assertion Vector</Label>
-                                  <Input value={editingDraft.correct_answer || ''} onChange={(e) => setEditingDraft(p => ({ ...p, correct_answer: e.target.value }))} className="h-8 bg-white" />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label className="text-xs text-gray-500">Visibility Target</Label>
-                                  <select className="w-full border rounded-md px-2 h-8 text-xs bg-white" value={editingDraft.visibility} onChange={(e) => setEditingDraft(p => ({ ...p, visibility: e.target.value as any }))}>
-                                    <option value="private">Private</option>
-                                    <option value="public_school">Public School Sharing</option>
-                                  </select>
-                                </div>
-                              </div>
 
-                              <div className="space-y-1">
-                                <Label className="text-xs text-gray-500">Marking Scheme / Rationale Explanations</Label>
-                                <Textarea rows={2} value={editingDraft.explanation || ''} onChange={(e) => setEditingDraft(p => ({ ...p, explanation: e.target.value }))} className="bg-white" />
-                              </div>
-
-                              <div className="flex gap-2 justify-end pt-2">
-                                <Button size="sm" variant="outline" onClick={cancelEditQuestion} className="h-8 text-xs">Cancel</Button>
-                                <Button size="sm" onClick={() => void saveQuestionEdit(question.id)} className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700">
-                                  <Save className="h-3.5 w-3.5 mr-1" /> Commit Changes
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <p className="text-gray-900 font-medium text-base leading-relaxed mt-1">{question.question_text}</p>
-                              
-                              {question.question_type === 'objective' && Array.isArray(question.options) && question.options.length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 my-4">
-                                  {question.options.map((option, index) => {
-                                    const isCorrect = question.correct_answer?.trim().toLowerCase() === option.trim().toLowerCase();
-                                    return (
-                                      <div key={index} className={`p-3 rounded-lg text-sm border transition-all ${
-                                        isCorrect 
-                                          ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900 font-medium' 
-                                          : 'bg-gray-50/50 border-gray-100 text-gray-600'
-                                      }`}>
-                                        <span className="text-xs font-bold mr-2 uppercase tracking-wider opacity-40">{String.fromCharCode(65 + index)}.</span>
-                                        {option}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-
-                              {/* Non-Objective (Theory) Answer View Block */}
-                              {question.question_type !== 'objective' && question.correct_answer && (
-                                <div className="mt-3 p-3 bg-emerald-50/40 rounded-lg border border-emerald-100/60 text-sm">
-                                  <span className="font-semibold text-emerald-800 text-xs uppercase tracking-wider block mb-0.5">Target Evaluation Matrix Benchmark:</span>
-                                  <p className="text-emerald-900">{question.correct_answer}</p>
-                                </div>
-                              )}
-
-                              {question.explanation && (
-                                <p className="text-xs text-gray-500 mt-3 bg-gray-50 p-3 rounded-lg border border-gray-100/80">
-                                  <span className="font-semibold text-gray-700 block mb-0.5">Pedagogical Justification:</span>
-                                  {question.explanation}
-                                </p>
-                              )}
-
-                              {/* Card Action Rails */}
-                              <div className="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-gray-50 opacity-90 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                {isMine ? (
-                                  <>
-                                    <Button variant="ghost" size="sm" onClick={() => startEditQuestion(question)} className="h-8 text-xs text-gray-600 hover:bg-gray-50">
-                                      <Pencil className="h-3.5 w-3.5 mr-1" /> Modify
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => void deleteQuestion(question.id)} className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700">
-                                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Purge
-                                    </Button>
-                                  </>
-                                ) : (
-                                  <Button variant="outline" size="sm" onClick={() => void duplicateQuestion(question.id)} className="h-8 text-xs text-blue-600 border-blue-200 hover:bg-blue-50">
-                                    <Copy className="h-3.5 w-3.5 mr-1" /> Clone into personal space
-                                  </Button>
+                                {question.question_type === 'objective' && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">Answer options <span className="text-gray-400">(one per line)</span></Label>
+                                    <Textarea
+                                      rows={4}
+                                      value={(editingDraft.options || []).join('\n')}
+                                      onChange={(e) =>
+                                        setEditingDraft((p) => ({ ...p, options: parseTopicsFromText(e.target.value) }))
+                                      }
+                                      placeholder="Option A&#10;Option B"
+                                      className="bg-white"
+                                    />
+                                  </div>
                                 )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">Correct answer</Label>
+                                    <Input
+                                      value={editingDraft.correct_answer || ''}
+                                      onChange={(e) => setEditingDraft((p) => ({ ...p, correct_answer: e.target.value }))}
+                                      className="h-8 bg-white text-sm"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">Visibility</Label>
+                                    <select
+                                      className="w-full border border-input rounded-md px-2 h-8 text-xs bg-white"
+                                      value={editingDraft.visibility}
+                                      onChange={(e) => setEditingDraft((p) => ({ ...p, visibility: e.target.value as any }))}
+                                    >
+                                      <option value="private">Private – only me</option>
+                                      <option value="public_school">Shared with school</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-gray-500">Explanation / marking notes</Label>
+                                  <Textarea
+                                    rows={2}
+                                    value={editingDraft.explanation || ''}
+                                    onChange={(e) => setEditingDraft((p) => ({ ...p, explanation: e.target.value }))}
+                                    className="bg-white"
+                                  />
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-1">
+                                  <Button size="sm" variant="outline" onClick={cancelEditQuestion} className="h-8 text-xs gap-1">
+                                    <X className="h-3.5 w-3.5" /> Cancel
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => void saveQuestionEdit(question.id)}
+                                    className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 gap-1"
+                                  >
+                                    <Save className="h-3.5 w-3.5" /> Save changes
+                                  </Button>
+                                </div>
                               </div>
-                            </>
-                          )}
+                            ) : (
+                              <>
+                                <p className="text-gray-900 font-medium text-[15px] leading-relaxed">
+                                  {question.question_text}
+                                </p>
+
+                                {question.question_type === 'objective' &&
+                                  Array.isArray(question.options) &&
+                                  question.options.length > 0 && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                                      {question.options.map((option, index) => {
+                                        const isCorrect =
+                                          question.correct_answer?.trim().toLowerCase() ===
+                                          option.trim().toLowerCase();
+                                        return (
+                                          <div
+                                            key={index}
+                                            className={`flex items-start gap-2 p-2.5 rounded-lg text-sm border transition-all ${
+                                              isCorrect
+                                                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                                : 'bg-gray-50 border-gray-100 text-gray-600'
+                                            }`}
+                                          >
+                                            <span className="text-[11px] font-bold shrink-0 mt-0.5 uppercase opacity-50 tracking-wider">
+                                              {String.fromCharCode(65 + index)}.
+                                            </span>
+                                            <span className={isCorrect ? 'font-medium' : ''}>{option}</span>
+                                            {isCorrect && (
+                                              <CheckCircle2 className="h-3.5 w-3.5 ml-auto shrink-0 text-emerald-600 mt-0.5" />
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+
+                                {question.question_type !== 'objective' && question.correct_answer && (
+                                  <div className="mt-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-sm">
+                                    <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1">
+                                      Model answer
+                                    </p>
+                                    <p className="text-emerald-900">{question.correct_answer}</p>
+                                  </div>
+                                )}
+
+                                {question.explanation && (
+                                  <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100 text-sm">
+                                    <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                                      Explanation
+                                    </p>
+                                    <p className="text-gray-600 text-xs leading-relaxed">{question.explanation}</p>
+                                  </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center justify-end gap-1.5 pt-3 mt-3 border-t border-gray-100 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                  {isMine ? (
+                                    <>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => startEditQuestion(question)}
+                                        className="h-8 text-xs text-gray-600 hover:bg-gray-100 gap-1"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" /> Edit
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => void deleteQuestion(question.id)}
+                                        className="h-8 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 gap-1"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => void duplicateQuestion(question.id)}
+                                      className="h-8 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 gap-1"
+                                    >
+                                      <Copy className="h-3.5 w-3.5" /> Copy to my bank
+                                    </Button>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

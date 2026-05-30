@@ -6,12 +6,12 @@ import { DashboardLayout } from '@/components/dashboard-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { ArrowLeft, BookOpen, Globe2, Layers, Lock, Save, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 type SubjectClassItem = {
@@ -589,71 +589,106 @@ export default function TeacherQuestionBankDetailPage() {
 
       {/* Generation Wizard Modal */}
       <Dialog open={isGenerateModalOpen} onOpenChange={handleCloseGenerateModal}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader className="flex flex-row items-center justify-between border-b pb-3">
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col overflow-x-hidden w-full mx-4 md:mx-0">
+          <DialogHeader className="flex flex-row items-center justify-between border-b pb-4 flex-shrink-0">
             <div>
-              <DialogTitle className="text-base font-semibold">Generate with AI</DialogTitle>
-              <DialogDescription className="text-xs">Configure query criteria parameters parameters</DialogDescription>
+              <DialogTitle className="text-lg font-semibold">Generate with AI</DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">Configure your question generation parameters</DialogDescription>
             </div>
-            <button onClick={handleCloseGenerateModal} disabled={isGenerating} className="rounded-md p-1 hover:bg-slate-100"><X className="h-4 w-4 text-slate-500" /></button>
+            <button onClick={handleCloseGenerateModal} disabled={isGenerating} className="rounded-md p-1 hover:bg-slate-100 transition-colors"><X className="h-4 w-4 text-slate-500" /></button>
           </DialogHeader>
 
-          <div className="space-y-5 pt-2">
-            <div className="flex flex-wrap gap-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+          <div className="flex flex-col gap-4 overflow-y-auto flex-grow">
+            <div className="flex flex-wrap gap-2 bg-gradient-to-r from-slate-50 to-slate-100 p-3 rounded-lg border border-slate-200 flex-shrink-0">
               {generateStepLabels.map((item) => (
-                <div key={item.step} className={`text-[11px] font-medium px-2 py-1 rounded ${generateStep === item.step ? 'bg-violet-600 text-white' : generateStep > item.step ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
+                <div key={item.step} className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-all ${
+                  generateStep === item.step 
+                    ? 'bg-violet-600 text-white shadow-md' 
+                    : generateStep > item.step 
+                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                    : 'bg-white text-slate-500 border border-slate-200'
+                }`}>
                   {item.step}. {item.title}
                 </div>
               ))}
             </div>
 
-            <div className="min-h-[160px]">
+            <div className="min-h-[200px] space-y-4">
               {generateStep === 1 && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Target Volume</Label>
-                  <Input type="number" min={1} max={30} value={generateCount} onChange={(e) => setGenerateCount(e.target.value)} disabled={isGenerating} className="h-9 text-sm" />
+                <div className="space-y-3 animate-fade-in">
+                  <Label className="text-sm font-semibold text-slate-900">How many questions would you like to generate?</Label>
+                  <div className="space-y-2">
+                    <Input type="number" min={1} max={30} value={generateCount} onChange={(e) => setGenerateCount(e.target.value)} disabled={isGenerating} className="h-10 text-sm" placeholder="Enter number (1-30)" />
+                    <p className="text-xs text-slate-500">Generate between 1 and 30 questions at a time.</p>
+                  </div>
                 </div>
               )}
 
               {generateStep === 2 && (
-                <div className="space-y-3">
-                  <Label className="text-xs font-semibold">Focus Subjects / Core Topics</Label>
-                  <div className="flex flex-wrap gap-2 border p-3 rounded-lg bg-white max-h-48 overflow-y-auto">
-                    {generatedTopicHints.map((topic) => {
-                      const selected = selectedGenerateTopics.some((item) => item.toLowerCase() === topic.toLowerCase());
-                      return (
-                        <button key={topic} type="button" onClick={() => toggleGenerateTopic(topic)} className={`text-xs px-3 py-1.5 border rounded-md font-medium ${selected ? 'bg-violet-600 text-white border-violet-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}>
-                          {topic}
-                        </button>
-                      );
-                    })}
+                <div className="space-y-3 animate-fade-in">
+                  <div>
+                    <Label className="text-sm font-semibold text-slate-900">Select Topics for Generation</Label>
+                    <p className="text-xs text-slate-500 mt-1">Choose topics from your existing questions or add custom ones</p>
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <Input value={manualTopicInput} onChange={(e) => setManualTopicInput(e.target.value)} placeholder="Custom parameter topic..." className="h-9 text-sm" />
-                    <Button size="sm" type="button" variant="outline" onClick={addManualTopic} className="h-9 text-sm px-4">Add</Button>
+                  <div className="flex flex-wrap gap-2 border-2 border-slate-200 p-4 rounded-lg bg-slate-50/30 min-h-32">
+                    {generatedTopicHints.length > 0 ? (
+                      generatedTopicHints.map((topic) => {
+                        const selected = selectedGenerateTopics.some((item) => item.toLowerCase() === topic.toLowerCase());
+                        return (
+                          <button key={topic} type="button" onClick={() => toggleGenerateTopic(topic)} className={`text-sm px-3 py-2 border rounded-lg font-medium transition-all ${selected ? 'bg-violet-600 text-white border-violet-600 shadow-md' : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400 hover:bg-slate-50'}`}>
+                            {topic}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-slate-500 w-full text-center py-6">No topics found. Add a custom topic below.</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input value={manualTopicInput} onChange={(e) => setManualTopicInput(e.target.value)} placeholder="Type a custom topic..." className="h-10 text-sm" />
+                    <Button size="sm" type="button" variant="outline" onClick={addManualTopic} className="h-10 text-sm px-4">Add</Button>
                   </div>
                 </div>
               )}
 
               {generateStep === 3 && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Difficulty Target Matrix</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['easy', 'medium', 'hard'] as const).map((level) => (
-                      <button key={level} type="button" onClick={() => setGenerateDifficulty(level)} className={`py-2 text-xs font-medium border rounded-md capitalize ${generateDifficulty === level ? 'bg-violet-50 border-violet-500 text-violet-700' : 'bg-white'}`}>
-                        {level}
-                      </button>
-                    ))}
+                <div className="space-y-3 animate-fade-in">
+                  <div>
+                    <Label className="text-sm font-semibold text-slate-900">Select Difficulty Level</Label>
+                    <p className="text-xs text-slate-500 mt-1">Choose the complexity level for generated questions</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {(['easy', 'medium', 'hard'] as const).map((level) => {
+                      const icons = { easy: '⭐', medium: '⭐⭐', hard: '⭐⭐⭐' };
+                      return (
+                        <button key={level} type="button" onClick={() => setGenerateDifficulty(level)} className={`py-3 text-sm font-semibold border-2 rounded-lg capitalize transition-all ${
+                          generateDifficulty === level 
+                            ? level === 'easy' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : level === 'medium' ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-rose-50 border-rose-500 text-rose-700'
+                            : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                        }`}>
+                          <div className="text-lg mb-1">{icons[level as keyof typeof icons]}</div>
+                          {level}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {generateStep === 4 && (
-                <div className="space-y-2">
-                  <Label className="text-xs font-semibold">Format Framework</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3 animate-fade-in">
+                  <div>
+                    <Label className="text-sm font-semibold text-slate-900">Choose Question Format</Label>
+                    <p className="text-xs text-slate-500 mt-1">Select the type of questions to generate</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
                     {(['objective', 'theory'] as const).map((type) => (
-                      <button key={type} type="button" onClick={() => setGenerateQuestionType(type)} className={`py-2 text-xs font-medium border rounded-md capitalize ${generateQuestionType === type ? 'bg-violet-50 border-violet-500 text-violet-700' : 'bg-white'}`}>
+                      <button key={type} type="button" onClick={() => setGenerateQuestionType(type)} className={`py-3 text-sm font-semibold border-2 rounded-lg transition-all ${
+                        generateQuestionType === type 
+                          ? 'bg-violet-50 border-violet-500 text-violet-700' 
+                          : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                      }`}>
+                        <div className="text-lg mb-1">{type === 'objective' ? '🎯' : '✍️'}</div>
                         {type === 'objective' ? 'Multiple Choice' : 'Written Theory'}
                       </button>
                     ))}
@@ -662,22 +697,53 @@ export default function TeacherQuestionBankDetailPage() {
               )}
 
               {generateStep === 5 && (
-                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs space-y-1">
-                  <div className="font-semibold text-slate-700 pb-1">Parameters verification Summary:</div>
-                  <div>• Count Target: <span className="font-semibold">{generateCount}</span></div>
-                  <div>• Difficulty Tier: <span className="font-semibold capitalize">{generateDifficulty}</span></div>
-                  <div>• Formatting Type: <span className="font-semibold">{generateQuestionType}</span></div>
-                  <div className="truncate">• Target Context Scope: <span className="font-semibold">{effectiveGenerateTopics.join(', ')}</span></div>
+                <div className="space-y-3 animate-fade-in">
+                  <div className="bg-gradient-to-br from-violet-50 to-violet-100/50 p-5 rounded-lg border-2 border-violet-200">
+                    <div className="font-semibold text-slate-900 pb-4 flex items-center gap-2">
+                      <span className="text-lg">✓</span>
+                      Review Your Settings
+                    </div>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center justify-between bg-white/60 px-3 py-2.5 rounded-md">
+                        <span className="text-slate-600">Questions to Generate:</span>
+                        <span className="font-semibold text-violet-700 text-base">{generateCount}</span>
+                      </div>
+                      <div className="flex items-center justify-between bg-white/60 px-3 py-2.5 rounded-md">
+                        <span className="text-slate-600">Difficulty Level:</span>
+                        <span className="font-semibold text-violet-700 capitalize">{generateDifficulty === 'easy' ? '⭐ Easy' : generateDifficulty === 'medium' ? '⭐⭐ Medium' : '⭐⭐⭐ Hard'}</span>
+                      </div>
+                      <div className="flex items-center justify-between bg-white/60 px-3 py-2.5 rounded-md">
+                        <span className="text-slate-600">Question Type:</span>
+                        <span className="font-semibold text-violet-700">{generateQuestionType === 'objective' ? '🎯 Multiple Choice' : '✍️ Written Theory'}</span>
+                      </div>
+                      <div className="bg-white/60 px-3 py-3 rounded-md">
+                        <span className="text-slate-600 block mb-2">Topics:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {effectiveGenerateTopics.map((topic, idx) => (
+                            <span key={idx} className="bg-violet-200 text-violet-900 px-2 py-1 rounded text-xs font-medium break-words max-w-full">{topic}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 bg-blue-50 border border-blue-200 px-3 py-2 rounded-md">💡 Click "Compile Execution" to generate your questions with AI</p>
                 </div>
               )}
             </div>
 
-            <div className="flex gap-2 border-t pt-4">
-              <Button size="sm" variant="outline" onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))} disabled={isGenerating || generateStep === 1} className="flex-1">Back</Button>
+            <div className="flex gap-3 border-t border-slate-200 pt-4 flex-shrink-0 mt-4">
+              <Button size="sm" variant="outline" onClick={() => setGenerateStep((prev) => Math.max(prev - 1, 1))} disabled={isGenerating || generateStep === 1} className="flex-1 h-10">
+                ← Back
+              </Button>
               {generateStep < 5 ? (
-                <Button size="sm" onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 5))} disabled={isGenerating || (generateStep === 2 && effectiveGenerateTopics.length === 0)} className="flex-1 bg-violet-600 hover:bg-violet-700">Next</Button>
+                <Button size="sm" onClick={() => setGenerateStep((prev) => Math.min(prev + 1, 5))} disabled={isGenerating || (generateStep === 2 && effectiveGenerateTopics.length === 0)} className="flex-1 h-10 bg-violet-600 hover:bg-violet-700 text-white font-medium">
+                  Next →
+                </Button>
               ) : (
-                <Button size="sm" onClick={handleGenerateQuestions} disabled={isGenerating} className="flex-1 bg-emerald-600 hover:bg-emerald-700"><Sparkles className="h-3.5 w-3.5 mr-1" /> Compile Execution</Button>
+                <Button size="sm" onClick={handleGenerateQuestions} disabled={isGenerating} className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {isGenerating ? 'Generating...' : 'Generate Questions'}
+                </Button>
               )}
             </div>
           </div>

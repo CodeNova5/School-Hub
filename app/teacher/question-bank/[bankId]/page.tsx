@@ -93,6 +93,7 @@ export default function TeacherQuestionBankDetailPage() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupTitleInput, setGroupTitleInput] = useState('');
   const [groupTopicsInput, setGroupTopicsInput] = useState('');
+  const [isQuestionGroupsModalOpen, setIsQuestionGroupsModalOpen] = useState(false);
   const [questionCount, setQuestionCount] = useState(0);
   const [questionsError, setQuestionsError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -644,181 +645,35 @@ export default function TeacherQuestionBankDetailPage() {
             </div>
 
             <CardContent className="p-6 sm:p-7">
-              {!isEditable && (
-                <div className="mb-6 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <div>You can view saved groups here, but only the bank owner can create or edit them.</div>
-                </div>
-              )}
-
-              <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-                <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50 p-5 shadow-sm sm:p-6">
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      {editingGroupId ? 'Edit Group' : 'Create New Group'}
-                    </p>
-                    <h3 className="text-lg font-semibold text-slate-950">{editingGroupId ? 'Edit Group' : 'Create New Group'}</h3>
-                    <p className="text-sm text-slate-500">Save frequently used topic combinations.</p>
-                  </div>
-
-                  <div className="mt-6 space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-700">Group Title</Label>
-                      <Input
-                        value={groupTitleInput}
-                        onChange={(e) => setGroupTitleInput(e.target.value)}
-                        disabled={!isEditable || topicGroupsLoading}
-                        placeholder="e.g. Fractions revision set"
-                        className="h-11 border-slate-200 bg-white text-sm shadow-sm"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-700">Topics</Label>
-                      <Textarea
-                        value={groupTopicsInput}
-                        onChange={(e) => setGroupTopicsInput(e.target.value)}
-                        disabled={!isEditable || topicGroupsLoading}
-                        placeholder="Fractions, decimals, ratios"
-                        rows={4}
-                        className="resize-none border-slate-200 bg-white text-sm shadow-sm"
-                      />
-                      <p className="text-xs text-slate-500">Separate topics with commas. These labels are reused during AI generation.</p>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                      <div className="flex items-center justify-between gap-3 text-xs font-medium text-slate-500">
-                        <span>Live preview</span>
-                        <span>{groupTopicPreview.length} topics</span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {groupTopicPreview.length > 0 ? (
-                          groupTopicPreview.map((topic) => (
-                            <span
-                              key={topic}
-                              className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 shadow-sm"
-                            >
-                              {topic}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-slate-400">Start typing topics to preview the chips.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Button
-                        size="sm"
-                        onClick={handleSaveTopicGroup}
-                        disabled={!isEditable || topicGroupsLoading}
-                        className="flex-1 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800"
+              <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-600">
+                    Open the modal to create, edit, delete, or apply topic groups without leaving the page.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {topicGroups.slice(0, 3).map((group) => (
+                      <Badge
+                        key={group.id}
+                        variant="secondary"
+                        className="rounded-full border border-indigo-100 bg-indigo-50/90 text-indigo-700 shadow-sm"
                       >
-                        <Plus className="h-4 w-4 mr-2" />
-                        {topicGroupsLoading ? 'Saving...' : editingGroupId ? 'Update Group' : 'Create Group'}
-                      </Button>
-                      {editingGroupId && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={cancelEditGroup}
-                          disabled={topicGroupsLoading}
-                          className="flex-1 border-slate-200 bg-white"
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                    </div>
+                        {group.title}
+                      </Badge>
+                    ))}
+                    {topicGroups.length === 0 && <span className="text-sm text-slate-400">No saved groups yet.</span>}
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  {hasQuestionGroups ? (
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {topicGroups.map((group) => {
-                        const topicCount = (group.topics || []).length;
-
-                        return (
-                          <div
-                            key={group.id}
-                            className="group rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex min-w-0 items-start gap-3">
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm">
-                                  <FolderKanban className="h-5 w-5" />
-                                </div>
-                                <div className="min-w-0 space-y-1">
-                                  <p className="truncate font-semibold text-slate-950">{group.title}</p>
-                                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                    <span>{topicCount} {topicCount === 1 ? 'topic' : 'topics'}</span>
-                                    <span>•</span>
-                                    <span>Created {formatDate(group.created_at)}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => startEditGroup(group)}
-                                  disabled={topicGroupsLoading || !isEditable}
-                                  className="h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-slate-950"
-                                  aria-label={`Edit ${group.title}`}
-                                >
-                                  <PencilLine className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => handleDeleteTopicGroup(group.id)}
-                                  disabled={topicGroupsLoading || !isEditable}
-                                  className="h-8 w-8 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                                  aria-label={`Delete ${group.title}`}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              {topicCount > 0 ? (
-                                group.topics.map((topic) => (
-                                  <Badge
-                                    key={`${group.id}-${topic}`}
-                                    variant="secondary"
-                                    className="rounded-full border border-indigo-100 bg-indigo-50/90 text-indigo-700 shadow-sm"
-                                  >
-                                    {topic}
-                                  </Badge>
-                                ))
-                              ) : (
-                                <span className="text-xs text-slate-500">No topics defined</span>
-                              )}
-                            </div>
-
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="mt-5 w-full border-slate-200 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 hover:text-white"
-                              onClick={() => applyTopicGroup(group)}
-                            >
-                              Use Group
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center shadow-sm">
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
-                        <FolderKanban className="h-7 w-7 text-slate-400" />
-                      </div>
-                      <h3 className="mt-4 text-base font-semibold text-slate-900">No Question Groups Yet</h3>
-                      <p className="mt-2 text-sm text-slate-500">Create your first reusable topic collection.</p>
-                    </div>
-                  )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-200"
+                    onClick={() => setIsQuestionGroupsModalOpen(true)}
+                  >
+                    <FolderKanban className="h-4 w-4 mr-2" />
+                    Manage Groups
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -1048,6 +903,203 @@ export default function TeacherQuestionBankDetailPage() {
           </div>
         </div>
       </div>
+
+      <Dialog open={isQuestionGroupsModalOpen} onOpenChange={setIsQuestionGroupsModalOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full">
+          <DialogHeader className="space-y-2 border-b pb-4">
+            <DialogTitle className="text-xl font-bold">Question Groups</DialogTitle>
+            <DialogDescription>
+              Create reusable topic collections and use them when generating questions.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {!isEditable && (
+              <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <div>You can view saved groups here, but only the bank owner can create or edit them.</div>
+              </div>
+            )}
+
+            <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+              <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50 p-5 shadow-sm sm:p-6">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    {editingGroupId ? 'Edit Group' : 'Create New Group'}
+                  </p>
+                  <h3 className="text-lg font-semibold text-slate-950">
+                    {editingGroupId ? 'Edit Group' : 'Create New Group'}
+                  </h3>
+                  <p className="text-sm text-slate-500">Save frequently used topic combinations.</p>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-slate-700">Group Title</Label>
+                    <Input
+                      value={groupTitleInput}
+                      onChange={(e) => setGroupTitleInput(e.target.value)}
+                      disabled={!isEditable || topicGroupsLoading}
+                      placeholder="e.g. Fractions revision set"
+                      className="h-11 border-slate-200 bg-white text-sm shadow-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-slate-700">Topics</Label>
+                    <Textarea
+                      value={groupTopicsInput}
+                      onChange={(e) => setGroupTopicsInput(e.target.value)}
+                      disabled={!isEditable || topicGroupsLoading}
+                      placeholder="Fractions, decimals, ratios"
+                      rows={4}
+                      className="resize-none border-slate-200 bg-white text-sm shadow-sm"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Separate topics with commas. These labels are reused during AI generation.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-3 text-xs font-medium text-slate-500">
+                      <span>Live preview</span>
+                      <span>{groupTopicPreview.length} topics</span>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {groupTopicPreview.length > 0 ? (
+                        groupTopicPreview.map((topic) => (
+                          <span
+                            key={topic}
+                            className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700 shadow-sm"
+                          >
+                            {topic}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-400">Start typing topics to preview the chips.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      size="sm"
+                      onClick={handleSaveTopicGroup}
+                      disabled={!isEditable || topicGroupsLoading}
+                      className="flex-1 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      {topicGroupsLoading ? 'Saving...' : editingGroupId ? 'Update Group' : 'Create Group'}
+                    </Button>
+                    {editingGroupId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={cancelEditGroup}
+                        disabled={topicGroupsLoading}
+                        className="flex-1 border-slate-200 bg-white"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {hasQuestionGroups ? (
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {topicGroups.map((group) => {
+                      const topicCount = (group.topics || []).length;
+
+                      return (
+                        <div
+                          key={group.id}
+                          className="group rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex min-w-0 items-start gap-3">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm">
+                                <FolderKanban className="h-5 w-5" />
+                              </div>
+                              <div className="min-w-0 space-y-1">
+                                <p className="truncate font-semibold text-slate-950">{group.title}</p>
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                  <span>
+                                    {topicCount} {topicCount === 1 ? 'topic' : 'topics'}
+                                  </span>
+                                  <span>•</span>
+                                  <span>Created {formatDate(group.created_at)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => startEditGroup(group)}
+                                disabled={topicGroupsLoading || !isEditable}
+                                className="h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-slate-950"
+                                aria-label={`Edit ${group.title}`}
+                              >
+                                <PencilLine className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDeleteTopicGroup(group.id)}
+                                disabled={topicGroupsLoading || !isEditable}
+                                className="h-8 w-8 text-slate-500 hover:bg-red-50 hover:text-red-600"
+                                aria-label={`Delete ${group.title}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {topicCount > 0 ? (
+                              group.topics.map((topic) => (
+                                <Badge
+                                  key={`${group.id}-${topic}`}
+                                  variant="secondary"
+                                  className="rounded-full border border-indigo-100 bg-indigo-50/90 text-indigo-700 shadow-sm"
+                                >
+                                  {topic}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-xs text-slate-500">No topics defined</span>
+                            )}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-5 w-full border-slate-200 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800 hover:text-white"
+                            onClick={() => applyTopicGroup(group)}
+                          >
+                            Use Group
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center shadow-sm">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
+                      <FolderKanban className="h-7 w-7 text-slate-400" />
+                    </div>
+                    <h3 className="mt-4 text-base font-semibold text-slate-900">No Question Groups Yet</h3>
+                    <p className="mt-2 text-sm text-slate-500">Create your first reusable topic collection.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* AI Generation Modal */}
       <Dialog open={isGenerateModalOpen} onOpenChange={handleCloseGenerateModal}>

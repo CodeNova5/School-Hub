@@ -545,7 +545,7 @@ export default function TeacherQuestionBankDetailPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="max-w-7xl mx-auto space-y-8 pb-16">
+      <div className="w-full space-y-8 pb-16">
         {/* Header Section */}
         <div className="space-y-6">
           <div className="flex items-center gap-2 text-sm">
@@ -631,178 +631,136 @@ export default function TeacherQuestionBankDetailPage() {
         </div>
 
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Questions Section - Takes up 2 columns on large screens */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="border-gray-200 shadow-sm">
-              <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
-                <div className="space-y-4">
-                  <div>
-                    <CardTitle>Questions Catalog</CardTitle>
-                    <CardDescription>
-                      {filteredQuestions.length} of {questions.length} question{questions.length !== 1 ? 's' : ''}
-                    </CardDescription>
-                  </div>
+        {/* Main Content */}
+        <div className="space-y-6">
+          <Card className="border-gray-200 shadow-sm">
+            <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
+              <div className="space-y-4">
+                <div>
+                  <CardTitle>Questions Catalog</CardTitle>
+                  <CardDescription>
+                    {filteredQuestions.length} of {questions.length} question{questions.length !== 1 ? 's' : ''}
+                  </CardDescription>
+                </div>
 
-                  {/* Search and Filters */}
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="relative sm:col-span-1">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        value={questionSearch}
-                        onChange={(e) => setQuestionSearch(e.target.value)}
-                        className="pl-9 h-10 text-sm"
-                        placeholder="Search questions..."
-                      />
-                    </div>
-                    <select
-                      value={questionDifficultyFilter}
-                      onChange={(e) => setQuestionDifficultyFilter(e.target.value as any)}
-                      className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                    >
-                      <option value="all">All difficulties</option>
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
-                    </select>
-                    <select
-                      value={questionTypeFilter}
-                      onChange={(e) => setQuestionTypeFilter(e.target.value as any)}
-                      className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                    >
-                      <option value="all">All types</option>
-                      <option value="objective">Objective</option>
-                      <option value="theory">Theory</option>
-                    </select>
+                {/* Search and Filters */}
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="relative sm:col-span-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      value={questionSearch}
+                      onChange={(e) => setQuestionSearch(e.target.value)}
+                      className="pl-9 h-10 text-sm"
+                      placeholder="Search questions..."
+                    />
+                  </div>
+                  <select
+                    value={questionDifficultyFilter}
+                    onChange={(e) => setQuestionDifficultyFilter(e.target.value as any)}
+                    className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  >
+                    <option value="all">All difficulties</option>
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
+                  <select
+                    value={questionTypeFilter}
+                    onChange={(e) => setQuestionTypeFilter(e.target.value as any)}
+                    className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  >
+                    <option value="all">All types</option>
+                    <option value="objective">Objective</option>
+                    <option value="theory">Theory</option>
+                  </select>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-6">
+              {questionsError && (
+                <div className="flex gap-3 p-4 mb-6 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  {questionsError}
+                </div>
+              )}
+
+              {filteredQuestions.length === 0 ? (
+                <div className="py-16 text-center space-y-3">
+                  <BookOpen className="mx-auto h-8 w-8 text-gray-300" />
+                  <div>
+                    <p className="text-base font-medium text-gray-700">No matching questions found</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {questions.length === 0 
+                        ? "Get started by generating questions with AI above"
+                        : "Try adjusting your filters"}
+                    </p>
                   </div>
                 </div>
-              </CardHeader>
-
-              <CardContent className="p-6">
-                {questionsError && (
-                  <div className="flex gap-3 p-4 mb-6 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                    {questionsError}
-                  </div>
-                )}
-
-                {filteredQuestions.length === 0 ? (
-                  <div className="py-16 text-center space-y-3">
-                    <BookOpen className="mx-auto h-8 w-8 text-gray-300" />
-                    <div>
-                      <p className="text-base font-medium text-gray-700">No matching questions found</p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {questions.length === 0 
-                          ? "Get started by generating questions with AI above"
-                          : "Try adjusting your filters"}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    {filteredQuestions.map((question, index) => (
-                      <div key={question.id} className="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
-                        {/* Question Header */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="outline" className="bg-gray-50 border-gray-200">
-                              {question.topic}
-                            </Badge>
-                            <Badge variant="outline" className={`${getDifficultyStyles(question.difficulty)} border`}>
-                              {question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1)}
-                            </Badge>
-                            <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
-                              {question.question_type === 'objective' ? 'Multiple Choice' : 'Essay'}
-                            </Badge>
-                          </div>
-                          <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+              ) : (
+                <div className="space-y-6">
+                  {filteredQuestions.map((question, index) => (
+                    <div key={question.id} className="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
+                      {/* Question Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline" className="bg-gray-50 border-gray-200">
+                            {question.topic}
+                          </Badge>
+                          <Badge variant="outline" className={`${getDifficultyStyles(question.difficulty)} border`}>
+                            {question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1)}
+                          </Badge>
+                          <Badge variant="outline" className="bg-blue-50 border-blue-200 text-blue-700">
+                            {question.question_type === 'objective' ? 'Multiple Choice' : 'Essay'}
+                          </Badge>
                         </div>
+                        <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+                      </div>
 
-                        {/* Question Text */}
-                        <p className="text-base text-gray-900 font-medium mb-4 leading-relaxed">
-                          {question.question_text}
-                        </p>
+                      {/* Question Text */}
+                      <p className="text-base text-gray-900 font-medium mb-4 leading-relaxed">
+                        {question.question_text}
+                      </p>
 
-                        {/* Options for Objective Questions */}
-                        {question.question_type === 'objective' && question.options.length > 0 && (
-                          <div className="grid gap-2 sm:grid-cols-2 mb-4 pl-4">
-                            {question.options.map((option, idx) => (
-                              <div
-                                key={idx}
-                                className="text-sm text-gray-700 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-                              >
-                                <span className="font-semibold text-gray-400 mr-2">
-                                  {String.fromCharCode(65 + idx)}.
-                                </span>
-                                {option}
-                              </div>
-                            ))}
+                      {/* Options for Objective Questions */}
+                      {question.question_type === 'objective' && question.options.length > 0 && (
+                        <div className="grid gap-2 sm:grid-cols-2 mb-4 pl-4">
+                          {question.options.map((option, idx) => (
+                            <div
+                              key={idx}
+                              className="text-sm text-gray-700 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                              <span className="font-semibold text-gray-400 mr-2">
+                                {String.fromCharCode(65 + idx)}.
+                              </span>
+                              {option}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Answer and Explanation */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3 text-sm">
+                        <div className="flex gap-2">
+                          <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <div className="font-semibold text-gray-700">Correct Answer</div>
+                            <div className="text-gray-600 mt-1">{question.correct_answer || 'Not specified'}</div>
+                          </div>
+                        </div>
+                        {question.explanation && (
+                          <div className="border-t border-blue-200 pt-3">
+                            <div className="font-semibold text-gray-700 mb-1">Explanation</div>
+                            <div className="text-gray-600">{question.explanation}</div>
                           </div>
                         )}
-
-                        {/* Answer and Explanation */}
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3 text-sm">
-                          <div className="flex gap-2">
-                            <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <div className="font-semibold text-gray-700">Correct Answer</div>
-                              <div className="text-gray-600 mt-1">{question.correct_answer || 'Not specified'}</div>
-                            </div>
-                          </div>
-                          {question.explanation && (
-                            <div className="border-t border-blue-200 pt-3">
-                              <div className="font-semibold text-gray-700 mb-1">Explanation</div>
-                              <div className="text-gray-600">{question.explanation}</div>
-                            </div>
-                          )}
-                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar - Bank Summary */}
-          <div className="lg:col-span-1 space-y-6">
-            <Card className="border-gray-200 shadow-sm sticky top-6">
-              <CardHeader className="border-b border-gray-100 bg-gray-50/50 pb-4">
-                <CardTitle className="text-base">Bank Summary</CardTitle>
-                <CardDescription>
-                  Use the heading button to edit the bank details.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-5 space-y-4">
-                <div className="grid gap-3 text-sm">
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Bank Title</div>
-                    <div className="mt-1 font-medium text-gray-900">{title || bank.title}</div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Subject & Class</div>
-                    <div className="mt-1 font-medium text-gray-900">
-                      {subjectClassLabelMap.get(subjectClassId) || 'Not selected'}
                     </div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Visibility</div>
-                    <div className="mt-1 font-medium text-gray-900 capitalize">
-                      {visibility === 'public_school' ? 'Shared with School' : 'Private (Only Me)'}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Questions</div>
-                    <div className="mt-1 font-medium text-gray-900">
-                      {questionCount} {questionCount === 1 ? 'question' : 'questions'}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-
-          </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 

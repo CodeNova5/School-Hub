@@ -51,6 +51,7 @@ type TopicGroupRecord = {
   id: string;
   title: string;
   topics: string[];
+  term?: '1' | '2' | '3';
   created_by_teacher_id: string;
   created_at: string;
 };
@@ -104,9 +105,14 @@ export default function TeacherQuestionBankDetailPage() {
   const [description, setDescription] = useState('');
   const [subjectClassId, setSubjectClassId] = useState('');
   const [visibility, setVisibility] = useState<'private' | 'public_school'>('private');
+  
+  // Filters
   const [questionSearch, setQuestionSearch] = useState('');
+  const [selectedTerm, setSelectedTerm] = useState<'all' | '1' | '2' | '3'>('all');
   const [questionDifficultyFilter, setQuestionDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
   const [questionTypeFilter, setQuestionTypeFilter] = useState<'all' | 'objective' | 'theory'>('all');
+  
+  // Generator State
   const [generateCount, setGenerateCount] = useState('5');
   const [generateDifficulty, setGenerateDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [generateQuestionType, setGenerateQuestionType] = useState<'objective' | 'theory'>('objective');
@@ -114,6 +120,7 @@ export default function TeacherQuestionBankDetailPage() {
   const [manualTopicInput, setManualTopicInput] = useState('');
   const [generateStep, setGenerateStep] = useState(1);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -132,6 +139,14 @@ export default function TeacherQuestionBankDetailPage() {
   }, [subjectClasses]);
 
   const selectedSubjectClassLabel = subjectClassLabelMap.get(subjectClassId) || bank?.title || 'General topic';
+
+  const termTopics = useMemo(() => {
+    if (selectedTerm === 'all') return [];
+    return topicGroups
+      .filter((g) => g.term === selectedTerm)
+      .flatMap((g) => g.topics)
+      .map((t) => t.trim().toLowerCase());
+  }, [topicGroups, selectedTerm]);
 
   const groupTopicPreview = useMemo(() => {
     return groupTopicsInput
@@ -162,9 +177,12 @@ export default function TeacherQuestionBankDetailPage() {
       const matchesDifficulty =
         questionDifficultyFilter === 'all' || question.difficulty === questionDifficultyFilter;
       const matchesType = questionTypeFilter === 'all' || question.question_type === questionTypeFilter;
-      return matchesSearch && matchesDifficulty && matchesType;
+      const matchesTerm = 
+        selectedTerm === 'all' || termTopics.includes(question.topic.trim().toLowerCase());
+        
+      return matchesSearch && matchesDifficulty && matchesType && matchesTerm;
     });
-  }, [questionDifficultyFilter, questionSearch, questionTypeFilter, questions]);
+  }, [questionDifficultyFilter, questionSearch, questionTypeFilter, selectedTerm, termTopics, questions]);
 
   const isEditable = bank ? bank.created_by_teacher_id === teacherId : false;
 
@@ -284,6 +302,17 @@ export default function TeacherQuestionBankDetailPage() {
   function handleOpenGenerateModal() {
     setGenerateStep(1);
     setManualTopicInput('');
+    
+    // Auto-load topics if a specific term is selected
+    if (selectedTerm !== 'all') {
+      const termSpecificTopics = topicGroups
+        .filter((g) => g.term === selectedTerm)
+        .flatMap((g) => g.topics);
+      setSelectedGenerateTopics(Array.from(new Set(termSpecificTopics)));
+    } else {
+      setSelectedGenerateTopics([]);
+    }
+    
     setIsGenerateModalOpen(true);
   }
 
@@ -630,7 +659,7 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
 
                 {/* Search and Filters */}
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <div className="relative sm:col-span-1">
                     <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                     <Input
@@ -640,6 +669,16 @@ export default function TeacherQuestionBankDetailPage() {
                       placeholder="Search questions..."
                     />
                   </div>
+                  <select
+                    value={selectedTerm}
+                    onChange={(e) => setSelectedTerm(e.target.value as any)}
+                    className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  >
+                    <option value="all">All Terms</option>
+                    <option value="1">Term 1</option>
+                    <option value="2">Term 2</option>
+                    <option value="3">Term 3</option>
+                  </select>
                   <select
                     value={questionDifficultyFilter}
                     onChange={(e) => setQuestionDifficultyFilter(e.target.value as any)}
@@ -750,6 +789,7 @@ export default function TeacherQuestionBankDetailPage() {
         </div>
       </div>
 
+      {/* Settings Modal (Unchanged internals, omitted standard length dialog code here visually but included below) */}
       <Dialog open={isBankSettingsModalOpen} onOpenChange={setIsBankSettingsModalOpen}>
         <DialogContent className="w-[96vw] max-w-2xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
           <DialogHeader className="space-y-2 border-b border-slate-200/80 bg-slate-50/80 px-6 py-5 sm:px-7">

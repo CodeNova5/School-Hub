@@ -59,6 +59,7 @@ export default function TeacherQuestionGroupsPage() {
   const [groupTopics, setGroupTopics] = useState<string[]>([]);
   const [termInput, setTermInput] = useState<'1' | '2' | '3'>('1');
   const [aiGeneratingTopics, setAiGeneratingTopics] = useState(false);
+  const [expandedTopicGroups, setExpandedTopicGroups] = useState<Record<string, boolean>>({});
   
   const [teacherId, setTeacherId] = useState('');
   const [bank, setBank] = useState<BankRecord | null>(null);
@@ -71,6 +72,13 @@ export default function TeacherQuestionGroupsPage() {
 
   // derive groups visible for the selected term; default any group without term to term 1
   const filteredGroups = topicGroups.filter((g) => String(g.term ?? 1) === selectedTerm);
+
+  function toggleGroupTopics(groupId: string) {
+    setExpandedTopicGroups((prev) => ({
+      ...prev,
+      [groupId]: !prev[groupId],
+    }));
+  }
 
   async function load() {
     setLoading(true);
@@ -437,25 +445,47 @@ export default function TeacherQuestionGroupsPage() {
                   </CardHeader>
 
                   <CardContent className="px-5 pb-5">
-                    {/* Topics list */}
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                      {group.topics.slice(0, 6).map((topic, i) => (
-                        <Badge
-                          key={i}
-                          variant="secondary"
-                          className="text-xs bg-slate-100 text-slate-600 border-0 font-normal px-2 py-0.5 rounded-full"
-                        >
-                          {topic}
-                        </Badge>
-                      ))}
-                      {group.topics.length > 6 && (
+                    {/* Topics preview */}
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Topics
+                        </span>
                         <Badge
                           variant="secondary"
-                          className="text-xs bg-indigo-50 text-indigo-500 border-0 font-medium px-2 py-0.5 rounded-full"
+                          className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600"
                         >
-                          +{group.topics.length - 6} more
+                          {group.topics.length}
                         </Badge>
-                      )}
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {(expandedTopicGroups[group.id] ? group.topics : group.topics.slice(0, 3)).map((topic, i) => (
+                          <div
+                            key={`${group.id}-topic-${i}`}
+                            className="flex items-start gap-2 rounded-xl bg-white px-3 py-2 text-sm text-slate-700 shadow-sm ring-1 ring-slate-200/70"
+                          >
+                            <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[11px] font-semibold text-indigo-600">
+                              {i + 1}
+                            </span>
+                            <span className="min-w-0 flex-1 leading-5 line-clamp-2">{topic}</span>
+                          </div>
+                        ))}
+
+                        {group.topics.length > 3 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleGroupTopics(group.id)}
+                            className="h-8 w-full justify-center rounded-xl text-xs font-medium text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+                          >
+                            {expandedTopicGroups[group.id]
+                              ? 'Show fewer topics'
+                              : `Show ${group.topics.length - 3} more topics`}
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Footer meta */}

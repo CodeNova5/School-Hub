@@ -612,7 +612,7 @@ export default function TeacherQuestionBankDetailPage() {
                 variant="outline"
                 size="sm"
                 className="border-slate-200"
-                onClick={() => setIsQuestionGroupsModalOpen(true)}
+                onClick={() => router.push(`/teacher/question-bank/${bankId}/groups`)}
               >
                 <FolderKanban className="h-4 w-4 mr-2" />
                 Manage Groups

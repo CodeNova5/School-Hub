@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, KeyboardEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { FolderKanban, AlertCircle, PencilLine, Trash2 } from 'lucide-react';
+import { FolderKanban, AlertCircle, PencilLine, Trash2, Plus, ArrowLeft, X, BookOpen, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 
 type TopicGroupRecord = {
@@ -45,9 +46,14 @@ export default function TeacherQuestionGroupsPage() {
   const [topicGroups, setTopicGroups] = useState<TopicGroupRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [topicGroupsLoading, setTopicGroupsLoading] = useState(false);
+  
+  // Modal & Form States
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupTitleInput, setGroupTitleInput] = useState('');
-  const [groupTopicsInput, setGroupTopicsInput] = useState('');
+  const [topicInput, setTopicInput] = useState('');
+  const [groupTopics, setGroupTopics] = useState<string[]>([]);
+  
   const [teacherId, setTeacherId] = useState('');
   const [bank, setBank] = useState<BankRecord | null>(null);
 
@@ -83,33 +89,67 @@ export default function TeacherQuestionGroupsPage() {
 
   const isEditable = bank ? bank.created_by_teacher_id === teacherId : false;
 
-  function startEditGroup(group: TopicGroupRecord) {
-    setEditingGroupId(group.id);
-    setGroupTitleInput(group.title || '');
-    setGroupTopicsInput((group.topics || []).join(', '));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  function cancelEditGroup() {
-    setEditingGroupId(null);
-    setGroupTitleInput('');
-    setGroupTopicsInput('');
-  }
-
-  async function handleSaveTopicGroup() {
+  // Open modal for creating a new group
+  function handleOpenCreateModal() {
     if (!isEditable) {
       toast.error('You can only manage topic groups for banks you created');
       return;
     }
+    setEditingGroupId(null);
+    setGroupTitleInput('');
+    setGroupTopics([]);
+    setTopicInput('');
+    setIsModalOpen(true);
+  }
 
+  // Open modal for editing an existing group
+  function handleOpenEditModal(group: TopicGroupRecord) {
+    if (!isEditable) {
+      toast.error('You can only manage topic groups for banks you created');
+      return;
+    }
+    setEditingGroupId(group.id);
+    setGroupTitleInput(group.title || '');
+    setGroupTopics(group.topics || []);
+    setTopicInput('');
+    setIsModalOpen(true);
+  }
+
+  function handleCloseModal() {
+    setIsModalOpen(false);
+    setEditingGroupId(null);
+    setGroupTitleInput('');
+    setGroupTopics([]);
+    setTopicInput('');
+  }
+
+  // Manage dynamic structured topics array
+  function handleAddTopic() {
+    const sanitized = topicInput.trim();
+    if (!sanitized) return;
+    if (groupTopics.includes(sanitized)) {
+      toast.error('Topic already added');
+      return;
+    }
+    setGroupTopics([...groupTopics, sanitized]);
+    setTopicInput('');
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddTopic();
+    }
+  }
+
+  function handleRemoveTopic(indexToRemove: number) {
+    setGroupTopics(groupTopics.filter((_, index) => index !== indexToRemove));
+  }
+
+  async function handleSaveTopicGroup() {
     const title = groupTitleInput.trim();
-    const topics = groupTopicsInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-
     if (!title) return toast.error('Provide a title for the topic group');
-    if (topics.length === 0) return toast.error('Add at least one topic to the group');
+    if (groupTopics.length === 0) return toast.error('Add at least one topic to the group');
 
     setTopicGroupsLoading(true);
     try {
@@ -121,7 +161,7 @@ export default function TeacherQuestionGroupsPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, topics }),
+        body: JSON.stringify({ title, topics: groupTopics }),
       });
 
       const payload = await res.json();
@@ -139,7 +179,7 @@ export default function TeacherQuestionGroupsPage() {
         toast.success('Topic group created');
       }
 
-      cancelEditGroup();
+      handleCloseModal();
     } catch (error) {
       console.error(error);
       toast.error('Failed to save topic group');
@@ -178,8 +218,8 @@ export default function TeacherQuestionGroupsPage() {
       <DashboardLayout role="teacher">
         <div className="flex min-h-[50vh] items-center justify-center">
           <div className="text-center space-y-3">
-            <div className="mx-auto h-8 w-8 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin" />
-            <p className="text-sm text-gray-500 font-medium">Loading question groups...</p>
+            <div className="mx-auto h-8 w-8 rounded-full border-2 border-slate-200 border-t-slate-900 animate-spin" />
+            <p className="text-sm text-slate-500 font-medium">Loading question groups...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -188,156 +228,233 @@ export default function TeacherQuestionGroupsPage() {
 
   return (
     <DashboardLayout role="teacher">
-      <div className="w-full space-y-6 pb-16">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-auto p-0 text-gray-500 hover:text-gray-900" onClick={() => router.push(`/teacher/question-bank/${bankId}`)}>
-            ← Back
-          </Button>
-          <h1 className="text-2xl font-bold">Question Groups</h1>
+      <div className="w-full max-w-7xl mx-auto space-y-8 pb-16 px-4 sm:px-6">
+        
+        {/* Header Bar */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-6">
+          <div className="space-y-1">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="gap-2 -ml-2 text-slate-500 hover:text-slate-900" 
+              onClick={() => router.push(`/teacher/question-bank/${bankId}`)}
+            >
+              <ArrowLeft className="h-4 w-4" /> Back to Bank
+            </Button>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Question Groups</h1>
+            <p className="text-sm text-slate-500">
+              Manage custom topic clusters for automated smart AI assignment and exam generations.
+            </p>
+          </div>
+          
+          {isEditable && (
+            <Button onClick={handleOpenCreateModal} className="sm:w-auto self-start gap-2 bg-slate-900 text-white hover:bg-slate-800 shadow-sm rounded-xl">
+              <Plus className="h-4 w-4" /> Create New Group
+            </Button>
+          )}
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start">
-          <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white to-slate-50 p-5 shadow-sm sm:p-6">
-            <div className="space-y-1.5 border-b border-slate-200/60 pb-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{editingGroupId ? 'Edit Group' : 'Create New Group'}</p>
-              <h3 className="text-lg font-semibold text-slate-950">{editingGroupId ? 'Edit Group' : 'Create New Group'}</h3>
-              <p className="text-sm leading-6 text-slate-500">Save frequently used topic combinations for faster generation.</p>
+        {/* Informative Warning if viewer-only */}
+        {!isEditable && (
+          <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800 max-w-2xl">
+            <AlertCircle className="h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-semibold">Read-only mode</p>
+              <p className="text-amber-700/90 mt-0.5">You can view saved topic setups here, but updates can only be executed by the authentic bank manager.</p>
             </div>
+          </div>
+        )}
 
-            <div className="mt-5 space-y-4">
-              {!isEditable && (
-                <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
-                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                  <div>You can view saved groups here, but only the bank owner can create or edit them.</div>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700">Group Title</Label>
-                <Input
-                  value={groupTitleInput}
-                  onChange={(e) => setGroupTitleInput(e.target.value)}
-                  disabled={!isEditable || topicGroupsLoading}
-                  placeholder="e.g. Fractions revision set"
-                  className="h-11 border-slate-200 bg-white text-sm shadow-sm"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-slate-700">Topics</Label>
-                <Textarea
-                  value={groupTopicsInput}
-                  onChange={(e) => setGroupTopicsInput(e.target.value)}
-                  disabled={!isEditable || topicGroupsLoading}
-                  placeholder="Fractions, decimals, ratios"
-                  rows={4}
-                  className="resize-none border-slate-200 bg-white text-sm shadow-sm"
-                />
-                <p className="text-xs text-slate-500">Separate topics with commas. These labels are reused during AI generation.</p>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  size="sm"
-                  onClick={handleSaveTopicGroup}
-                  disabled={!isEditable || topicGroupsLoading}
-                  className="flex-1 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800"
-                >
-                  {topicGroupsLoading ? 'Saving...' : editingGroupId ? 'Update Group' : 'Create Group'}
-                </Button>
-                {editingGroupId && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={cancelEditGroup}
-                    disabled={topicGroupsLoading}
-                    className="flex-1 border-slate-200 bg-white"
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
+        {/* Main Content Area */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-slate-900">Active Assemblies</h2>
+              <Badge variant="secondary" className="rounded-md bg-slate-100 text-slate-700 font-medium">
+                {topicGroups.length} Active
+              </Badge>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-end justify-between gap-4 border-b border-slate-200/60 pb-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Saved groups</p>
-                <p className="mt-1 text-sm text-slate-500">Use, edit, or delete existing topic collections.</p>
-              </div>
-              <Badge variant="secondary" className="rounded-full border border-slate-200 bg-slate-50 text-slate-700">{topicGroups.length} total</Badge>
-            </div>
-
-            {topicGroups.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
-                {topicGroups.map((group) => {
-                  const topicCount = (group.topics || []).length;
-                  return (
-                    <div key={group.id} className="group flex h-full flex-col rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/70">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-sm">
-                            <FolderKanban className="h-5 w-5" />
-                          </div>
-                          <div className="min-w-0 space-y-1">
-                            <p className="truncate font-semibold text-slate-950">{group.title}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                              <span>{topicCount} {topicCount === 1 ? 'topic' : 'topics'}</span>
-                              <span>•</span>
-                              <span>Created {formatDate(group.created_at)}</span>
-                            </div>
+          {topicGroups.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {topicGroups.map((group) => {
+                const topicCount = (group.topics || []).length;
+                return (
+                  <Card key={group.id} className="group relative flex flex-col justify-between overflow-hidden border-slate-200/60 bg-white transition-all duration-200 hover:shadow-md hover:border-slate-300">
+                    <CardHeader className="p-5 pb-3">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1.5 min-w-0">
+                          <CardTitle className="text-base font-bold text-slate-900 truncate" title={group.title}>
+                            {group.title}
+                          </CardTitle>
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+                            <span className="flex items-center gap-1"><BookOpen className="h-3 w-3" /> {topicCount} {topicCount === 1 ? 'topic' : 'topics'}</span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(group.created_at)}</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => startEditGroup(group)}
-                            disabled={topicGroupsLoading || !isEditable}
-                            className="h-8 w-8 text-slate-500 hover:bg-slate-100 hover:text-slate-950"
-                            aria-label={`Edit ${group.title}`}
-                          >
-                            <PencilLine className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleDeleteTopicGroup(group.id)}
-                            disabled={topicGroupsLoading || !isEditable}
-                            className="h-8 w-8 text-slate-500 hover:bg-red-50 hover:text-red-600"
-                            aria-label={`Delete ${group.title}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {topicCount > 0 ? (
-                          group.topics.map((topic) => (
-                            <Badge key={`${group.id}-${topic}`} variant="secondary" className="rounded-full border border-indigo-100 bg-indigo-50/90 text-indigo-700 shadow-sm">{topic}</Badge>
-                          ))
-                        ) : (
-                          <span className="text-xs text-slate-500">No topics defined</span>
+                        {/* Actions wrapper accessible via intuitive interactive states */}
+                        {isEditable && (
+                          <div className="flex items-center gap-0.5 bg-slate-50 rounded-lg p-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleOpenEditModal(group)}
+                              disabled={topicGroupsLoading}
+                              className="h-7 w-7 text-slate-500 hover:text-slate-900"
+                            >
+                              <PencilLine className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleDeleteTopicGroup(group.id)}
+                              disabled={topicGroupsLoading}
+                              className="h-7 w-7 text-slate-500 hover:text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
+                    </CardHeader>
+                    
+                    <CardContent className="p-5 pt-0">
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {topicCount > 0 ? (
+                          group.topics.map((topic, idx) => (
+                            <Badge 
+                              key={`${group.id}-${idx}`} 
+                              variant="secondary" 
+                              className="rounded-md border border-slate-100 bg-slate-50/80 text-slate-600 text-[11px] font-normal px-2 py-0.5"
+                            >
+                              {topic}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No explicit topics added.</span>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-12 text-center max-w-xl mx-auto">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white border border-slate-100 shadow-sm">
+                <FolderKanban className="h-5 w-5 text-slate-400" />
               </div>
-            ) : (
-              <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center shadow-sm">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm">
-                  <FolderKanban className="h-7 w-7 text-slate-400" />
-                </div>
-                <h3 className="mt-4 text-base font-semibold text-slate-900">No Question Groups Yet</h3>
-                <p className="mt-2 text-sm text-slate-500">Create your first reusable topic collection.</p>
-              </div>
-            )}
-          </div>
+              <h3 className="mt-4 text-sm font-semibold text-slate-900">No question clusters</h3>
+              <p className="mt-1 text-xs text-slate-500">Create a group to organize structured sub-topics for easier tracking.</p>
+              {isEditable && (
+                <Button onClick={handleOpenCreateModal} size="sm" variant="outline" className="mt-4 rounded-xl text-xs">
+                  Add First Group
+                </Button>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Structural Custom Dialog Modal for Create & Edit */}
+        <Dialog open={isModalOpen} onOpenChange={(open) => !open && handleCloseModal()}>
+          <DialogContent className="sm:max-w-[480px] overflow-hidden rounded-2xl p-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-slate-900">
+                {editingGroupId ? 'Modify Topic Group' : 'New Topic Group'}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-500">
+                Configure contextual tags for systemic reuse during questionnaire distributions.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-5 py-4">
+              {/* Group Title Field */}
+              <div className="space-y-2">
+                <Label htmlFor="title" className="text-xs font-semibold text-slate-700">Group Title</Label>
+                <Input
+                  id="title"
+                  value={groupTitleInput}
+                  onChange={(e) => setGroupTitleInput(e.target.value)}
+                  placeholder="e.g., Mid-Term Algebra Stack"
+                  className="h-10 border-slate-200 rounded-xl bg-white text-sm focus-visible:ring-slate-900"
+                />
+              </div>
+
+              {/* Advanced Interactive Tag Field Structure */}
+              <div className="space-y-2">
+                <Label htmlFor="topic-input" className="text-xs font-semibold text-slate-700">Add Topics</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="topic-input"
+                    value={topicInput}
+                    onChange={(e) => setTopicInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type topic name and press Enter"
+                    className="h-10 border-slate-200 rounded-xl bg-white text-sm focus-visible:ring-slate-900"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="secondary"
+                    onClick={handleAddTopic}
+                    className="h-10 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800"
+                  >
+                    Add
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400">Press <kbd className="bg-slate-50 px-1 border rounded text-[10px]">Enter</kbd> or <kbd className="bg-slate-50 px-1 border rounded text-[10px]">,</kbd> to separate inputs dynamically.</p>
+
+                {/* Tags Display Container */}
+                <div className="mt-3 min-h-[80px] rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+                  {groupTopics.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {groupTopics.map((topic, index) => (
+                        <Badge 
+                          key={index} 
+                          className="flex items-center gap-1 rounded-md bg-white border border-slate-200 text-slate-700 font-medium px-2 py-1 text-xs shadow-none"
+                        >
+                          {topic}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTopic(index)}
+                            className="rounded-full p-0.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full min-h-[56px] text-xs text-slate-400 italic">
+                      No tags compiled yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0 border-t border-slate-50 pt-4">
+              <Button
+                variant="outline"
+                onClick={handleCloseModal}
+                disabled={topicGroupsLoading}
+                className="rounded-xl border-slate-200"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveTopicGroup}
+                disabled={topicGroupsLoading}
+                className="rounded-xl bg-slate-950 text-white hover:bg-slate-900"
+              >
+                {topicGroupsLoading ? 'Saving...' : editingGroupId ? 'Save Changes' : 'Create Cluster'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </DashboardLayout>
   );

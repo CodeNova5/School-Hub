@@ -80,6 +80,43 @@ function extractTopicsFromRaw(raw: unknown): string[] {
   return toLooseTopicList(cleaned);
 }
 
+function dedupeTopics(topics: string[]): string[] {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const topic of topics) {
+    const cleaned = topic.trim().replace(/\s+/g, ' ');
+    if (!cleaned) {
+      continue;
+    }
+
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    normalized.push(cleaned);
+  }
+
+  return normalized;
+}
+
+function buildDeterministicFallbackTopics(subjectName: string, className: string, termLabel: string): string[] {
+  return [
+    `Introduction to ${subjectName}`,
+    `${subjectName}: Core Concepts for ${className}`,
+    `${termLabel} Scheme of Work Overview`,
+    `Key Terms and Definitions in ${subjectName}`,
+    `Foundational Principles of ${subjectName}`,
+    `Worked Examples and Guided Practice`,
+    `Real-Life Applications of ${subjectName}`,
+    `Problem Solving Techniques`,
+    `Revision and Reinforcement Exercises`,
+    `Assessment Preparation for ${subjectName}`,
+  ];
+}
+
 export async function POST(request: NextRequest) {
   const ctxResult = await getTeacherQuestionBankContext();
   if (!ctxResult.ok) {
@@ -162,13 +199,14 @@ export async function POST(request: NextRequest) {
     const parsed = parseGroqJsonPayload(raw);
     const directTopics = toTopicList(parsed?.topics);
     const fallbackTopics = extractTopicsFromRaw(raw);
-    const topics = directTopics.length > 0 ? directTopics : fallbackTopics;
+    const topics = dedupeTopics(directTopics.length > 0 ? directTopics : fallbackTopics);
 
     if (topics.length === 0) {
-      return NextResponse.json({ error: 'AI returned invalid topics payload' }, { status: 422 });
+      const deterministicFallback = buildDeterministicFallbackTopics(subjectName, className, termLabel);
+      return NextResponse.json({ topics: deterministicFallback.slice(0, topicCount), source: 'fallback' });
     }
 
-    return NextResponse.json({ topics: topics.slice(0, topicCount) });
+    return NextResponse.json({ topics: topics.slice(0, topicCount), source: 'ai' });
   } catch {
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   }

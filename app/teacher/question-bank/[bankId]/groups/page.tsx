@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useSchoolContext } from '@/hooks/use-school-context';
-import { FolderKanban, AlertCircle, PencilLine, Trash2, Plus, ArrowLeft, X, BookOpen, Calendar } from 'lucide-react';
+import { FolderKanban, AlertCircle, PencilLine, Trash2, Plus, ArrowLeft, X, BookOpen, Calendar, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 type TopicGroupRecord = {
@@ -25,6 +25,7 @@ type TopicGroupRecord = {
 type BankRecord = {
   id: string;
   title: string;
+  subject_class_id: string;
   created_by_teacher_id: string;
 };
 
@@ -57,6 +58,7 @@ export default function TeacherQuestionGroupsPage() {
   const [topicInput, setTopicInput] = useState('');
   const [groupTopics, setGroupTopics] = useState<string[]>([]);
   const [termInput, setTermInput] = useState<'1' | '2' | '3'>('1');
+  const [aiGeneratingTopics, setAiGeneratingTopics] = useState(false);
   
   const [teacherId, setTeacherId] = useState('');
   const [bank, setBank] = useState<BankRecord | null>(null);
@@ -153,6 +155,63 @@ export default function TeacherQuestionGroupsPage() {
 
   function handleRemoveTopic(indexToRemove: number) {
     setGroupTopics(groupTopics.filter((_, index) => index !== indexToRemove));
+  }
+
+  async function handleGenerateTopicsWithAI() {
+    if (!isEditable) {
+      toast.error('You can only manage topic groups for banks you created');
+      return;
+    }
+
+    if (!bank?.subject_class_id) {
+      toast.error('Unable to identify the subject class for this bank');
+      return;
+    }
+
+    setAiGeneratingTopics(true);
+    try {
+      const res = await fetch('/api/teacher/question-bank/topics/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subjectClassId: bank.subject_class_id,
+          term: Number(termInput),
+          count: 10,
+        }),
+      });
+
+      const payload = await res.json();
+      if (!res.ok) {
+        toast.error(payload?.error || 'Failed to generate topics');
+        return;
+      }
+
+      const generatedTopics = Array.isArray(payload?.topics)
+        ? payload.topics.map((topic: unknown) => String(topic || '').trim()).filter(Boolean)
+        : [];
+
+      if (generatedTopics.length === 0) {
+        toast.error('AI did not return any topics');
+        return;
+      }
+
+      setGroupTopics((prev) => {
+        const merged = [...prev];
+        for (const topic of generatedTopics) {
+          if (!merged.some((entry) => entry.toLowerCase() === topic.toLowerCase())) {
+            merged.push(topic);
+          }
+        }
+        return merged;
+      });
+
+      toast.success('Topics generated from official NERDC-aligned sources');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to generate topics');
+    } finally {
+      setAiGeneratingTopics(false);
+    }
   }
 
   async function handleSaveTopicGroup() {
@@ -461,6 +520,21 @@ export default function TeacherQuestionGroupsPage() {
                   >
                     Add
                   </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleGenerateTopicsWithAI}
+                    disabled={aiGeneratingTopics || topicGroupsLoading}
+                    className="h-10 rounded-xl border-slate-200 bg-white text-slate-800 hover:bg-slate-50 gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {aiGeneratingTopics ? 'Generating from NERDC...' : 'Generate with AI'}
+                  </Button>
+                  <p className="text-[11px] text-slate-400">
+                    Uses the bank subject, class, selected term, and official NERDC curriculum sources.
+                  </p>
                 </div>
                 <p className="text-[11px] text-slate-400">Press <kbd className="bg-slate-50 px-1 border rounded text-[10px]">Enter</kbd> or <kbd className="bg-slate-50 px-1 border rounded text-[10px]">,</kbd> to separate inputs dynamically.</p>
 

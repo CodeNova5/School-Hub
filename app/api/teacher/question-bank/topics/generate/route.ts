@@ -19,12 +19,18 @@ export async function POST(request: NextRequest) {
     const subjectClassId = String(body?.subjectClassId || '').trim();
     const count = Number(body?.count || 10);
     const guidance = String(body?.guidance || '').trim();
+    const term = Number(body?.term || 1);
 
     if (!subjectClassId) {
       return NextResponse.json({ error: 'subjectClassId is required' }, { status: 400 });
     }
 
+    if (![1, 2, 3].includes(term)) {
+      return NextResponse.json({ error: 'term must be 1, 2, or 3' }, { status: 400 });
+    }
+
     const topicCount = Math.min(Math.max(Number.isFinite(count) ? Math.floor(count) : 10, 3), 30);
+    const termLabel = term === 1 ? '1st term' : term === 2 ? '2nd term' : '3rd term';
 
     const { data: subjectClass, error: subjectClassError } = await supabase
       .from('subject_classes')
@@ -52,14 +58,21 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: 'You are an expert school teacher assistant. Return JSON only with shape {"topics": string[]}. No markdown.',
+          content: [
+            'You are an expert school teacher assistant.',
+            'Generate topics strictly from official NERDC curriculum and scheme-of-work style sources for the requested subject, class, and term.',
+            'Do not invent topics outside the NERDC syllabus progression.',
+            'Return JSON only with shape {"topics": string[]}. No markdown.',
+          ].join(' '),
         },
         {
           role: 'user',
           content: [
             `Generate ${topicCount} high-quality teaching topics for subject: ${subjectName}.`,
             `Class: ${className}.`,
+            `Term: ${termLabel}.`,
             guidance ? `Additional guidance: ${guidance}.` : '',
+            'Use the official NERDC curriculum and scheme of work for the specified term.',
             'Focus on curriculum-appropriate progression from foundational to advanced topics.',
             'Return only JSON with a topics array of concise topic names.',
           ].filter(Boolean).join('\n'),

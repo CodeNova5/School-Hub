@@ -140,18 +140,6 @@ export default function TeacherQuestionBankDetailPage() {
       .filter(Boolean);
   }, [groupTopicsInput]);
 
-  const generatedTopicHints = useMemo(() => {
-    const topics = new Map<string, string>();
-    questions.forEach((question) => {
-      const topic = question.topic.trim();
-      if (topic && !topics.has(topic.toLowerCase())) {
-        topics.set(topic.toLowerCase(), topic);
-      }
-    });
-    const topicValues = Array.from(topics.values()).filter(Boolean);
-    return topicValues.length > 0 ? topicValues.slice(0, 8) : [selectedSubjectClassLabel];
-  }, [questions, selectedSubjectClassLabel]);
-
   const effectiveGenerateTopics = useMemo(() => {
     const combined = [...selectedGenerateTopics];
     const seen = new Set<string>();
@@ -295,8 +283,6 @@ export default function TeacherQuestionBankDetailPage() {
 
   function handleOpenGenerateModal() {
     setGenerateStep(1);
-    const initialTopics = generatedTopicHints.length > 0 ? generatedTopicHints : [selectedSubjectClassLabel];
-    setSelectedGenerateTopics(initialTopics);
     setManualTopicInput('');
     setIsGenerateModalOpen(true);
   }
@@ -1160,29 +1146,51 @@ export default function TeacherQuestionBankDetailPage() {
                     </div>
                   </div>
                 )}
-                <div className="flex flex-wrap gap-2 p-4 bg-gray-50 rounded-lg min-h-[100px] border border-gray-200">
-                  {generatedTopicHints.length > 0 ? (
-                    generatedTopicHints.map((topic) => {
-                      const selected = selectedGenerateTopics.some(
-                        (item) => item.toLowerCase() === topic.toLowerCase()
-                      );
-                      return (
+                <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Selected topics</p>
+                      <p className="text-[11px] text-gray-500">
+                        {effectiveGenerateTopics.length > 0
+                          ? `${effectiveGenerateTopics.length} topic${effectiveGenerateTopics.length === 1 ? '' : 's'} selected`
+                          : 'No topics selected yet'}
+                      </p>
+                    </div>
+                    {effectiveGenerateTopics.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSelectedGenerateTopics([])}
+                        disabled={isGenerating}
+                        className="h-8 px-2 text-xs text-gray-500 hover:bg-white hover:text-gray-900"
+                      >
+                        Clear all
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="flex min-h-[88px] flex-wrap gap-2">
+                    {effectiveGenerateTopics.length > 0 ? (
+                      effectiveGenerateTopics.map((topic) => (
                         <button
                           key={topic}
-                          onClick={() => toggleGenerateTopic(topic)}
-                          className={`text-sm px-3 py-2 rounded-lg font-medium transition-all ${
-                            selected
-                              ? 'bg-blue-600 text-white shadow-sm'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:border-gray-400'
-                          }`}
+                          type="button"
+                          onClick={() => removeGenerateTopic(topic)}
+                          disabled={isGenerating}
+                          className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-800 shadow-sm transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          aria-label={`Remove topic ${topic}`}
                         >
-                          {topic}
+                          <span>{topic}</span>
+                          <X className="h-3 w-3" />
                         </button>
-                      );
-                    })
-                  ) : (
-                    <p className="text-xs text-gray-500 w-full text-center py-8">Add a custom topic below</p>
-                  )}
+                      ))
+                    ) : (
+                      <div className="flex w-full items-center justify-center rounded-md border border-dashed border-gray-300 bg-white/70 px-4 py-6 text-center text-xs text-gray-500">
+                        Pick a saved group or add custom topics to see them here.
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Input

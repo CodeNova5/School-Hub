@@ -6,6 +6,80 @@ const GROQ_MODEL = 'openai/gpt-oss-20b';
 
 export const dynamic = 'force-dynamic';
 
+function toLooseTopicList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const fromArray = value
+      .map((entry) => {
+        if (typeof entry === 'string') return entry;
+        if (entry && typeof entry === 'object') {
+          const record = entry as Record<string, unknown>;
+          const nested = record.topic ?? record.title ?? record.name;
+          return typeof nested === 'string' ? nested : '';
+        }
+        return '';
+      })
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (fromArray.length > 0) {
+      return fromArray;
+    }
+  }
+
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n|,|;/)
+      .map((entry) => entry.replace(/^[-*\d.)\s]+/, '').trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function extractTopicsFromRaw(raw: unknown): string[] {
+  if (typeof raw !== 'string') {
+    return [];
+  }
+
+  const cleaned = raw
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as unknown;
+
+    if (Array.isArray(parsed)) {
+      return toLooseTopicList(parsed);
+    }
+
+    if (parsed && typeof parsed === 'object') {
+      const record = parsed as Record<string, unknown>;
+      const candidates = [
+        record.topics,
+        record.topic_list,
+        record.topicList,
+        record.suggestions,
+        (record.data as Record<string, unknown> | undefined)?.topics,
+        (record.result as Record<string, unknown> | undefined)?.topics,
+      ];
+
+      for (const candidate of candidates) {
+        const list = toLooseTopicList(candidate);
+        if (list.length > 0) {
+          return list;
+        }
+      }
+    }
+  } catch {
+    // Fall back to parsing plain text list output.
+  }
+
+  return toLooseTopicList(cleaned);
+}
+
 export async function POST(request: NextRequest) {
   const ctxResult = await getTeacherQuestionBankContext();
   if (!ctxResult.ok) {
@@ -86,7 +160,9 @@ export async function POST(request: NextRequest) {
 
     const raw = response.data?.choices?.[0]?.message?.content;
     const parsed = parseGroqJsonPayload(raw);
-    const topics = toTopicList(parsed?.topics);
+    const directTopics = toTopicList(parsed?.topics);
+    const fallbackTopics = extractTopicsFromRaw(raw);
+    const topics = directTopics.length > 0 ? directTopics : fallbackTopics;
 
     if (topics.length === 0) {
       return NextResponse.json({ error: 'AI returned invalid topics payload' }, { status: 422 });

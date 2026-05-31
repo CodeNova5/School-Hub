@@ -80,6 +80,17 @@ function formatDate(value?: string) {
   }).format(new Date(value));
 }
 
+function inferTopicGroupTerm(group: TopicGroupRecord) {
+  if (group.term) return group.term;
+
+  const label = group.title.trim().toLowerCase();
+  if (/\b(1st|first|term\s*1|term\s*one)\b/.test(label)) return '1';
+  if (/\b(2nd|second|term\s*2|term\s*two)\b/.test(label)) return '2';
+  if (/\b(3rd|third|term\s*3|term\s*three)\b/.test(label)) return '3';
+
+  return undefined;
+}
+
 export default function TeacherQuestionBankDetailPage() {
   const params = useParams<{ bankId: string }>();
   const router = useRouter();
@@ -143,7 +154,7 @@ export default function TeacherQuestionBankDetailPage() {
   const termTopics = useMemo(() => {
     if (selectedTerm === 'all') return [];
     return topicGroups
-      .filter((g) => g.term === selectedTerm)
+      .filter((g) => inferTopicGroupTerm(g) === selectedTerm)
       .flatMap((g) => g.topics)
       .map((t) => t.trim().toLowerCase());
   }, [topicGroups, selectedTerm]);
@@ -306,7 +317,7 @@ export default function TeacherQuestionBankDetailPage() {
     // Auto-load topics if a specific term is selected
     if (selectedTerm !== 'all') {
       const termSpecificTopics = topicGroups
-        .filter((g) => g.term === selectedTerm)
+        .filter((g) => inferTopicGroupTerm(g) === selectedTerm)
         .flatMap((g) => g.topics);
       setSelectedGenerateTopics(Array.from(new Set(termSpecificTopics)));
     } else {

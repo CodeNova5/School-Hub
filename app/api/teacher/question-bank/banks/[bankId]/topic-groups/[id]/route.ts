@@ -3,6 +3,14 @@ import { getTeacherQuestionBankContext } from '@/lib/teacher-question-bank/serve
 
 export const dynamic = 'force-dynamic';
 
+function inferTopicGroupTerm(name: string) {
+  const label = name.trim().toLowerCase();
+  if (/\b(1st|first|term\s*1|term\s*one)\b/.test(label)) return '1';
+  if (/\b(2nd|second|term\s*2|term\s*two)\b/.test(label)) return '2';
+  if (/\b(3rd|third|term\s*3|term\s*three)\b/.test(label)) return '3';
+  return undefined;
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { bankId: string; id: string } }
@@ -77,7 +85,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update topic group' }, { status: 400 });
     }
 
-    return NextResponse.json({ group: { id: data.id, title: data.name, topics: data.topics, created_by_teacher_id: data.created_by_teacher_id, created_at: data.created_at } });
+    return NextResponse.json({ group: { id: data.id, title: data.name, topics: data.topics, term: inferTopicGroupTerm(data.name), created_by_teacher_id: data.created_by_teacher_id, created_at: data.created_at } });
   } catch {
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   }

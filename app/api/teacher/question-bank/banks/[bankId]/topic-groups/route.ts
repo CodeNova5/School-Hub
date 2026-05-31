@@ -3,6 +3,14 @@ import { getTeacherQuestionBankContext } from '@/lib/teacher-question-bank/serve
 
 export const dynamic = 'force-dynamic';
 
+function inferTopicGroupTerm(name: string) {
+  const label = name.trim().toLowerCase();
+  if (/\b(1st|first|term\s*1|term\s*one)\b/.test(label)) return '1';
+  if (/\b(2nd|second|term\s*2|term\s*two)\b/.test(label)) return '2';
+  if (/\b(3rd|third|term\s*3|term\s*three)\b/.test(label)) return '3';
+  return undefined;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { bankId: string } }
@@ -50,6 +58,7 @@ export async function GET(
     id: g.id,
     title: g.name,
     topics: g.topics || [],
+    term: inferTopicGroupTerm(g.name),
     created_by_teacher_id: g.created_by_teacher_id,
     created_at: g.created_at,
   }));
@@ -114,7 +123,7 @@ export async function POST(
     }
 
     const group = data;
-    return NextResponse.json({ group: { id: group.id, title: group.name, topics: group.topics, created_by_teacher_id: group.created_by_teacher_id, created_at: group.created_at } }, { status: 201 });
+    return NextResponse.json({ group: { id: group.id, title: group.name, topics: group.topics, term: inferTopicGroupTerm(group.name), created_by_teacher_id: group.created_by_teacher_id, created_at: group.created_at } }, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   }

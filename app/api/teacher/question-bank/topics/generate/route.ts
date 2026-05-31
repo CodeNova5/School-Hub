@@ -184,6 +184,8 @@ export async function POST(request: NextRequest) {
             `Term: ${termLabel}.`,
             guidance ? `Additional guidance: ${guidance}.` : '',
             'Use the official scheme of work for the specified term.',
+            'Make sure topics are clear, concise, and suitable for lesson planning.',
+            'Nigerian curriculum-appropriate topics.',
             'Focus on curriculum-appropriate progression from foundational to advanced topics.',
             'Return only JSON with a topics array of concise topic names.',
           ].filter(Boolean).join('\n'),

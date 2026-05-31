@@ -112,6 +112,12 @@ export default function TeacherQuestionGroupsPage() {
       toast.error('You can only manage topic groups for banks you created');
       return;
     }
+    // Prevent creating more than one group for the same term
+    if (topicGroups.some((g) => String(g.term ?? 1) === selectedTerm)) {
+      toast.error(`A topic group for Term ${selectedTerm} already exists`);
+      return;
+    }
+
     setEditingGroupId(null);
     // Prefill group title based on currently selected term (e.g. "1st term scheme")
     const ordinal = selectedTerm === '1' ? '1st' : selectedTerm === '2' ? '2nd' : '3rd';
@@ -228,6 +234,11 @@ export default function TeacherQuestionGroupsPage() {
     const title = groupTitleInput.trim();
     if (!title) return toast.error('Provide a title for the topic group');
     if (groupTopics.length === 0) return toast.error('Add at least one topic to the group');
+    // Prevent creating duplicate term groups (race-safe check before sending)
+    if (!editingGroupId && topicGroups.some((g) => String(g.term ?? 1) === String(termInput))) {
+      toast.error(`A topic group for Term ${termInput} already exists`);
+      return;
+    }
 
     setTopicGroupsLoading(true);
     try {
@@ -342,8 +353,10 @@ export default function TeacherQuestionGroupsPage() {
               {isEditable && (
                 <Button
                   onClick={handleOpenCreateModal}
-                  disabled={topicGroupsLoading}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 self-start sm:self-auto"
+                  disabled={
+                    topicGroupsLoading || topicGroups.some((g) => String(g.term ?? 1) === selectedTerm)
+                  }
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 self-start sm:self-auto disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Plus className="h-4 w-4" />
                   New Topic Group
@@ -395,7 +408,10 @@ export default function TeacherQuestionGroupsPage() {
                 <Button
                   onClick={handleOpenCreateModal}
                   variant="outline"
-                  className="gap-2 border-slate-200 text-slate-700 hover:bg-slate-50"
+                  disabled={
+                    topicGroupsLoading || topicGroups.some((g) => String(g.term ?? 1) === selectedTerm)
+                  }
+                  className="gap-2 border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Plus className="h-4 w-4" />
                   Create First Topic Group

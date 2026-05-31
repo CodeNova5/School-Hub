@@ -19,6 +19,7 @@ type TopicGroupRecord = {
   topics: string[];
   created_by_teacher_id: string;
   created_at: string;
+  term?: number; // 1, 2 or 3 — scheme of work term
 };
 
 type BankRecord = {
@@ -46,6 +47,8 @@ export default function TeacherQuestionGroupsPage() {
   const [topicGroups, setTopicGroups] = useState<TopicGroupRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [topicGroupsLoading, setTopicGroupsLoading] = useState(false);
+  // Scheme-of-work: selected term (1,2,3)
+  const [selectedTerm, setSelectedTerm] = useState<'1' | '2' | '3'>('1');
   
   // Modal & Form States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,6 +56,7 @@ export default function TeacherQuestionGroupsPage() {
   const [groupTitleInput, setGroupTitleInput] = useState('');
   const [topicInput, setTopicInput] = useState('');
   const [groupTopics, setGroupTopics] = useState<string[]>([]);
+  const [termInput, setTermInput] = useState<'1' | '2' | '3'>('1');
   
   const [teacherId, setTeacherId] = useState('');
   const [bank, setBank] = useState<BankRecord | null>(null);
@@ -62,6 +66,9 @@ export default function TeacherQuestionGroupsPage() {
       void load();
     }
   }, [schoolId, bankId]);
+
+  // derive groups visible for the selected term; default any group without term to term 1
+  const filteredGroups = topicGroups.filter((g) => String(g.term ?? 1) === selectedTerm);
 
   async function load() {
     setLoading(true);
@@ -99,6 +106,7 @@ export default function TeacherQuestionGroupsPage() {
     setGroupTitleInput('');
     setGroupTopics([]);
     setTopicInput('');
+    setTermInput(selectedTerm);
     setIsModalOpen(true);
   }
 
@@ -112,6 +120,7 @@ export default function TeacherQuestionGroupsPage() {
     setGroupTitleInput(group.title || '');
     setGroupTopics(group.topics || []);
     setTopicInput('');
+    setTermInput(String(group.term ?? 1) as '1' | '2' | '3');
     setIsModalOpen(true);
   }
 
@@ -161,7 +170,7 @@ export default function TeacherQuestionGroupsPage() {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, topics: groupTopics }),
+        body: JSON.stringify({ title, topics: groupTopics, term: Number(termInput) }),
       });
 
       const payload = await res.json();
@@ -171,6 +180,10 @@ export default function TeacherQuestionGroupsPage() {
       }
 
       const savedGroup = payload.group as TopicGroupRecord;
+      // ensure local term value is present (fallback to selected modal value)
+      if (savedGroup && (savedGroup.term === undefined || savedGroup.term === null)) {
+        savedGroup.term = Number(termInput);
+      }
       if (editingGroupId) {
         setTopicGroups((prev) => prev.map((g) => (g.id === savedGroup.id ? savedGroup : g)));
         toast.success('Topic group updated');
@@ -268,17 +281,47 @@ export default function TeacherQuestionGroupsPage() {
         {/* Main Content Area */}
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-slate-900">Active Assemblies</h2>
-              <Badge variant="secondary" className="rounded-md bg-slate-100 text-slate-700 font-medium">
-                {topicGroups.length} Active
-              </Badge>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-slate-900">Active Assemblies</h2>
+                <Badge variant="secondary" className="rounded-md bg-slate-100 text-slate-700 font-medium">
+                  {filteredGroups.length} Active
+                </Badge>
+              </div>
+
+              {/* Term selector for scheme-of-work */}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedTerm('1')}
+                  className={`rounded-lg text-xs ${selectedTerm === '1' ? 'bg-slate-900 text-white' : ''}`}
+                >
+                  1st Term
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedTerm('2')}
+                  className={`rounded-lg text-xs ${selectedTerm === '2' ? 'bg-slate-900 text-white' : ''}`}
+                >
+                  2nd Term
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedTerm('3')}
+                  className={`rounded-lg text-xs ${selectedTerm === '3' ? 'bg-slate-900 text-white' : ''}`}
+                >
+                  3rd Term
+                </Button>
+              </div>
             </div>
           </div>
 
-          {topicGroups.length > 0 ? (
+          {filteredGroups.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {topicGroups.map((group) => {
+              {filteredGroups.map((group) => {
                 const topicCount = (group.topics || []).length;
                 return (
                   <Card key={group.id} className="group relative flex flex-col justify-between overflow-hidden border-slate-200/60 bg-white transition-all duration-200 hover:shadow-md hover:border-slate-300">
@@ -381,6 +424,21 @@ export default function TeacherQuestionGroupsPage() {
                   placeholder="e.g., Mid-Term Algebra Stack"
                   className="h-10 border-slate-200 rounded-xl bg-white text-sm focus-visible:ring-slate-900"
                 />
+              </div>
+
+              {/* Term selector inside modal */}
+              <div className="space-y-2">
+                <Label htmlFor="term" className="text-xs font-semibold text-slate-700">Term</Label>
+                <select
+                  id="term"
+                  value={termInput}
+                  onChange={(e) => setTermInput(e.target.value as '1' | '2' | '3')}
+                  className="h-10 border-slate-200 rounded-xl bg-white text-sm px-3"
+                >
+                  <option value="1">1st Term</option>
+                  <option value="2">2nd Term</option>
+                  <option value="3">3rd Term</option>
+                </select>
               </div>
 
               {/* Advanced Interactive Tag Field Structure */}

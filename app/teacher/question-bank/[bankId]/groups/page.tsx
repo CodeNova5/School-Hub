@@ -105,7 +105,9 @@ export default function TeacherQuestionGroupsPage() {
       return;
     }
     setEditingGroupId(null);
-    setGroupTitleInput('');
+    // Prefill group title based on currently selected term (e.g. "1st term scheme")
+    const ordinal = selectedTerm === '1' ? '1st' : selectedTerm === '2' ? '2nd' : '3rd';
+    setGroupTitleInput(`${ordinal} term scheme`);
     setGroupTopics([]);
     setTopicInput('');
     setTermInput(selectedTerm);

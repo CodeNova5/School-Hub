@@ -60,8 +60,11 @@ export default function TeacherQuestionManualCreatePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [topic, setTopic] = useState('');
-  const [selectedTerm, setSelectedTerm] = useState<'1' | '2' | '3' | ''>('');
+  // Topic selection now requires choosing a term and then a topic from the bank's topic groups
+  const [selectedTerm, setSelectedTerm] = useState<'1' | '2' | '3'>('1');
+  const [topicGroups, setTopicGroups] = useState<{ id: string; title: string; topics: string[]; term?: number }[]>([]);
+  const [availableTopics, setAvailableTopics] = useState<string[]>([]);
+  const [selectedTopic, setSelectedTopic] = useState('');
   const [questionText, setQuestionText] = useState('');
   const [questionType, setQuestionType] = useState<'objective' | 'theory'>('objective');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
@@ -87,16 +90,28 @@ export default function TeacherQuestionManualCreatePage() {
     }
   }, [schoolId, bankId]);
 
+  useEffect(() => {
+    // update available topics when groups or term selection changes
+    const topics = topicGroups.filter((g) => String(g.term ?? 1) === selectedTerm).flatMap((g) => g.topics || []);
+    setAvailableTopics(topics);
+    // clear selected topic if it is not in the new list
+    if (selectedTopic && !topics.some((t) => t === selectedTopic)) {
+      setSelectedTopic('');
+    }
+  }, [topicGroups, selectedTerm]);
+
   async function loadPage() {
     setIsLoading(true);
     try {
-      const [contextResponse, bankResponse] = await Promise.all([
+      const [contextResponse, bankResponse, groupsResponse] = await Promise.all([
         fetch('/api/teacher/question-bank/context', { cache: 'no-store' }),
         fetch(`/api/teacher/question-bank/banks/${bankId}`, { cache: 'no-store' }),
+        fetch(`/api/teacher/question-bank/banks/${bankId}/topic-groups`, { cache: 'no-store' }),
       ]);
 
       const contextPayload = (await contextResponse.json()) as ContextPayload | { error: string };
       const bankPayload = (await bankResponse.json()) as BankPayload | { error: string };
+      const groupsPayload = (await groupsResponse.json()) as { groups?: { id: string; title: string; topics: string[]; term?: number }[] } | { error: string };
 
       if (!contextResponse.ok || 'error' in contextPayload) {
         toast.error('Failed to load question bank data');
@@ -112,6 +127,22 @@ export default function TeacherQuestionManualCreatePage() {
       setTeacherId(contextPayload.teacherId || '');
       setSubjectClasses(contextPayload.subjectClasses || []);
       setBank(bankPayload.bank || null);
+
+      // groupsResponse may return an error shape; narrow before accessing `groups`
+      if (!groupsResponse.ok || 'error' in groupsPayload) {
+        setTopicGroups([]);
+        setAvailableTopics([]);
+      } else {
+        const groups = groupsPayload.groups || [];
+        setTopicGroups(groups);
+        // initialize available topics for default term
+        const initial = groups
+          .filter((g) => String(g.term ?? 1) === selectedTerm)
+          .flatMap((g) => g.topics || []);
+        setAvailableTopics(initial);
+      }
+
+      setSelectedTopic('');
       setVisibility(bankPayload.bank?.visibility || 'private');
     } catch (error) {
       console.error(error);
@@ -127,19 +158,14 @@ export default function TeacherQuestionManualCreatePage() {
       return;
     }
 
-    if (!selectedTerm) {
-      toast.error('Select a term before saving');
-      return;
-    }
-
-    const trimmedTopic = topic.trim();
+    const trimmedTopic = selectedTopic.trim();
     const trimmedQuestionText = questionText.trim();
     const trimmedCorrectAnswer = correctAnswer.trim();
     const trimmedExplanation = explanation.trim();
     const options = splitOptions(optionsInput);
 
     if (!trimmedTopic || !trimmedQuestionText) {
-      toast.error('Add a topic and question text');
+      toast.error('Select a topic and add question text');
       return;
     }
 
@@ -167,7 +193,6 @@ export default function TeacherQuestionManualCreatePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          term: selectedTerm,
           topic: trimmedTopic,
           questionText: trimmedQuestionText,
           questionType,
@@ -279,41 +304,54 @@ export default function TeacherQuestionManualCreatePage() {
           <CardContent className="space-y-6 p-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Term</Label>
+                <Label className="text-sm font-medium text-gray-700">Term & Topic</Label>
+                <div className="flex gap-2 mb-2">
+                  {(['1', '2', '3'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSelectedTerm(t)}
+                      disabled={!isEditable || isSaving}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        selectedTerm === t
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      Term {t}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 items-center">
                   <select
-                    value={selectedTerm}
-                    onChange={(e) => setSelectedTerm(e.target.value as any)}
-                    disabled={!isEditable || isSaving}
+                    value={selectedTopic}
+                    onChange={(e) => setSelectedTopic(e.target.value)}
+                    disabled={!isEditable || isSaving || availableTopics.length === 0}
                     className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
                   >
-                    <option value="">Select term</option>
-                    <option value="1">Term 1</option>
-                    <option value="2">Term 2</option>
-                    <option value="3">Term 3</option>
+                    <option value="">Select a topic for Term {selectedTerm}</option>
+                    {availableTopics.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
                   </select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/teacher/question-bank/${bankId}/groups`)}
+                    className="flex-shrink-0"
+                  >
+                    Manage topics
+                  </Button>
+                </div>
 
-                  <div className="mt-3">
-                    <Label className="text-sm font-medium text-gray-700">Topic</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        disabled={!isEditable || isSaving || !selectedTerm}
-                        placeholder="e.g. Fractions"
-                      />
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          if (!selectedTerm) return toast.error('Select a term first');
-                          setTopic(`${bank?.title || 'Topic'} — Term ${selectedTerm}`);
-                        }}
-                        disabled={!isEditable || isSaving || !selectedTerm}
-                      >
-                        Init topic
-                      </Button>
-                    </div>
-                    {!selectedTerm && <p className="mt-1 text-xs text-gray-500">Please select a term before adding a topic.</p>}
-                  </div>
+                {availableTopics.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    No topics available for Term {selectedTerm}. Create a topic group in the bank's groups page.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-gray-700">Question type</Label>
@@ -438,7 +476,7 @@ export default function TeacherQuestionManualCreatePage() {
             <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 sm:flex-row">
               <Button
                 onClick={handleSubmit}
-                disabled={!isEditable || isSaving || !selectedTerm || !topic.trim()}
+                disabled={!isEditable || isSaving || !selectedTopic}
                 className="flex-1 bg-slate-950 text-white hover:bg-slate-800"
               >
                 <Save className="mr-2 h-4 w-4" />

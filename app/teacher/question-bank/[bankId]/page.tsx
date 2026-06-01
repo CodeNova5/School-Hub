@@ -617,7 +617,7 @@ export default function TeacherQuestionBankDetailPage() {
 
           {/* CTA Section */}
           {isEditable && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
                   <Sparkles className="h-4 w-4" />
@@ -625,33 +625,44 @@ export default function TeacherQuestionBankDetailPage() {
                 </div>
                 <p className="text-sm text-blue-700">Generate questions tailored to specific topics and difficulty levels</p>
               </div>
-              <Button
-                onClick={handleOpenGenerateModal}
-                disabled={!canGenerateQuestions}
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium w-full sm:w-auto"
-              >
-                <Sparkles className="h-4 w-4 mr-2" />
-                Generate with AI
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-slate-200"
-                onClick={() => router.push(`/teacher/question-bank/${bankId}/groups`)}
-              >
-                <FolderKanban className="h-4 w-4 mr-2" />
-                Manage Groups
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-slate-200"
-                onClick={() => setIsBankSettingsModalOpen(true)}
-              >
-                <Settings2 className="h-4 w-4 mr-2" />
-                Bank Settings
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-200"
+                  onClick={() => router.push(`/teacher/question-bank/${bankId}/questions/new`)}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Question Manually
+                </Button>
+                <Button
+                  onClick={handleOpenGenerateModal}
+                  disabled={!canGenerateQuestions}
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium w-full sm:w-auto"
+                >
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate with AI
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-200"
+                  onClick={() => router.push(`/teacher/question-bank/${bankId}/groups`)}
+                >
+                  <FolderKanban className="h-4 w-4 mr-2" />
+                  Manage Groups
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-200"
+                  onClick={() => setIsBankSettingsModalOpen(true)}
+                >
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  Bank Settings
+                </Button>
+              </div>
             </div>
           )}
         </div>

@@ -61,6 +61,7 @@ export default function TeacherQuestionManualCreatePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [topic, setTopic] = useState('');
+  const [selectedTerm, setSelectedTerm] = useState<'1' | '2' | '3' | ''>('');
   const [questionText, setQuestionText] = useState('');
   const [questionType, setQuestionType] = useState<'objective' | 'theory'>('objective');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
@@ -126,6 +127,11 @@ export default function TeacherQuestionManualCreatePage() {
       return;
     }
 
+    if (!selectedTerm) {
+      toast.error('Select a term before saving');
+      return;
+    }
+
     const trimmedTopic = topic.trim();
     const trimmedQuestionText = questionText.trim();
     const trimmedCorrectAnswer = correctAnswer.trim();
@@ -161,6 +167,7 @@ export default function TeacherQuestionManualCreatePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          term: selectedTerm,
           topic: trimmedTopic,
           questionText: trimmedQuestionText,
           questionType,
@@ -272,13 +279,41 @@ export default function TeacherQuestionManualCreatePage() {
           <CardContent className="space-y-6 p-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Topic</Label>
-                <Input
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  disabled={!isEditable || isSaving}
-                  placeholder="e.g. Fractions"
-                />
+                  <Label className="text-sm font-medium text-gray-700">Term</Label>
+                  <select
+                    value={selectedTerm}
+                    onChange={(e) => setSelectedTerm(e.target.value as any)}
+                    disabled={!isEditable || isSaving}
+                    className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
+                  >
+                    <option value="">Select term</option>
+                    <option value="1">Term 1</option>
+                    <option value="2">Term 2</option>
+                    <option value="3">Term 3</option>
+                  </select>
+
+                  <div className="mt-3">
+                    <Label className="text-sm font-medium text-gray-700">Topic</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={topic}
+                        onChange={(e) => setTopic(e.target.value)}
+                        disabled={!isEditable || isSaving || !selectedTerm}
+                        placeholder="e.g. Fractions"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedTerm) return toast.error('Select a term first');
+                          setTopic(`${bank?.title || 'Topic'} — Term ${selectedTerm}`);
+                        }}
+                        disabled={!isEditable || isSaving || !selectedTerm}
+                      >
+                        Init topic
+                      </Button>
+                    </div>
+                    {!selectedTerm && <p className="mt-1 text-xs text-gray-500">Please select a term before adding a topic.</p>}
+                  </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-gray-700">Question type</Label>
@@ -403,7 +438,7 @@ export default function TeacherQuestionManualCreatePage() {
             <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 sm:flex-row">
               <Button
                 onClick={handleSubmit}
-                disabled={!isEditable || isSaving}
+                disabled={!isEditable || isSaving || !selectedTerm || !topic.trim()}
                 className="flex-1 bg-slate-950 text-white hover:bg-slate-800"
               >
                 <Save className="mr-2 h-4 w-4" />

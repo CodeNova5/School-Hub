@@ -73,6 +73,8 @@ export default function TeacherQuestionManualCreatePage() {
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [explanation, setExplanation] = useState('');
 
+  const parsedOptions = useMemo(() => splitOptions(optionsInput), [optionsInput]);
+
   const subjectClassLabelMap = useMemo(() => {
     return new Map(
       subjectClasses.map((item) => [
@@ -99,6 +101,16 @@ export default function TeacherQuestionManualCreatePage() {
       setSelectedTopic('');
     }
   }, [topicGroups, selectedTerm]);
+
+  useEffect(() => {
+    // if options change and the selected correct answer letter is now invalid, clear it
+    if (questionType === 'objective' && correctAnswer) {
+      const idx = correctAnswer.trim().toLowerCase().charCodeAt(0) - 97;
+      if (Number.isNaN(idx) || idx < 0 || idx >= parsedOptions.length) {
+        setCorrectAnswer('');
+      }
+    }
+  }, [parsedOptions, questionType]);
 
   async function loadPage() {
     setIsLoading(true);
@@ -160,9 +172,10 @@ export default function TeacherQuestionManualCreatePage() {
 
     const trimmedTopic = selectedTopic.trim();
     const trimmedQuestionText = questionText.trim();
-    const trimmedCorrectAnswer = correctAnswer.trim();
     const trimmedExplanation = explanation.trim();
     const options = splitOptions(optionsInput);
+    const trimmedCorrectAnswer = correctAnswer.trim();
+    let payloadCorrectAnswer = trimmedCorrectAnswer;
 
     if (!trimmedTopic || !trimmedQuestionText) {
       toast.error('Select a topic and add question text');
@@ -176,15 +189,25 @@ export default function TeacherQuestionManualCreatePage() {
       }
 
       if (!trimmedCorrectAnswer) {
-        toast.error('Objective questions need a correct answer');
+        toast.error('Objective questions need a correct answer (a, b, c...)');
         return;
       }
 
-      const hasMatchingAnswer = options.some((option) => option.toLowerCase() === trimmedCorrectAnswer.toLowerCase());
-      if (!hasMatchingAnswer) {
-        toast.error('Correct answer must match one of the options');
+      // interpret correctAnswer as a letter (a,b,c...)
+      const letter = trimmedCorrectAnswer.trim().toLowerCase();
+      const idx = letter.charCodeAt(0) - 97;
+      if (Number.isNaN(idx) || idx < 0 || idx >= options.length) {
+        toast.error('Correct answer must be one of the option letters (a, b, c...)');
         return;
       }
+
+      // get the actual option text for the selected letter to send to the API
+      const selectedOptionText = options[idx];
+      if (!selectedOptionText) {
+        toast.error('Selected option is invalid');
+        return;
+      }
+      payloadCorrectAnswer = selectedOptionText;
     }
 
     setIsSaving(true);
@@ -199,7 +222,7 @@ export default function TeacherQuestionManualCreatePage() {
           difficulty,
           visibility,
           options,
-          correctAnswer: trimmedCorrectAnswer,
+          correctAnswer: payloadCorrectAnswer,
           explanation: trimmedExplanation,
         }),
       });
@@ -401,15 +424,22 @@ export default function TeacherQuestionManualCreatePage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700">Correct answer</Label>
-                  <Input
+                  <select
                     value={correctAnswer}
                     onChange={(e) => setCorrectAnswer(e.target.value)}
-                    disabled={!isEditable || isSaving}
-                    placeholder="Enter the exact correct option"
-                  />
+                    disabled={!isEditable || isSaving || parsedOptions.length === 0}
+                    className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
+                  >
+                    <option value="">Select correct option</option>
+                    {parsedOptions.map((opt, idx) => (
+                      <option key={idx} value={String.fromCharCode(97 + idx)}>
+                        {String.fromCharCode(97 + idx)}. {opt}
+                      </option>
+                    ))}
+                  </select>
                   <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
                     <Sparkles className="mb-2 h-4 w-4" />
-                    The answer must match one of the options exactly.
+                    Select the correct option (a, b, c...).
                   </div>
                 </div>
               </div>

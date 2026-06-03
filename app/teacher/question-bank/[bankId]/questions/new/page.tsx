@@ -40,14 +40,6 @@ type BankPayload = {
   questionCount: number;
 };
 
-function splitOptions(value: string) {
-  return value
-    .split('\n')
-    .flatMap((line) => line.split(','))
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
 export default function TeacherQuestionManualCreatePage() {
   const params = useParams<{ bankId: string }>();
   const router = useRouter();
@@ -67,13 +59,17 @@ export default function TeacherQuestionManualCreatePage() {
   const [selectedTopic, setSelectedTopic] = useState('');
   const [questionText, setQuestionText] = useState('');
   const [questionType, setQuestionType] = useState<'objective' | 'theory'>('objective');
+  const [optionCount, setOptionCount] = useState<number>(4);
+  const [options, setOptions] = useState<string[]>(['', '', '', '', '', '']);
+  const [correctOptionIdx, setCorrectOptionIdx] = useState<number | null>(null);
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [visibility, setVisibility] = useState<'private' | 'public_school'>('private');
-  const [optionsInput, setOptionsInput] = useState('');
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [explanation, setExplanation] = useState('');
 
-  const parsedOptions = useMemo(() => splitOptions(optionsInput), [optionsInput]);
+  const activeOptions = useMemo(() => {
+    return options.slice(0, optionCount);
+  }, [options, optionCount]);
 
   const subjectClassLabelMap = useMemo(() => {
     return new Map(
@@ -103,14 +99,16 @@ export default function TeacherQuestionManualCreatePage() {
   }, [topicGroups, selectedTerm]);
 
   useEffect(() => {
-    // if options change and the selected correct answer letter is now invalid, clear it
-    if (questionType === 'objective' && correctAnswer) {
-      const idx = correctAnswer.trim().toLowerCase().charCodeAt(0) - 97;
-      if (Number.isNaN(idx) || idx < 0 || idx >= parsedOptions.length) {
-        setCorrectAnswer('');
-      }
+    if (correctOptionIdx !== null && correctOptionIdx >= optionCount) {
+      setCorrectOptionIdx(null);
     }
-  }, [parsedOptions, questionType]);
+  }, [optionCount, correctOptionIdx]);
+
+  function handleOptionChange(index: number, value: string) {
+    const updatedOptions = [...options];
+    updatedOptions[index] = value;
+    setOptions(updatedOptions);
+  }
 
   async function loadPage() {
     setIsLoading(true);
@@ -173,8 +171,8 @@ export default function TeacherQuestionManualCreatePage() {
     const trimmedTopic = selectedTopic.trim();
     const trimmedQuestionText = questionText.trim();
     const trimmedExplanation = explanation.trim();
-    const options = splitOptions(optionsInput);
     const trimmedCorrectAnswer = correctAnswer.trim();
+    let payloadOptions: string[] = [];
     let payloadCorrectAnswer = trimmedCorrectAnswer;
 
     if (!trimmedTopic || !trimmedQuestionText) {
@@ -183,31 +181,28 @@ export default function TeacherQuestionManualCreatePage() {
     }
 
     if (questionType === 'objective') {
-      if (options.length < 2) {
-        toast.error('Objective questions need at least two options');
+      const cleanedOptions = activeOptions.map((opt) => opt.trim());
+
+      if (cleanedOptions.some((opt) => !opt)) {
+        toast.error(`Please fill out all ${optionCount} options before saving.`);
         return;
       }
 
-      if (!trimmedCorrectAnswer) {
-        toast.error('Objective questions need a correct answer (a, b, c...)');
+      if (correctOptionIdx === null) {
+        toast.error('Please mark one of the options as the correct answer.');
         return;
       }
 
-      // interpret correctAnswer as a letter (a,b,c...)
-      const letter = trimmedCorrectAnswer.trim().toLowerCase();
-      const idx = letter.charCodeAt(0) - 97;
-      if (Number.isNaN(idx) || idx < 0 || idx >= options.length) {
-        toast.error('Correct answer must be one of the option letters (a, b, c...)');
-        return;
-      }
+      payloadOptions = cleanedOptions;
 
-      // get the actual option text for the selected letter to send to the API
-      const selectedOptionText = options[idx];
-      if (!selectedOptionText) {
+      if (!payloadOptions[correctOptionIdx]) {
         toast.error('Selected option is invalid');
         return;
       }
-      payloadCorrectAnswer = selectedOptionText;
+
+      payloadCorrectAnswer = payloadOptions[correctOptionIdx];
+    } else {
+      payloadOptions = [];
     }
 
     setIsSaving(true);
@@ -221,7 +216,7 @@ export default function TeacherQuestionManualCreatePage() {
           questionType,
           difficulty,
           visibility,
-          options,
+          options: payloadOptions,
           correctAnswer: payloadCorrectAnswer,
           explanation: trimmedExplanation,
         }),
@@ -410,38 +405,100 @@ export default function TeacherQuestionManualCreatePage() {
             </div>
 
             {questionType === 'objective' && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Options</Label>
-                  <Textarea
-                    value={optionsInput}
-                    onChange={(e) => setOptionsInput(e.target.value)}
-                    disabled={!isEditable || isSaving}
-                    placeholder="Enter each option on a new line, or separate with commas"
-                    rows={5}
-                  />
-                  <p className="text-xs text-gray-500">The first two options are enough to save, but four are recommended.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Correct answer</Label>
-                  <select
-                    value={correctAnswer}
-                    onChange={(e) => setCorrectAnswer(e.target.value)}
-                    disabled={!isEditable || isSaving || parsedOptions.length === 0}
-                    className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
-                  >
-                    <option value="">Select correct option</option>
-                    {parsedOptions.map((opt, idx) => (
-                      <option key={idx} value={String.fromCharCode(97 + idx)}>
-                        {String.fromCharCode(97 + idx)}. {opt}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-800">
-                    <Sparkles className="mb-2 h-4 w-4" />
-                    Select the correct option (a, b, c...).
+              <div className="space-y-6 border-t border-gray-100 pt-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base font-semibold text-gray-900">Configure options</Label>
+                    <p className="text-xs text-gray-500">Choose how many choices to render, then fill and select the correct answer.</p>
+                  </div>
+
+                  <div className="w-fit rounded-lg bg-gray-100 p-1">
+                    <div className="flex items-center gap-1.5">
+                      {[2, 3, 4, 5, 6].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => setOptionCount(count)}
+                          disabled={!isEditable || isSaving}
+                          className={`rounded-md px-3 py-1.5 text-xs font-semibold tracking-wide transition-all ${
+                            optionCount === count
+                              ? 'border border-gray-200/50 bg-white text-blue-600 shadow-sm'
+                              : 'text-gray-600 hover:bg-white/50 hover:text-gray-900'
+                          }`}
+                        >
+                          {count} Choices
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
+
+                <div className="grid gap-3">
+                  {Array.from({ length: optionCount }).map((_, idx) => {
+                    const currentLetter = String.fromCharCode(65 + idx);
+                    const isCorrect = correctOptionIdx === idx;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-200 ${
+                          isCorrect
+                            ? 'border-emerald-300 bg-emerald-50/40 shadow-sm ring-1 ring-emerald-400/20'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                      >
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold transition-colors ${
+                            isCorrect
+                              ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                              : 'border-gray-200 bg-gray-50 text-gray-700'
+                          }`}
+                        >
+                          {currentLetter}
+                        </div>
+
+                        <div className="flex-1">
+                          <Input
+                            value={options[idx] || ''}
+                            onChange={(e) => handleOptionChange(idx, e.target.value)}
+                            disabled={!isEditable || isSaving}
+                            placeholder={`Enter option ${currentLetter}...`}
+                            className="h-11 border-gray-200 bg-transparent shadow-none focus-visible:ring-blue-500"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={!isEditable || isSaving}
+                          onClick={() => setCorrectOptionIdx(idx)}
+                          className={`flex h-11 items-center gap-1.5 rounded-lg border px-4 text-xs font-medium transition-all ${
+                            isCorrect
+                              ? 'border-emerald-600 bg-emerald-600 font-semibold text-white'
+                              : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                          }`}
+                        >
+                          <div
+                            className={`flex h-4 w-4 items-center justify-center rounded-full border transition-all ${
+                              isCorrect ? 'border-white bg-white' : 'border-gray-300'
+                            }`}
+                          >
+                            {isCorrect && <div className="h-2 w-2 rounded-full bg-emerald-600" />}
+                          </div>
+                          <span className="hidden sm:inline">{isCorrect ? 'Correct Answer' : 'Mark Correct'}</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {correctOptionIdx !== null && (
+                  <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-blue-700">
+                    <Sparkles className="h-4 w-4 shrink-0 text-blue-500" />
+                    <span>
+                      Option <strong>{String.fromCharCode(65 + correctOptionIdx)}</strong> is marked as the correct resolution for this question.
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

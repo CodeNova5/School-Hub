@@ -14,98 +14,75 @@ type GeneratedQuestion = {
 };
 
 function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' | 'theory'): GeneratedQuestion[] {
-  if (!Array.isArray(input)) {
-    return [];
+  if (!Array.isArray(input)) return [];
+
+  const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+  function resolveLetter(options: string[], raw: string | undefined | null): string | null {
+    if (!raw) return null;
+    const candidate = String(raw).trim();
+    if (!candidate) return null;
+
+    // If already a single letter A-H
+    if (/^[A-H]$/i.test(candidate)) {
+      const idx = LETTERS.indexOf(candidate.toUpperCase());
+      if (idx >= 0 && idx < options.length) return LETTERS[idx];
+    }
+
+    // Exact match against option text
+    const exactIdx = options.findIndex((opt) => opt.toLowerCase() === candidate.toLowerCase());
+    if (exactIdx >= 0) return LETTERS[exactIdx];
+
+    // Partial matches
+    const partialIdx = options.findIndex((opt) => opt.toLowerCase().includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(opt.toLowerCase()));
+    if (partialIdx >= 0) return LETTERS[partialIdx];
+
+    return null;
   }
 
-  const mapped = input.map((item) => {
-      if (!item || typeof item !== 'object') {
-        return null;
-      }
+  const normalized: GeneratedQuestion[] = [];
 
-      const row = item as Record<string, unknown>;
-      const topic = String(row.topic || '').trim();
-      const questionText = String(row.question_text || '').trim();
-      const explanation = row.explanation ? String(row.explanation).trim() : '';
-      const correctAnswer = row.correct_answer ? String(row.correct_answer).trim() : '';
+  for (const item of input) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const topic = String(row.topic || '').trim();
+    const questionText = String(row.question_text || '').trim();
+    const explanation = row.explanation ? String(row.explanation).trim() : '';
+    const rawCorrect = row.correct_answer ? String(row.correct_answer).trim() : '';
 
-      if (!topic || !questionText) {
-        return null;
-      }
+    if (!topic || !questionText) continue;
 
-      if (questionType === 'objective') {
-        const options = Array.isArray(row.options)
-          ? row.options.map((value) => String(value || '').trim()).filter(Boolean)
-          : [];
+    if (questionType === 'objective') {
+      const options = Array.isArray(row.options)
+        ? row.options.map((v) => String(v || '').trim()).filter(Boolean)
+        : [];
 
-        if (options.length < 2 || !correctAnswer) {
-          return null;
-        }
+      if (options.length < 2) continue;
 
-        return {
-          topic,
-          question_text: questionText,
-          options,
-          correct_answer: correctAnswer,
-          explanation,
-        };
-      }
-
-      return {
-        topic,
-        question_text: questionText,
-        options: [],
-        correct_answer: correctAnswer,
-        explanation,
-      };
-    });
-
-    const normalized: GeneratedQuestion[] = [];
-
-    for (const item of input) {
-      if (!item || typeof item !== 'object') {
-        continue;
-      }
-
-      const row = item as Record<string, unknown>;
-      const topic = String(row.topic || '').trim();
-      const questionText = String(row.question_text || '').trim();
-      const explanation = row.explanation ? String(row.explanation).trim() : '';
-      const correctAnswer = row.correct_answer ? String(row.correct_answer).trim() : '';
-
-      if (!topic || !questionText) {
-        continue;
-      }
-
-      if (questionType === 'objective') {
-        const options = Array.isArray(row.options)
-          ? row.options.map((value) => String(value || '').trim()).filter(Boolean)
-          : [];
-
-        if (options.length < 2 || !correctAnswer) {
-          continue;
-        }
-
-        normalized.push({
-          topic,
-          question_text: questionText,
-          options,
-          correct_answer: correctAnswer,
-          explanation,
-        });
-        continue;
-      }
+      const letter = resolveLetter(options, rawCorrect);
+      if (!letter) continue; // invalid if we can't determine a letter
 
       normalized.push({
         topic,
         question_text: questionText,
-        options: [],
-        correct_answer: correctAnswer,
+        options,
+        correct_answer: letter,
         explanation,
       });
+      continue;
     }
 
-    return normalized;
+    // theory
+    normalized.push({
+      topic,
+      question_text: questionText,
+      options: [],
+      correct_answer: rawCorrect || null,
+      explanation,
+    });
+  }
+
+  return normalized;
 }
 
 export const dynamic = 'force-dynamic';

@@ -792,7 +792,20 @@ export default function TeacherQuestionBankDetailPage() {
                           <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
                           <div>
                             <div className="font-semibold text-gray-700">Correct Answer</div>
-                            <div className="text-gray-600 mt-1">{question.correct_answer || 'Not specified'}</div>
+                            {(() => {
+                              const ca = question.correct_answer;
+                              let disp = 'Not specified';
+                              if (ca) {
+                                if (question.question_type === 'objective' && /^[A-H]$/i.test(ca) && question.options?.length) {
+                                  const idx = ca.toUpperCase().charCodeAt(0) - 65;
+                                  const opt = question.options[idx];
+                                  disp = `${ca.toUpperCase()}. ${opt || 'Not specified'}`;
+                                } else {
+                                  disp = ca;
+                                }
+                              }
+                              return <div className="text-gray-600 mt-1">{disp}</div>;
+                            })()}
                           </div>
                         </div>
                         {question.explanation && (

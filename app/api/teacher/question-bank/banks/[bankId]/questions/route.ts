@@ -142,13 +142,40 @@ export async function POST(
       }
 
       if (!correctAnswer) {
-        return NextResponse.json({ error: 'Objective questions need a correctAnswer' }, { status: 400 });
+        return NextResponse.json({ error: 'Objective questions need a correctAnswer (option letter A/B/C... or the option text)' }, { status: 400 });
       }
 
-      const hasMatchingAnswer = options.some((option) => option.toLowerCase() === correctAnswer.toLowerCase());
-      if (!hasMatchingAnswer) {
-        return NextResponse.json({ error: 'correctAnswer must match one of the options' }, { status: 400 });
+      // Resolve correctAnswer to an option letter (A, B, C, ...). Accept either a single-letter (A-D)
+      // or the option text. Store the letter in the DB.
+      const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      let correctAnswerLetter: string | null = null;
+      const candidate = correctAnswer.trim();
+
+      if (/^[A-H]$/i.test(candidate)) {
+        const idx = LETTERS.indexOf(candidate.toUpperCase());
+        if (idx >= 0 && idx < options.length) {
+          correctAnswerLetter = LETTERS[idx];
+        }
       }
+
+      if (!correctAnswerLetter) {
+        // try exact match against option text
+        const idx = options.findIndex((opt) => opt.toLowerCase() === candidate.toLowerCase());
+        if (idx >= 0) correctAnswerLetter = LETTERS[idx];
+      }
+
+      if (!correctAnswerLetter) {
+        // try partial match (contains)
+        const idx2 = options.findIndex((opt) => opt.toLowerCase().includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(opt.toLowerCase()));
+        if (idx2 >= 0) correctAnswerLetter = LETTERS[idx2];
+      }
+
+      if (!correctAnswerLetter) {
+        return NextResponse.json({ error: 'correctAnswer must match one of the options or be a valid option letter (A/B/C...)' }, { status: 400 });
+      }
+
+      // replace correctAnswer with letter for storage
+      // (we keep `correctAnswer` variable for compatibility but use `correctAnswerLetter` below)
     }
 
     const { data, error } = await supabase
@@ -164,7 +191,29 @@ export async function POST(
         topic,
         question_text: questionText,
         options: questionType === 'objective' ? options : [],
-        correct_answer: correctAnswer || null,
+        correct_answer: questionType === 'objective' ? (function(){
+          // derive stored letter from provided correctAnswer / options
+          const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+          const candidate = (typeof body?.correctAnswer === 'string' ? body.correctAnswer.trim() : '');
+          let correctAnswerLetter: string | null = null;
+
+          if (candidate && /^[A-H]$/i.test(candidate)) {
+            const idx = LETTERS.indexOf(candidate.toUpperCase());
+            if (idx >= 0 && idx < options.length) correctAnswerLetter = LETTERS[idx];
+          }
+
+          if (!correctAnswerLetter && candidate) {
+            const idx = options.findIndex((opt) => opt.toLowerCase() === candidate.toLowerCase());
+            if (idx >= 0) correctAnswerLetter = LETTERS[idx];
+          }
+
+          if (!correctAnswerLetter && candidate) {
+            const idx2 = options.findIndex((opt) => opt.toLowerCase().includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(opt.toLowerCase()));
+            if (idx2 >= 0) correctAnswerLetter = LETTERS[idx2];
+          }
+
+          return correctAnswerLetter || null;
+        })() : null,
         explanation: explanation || null,
         metadata: {
           createdVia: 'manual',

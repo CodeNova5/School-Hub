@@ -15,6 +15,13 @@ export async function PATCH(
   const { supabase, teacherId, schoolId } = ctxResult.context;
 
   try {
+    // fetch existing question to help resolve correct_answer when needed
+    const { data: existingQuestion } = await supabase
+      .from('teacher_questions')
+      .select('options, question_type')
+      .eq('id', params.questionId)
+      .maybeSingle();
+
     const body = await request.json();
     const updates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -33,7 +40,44 @@ export async function PATCH(
     }
 
     if (typeof body?.correctAnswer === 'string') {
-      updates.correct_answer = body.correctAnswer.trim() || null;
+      const candidate = body.correctAnswer.trim();
+
+      // Try to resolve to option letter when this is an objective question.
+      const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      let resolved: string | null = null;
+
+      // determine options list: prefer provided options in body, fallback to existing question
+      const optionsList: string[] = Array.isArray(body.options)
+        ? (body.options as string[]).map((v) => String(v || '').trim()).filter(Boolean)
+        : Array.isArray((existingQuestion as any)?.options)
+        ? ((existingQuestion as any).options as string[])
+        : [];
+
+      if (/^[A-H]$/i.test(candidate)) {
+        const idx = LETTERS.indexOf(candidate.toUpperCase());
+        if (idx >= 0 && idx < optionsList.length) resolved = LETTERS[idx];
+      }
+
+      if (!resolved && optionsList.length > 0) {
+        const exact = optionsList.findIndex((opt) => opt.toLowerCase() === candidate.toLowerCase());
+        if (exact >= 0) resolved = LETTERS[exact];
+        else {
+          const partial = optionsList.findIndex((opt) => opt.toLowerCase().includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(opt.toLowerCase()));
+          if (partial >= 0) resolved = LETTERS[partial];
+        }
+      }
+
+      if (resolved) {
+        updates.correct_answer = resolved;
+      } else {
+        // If it's a theory question (or no options available), allow storing the raw value.
+        const qType = (existingQuestion as any)?.question_type || 'objective';
+        if (qType === 'theory' || optionsList.length === 0) {
+          updates.correct_answer = candidate || null;
+        } else {
+          return NextResponse.json({ error: 'correctAnswer could not be resolved to an option letter for this objective question' }, { status: 400 });
+        }
+      }
     }
 
     if (body?.difficulty && ['easy', 'medium', 'hard'].includes(body.difficulty)) {

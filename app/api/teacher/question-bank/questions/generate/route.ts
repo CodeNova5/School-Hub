@@ -23,18 +23,31 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     const candidate = String(raw).trim();
     if (!candidate) return null;
 
+    const strippedCandidate = candidate
+      .replace(/^answer\s*[:\-]?\s*/i, '')
+      .replace(/^(?:option\s*)?([A-H])\s*[).:-]?\s*/i, '$1')
+      .trim();
+
+    const normalizedCandidate = strippedCandidate || candidate;
+
     // If already a single letter A-H
-    if (/^[A-H]$/i.test(candidate)) {
-      const idx = LETTERS.indexOf(candidate.toUpperCase());
+    if (/^[A-H]$/i.test(normalizedCandidate)) {
+      const idx = LETTERS.indexOf(normalizedCandidate.toUpperCase());
+      if (idx >= 0 && idx < options.length) return LETTERS[idx];
+    }
+
+    const letterMatch = normalizedCandidate.match(/^([A-H])\b/i);
+    if (letterMatch) {
+      const idx = LETTERS.indexOf(letterMatch[1].toUpperCase());
       if (idx >= 0 && idx < options.length) return LETTERS[idx];
     }
 
     // Exact match against option text
-    const exactIdx = options.findIndex((opt) => opt.toLowerCase() === candidate.toLowerCase());
+    const exactIdx = options.findIndex((opt) => opt.toLowerCase() === normalizedCandidate.toLowerCase());
     if (exactIdx >= 0) return LETTERS[exactIdx];
 
     // Partial matches
-    const partialIdx = options.findIndex((opt) => opt.toLowerCase().includes(candidate.toLowerCase()) || candidate.toLowerCase().includes(opt.toLowerCase()));
+    const partialIdx = options.findIndex((opt) => opt.toLowerCase().includes(normalizedCandidate.toLowerCase()) || normalizedCandidate.toLowerCase().includes(opt.toLowerCase()));
     if (partialIdx >= 0) return LETTERS[partialIdx];
 
     return null;
@@ -195,6 +208,7 @@ export async function POST(request: NextRequest) {
             'You are an expert teacher question author.',
             'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
             'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer, explanation.',
+            'For objective questions, correct_answer must be only the option letter A, B, C, or D, never the option text.',
             'Do not include markdown or extra commentary.',
           ].join(' '),
         },
@@ -205,7 +219,7 @@ export async function POST(request: NextRequest) {
             `Difficulty level: ${difficulty}.`,
             `Topics to cover: ${topics.join(', ')}.`,
             questionType === 'objective'
-              ? 'Each objective question must include exactly 4 options and a correct_answer matching one option.'
+              ? 'Each objective question must include exactly 4 options and a correct_answer that is only one of A, B, C, or D.'
               : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
             'Output valid JSON only.',
           ].join('\n'),

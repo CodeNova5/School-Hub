@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Badge } from '@/components/ui/badge';
@@ -13,11 +13,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import 'katex/dist/katex.min.css';
 
 type SubjectClassItem = {
   id: string;
@@ -49,8 +44,6 @@ type QuestionRecord = {
     imageName?: string;
     imageMimeType?: string;
     imageSize?: number;
-    diagram?: string;
-    diagram_type?: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null;
   } | null;
   question_type: 'objective' | 'theory';
   difficulty: 'easy' | 'medium' | 'hard';
@@ -145,140 +138,9 @@ export default function TeacherQuestionBankDetailPage() {
   const [manualTopicInput, setManualTopicInput] = useState('');
   const [generateStep, setGenerateStep] = useState(1);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-  const [includeDiagrams, setIncludeDiagrams] = useState(true);
 
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
-  function DiagramRenderer({ diagram, type, name }: { diagram?: string | null; type?: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null; name?: string }) {
-    const containerRef = useRef<HTMLDivElement | null>(null);
 
-    // Clean diagram string from any code fences (e.g. ```xml ... ``` or ```svg ... ```)
-    const cleanDiagram = useMemo(() => {
-      if (!diagram) return '';
-      let clean = diagram.trim();
-      if (clean.startsWith('```')) {
-        clean = clean.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
-      }
-      return clean;
-    }, [diagram]);
-
-    const isTikzOrChemfig = type === 'tikz' || type === 'chemfig';
-
-    // Generate a secure standalone LaTeX wrapper URL for rendering TikZ/Chemfig
-    const latexCompilerUrl = useMemo(() => {
-      if (!isTikzOrChemfig || !cleanDiagram) return '';
-
-      // Determine configuration packages needed based on selection
-      const latexPackageHeader = type === 'chemfig'
-        ? '\\usepackage{chemfig}'
-        : '\\usepackage{tikz}\n\\usetikzlibrary{calc,arrows.meta,positioning}';
-
-      // Standard standalone document container template
-      const documentBody = `\\documentclass[tikz,border=5pt]{standalone}
-${latexPackageHeader}
-\\begin{document}
-${cleanDiagram}
-\\end{document}`;
-
-      // Encode the document string safely into the academic compiler engine query string
-      return `https://rdr.api.boxscale.org/v1/compile?code=${encodeURIComponent(documentBody)}&format=svg`;
-    }, [cleanDiagram, type, isTikzOrChemfig]);
-
-    useEffect(() => {
-      if (isTikzOrChemfig || !cleanDiagram || !containerRef.current) return;
-
-      // Automatically determine if the diagram content is SVG
-      const isSvgType = type === 'svg' || cleanDiagram.startsWith('<svg') || cleanDiagram.includes('<svg');
-
-      if (isSvgType) {
-        containerRef.current.innerHTML = cleanDiagram;
-        return;
-      }
-
-      let mounted = true;
-      (async () => {
-        try {
-          // dynamic import so we don't force mermaid in initial bundle
-          // @ts-ignore - optional runtime import, mermaid may not be installed in dev env
-          const mermaid: any = await import('mermaid').catch(() => null);
-          if (!mermaid || !mermaid.mermaidAPI) {
-            // fallback: render source as preformatted text
-            if (mounted && containerRef.current) containerRef.current.textContent = cleanDiagram;
-            return;
-          }
-          mermaid.initialize({ startOnLoad: false });
-          const id = `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          const renderResult = await new Promise<string>((resolve) => {
-            try {
-              const maybe = mermaid.mermaidAPI.render(id, cleanDiagram, (svgCode: string) => resolve(svgCode));
-              if (typeof maybe === 'string') resolve(maybe);
-            } catch (e) {
-              resolve('');
-            }
-          });
-          if (mounted && containerRef.current) containerRef.current.innerHTML = renderResult || cleanDiagram;
-        } catch (e) {
-          if (containerRef.current) containerRef.current.textContent = cleanDiagram;
-        }
-      })();
-
-      return () => {
-        mounted = false;
-      };
-    }, [cleanDiagram, type, isTikzOrChemfig]);
-
-    if (isTikzOrChemfig) {
-      return (
-        <div
-          aria-label={name || 'diagram'}
-          className="mb-4 w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col"
-        >
-          {/* Header/Tag bar indicating render layout mode */}
-          <div className="bg-gray-50 px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Generated Diagram Preview
-            </span>
-            <span className="text-[10px] font-semibold text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100">
-              {type === 'tikz' ? 'TikZ / Geometry' : 'Chemfig / Chemistry'}
-            </span>
-          </div>
-
-          {/* Active Vector Render Canvas Viewport */}
-          <div className="p-4 flex justify-center items-center min-h-[180px] bg-white relative">
-            {latexCompilerUrl ? (
-              <img
-                src={latexCompilerUrl}
-                alt="Compiled Mathematics Diagram Layout"
-                className="max-w-full max-h-72 object-contain select-none pointer-events-none"
-                loading="lazy"
-                onError={(e) => {
-                  // If compiler query encounters an explicit markup error, fall back gracefully to a view string
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  const parent = target.parentElement;
-                  if (parent) {
-                    const fallbackCodeBlock = document.createElement('pre');
-                    fallbackCodeBlock.className = "text-xs font-mono text-gray-500 bg-gray-50 p-2 rounded max-w-full overflow-x-auto";
-                    fallbackCodeBlock.innerText = cleanDiagram;
-                    parent.appendChild(fallbackCodeBlock);
-                  }
-                }}
-              />
-            ) : (
-              <div className="text-xs text-gray-400 font-mono">Compiling visual layout...</div>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        ref={containerRef}
-        aria-label={name || 'diagram'}
-        className="mb-4 max-w-md overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm p-3 [&>svg]:!max-w-full [&>svg]:mx-auto [&>svg]:!h-auto [&>svg]:!max-h-72 flex justify-center items-center"
-      />
-    );
-  }
   useEffect(() => {
     if (schoolId && bankId) {
       void loadPage();
@@ -427,7 +289,6 @@ ${cleanDiagram}
           questionType: generateQuestionType,
           count,
           topics,
-          includeDiagrams,
         }),
       });
 
@@ -911,10 +772,6 @@ ${cleanDiagram}
                       </div>
 
                       {/* Question Text */}
-                      {question.metadata?.diagram && (
-                        <DiagramRenderer diagram={question.metadata.diagram} type={question.metadata.diagram_type as any} name={`diagram-${question.id}`} />
-                      )}
-
                       {question.metadata?.imageUrl && (
                         <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm">
                           <img
@@ -925,11 +782,9 @@ ${cleanDiagram}
                         </div>
                       )}
 
-                      <div className="text-base text-gray-900 font-medium mb-4 leading-relaxed prose prose-slate max-w-none dark:prose-invert">
-                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                          {question.question_text}
-                        </ReactMarkdown>
-                      </div>
+                      <p className="text-base text-gray-900 font-medium mb-4 leading-relaxed">
+                        {question.question_text}
+                      </p>
 
                       {/* Options for Objective Questions */}
                       {question.question_type === 'objective' && question.options.length > 0 && (
@@ -937,16 +792,12 @@ ${cleanDiagram}
                           {question.options.map((option, idx) => (
                             <div
                               key={idx}
-                              className="text-sm text-gray-700 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-start gap-2"
+                              className="text-sm text-gray-700 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
                             >
-                              <span className="font-semibold text-gray-400 flex-shrink-0">
+                              <span className="font-semibold text-gray-400 mr-2">
                                 {String.fromCharCode(65 + idx)}.
                               </span>
-                              <div className="prose prose-slate max-w-none dark:prose-invert text-sm">
-                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                                  {option}
-                                </ReactMarkdown>
-                              </div>
+                              {option}
                             </div>
                           ))}
                         </div>
@@ -956,7 +807,7 @@ ${cleanDiagram}
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3 text-sm">
                         <div className="flex gap-2">
                           <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
+                          <div>
                             <div className="font-semibold text-gray-700">Correct Answer</div>
                             {(() => {
                               const ca = question.correct_answer;
@@ -970,24 +821,14 @@ ${cleanDiagram}
                                   disp = ca;
                                 }
                               }
-                              return (
-                                <div className="text-gray-600 mt-1 prose prose-slate max-w-none dark:prose-invert text-sm">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                                    {disp}
-                                  </ReactMarkdown>
-                                </div>
-                              );
+                              return <div className="text-gray-600 mt-1">{disp}</div>;
                             })()}
                           </div>
                         </div>
                         {question.explanation && (
                           <div className="border-t border-blue-200 pt-3">
                             <div className="font-semibold text-gray-700 mb-1">Explanation</div>
-                            <div className="text-gray-600 prose prose-slate max-w-none dark:prose-invert text-sm">
-                              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-                                {question.explanation}
-                              </ReactMarkdown>
-                            </div>
+                            <div className="text-gray-600">{question.explanation}</div>
                           </div>
                         )}
                       </div>
@@ -1324,10 +1165,10 @@ ${cleanDiagram}
               <div key={item.step} className="flex-1">
                 <button
                   className={`w-full text-xs font-medium px-3 py-2 rounded-lg transition-all ${generateStep === item.step
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : generateStep > item.step
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-white text-gray-500 border border-gray-200'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : generateStep > item.step
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-white text-gray-500 border border-gray-200'
                     }`}
                 >
                   {item.step}. {item.title}
@@ -1478,8 +1319,8 @@ ${cleanDiagram}
                         key={level}
                         onClick={() => setGenerateDifficulty(level)}
                         className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${isSelected
-                          ? `bg-${color}-50 border-${color}-500 text-${color}-700`
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                            ? `bg-${color}-50 border-${color}-500 text-${color}-700`
+                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
                           }`}
                       >
                         <div className="text-xl mb-2">{icons[level]}</div>
@@ -1503,26 +1344,14 @@ ${cleanDiagram}
                       key={type}
                       onClick={() => setGenerateQuestionType(type)}
                       className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${generateQuestionType === type
-                        ? 'bg-blue-50 border-blue-500 text-blue-700'
-                        : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                          ? 'bg-blue-50 border-blue-500 text-blue-700'
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
                         }`}
                     >
                       <div className="text-xl mb-2">{type === 'objective' ? '🎯' : '✍️'}</div>
                       <div>{type === 'objective' ? 'Multiple Choice' : 'Essay'}</div>
                     </button>
                   ))}
-                </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <input
-                    id="include-diagrams"
-                    type="checkbox"
-                    checked={includeDiagrams}
-                    onChange={(e) => setIncludeDiagrams(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <label htmlFor="include-diagrams" className="text-sm text-gray-700">
-                    Include diagrams when appropriate (AI chooses mermaid or SVG)
-                  </label>
                 </div>
               </div>
             )}
@@ -1548,10 +1377,6 @@ ${cleanDiagram}
                       <span className="font-semibold text-blue-700">
                         {generateQuestionType === 'objective' ? 'Multiple Choice' : 'Essay'}
                       </span>
-                    </div>
-                    <div className="flex items-center justify-between bg-white/60 px-4 py-3 rounded-lg">
-                      <span className="text-gray-700">Include diagrams</span>
-                      <span className="font-semibold text-blue-700">{includeDiagrams ? 'Yes' : 'No'}</span>
                     </div>
                     <div className="bg-white/60 px-4 py-3 rounded-lg">
                       <span className="text-gray-700 block mb-2">Topics</span>

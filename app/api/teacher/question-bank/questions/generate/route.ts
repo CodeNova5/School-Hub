@@ -11,84 +11,7 @@ type GeneratedQuestion = {
   options: string[];
   correct_answer?: string | null;
   explanation?: string | null;
-  diagram?: string | null;
-  diagram_type?: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null;
 };
-
-function parseDiagram(row: Record<string, unknown>): { diagram: string | null; diagramType: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null } {
-  const rawDiagram = row.diagram ? String(row.diagram).trim() : '';
-  const rawDiagramType = row.diagram_type ? String(row.diagram_type).trim().toLowerCase() : '';
-
-  if (!rawDiagram) {
-    return { diagram: null, diagramType: null };
-  }
-
-  // Clean code fences if present
-  let cleaned = rawDiagram;
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
-  }
-
-  let type: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null = null;
-
-  // 1. Check explicit type if provided
-  if (rawDiagramType === 'svg' || rawDiagramType === 'mermaid' || rawDiagramType === 'tikz' || rawDiagramType === 'chemfig') {
-    type = rawDiagramType;
-  } else {
-    // 2. Infer type from content
-    if (cleaned.includes('<svg') || cleaned.startsWith('<svg') || cleaned.startsWith('<?xml')) {
-      type = 'svg';
-    } else if (cleaned.includes('\\chemfig')) {
-      type = 'chemfig';
-    } else if (cleaned.includes('\\draw') || cleaned.includes('\\tikz') || cleaned.startsWith('\\begin{tikzpicture}')) {
-      type = 'tikz';
-    } else if (
-      cleaned.startsWith('graph') ||
-      cleaned.startsWith('flowchart') ||
-      cleaned.startsWith('sequenceDiagram') ||
-      cleaned.startsWith('classDiagram') ||
-      cleaned.startsWith('stateDiagram') ||
-      cleaned.startsWith('erDiagram') ||
-      cleaned.startsWith('gantt') ||
-      cleaned.startsWith('pie') ||
-      cleaned.startsWith('journey') ||
-      cleaned.startsWith('gitGraph') ||
-      /^(?:graph|sequenceDiagram|flowchart)\b/i.test(cleaned)
-    ) {
-      type = 'mermaid';
-    }
-  }
-
-  // If we couldn't infer the type but we have content, we should default to svg if it looks like XML/HTML, else tikz/chemfig if it contains backslash, else mermaid
-  if (!type) {
-    if (cleaned.includes('<') && cleaned.includes('>')) {
-      type = 'svg';
-    } else if (cleaned.includes('\\chemfig')) {
-      type = 'chemfig';
-    } else if (cleaned.includes('\\')) {
-      type = 'tikz';
-    } else {
-      type = 'mermaid';
-    }
-  }
-
-  // Final validation/cleanup based on determined type
-  if (type === 'svg') {
-    // Ensure it contains a valid svg tag
-    if (!cleaned.includes('<svg')) {
-      return { diagram: null, diagramType: null };
-    }
-    return { diagram: cleaned, diagramType: 'svg' };
-  } else if (type === 'mermaid') {
-    // For mermaid, strip any leftover mermaid prefix/labels if they exist
-    const finalMermaid = cleaned.replace(/^mermaid\s*[:\n]?/i, '').trim();
-    return { diagram: finalMermaid, diagramType: 'mermaid' };
-  } else if (type === 'tikz') {
-    return { diagram: cleaned, diagramType: 'tikz' };
-  } else {
-    return { diagram: cleaned, diagramType: 'chemfig' };
-  }
-}
 
 function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' | 'theory'): GeneratedQuestion[] {
   if (!Array.isArray(input)) return [];
@@ -142,8 +65,6 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     if (!topic || !questionText) continue;
 
-    const { diagram, diagramType } = parseDiagram(row);
-
     if (questionType === 'objective') {
       const options = Array.isArray(row.options)
         ? row.options.map((v) => String(v || '').trim()).filter(Boolean)
@@ -160,8 +81,6 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
         options,
         correct_answer: letter,
         explanation,
-        diagram,
-        diagram_type: diagramType,
       });
       continue;
     }
@@ -173,8 +92,6 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
       options: [],
       correct_answer: rawCorrect || null,
       explanation,
-      diagram,
-      diagram_type: diagramType,
     });
   }
 
@@ -269,8 +186,6 @@ export async function POST(request: NextRequest) {
     const subjectName = (subjectClassResult.data as any)?.subjects?.name || 'the selected subject';
     const className = (subjectClassResult.data as any)?.classes?.name || 'the selected class';
 
-    const includeDiagrams = body?.includeDiagrams === true;
-
     const requestPayload = {
       bankId,
       subjectClassId,
@@ -279,75 +194,8 @@ export async function POST(request: NextRequest) {
       count: questionCount,
       topicSetId,
       topics,
-      includeDiagrams,
       promptVersion: PROMPT_VERSION,
     };
-    const systemParts: string[] = [
-      'You are an expert teacher question author.',
-      'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-      `GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation${includeDiagrams ? ', diagram (string, optional, containing diagram markup/source code), diagram_type ("svg" | "mermaid" | "tikz" | "chemfig", optional, specifying the type of diagram)' : ''}.`,
-      'For any mathematical formulas, equations, or variables, use standard LaTeX formatting wrapped in single dollar signs ($...$) for inline math and double dollar signs ($$...$$) for block math. Do not use custom brackets like \\( or \\].',
-      'Do not include markdown or extra commentary.',
-    ];
-
-    const userParts: string[] = [
-      `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
-      `Difficulty level: ${difficulty}.`,
-      `Topics to cover: ${topics.join(', ')}.`,
-      questionType === 'objective'
-        ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
-        : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
-    ];
-
-    if (includeDiagrams) {
-      systemParts.splice(
-        systemParts.length - 1,
-        0,
-        `DIAGRAM GENERATION AND LAYOUT PROTOCOLS:
-When 'includeDiagrams' is true, evaluate the exact subject area of the target topics to choose the absolute best programmatic rendering type. You must strictly avoid overlapping lines and text collisions by utilizing relative spacing rules.
-
-SUBJECT SELECTION MATRIX:
-
-Geometry / Calculus / Trigonometry / Physics Mechanics -> Use 'tikz'.
-
-Flowcharts / Cycles / Interconnected Biological Systems -> Use 'mermaid'.
-
-Organic Chemistry Structures / Chemical Equation Schemas -> Use 'chemfig'.
-
-Simple Generic Graphic Layouts / Abstract Icons -> Use 'svg'.
-
-STRUCTURAL LAYOUT RULES PER TYPE:
-
-FOR 'tikz':
-
-Always use relative node placements like node[midway, below=3mm] or node[above right=2mm].
-
-NEVER specify an absolute coordinate for text labels directly on top of coordinates.
-
-Keep angle arcs bounded tight and throw text entirely outside using explicit offsets.
-
-FOR 'chemfig':
-
-Use clean relative link structures (e.g., \\chemfig{*6(-=-=-=)}) so bonds pull text automatically without coordinate calculation.
-
-FOR 'svg' (Fallback Only):
-
-Implement mandatory label padding.
-
-For bottom baselines, use a dy shift or push the Y-coordinate at least 15-20px lower than the boundary line.
-
-For side lines, use text-anchor="end" or text-anchor="start" combined with explicit horizontal padding to prevent elements from intersecting lines.
-
-RETURN FORMAT:
-Provide the clean raw string source code containing no markdown code block backticks within the main json string field. Assign the exact identifier token ('svg' | 'mermaid' | 'tikz' | 'chemfig') to the 'diagram_type' property.
-
-
-note: the ai should specify which type it created so it can be easy to reder in the frontend`
-      );
-      userParts.push('If a question requires a diagram, include a field "diagram" containing the raw layout/rendering code (no markdown backticks or markdown code block wrapper), and a field "diagram_type" specifying the chosen layout format ("svg", "mermaid", "tikz", or "chemfig").');
-    }
-
-    userParts.push('Output valid JSON only.');
 
     const groqResponse = await fetchGroqChatCompletion({
       model: GROQ_MODEL,
@@ -356,11 +204,26 @@ note: the ai should specify which type it created so it can be easy to reder in 
       messages: [
         {
           role: 'system',
-          content: systemParts.join(' '),
+          content: [
+            'You are an expert teacher question author.',
+            'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
+            // Update the schema description here so the model expects a letter for objective types
+            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation.',
+            'Do not include markdown or extra commentary.',
+          ].join(' '),
         },
         {
           role: 'user',
-          content: userParts.join('\n'),
+          content: [
+            `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
+            `Difficulty level: ${difficulty}.`,
+            `Topics to cover: ${topics.join(', ')}.`,
+            // Update the conditional prompt logic below
+            questionType === 'objective'
+              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
+              : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
+            'Output valid JSON only.',
+          ].join('\n'),
         },
       ],
     });
@@ -426,14 +289,11 @@ note: the ai should specify which type it created so it can be easy to reder in 
       options: questionType === 'objective' ? question.options || [] : [],
       correct_answer: question.correct_answer || null,
       explanation: question.explanation || null,
-      metadata: Object.assign(
-        {
-          generatedBy: 'groq',
-          model: GROQ_MODEL,
-          promptVersion: PROMPT_VERSION,
-        },
-        question.diagram ? { diagram: question.diagram, diagram_type: question.diagram_type } : {}
-      ),
+      metadata: {
+        generatedBy: 'groq',
+        model: GROQ_MODEL,
+        promptVersion: PROMPT_VERSION,
+      },
     }));
 
     const { data: insertedRows, error: insertError } = await supabase
@@ -446,7 +306,6 @@ note: the ai should specify which type it created so it can be easy to reder in 
         options,
         correct_answer,
         explanation,
-        metadata,
         question_type,
         difficulty,
         visibility,

@@ -286,6 +286,7 @@ export async function POST(request: NextRequest) {
       'You are an expert teacher question author.',
       'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
       `GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation${includeDiagrams ? ', diagram (string, optional, containing diagram markup/source code), diagram_type ("svg" | "mermaid" | "tikz" | "chemfig", optional, specifying the type of diagram)' : ''}.`,
+      'For any mathematical formulas, equations, or variables, use standard LaTeX formatting wrapped in single dollar signs ($...$) for inline math and double dollar signs ($$...$$) for block math. Do not use custom brackets like \\( or \\].',
       'Do not include markdown or extra commentary.',
     ];
 

@@ -13,6 +13,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { useSchoolContext } from '@/hooks/use-school-context';
 import { ArrowLeft, BookOpen, FolderKanban, Globe2, Lock, Save, Search, Settings2, Sparkles, X, AlertCircle, CheckCircle, PencilLine, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 type SubjectClassItem = {
   id: string;
@@ -884,9 +889,11 @@ export default function TeacherQuestionBankDetailPage() {
                         </div>
                       )}
 
-                      <p className="text-base text-gray-900 font-medium mb-4 leading-relaxed">
-                        {question.question_text}
-                      </p>
+                      <div className="text-base text-gray-900 font-medium mb-4 leading-relaxed prose prose-slate max-w-none dark:prose-invert">
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                          {question.question_text}
+                        </ReactMarkdown>
+                      </div>
 
                       {/* Options for Objective Questions */}
                       {question.question_type === 'objective' && question.options.length > 0 && (
@@ -894,12 +901,16 @@ export default function TeacherQuestionBankDetailPage() {
                           {question.options.map((option, idx) => (
                             <div
                               key={idx}
-                              className="text-sm text-gray-700 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                              className="text-sm text-gray-700 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors flex items-start gap-2"
                             >
-                              <span className="font-semibold text-gray-400 mr-2">
+                              <span className="font-semibold text-gray-400 flex-shrink-0">
                                 {String.fromCharCode(65 + idx)}.
                               </span>
-                              {option}
+                              <div className="prose prose-slate max-w-none dark:prose-invert text-sm">
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                  {option}
+                                </ReactMarkdown>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -909,7 +920,7 @@ export default function TeacherQuestionBankDetailPage() {
                       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3 text-sm">
                         <div className="flex gap-2">
                           <CheckCircle className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <div className="font-semibold text-gray-700">Correct Answer</div>
                             {(() => {
                               const ca = question.correct_answer;
@@ -923,14 +934,24 @@ export default function TeacherQuestionBankDetailPage() {
                                   disp = ca;
                                 }
                               }
-                              return <div className="text-gray-600 mt-1">{disp}</div>;
+                              return (
+                                <div className="text-gray-600 mt-1 prose prose-slate max-w-none dark:prose-invert text-sm">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                    {disp}
+                                  </ReactMarkdown>
+                                </div>
+                              );
                             })()}
                           </div>
                         </div>
                         {question.explanation && (
                           <div className="border-t border-blue-200 pt-3">
                             <div className="font-semibold text-gray-700 mb-1">Explanation</div>
-                            <div className="text-gray-600">{question.explanation}</div>
+                            <div className="text-gray-600 prose prose-slate max-w-none dark:prose-invert text-sm">
+                              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                                {question.explanation}
+                              </ReactMarkdown>
+                            </div>
                           </div>
                         )}
                       </div>

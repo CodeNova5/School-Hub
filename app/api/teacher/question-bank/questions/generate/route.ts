@@ -207,8 +207,8 @@ export async function POST(request: NextRequest) {
           content: [
             'You are an expert teacher question author.',
             'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer, explanation.',
-            'For objective questions, correct_answer must be only the option letter A, B, C, or D, never the option text.',
+            // Update the schema description here so the model expects a letter for objective types
+            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation.',
             'Do not include markdown or extra commentary.',
           ].join(' '),
         },
@@ -218,8 +218,9 @@ export async function POST(request: NextRequest) {
             `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
             `Difficulty level: ${difficulty}.`,
             `Topics to cover: ${topics.join(', ')}.`,
+            // Update the conditional prompt logic below
             questionType === 'objective'
-              ? 'Each objective question must include exactly 4 options and a correct_answer that is only one of A, B, C, or D.'
+              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
               : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
             'Output valid JSON only.',
           ].join('\n'),

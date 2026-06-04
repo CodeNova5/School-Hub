@@ -38,6 +38,13 @@ type QuestionRecord = {
   options: string[];
   correct_answer?: string | null;
   explanation?: string | null;
+  metadata?: {
+    imageUrl?: string;
+    imagePath?: string;
+    imageName?: string;
+    imageMimeType?: string;
+    imageSize?: number;
+  } | null;
   question_type: 'objective' | 'theory';
   difficulty: 'easy' | 'medium' | 'hard';
   visibility: 'private' | 'public_school';
@@ -765,6 +772,16 @@ export default function TeacherQuestionBankDetailPage() {
                       </div>
 
                       {/* Question Text */}
+                      {question.metadata?.imageUrl && (
+                        <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm">
+                          <img
+                            src={question.metadata.imageUrl}
+                            alt={question.metadata.imageName || 'Question image'}
+                            className="max-h-72 w-full object-contain bg-white"
+                          />
+                        </div>
+                      )}
+
                       <p className="text-base text-gray-900 font-medium mb-4 leading-relaxed">
                         {question.question_text}
                       </p>

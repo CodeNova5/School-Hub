@@ -66,6 +66,8 @@ export default function TeacherQuestionManualCreatePage() {
   const [visibility, setVisibility] = useState<'private' | 'public_school'>('private');
   const [correctAnswer, setCorrectAnswer] = useState('');
   const [explanation, setExplanation] = useState('');
+  const [questionImageFile, setQuestionImageFile] = useState<File | null>(null);
+  const [questionImagePreview, setQuestionImagePreview] = useState('');
 
   const activeOptions = useMemo(() => {
     return options.slice(0, optionCount);
@@ -103,6 +105,18 @@ export default function TeacherQuestionManualCreatePage() {
       setCorrectOptionIdx(null);
     }
   }, [optionCount, correctOptionIdx]);
+
+  useEffect(() => {
+    if (!questionImageFile) {
+      setQuestionImagePreview('');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(questionImageFile);
+    setQuestionImagePreview(previewUrl);
+
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [questionImageFile]);
 
   function handleOptionChange(index: number, value: string) {
     const updatedOptions = [...options];
@@ -207,10 +221,28 @@ export default function TeacherQuestionManualCreatePage() {
 
     setIsSaving(true);
     try {
+      const hasQuestionImage = Boolean(questionImageFile);
+      const requestBody = hasQuestionImage ? new FormData() : null;
+
+      if (requestBody) {
+        requestBody.append('topic', trimmedTopic);
+        requestBody.append('questionText', trimmedQuestionText);
+        requestBody.append('questionType', questionType);
+        requestBody.append('difficulty', difficulty);
+        requestBody.append('visibility', visibility);
+        requestBody.append('options', JSON.stringify(payloadOptions));
+        requestBody.append('correctAnswer', payloadCorrectAnswer);
+        requestBody.append('explanation', trimmedExplanation);
+
+        if (questionImageFile) {
+          requestBody.append('imageFile', questionImageFile);
+        }
+      }
+
       const response = await fetch(`/api/teacher/question-bank/banks/${bankId}/questions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        headers: requestBody ? undefined : { 'Content-Type': 'application/json' },
+        body: requestBody || JSON.stringify({
           topic: trimmedTopic,
           questionText: trimmedQuestionText,
           questionType,
@@ -236,6 +268,20 @@ export default function TeacherQuestionManualCreatePage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function handleQuestionImageChange(file: File | null) {
+    if (!file) {
+      setQuestionImageFile(null);
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file');
+      return;
+    }
+
+    setQuestionImageFile(file);
   }
 
   if (schoolLoading || isLoading) {
@@ -402,6 +448,47 @@ export default function TeacherQuestionManualCreatePage() {
                 placeholder="Enter the full question text..."
                 rows={5}
               />
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium text-gray-700">Question image</Label>
+                <p className="text-xs text-gray-500">Attach a diagram, chart, or screenshot. The file is stored in Supabase Storage.</p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                <div className="flex-1 space-y-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    disabled={!isEditable || isSaving}
+                    onChange={(e) => handleQuestionImageChange(e.target.files?.[0] || null)}
+                    className="h-11 border-gray-200 bg-white shadow-none"
+                  />
+                  {questionImageFile && (
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span className="font-medium text-gray-700">Selected:</span>
+                      <span className="truncate">{questionImageFile.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={!isEditable || isSaving}
+                        className="h-7 px-2 text-xs text-gray-500 hover:text-gray-900"
+                        onClick={() => setQuestionImageFile(null)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {questionImagePreview && (
+                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm sm:w-40">
+                    <img src={questionImagePreview} alt="Question preview" className="h-32 w-full object-cover" />
+                  </div>
+                )}
+              </div>
             </div>
 
             {questionType === 'objective' && (

@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTeacherQuestionBankContext } from '@/lib/teacher-question-bank/server';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
+const QUESTION_IMAGE_BUCKET = process.env.TEACHER_QUESTION_IMAGE_BUCKET || 'teacher-question-images';
+
+type QuestionImageMetadata = {
+  imageUrl: string;
+  imagePath: string;
+  imageName: string;
+  imageMimeType: string;
+  imageSize: number;
+};
+
 function toCleanStringList(value: unknown) {
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+          .filter(Boolean);
+      }
+    } catch {
+      return [];
+    }
+  }
+
   if (!Array.isArray(value)) {
     return [];
   }
@@ -11,6 +35,116 @@ function toCleanStringList(value: unknown) {
   return value
     .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
     .filter(Boolean);
+}
+
+function sanitizeFileName(name: string) {
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9.-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'question-image'
+  );
+}
+
+function inferExtension(file: File) {
+  const fromName = file.name.split('.').pop()?.trim().toLowerCase();
+  if (fromName && ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif'].includes(fromName)) {
+    return fromName === 'jpeg' ? 'jpg' : fromName;
+  }
+
+  const fromType = file.type.toLowerCase();
+  if (fromType.includes('jpeg')) return 'jpg';
+  if (fromType.includes('png')) return 'png';
+  if (fromType.includes('webp')) return 'webp';
+  if (fromType.includes('gif')) return 'gif';
+  if (fromType.includes('avif')) return 'avif';
+
+  return 'jpg';
+}
+
+async function ensureBucketExists(supabaseAdmin: any, bucketName: string) {
+  const { data, error } = await supabaseAdmin.storage.listBuckets();
+
+  if (error) {
+    throw new Error(`Unable to list Supabase buckets: ${error.message}`);
+  }
+
+  if ((data || []).some((bucket: { name?: string }) => bucket.name === bucketName)) {
+    return;
+  }
+
+  const { error: createError } = await supabaseAdmin.storage.createBucket(bucketName, {
+    public: true,
+  });
+
+  if (createError) {
+    throw new Error(`Unable to create Supabase bucket \"${bucketName}\": ${createError.message}`);
+  }
+}
+
+async function uploadQuestionImage(
+  schoolId: string,
+  bankId: string,
+  teacherId: string,
+  file: File
+): Promise<QuestionImageMetadata> {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!serviceRoleKey || !supabaseUrl) {
+    throw new Error('Supabase storage is not configured');
+  }
+
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only image files are supported');
+  }
+
+  const maxSize = 10 * 1024 * 1024;
+  if (file.size > maxSize) {
+    throw new Error('Image must be 10MB or smaller');
+  }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+
+  await ensureBucketExists(supabaseAdmin, QUESTION_IMAGE_BUCKET);
+
+  const safeName = sanitizeFileName(file.name).replace(/\.[^.]+$/, '');
+  const extension = inferExtension(file);
+  const objectPath = [
+    'teacher-question-banks',
+    schoolId,
+    bankId,
+    teacherId,
+    `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}.${extension}`,
+  ].join('/');
+
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(QUESTION_IMAGE_BUCKET)
+    .upload(objectPath, await file.arrayBuffer(), {
+      contentType: file.type || undefined,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const { data: publicData } = supabaseAdmin.storage.from(QUESTION_IMAGE_BUCKET).getPublicUrl(objectPath);
+
+  return {
+    imageUrl: publicData.publicUrl,
+    imagePath: objectPath,
+    imageName: file.name,
+    imageMimeType: file.type,
+    imageSize: file.size,
+  };
 }
 
 export async function GET(
@@ -58,6 +192,7 @@ export async function GET(
       options,
       correct_answer,
       explanation,
+      metadata,
       question_type,
       difficulty,
       visibility,
@@ -122,19 +257,33 @@ export async function POST(
   }
 
   try {
-    const body = await request.json();
-    const topic = typeof body?.topic === 'string' ? body.topic.trim() : '';
-    const questionText = typeof body?.questionText === 'string' ? body.questionText.trim() : '';
-    const questionType = body?.questionType === 'theory' ? 'theory' : 'objective';
-    const difficulty = ['easy', 'medium', 'hard'].includes(body?.difficulty) ? body.difficulty : 'medium';
-    const visibility = body?.visibility === 'public_school' ? 'public_school' : 'private';
-    const explanation = typeof body?.explanation === 'string' ? body.explanation.trim() : '';
-    const correctAnswer = typeof body?.correctAnswer === 'string' ? body.correctAnswer.trim() : '';
-    const options = toCleanStringList(body?.options);
+    const contentType = request.headers.get('content-type') || '';
+    let body: Record<string, unknown> = {};
+    let imageFile: File | null = null;
+
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData();
+      body = Object.fromEntries(form.entries());
+      const candidate = form.get('imageFile');
+      imageFile = candidate instanceof File && candidate.size > 0 ? candidate : null;
+    } else {
+      body = await request.json();
+    }
+
+    const topic = typeof body.topic === 'string' ? body.topic.trim() : '';
+    const questionText = typeof body.questionText === 'string' ? body.questionText.trim() : '';
+    const questionType = body.questionType === 'theory' ? 'theory' : 'objective';
+    const difficulty = ['easy', 'medium', 'hard'].includes(String(body.difficulty)) ? String(body.difficulty) : 'medium';
+    const visibility = body.visibility === 'public_school' ? 'public_school' : 'private';
+    const explanation = typeof body.explanation === 'string' ? body.explanation.trim() : '';
+    const correctAnswer = typeof body.correctAnswer === 'string' ? body.correctAnswer.trim() : '';
+    const options = toCleanStringList(body.options);
 
     if (!topic || !questionText) {
       return NextResponse.json({ error: 'topic and questionText are required' }, { status: 400 });
     }
+
+    const questionImage = imageFile ? await uploadQuestionImage(schoolId, bankId, teacherId, imageFile) : null;
 
     if (questionType === 'objective') {
       if (options.length < 2) {
@@ -217,6 +366,15 @@ export async function POST(
         explanation: explanation || null,
         metadata: {
           createdVia: 'manual',
+          ...(questionImage
+            ? {
+                imageUrl: questionImage.imageUrl,
+                imagePath: questionImage.imagePath,
+                imageName: questionImage.imageName,
+                imageMimeType: questionImage.imageMimeType,
+                imageSize: questionImage.imageSize,
+              }
+            : {}),
         },
       })
       .select(`
@@ -226,6 +384,7 @@ export async function POST(
         options,
         correct_answer,
         explanation,
+        metadata,
         question_type,
         difficulty,
         visibility,

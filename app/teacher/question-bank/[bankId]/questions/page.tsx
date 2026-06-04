@@ -195,6 +195,7 @@ export default function TeacherQuestionManualCreatePage() {
 
           setSelectedTopic(existingQuestion.topic);
 
+          // Find where you handle objective options inside: if (existingQuestion.question_type === 'objective' && existingQuestion.options)
           if (existingQuestion.question_type === 'objective' && existingQuestion.options) {
             const fetchedOpts = existingQuestion.options;
             setOptionCount(fetchedOpts.length);
@@ -202,10 +203,13 @@ export default function TeacherQuestionManualCreatePage() {
             fetchedOpts.forEach((val, idx) => { extendedOpts[idx] = val; });
             setOptions(extendedOpts);
 
-            // Determine matching correct option index
-            const correctIdx = fetchedOpts.findIndex(o => o === existingQuestion.correct_answer);
-            if (correctIdx !== -1) {
-              setCorrectOptionIdx(correctIdx);
+            // FIX: Read the single-letter choice from the DB, convert it to an index, and set it
+            const savedAnswer = existingQuestion.correct_answer; // e.g., "C"
+            if (savedAnswer && /^[A-H]$/i.test(savedAnswer)) {
+              const correctIdx = savedAnswer.toUpperCase().charCodeAt(0) - 65; // 'C' becomes 2
+              if (correctIdx >= 0 && correctIdx < fetchedOpts.length) {
+                setCorrectOptionIdx(correctIdx);
+              }
             }
           } else {
             setCorrectAnswer(existingQuestion.correct_answer || '');
@@ -415,8 +419,8 @@ export default function TeacherQuestionManualCreatePage() {
                       disabled={!isEditable}
                       onClick={() => setSelectedTerm(t)}
                       className={`flex-1 py-1.5 text-xs font-medium rounded-md border transition-colors ${selectedTerm === t
-                          ? 'bg-slate-900 text-white border-slate-900'
-                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
                         }`}
                     >
                       Term {t}
@@ -507,8 +511,8 @@ export default function TeacherQuestionManualCreatePage() {
                           disabled={!isEditable}
                           onClick={() => setCorrectOptionIdx(idx)}
                           className={`text-xs px-2 py-0.5 rounded transition-colors ${correctOptionIdx === idx
-                              ? 'bg-emerald-600 text-white font-medium'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? 'bg-emerald-600 text-white font-medium'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
                         >
                           {correctOptionIdx === idx ? '✓ Correct Answer' : 'Mark Correct'}

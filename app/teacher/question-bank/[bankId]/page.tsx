@@ -279,7 +279,6 @@ ${cleanDiagram}
       />
     );
   }
-
   useEffect(() => {
     if (schoolId && bankId) {
       void loadPage();

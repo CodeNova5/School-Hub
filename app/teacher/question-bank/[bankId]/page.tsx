@@ -139,6 +139,12 @@ export default function TeacherQuestionBankDetailPage() {
   const [generateStep, setGenerateStep] = useState(1);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 
+  // Editing State
+  // Edit Question State
+  const [editingQuestion, setEditingQuestion] = useState<QuestionRecord | null>(null);
+  const [isEditQuestionModalOpen, setIsEditQuestionModalOpen] = useState(false);
+  const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
   useEffect(() => {
@@ -261,6 +267,57 @@ export default function TeacherQuestionBankDetailPage() {
       setIsLoading(false);
     }
   }
+
+  async function handleSaveEditedQuestion() {
+    if (!editingQuestion || !isEditable) return;
+
+    if (!editingQuestion.question_text.trim()) {
+      toast.error('Question text cannot be empty');
+      return;
+    }
+
+    setIsSavingQuestion(true);
+    try {
+      const response = await fetch(
+        `/api/teacher/question-bank/banks/${bankId}/questions/${editingQuestion.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: editingQuestion.topic.trim(),
+            question_text: editingQuestion.question_text.trim(),
+            options: editingQuestion.options,
+            correct_answer: editingQuestion.correct_answer?.trim(),
+            explanation: editingQuestion.explanation?.trim(),
+            difficulty: editingQuestion.difficulty,
+            question_type: editingQuestion.question_type,
+          }),
+        }
+      );
+
+      const payload = await response.json();
+      if (!response.ok) {
+        toast.error(payload?.error || 'Failed to update question');
+        return;
+      }
+
+      // Update your local state map so changes reflect instantly
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === editingQuestion.id ? (payload.question as QuestionRecord) : q))
+      );
+
+      toast.success('Question updated successfully');
+      setIsEditQuestionModalOpen(false);
+      setEditingQuestion(null);
+    } catch (error) {
+      console.error(error);
+      toast.error('An unexpected error occurred while saving');
+    } finally {
+      setIsSavingQuestion(false);
+    }
+  }
+
+
 
   async function handleGenerateQuestions() {
     if (!isEditable) {
@@ -756,6 +813,7 @@ export default function TeacherQuestionBankDetailPage() {
                   {filteredQuestions.map((question, index) => (
                     <div key={question.id} className="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
                       {/* Question Header */}
+                      {/* Question Header */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="outline" className="bg-gray-50 border-gray-200">
@@ -768,7 +826,24 @@ export default function TeacherQuestionBankDetailPage() {
                             {question.question_type === 'objective' ? 'Multiple Choice' : 'Essay'}
                           </Badge>
                         </div>
-                        <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+
+                        {/* Action Section */}
+                        <div className="flex items-center gap-3">
+                          {isEditable && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                              onClick={() => {
+                                setEditingQuestion({ ...question });
+                                setIsEditQuestionModalOpen(true);
+                              }}
+                            >
+                              <PencilLine className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+                        </div>
                       </div>
 
                       {/* Question Text */}
@@ -850,6 +925,137 @@ export default function TeacherQuestionBankDetailPage() {
               Update the title, description, subject/class, and visibility for this question bank.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Edit Question Modal */}
+          <Dialog open={isEditQuestionModalOpen} onOpenChange={setIsEditQuestionModalOpen}>
+            <DialogContent className="w-[96vw] max-w-2xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
+              <DialogHeader className="space-y-2 border-b border-slate-200/80 bg-slate-50/80 px-6 py-5 sm:px-7">
+                <DialogTitle className="text-xl font-bold tracking-tight text-slate-950">Modify Question</DialogTitle>
+                <DialogDescription className="text-sm text-slate-600">
+                  Update details for this question instance. Changes persist globally across this bank.
+                </DialogDescription>
+              </DialogHeader>
+
+              {editingQuestion && (
+                <div className="space-y-5 px-6 py-6 sm:px-7">
+                  <div className="grid gap-4">
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Topic Input */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-700">Topic Field</Label>
+                        <Input
+                          value={editingQuestion.topic}
+                          onChange={(e) => setEditingQuestion({ ...editingQuestion, topic: e.target.value })}
+                          placeholder="e.g. Algebra"
+                          className="h-11 border-slate-200 bg-white text-sm shadow-sm"
+                        />
+                      </div>
+
+                      {/* Difficulty Selector */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-700">Difficulty</Label>
+                        <select
+                          value={editingQuestion.difficulty}
+                          onChange={(e) => setEditingQuestion({ ...editingQuestion, difficulty: e.target.value as any })}
+                          className="w-full h-11 rounded-md border border-slate-200 bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        >
+                          <option value="easy">Easy</option>
+                          <option value="medium">Medium</option>
+                          <option value="hard">Hard</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Question Text Textarea */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-slate-700">Question Text</Label>
+                      <Textarea
+                        value={editingQuestion.question_text}
+                        onChange={(e) => setEditingQuestion({ ...editingQuestion, question_text: e.target.value })}
+                        placeholder="What is the value of..."
+                        rows={4}
+                        className="resize-none border-slate-200 bg-white text-sm shadow-sm"
+                      />
+                    </div>
+
+                    {/* Objective Options Management */}
+                    {editingQuestion.question_type === 'objective' && (
+                      <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                        <Label className="text-xs font-semibold text-slate-700">Multiple Choice Options</Label>
+                        <div className="grid gap-2">
+                          {editingQuestion.options.map((option, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-slate-400 w-5">
+                                {String.fromCharCode(65 + idx)}.
+                              </span>
+                              <Input
+                                value={option}
+                                onChange={(e) => {
+                                  const newOptions = [...editingQuestion.options];
+                                  newOptions[idx] = e.target.value;
+                                  setEditingQuestion({ ...editingQuestion, options: newOptions });
+                                }}
+                                placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                                className="h-10 border-slate-200 bg-white text-sm shadow-sm flex-1"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Correct Answer Field */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-slate-700">
+                        {editingQuestion.question_type === 'objective' ? 'Correct Option Letter (A, B, C, D)' : 'Ideal Answer Key'}
+                      </Label>
+                      <Input
+                        value={editingQuestion.correct_answer || ''}
+                        onChange={(e) => setEditingQuestion({ ...editingQuestion, correct_answer: e.target.value })}
+                        placeholder={editingQuestion.question_type === 'objective' ? 'e.g. A' : 'Explain the core key steps...'}
+                        className="h-11 border-slate-200 bg-white text-sm shadow-sm"
+                      />
+                    </div>
+
+                    {/* Explanation Textarea */}
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-slate-700">Explanation Note</Label>
+                      <Textarea
+                        value={editingQuestion.explanation || ''}
+                        onChange={(e) => setEditingQuestion({ ...editingQuestion, explanation: e.target.value })}
+                        placeholder="Provide context explaining why this is the correct choice..."
+                        rows={3}
+                        className="resize-none border-slate-200 bg-white text-sm shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Form Confirmation Controls */}
+                  <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+                    <Button
+                      onClick={handleSaveEditedQuestion}
+                      disabled={isSavingQuestion}
+                      className="flex-1 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {isSavingQuestion ? 'Saving Changes...' : 'Update Question'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsEditQuestionModalOpen(false);
+                        setEditingQuestion(null);
+                      }}
+                      className="flex-1 border-slate-200"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
 
           <div className="space-y-5 px-6 py-6 sm:px-7">
             {!isEditable && (
@@ -1165,10 +1371,10 @@ export default function TeacherQuestionBankDetailPage() {
               <div key={item.step} className="flex-1">
                 <button
                   className={`w-full text-xs font-medium px-3 py-2 rounded-lg transition-all ${generateStep === item.step
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : generateStep > item.step
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-white text-gray-500 border border-gray-200'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : generateStep > item.step
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-white text-gray-500 border border-gray-200'
                     }`}
                 >
                   {item.step}. {item.title}
@@ -1319,8 +1525,8 @@ export default function TeacherQuestionBankDetailPage() {
                         key={level}
                         onClick={() => setGenerateDifficulty(level)}
                         className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${isSelected
-                            ? `bg-${color}-50 border-${color}-500 text-${color}-700`
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                          ? `bg-${color}-50 border-${color}-500 text-${color}-700`
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
                           }`}
                       >
                         <div className="text-xl mb-2">{icons[level]}</div>
@@ -1344,8 +1550,8 @@ export default function TeacherQuestionBankDetailPage() {
                       key={type}
                       onClick={() => setGenerateQuestionType(type)}
                       className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${generateQuestionType === type
-                          ? 'bg-blue-50 border-blue-500 text-blue-700'
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
                         }`}
                     >
                       <div className="text-xl mb-2">{type === 'objective' ? '🎯' : '✍️'}</div>

@@ -197,7 +197,13 @@ export default function TeacherQuestionBankDetailPage() {
       };
     }, [diagram, type]);
 
-    return <div ref={containerRef} aria-label={name || 'diagram'} className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm p-3 [&>svg]:w-full [&>svg]:h-auto" />;
+    return (
+      <div
+        ref={containerRef}
+        aria-label={name || 'diagram'}
+        className="mb-4 max-w-md overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm p-3 [&>svg]:!max-w-full [&>svg]:mx-auto [&>svg]:!h-auto [&>svg]:!max-h-72 flex justify-center items-center"
+      />
+    );
   }
 
   useEffect(() => {

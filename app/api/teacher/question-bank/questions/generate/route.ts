@@ -222,6 +222,8 @@ export async function POST(request: NextRequest) {
     const subjectName = (subjectClassResult.data as any)?.subjects?.name || 'the selected subject';
     const className = (subjectClassResult.data as any)?.classes?.name || 'the selected class';
 
+    const includeDiagrams = body?.includeDiagrams === true;
+
     const requestPayload = {
       bankId,
       subjectClassId,
@@ -230,8 +232,31 @@ export async function POST(request: NextRequest) {
       count: questionCount,
       topicSetId,
       topics,
+      includeDiagrams,
       promptVersion: PROMPT_VERSION,
     };
+    const systemParts: string[] = [
+      'You are an expert teacher question author.',
+      'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
+      'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation.',
+      'Do not include markdown or extra commentary.',
+    ];
+
+    const userParts: string[] = [
+      `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
+      `Difficulty level: ${difficulty}.`,
+      `Topics to cover: ${topics.join(', ')}.`,
+      questionType === 'objective'
+        ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
+        : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
+    ];
+
+    if (includeDiagrams) {
+      systemParts.splice(systemParts.length - 1, 0, 'Optional diagram: If a question requires a diagram include a "diagram" string and a "diagram_type" that is either "svg" or "mermaid". For mermaid diagrams return ONLY the mermaid source text (do not include ``` fences). For SVG diagrams return valid, standalone SVG markup starting with <svg ...> and containing explicit width/height attributes; do not include external resources, scripts, or data URLs. Prefer mermaid for flowcharts/diagrams when possible; use SVG only when precise vector markup is required. Limit diagram content to a reasonable size (under 5000 characters) and never include commentary or markdown in the diagram string.');
+      userParts.push('If a question requires a diagram include a field "diagram" containing either raw mermaid source (preferred) or raw SVG markup. For mermaid return only the source (no fences); for SVG return standalone SVG markup. Do not include any explanatory text in the diagram field.');
+    }
+
+    userParts.push('Output valid JSON only.');
 
     const groqResponse = await fetchGroqChatCompletion({
       model: GROQ_MODEL,
@@ -240,27 +265,11 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: [
-            'You are an expert teacher question author.',
-            'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation.',
-            'Optional diagram: If a question requires a diagram include a "diagram" string and a "diagram_type" that is either "svg" or "mermaid". For mermaid diagrams return ONLY the mermaid source text (do not include ``` fences). For SVG diagrams return valid, standalone SVG markup starting with <svg ...> and containing explicit width/height attributes; do not include external resources, scripts, or data URLs. Prefer mermaid for flowcharts/diagrams when possible; use SVG only when precise vector markup is required. Limit diagram content to a reasonable size (under 5000 characters) and never include commentary or markdown in the diagram string.',
-            'Do not include markdown or extra commentary.',
-          ].join(' '),
+          content: systemParts.join(' '),
         },
         {
           role: 'user',
-          content: [
-            `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
-            `Difficulty level: ${difficulty}.`,
-            `Topics to cover: ${topics.join(', ')}.`,
-            // Update the conditional prompt logic below
-            questionType === 'objective'
-              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
-              : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
-            'If a question requires a diagram include a field "diagram" containing either raw mermaid source (preferred) or raw SVG markup. For mermaid return only the source (no fences); for SVG return standalone SVG markup. Do not include any explanatory text in the diagram field.',
-            'Output valid JSON only.',
-          ].join('\n'),
+          content: userParts.join('\n'),
         },
       ],
     });

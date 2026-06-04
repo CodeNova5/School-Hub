@@ -140,6 +140,7 @@ export default function TeacherQuestionBankDetailPage() {
   const [manualTopicInput, setManualTopicInput] = useState('');
   const [generateStep, setGenerateStep] = useState(1);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [includeDiagrams, setIncludeDiagrams] = useState(true);
   
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
 
@@ -338,6 +339,7 @@ export default function TeacherQuestionBankDetailPage() {
           questionType: generateQuestionType,
           count,
           topics,
+          includeDiagrams,
         }),
       });
 
@@ -1409,6 +1411,18 @@ export default function TeacherQuestionBankDetailPage() {
                     </button>
                   ))}
                 </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <input
+                    id="include-diagrams"
+                    type="checkbox"
+                    checked={includeDiagrams}
+                    onChange={(e) => setIncludeDiagrams(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <label htmlFor="include-diagrams" className="text-sm text-gray-700">
+                    Include diagrams when appropriate (AI chooses mermaid or SVG)
+                  </label>
+                </div>
               </div>
             )}
 
@@ -1433,6 +1447,10 @@ export default function TeacherQuestionBankDetailPage() {
                       <span className="font-semibold text-blue-700">
                         {generateQuestionType === 'objective' ? 'Multiple Choice' : 'Essay'}
                       </span>
+                    </div>
+                    <div className="flex items-center justify-between bg-white/60 px-4 py-3 rounded-lg">
+                      <span className="text-gray-700">Include diagrams</span>
+                      <span className="font-semibold text-blue-700">{includeDiagrams ? 'Yes' : 'No'}</span>
                     </div>
                     <div className="bg-white/60 px-4 py-3 rounded-lg">
                       <span className="text-gray-700 block mb-2">Topics</span>

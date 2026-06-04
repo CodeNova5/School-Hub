@@ -827,15 +827,16 @@ export default function TeacherQuestionBankDetailPage() {
                             {(() => {
                               const ca = question.correct_answer;
                               let disp = 'Not specified';
+
                               if (ca) {
-                                if (question.question_type === 'objective' && /^[A-H]$/i.test(ca) && question.options?.length) {
-                                  const idx = ca.toUpperCase().charCodeAt(0) - 65;
-                                  const opt = question.options[idx];
-                                  disp = `${ca.toUpperCase()}. ${opt || 'Not specified'}`;
+                                if (question.question_type === 'objective' && /^[A-H]$/i.test(ca)) {
+                                  // Just grab the letter code directly and force it to uppercase
+                                  disp = ca.toUpperCase();
                                 } else {
                                   disp = ca;
                                 }
                               }
+
                               return <div className="text-gray-600 mt-1">{disp}</div>;
                             })()}
                           </div>

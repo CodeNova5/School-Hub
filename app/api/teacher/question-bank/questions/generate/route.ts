@@ -11,7 +11,72 @@ type GeneratedQuestion = {
   options: string[];
   correct_answer?: string | null;
   explanation?: string | null;
+  diagram?: string | null;
+  diagram_type?: 'svg' | 'mermaid' | null;
 };
+
+function parseDiagram(row: Record<string, unknown>): { diagram: string | null; diagramType: 'svg' | 'mermaid' | null } {
+  const rawDiagram = row.diagram ? String(row.diagram).trim() : '';
+  const rawDiagramType = row.diagram_type ? String(row.diagram_type).trim().toLowerCase() : '';
+
+  if (!rawDiagram) {
+    return { diagram: null, diagramType: null };
+  }
+
+  // Clean code fences if present
+  let cleaned = rawDiagram;
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
+  }
+
+  let type: 'svg' | 'mermaid' | null = null;
+
+  // 1. Check explicit type if provided
+  if (rawDiagramType === 'svg' || rawDiagramType === 'mermaid') {
+    type = rawDiagramType;
+  } else {
+    // 2. Infer type from content
+    if (cleaned.includes('<svg') || cleaned.startsWith('<svg') || cleaned.startsWith('<?xml')) {
+      type = 'svg';
+    } else if (
+      cleaned.startsWith('graph') ||
+      cleaned.startsWith('flowchart') ||
+      cleaned.startsWith('sequenceDiagram') ||
+      cleaned.startsWith('classDiagram') ||
+      cleaned.startsWith('stateDiagram') ||
+      cleaned.startsWith('erDiagram') ||
+      cleaned.startsWith('gantt') ||
+      cleaned.startsWith('pie') ||
+      cleaned.startsWith('journey') ||
+      cleaned.startsWith('gitGraph') ||
+      /^(?:graph|sequenceDiagram|flowchart)\b/i.test(cleaned)
+    ) {
+      type = 'mermaid';
+    }
+  }
+
+  // If we couldn't infer the type but we have content, we should default to svg if it looks like XML/HTML, else mermaid
+  if (!type) {
+    if (cleaned.includes('<') && cleaned.includes('>')) {
+      type = 'svg';
+    } else {
+      type = 'mermaid';
+    }
+  }
+
+  // Final validation/cleanup based on determined type
+  if (type === 'svg') {
+    // Ensure it contains a valid svg tag
+    if (!cleaned.includes('<svg')) {
+      return { diagram: null, diagramType: null };
+    }
+    return { diagram: cleaned, diagramType: 'svg' };
+  } else {
+    // For mermaid, strip any leftover mermaid prefix/labels if they exist
+    const finalMermaid = cleaned.replace(/^mermaid\s*[:\n]?/i, '').trim();
+    return { diagram: finalMermaid, diagramType: 'mermaid' };
+  }
+}
 
 function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' | 'theory'): GeneratedQuestion[] {
   if (!Array.isArray(input)) return [];
@@ -65,6 +130,8 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     if (!topic || !questionText) continue;
 
+    const { diagram, diagramType } = parseDiagram(row);
+
     if (questionType === 'objective') {
       const options = Array.isArray(row.options)
         ? row.options.map((v) => String(v || '').trim()).filter(Boolean)
@@ -81,6 +148,8 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
         options,
         correct_answer: letter,
         explanation,
+        diagram,
+        diagram_type: diagramType,
       });
       continue;
     }
@@ -92,6 +161,8 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
       options: [],
       correct_answer: rawCorrect || null,
       explanation,
+      diagram,
+      diagram_type: diagramType,
     });
   }
 
@@ -186,6 +257,8 @@ export async function POST(request: NextRequest) {
     const subjectName = (subjectClassResult.data as any)?.subjects?.name || 'the selected subject';
     const className = (subjectClassResult.data as any)?.classes?.name || 'the selected class';
 
+    const includeDiagrams = body?.includeDiagrams === true;
+
     const requestPayload = {
       bankId,
       subjectClassId,
@@ -194,8 +267,31 @@ export async function POST(request: NextRequest) {
       count: questionCount,
       topicSetId,
       topics,
+      includeDiagrams,
       promptVersion: PROMPT_VERSION,
     };
+    const systemParts: string[] = [
+      'You are an expert teacher question author.',
+      'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
+      `GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation${includeDiagrams ? ', diagram (string, optional, containing raw SVG markup or raw mermaid source), diagram_type ("svg" | "mermaid", optional, specifying the type of diagram)' : ''}.`,
+      'Do not include markdown or extra commentary.',
+    ];
+
+    const userParts: string[] = [
+      `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
+      `Difficulty level: ${difficulty}.`,
+      `Topics to cover: ${topics.join(', ')}.`,
+      questionType === 'objective'
+        ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
+        : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
+    ];
+
+    if (includeDiagrams) {
+      systemParts.splice(systemParts.length - 1, 0, 'Optional diagram: If a question requires a diagram to explain or visualize it, include a "diagram" string and a "diagram_type" that is either "svg" or "mermaid". For mermaid diagrams return ONLY the mermaid source text (do not include ``` fences). For SVG diagrams return valid, standalone SVG markup starting with <svg ...> and containing explicit width/height attributes; do not include external resources, scripts, or data URLs. Prefer mermaid for flowcharts/diagrams when possible; use SVG only when precise vector markup is required. Limit diagram content to a reasonable size (under 5000 characters) and never include commentary or markdown in the diagram string.');
+      userParts.push('If a question requires a diagram, include a field "diagram" containing either raw mermaid source (preferred) or raw SVG markup, and a field "diagram_type" containing either "mermaid" or "svg". For mermaid return only the source (no fences); for SVG return standalone SVG markup. Do not include any explanatory text in the diagram field.');
+    }
+
+    userParts.push('Output valid JSON only.');
 
     const groqResponse = await fetchGroqChatCompletion({
       model: GROQ_MODEL,
@@ -204,26 +300,11 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: [
-            'You are an expert teacher question author.',
-            'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-            // Update the schema description here so the model expects a letter for objective types
-            'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation.',
-            'Do not include markdown or extra commentary.',
-          ].join(' '),
+          content: systemParts.join(' '),
         },
         {
           role: 'user',
-          content: [
-            `Generate ${questionCount} ${questionType} questions for subject ${subjectName} and class ${className}.`,
-            `Difficulty level: ${difficulty}.`,
-            `Topics to cover: ${topics.join(', ')}.`,
-            // Update the conditional prompt logic below
-            questionType === 'objective'
-              ? 'Each objective question must include exactly 4 options. The correct_answer must strictly be only the letter index of the correct option: "A", "B", "C", or "D".'
-              : 'For theory questions include a concise model answer in correct_answer and marking guidance in explanation.',
-            'Output valid JSON only.',
-          ].join('\n'),
+          content: userParts.join('\n'),
         },
       ],
     });
@@ -289,11 +370,14 @@ export async function POST(request: NextRequest) {
       options: questionType === 'objective' ? question.options || [] : [],
       correct_answer: question.correct_answer || null,
       explanation: question.explanation || null,
-      metadata: {
-        generatedBy: 'groq',
-        model: GROQ_MODEL,
-        promptVersion: PROMPT_VERSION,
-      },
+      metadata: Object.assign(
+        {
+          generatedBy: 'groq',
+          model: GROQ_MODEL,
+          promptVersion: PROMPT_VERSION,
+        },
+        question.diagram ? { diagram: question.diagram, diagram_type: question.diagram_type } : {}
+      ),
     }));
 
     const { data: insertedRows, error: insertError } = await supabase
@@ -306,6 +390,7 @@ export async function POST(request: NextRequest) {
         options,
         correct_answer,
         explanation,
+        metadata,
         question_type,
         difficulty,
         visibility,

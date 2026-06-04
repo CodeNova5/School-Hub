@@ -916,6 +916,137 @@ export default function TeacherQuestionBankDetailPage() {
         </div>
       </div>
 
+      {/* Edit Question Modal */}
+      <Dialog open={isEditQuestionModalOpen} onOpenChange={setIsEditQuestionModalOpen}>
+        <DialogContent className="w-[96vw] max-w-2xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
+          <DialogHeader className="space-y-2 border-b border-slate-200/80 bg-slate-50/80 px-6 py-5 sm:px-7">
+            <DialogTitle className="text-xl font-bold tracking-tight text-slate-950">Modify Question</DialogTitle>
+            <DialogDescription className="text-sm text-slate-600">
+              Update details for this question instance. Changes persist globally across this bank.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingQuestion && (
+            <div className="space-y-5 px-6 py-6 sm:px-7">
+              <div className="grid gap-4">
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Topic Input */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-slate-700">Topic Field</Label>
+                    <Input
+                      value={editingQuestion.topic}
+                      onChange={(e) => setEditingQuestion({ ...editingQuestion, topic: e.target.value })}
+                      placeholder="e.g. Algebra"
+                      className="h-11 border-slate-200 bg-white text-sm shadow-sm"
+                    />
+                  </div>
+
+                  {/* Difficulty Selector */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-slate-700">Difficulty</Label>
+                    <select
+                      value={editingQuestion.difficulty}
+                      onChange={(e) => setEditingQuestion({ ...editingQuestion, difficulty: e.target.value as any })}
+                      className="w-full h-11 rounded-md border border-slate-200 bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Question Text Textarea */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-slate-700">Question Text</Label>
+                  <Textarea
+                    value={editingQuestion.question_text}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, question_text: e.target.value })}
+                    placeholder="What is the value of..."
+                    rows={4}
+                    className="resize-none border-slate-200 bg-white text-sm shadow-sm"
+                  />
+                </div>
+
+                {/* Objective Options Management */}
+                {editingQuestion.question_type === 'objective' && (
+                  <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                    <Label className="text-xs font-semibold text-slate-700">Multiple Choice Options</Label>
+                    <div className="grid gap-2">
+                      {editingQuestion.options.map((option, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-400 w-5">
+                            {String.fromCharCode(65 + idx)}.
+                          </span>
+                          <Input
+                            value={option}
+                            onChange={(e) => {
+                              const newOptions = [...editingQuestion.options];
+                              newOptions[idx] = e.target.value;
+                              setEditingQuestion({ ...editingQuestion, options: newOptions });
+                            }}
+                            placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                            className="h-10 border-slate-200 bg-white text-sm shadow-sm flex-1"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Correct Answer Field */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-slate-700">
+                    {editingQuestion.question_type === 'objective' ? 'Correct Option Letter (A, B, C, D)' : 'Ideal Answer Key'}
+                  </Label>
+                  <Input
+                    value={editingQuestion.correct_answer || ''}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, correct_answer: e.target.value })}
+                    placeholder={editingQuestion.question_type === 'objective' ? 'e.g. A' : 'Explain the core key steps...'}
+                    className="h-11 border-slate-200 bg-white text-sm shadow-sm"
+                  />
+                </div>
+
+                {/* Explanation Textarea */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-slate-700">Explanation Note</Label>
+                  <Textarea
+                    value={editingQuestion.explanation || ''}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, explanation: e.target.value })}
+                    placeholder="Provide context explaining why this is the correct choice..."
+                    rows={3}
+                    className="resize-none border-slate-200 bg-white text-sm shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Form Confirmation Controls */}
+              <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+                <Button
+                  onClick={handleSaveEditedQuestion}
+                  disabled={isSavingQuestion}
+                  className="flex-1 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {isSavingQuestion ? 'Saving Changes...' : 'Update Question'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditQuestionModalOpen(false);
+                    setEditingQuestion(null);
+                  }}
+                  className="flex-1 border-slate-200"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Settings Modal (Unchanged internals, omitted standard length dialog code here visually but included below) */}
       <Dialog open={isBankSettingsModalOpen} onOpenChange={setIsBankSettingsModalOpen}>
         <DialogContent className="w-[96vw] max-w-2xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
@@ -926,136 +1057,7 @@ export default function TeacherQuestionBankDetailPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Edit Question Modal */}
-          <Dialog open={isEditQuestionModalOpen} onOpenChange={setIsEditQuestionModalOpen}>
-            <DialogContent className="w-[96vw] max-w-2xl max-h-[90vh] overflow-y-auto p-0 sm:w-full">
-              <DialogHeader className="space-y-2 border-b border-slate-200/80 bg-slate-50/80 px-6 py-5 sm:px-7">
-                <DialogTitle className="text-xl font-bold tracking-tight text-slate-950">Modify Question</DialogTitle>
-                <DialogDescription className="text-sm text-slate-600">
-                  Update details for this question instance. Changes persist globally across this bank.
-                </DialogDescription>
-              </DialogHeader>
 
-              {editingQuestion && (
-                <div className="space-y-5 px-6 py-6 sm:px-7">
-                  <div className="grid gap-4">
-
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Topic Input */}
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-700">Topic Field</Label>
-                        <Input
-                          value={editingQuestion.topic}
-                          onChange={(e) => setEditingQuestion({ ...editingQuestion, topic: e.target.value })}
-                          placeholder="e.g. Algebra"
-                          className="h-11 border-slate-200 bg-white text-sm shadow-sm"
-                        />
-                      </div>
-
-                      {/* Difficulty Selector */}
-                      <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-700">Difficulty</Label>
-                        <select
-                          value={editingQuestion.difficulty}
-                          onChange={(e) => setEditingQuestion({ ...editingQuestion, difficulty: e.target.value as any })}
-                          className="w-full h-11 rounded-md border border-slate-200 bg-white px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                        >
-                          <option value="easy">Easy</option>
-                          <option value="medium">Medium</option>
-                          <option value="hard">Hard</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Question Text Textarea */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-700">Question Text</Label>
-                      <Textarea
-                        value={editingQuestion.question_text}
-                        onChange={(e) => setEditingQuestion({ ...editingQuestion, question_text: e.target.value })}
-                        placeholder="What is the value of..."
-                        rows={4}
-                        className="resize-none border-slate-200 bg-white text-sm shadow-sm"
-                      />
-                    </div>
-
-                    {/* Objective Options Management */}
-                    {editingQuestion.question_type === 'objective' && (
-                      <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
-                        <Label className="text-xs font-semibold text-slate-700">Multiple Choice Options</Label>
-                        <div className="grid gap-2">
-                          {editingQuestion.options.map((option, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-slate-400 w-5">
-                                {String.fromCharCode(65 + idx)}.
-                              </span>
-                              <Input
-                                value={option}
-                                onChange={(e) => {
-                                  const newOptions = [...editingQuestion.options];
-                                  newOptions[idx] = e.target.value;
-                                  setEditingQuestion({ ...editingQuestion, options: newOptions });
-                                }}
-                                placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                                className="h-10 border-slate-200 bg-white text-sm shadow-sm flex-1"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Correct Answer Field */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-700">
-                        {editingQuestion.question_type === 'objective' ? 'Correct Option Letter (A, B, C, D)' : 'Ideal Answer Key'}
-                      </Label>
-                      <Input
-                        value={editingQuestion.correct_answer || ''}
-                        onChange={(e) => setEditingQuestion({ ...editingQuestion, correct_answer: e.target.value })}
-                        placeholder={editingQuestion.question_type === 'objective' ? 'e.g. A' : 'Explain the core key steps...'}
-                        className="h-11 border-slate-200 bg-white text-sm shadow-sm"
-                      />
-                    </div>
-
-                    {/* Explanation Textarea */}
-                    <div className="space-y-2">
-                      <Label className="text-xs font-semibold text-slate-700">Explanation Note</Label>
-                      <Textarea
-                        value={editingQuestion.explanation || ''}
-                        onChange={(e) => setEditingQuestion({ ...editingQuestion, explanation: e.target.value })}
-                        placeholder="Provide context explaining why this is the correct choice..."
-                        rows={3}
-                        className="resize-none border-slate-200 bg-white text-sm shadow-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Form Confirmation Controls */}
-                  <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
-                    <Button
-                      onClick={handleSaveEditedQuestion}
-                      disabled={isSavingQuestion}
-                      className="flex-1 bg-slate-950 text-white shadow-sm transition-colors hover:bg-slate-800"
-                    >
-                      <Save className="h-4 w-4 mr-2" />
-                      {isSavingQuestion ? 'Saving Changes...' : 'Update Question'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setIsEditQuestionModalOpen(false);
-                        setEditingQuestion(null);
-                      }}
-                      className="flex-1 border-slate-200"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </DialogContent>
-          </Dialog>
 
           <div className="space-y-5 px-6 py-6 sm:px-7">
             {!isEditable && (

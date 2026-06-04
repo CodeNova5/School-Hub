@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Badge } from '@/components/ui/badge';
@@ -44,8 +44,6 @@ type QuestionRecord = {
     imageName?: string;
     imageMimeType?: string;
     imageSize?: number;
-    diagram?: string;
-    diagram_type?: 'svg' | 'mermaid' | null;
   } | null;
   question_type: 'objective' | 'theory';
   difficulty: 'easy' | 'medium' | 'hard';
@@ -140,65 +138,8 @@ export default function TeacherQuestionBankDetailPage() {
   const [manualTopicInput, setManualTopicInput] = useState('');
   const [generateStep, setGenerateStep] = useState(1);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
-  const [includeDiagrams, setIncludeDiagrams] = useState(true);
   
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
-
-  function DiagramRenderer({ diagram, type, name }: { diagram?: string | null; type?: 'svg' | 'mermaid' | null; name?: string }) {
-    const containerRef = useRef<HTMLDivElement | null>(null);
-
-    useEffect(() => {
-      if (!diagram || !containerRef.current) return;
-
-      // Clean diagram string from any code fences (e.g. ```xml ... ``` or ```svg ... ```)
-      let cleanDiagram = diagram.trim();
-      if (cleanDiagram.startsWith('```')) {
-        cleanDiagram = cleanDiagram.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
-      }
-
-      // Automatically determine if the diagram content is SVG
-      const isSvgType = type === 'svg' || cleanDiagram.startsWith('<svg') || cleanDiagram.includes('<svg');
-
-      if (isSvgType) {
-        containerRef.current.innerHTML = cleanDiagram;
-        return;
-      }
-
-      let mounted = true;
-      (async () => {
-          try {
-          // dynamic import so we don't force mermaid in initial bundle
-          // @ts-ignore - optional runtime import, mermaid may not be installed in dev env
-          const mermaid: any = await import('mermaid').catch(() => null);
-          if (!mermaid || !mermaid.mermaidAPI) {
-            // fallback: render source as preformatted text
-            if (mounted && containerRef.current) containerRef.current.textContent = cleanDiagram;
-            return;
-          }
-          mermaid.initialize({ startOnLoad: false });
-          const id = `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          // mermaidAPI.render may be sync or callback-based depending on version
-          const renderResult = await new Promise<string>((resolve) => {
-            try {
-              const maybe = mermaid.mermaidAPI.render(id, cleanDiagram, (svgCode: string) => resolve(svgCode));
-              if (typeof maybe === 'string') resolve(maybe);
-            } catch (e) {
-              resolve('');
-            }
-          });
-          if (mounted && containerRef.current) containerRef.current.innerHTML = renderResult || cleanDiagram;
-        } catch (e) {
-          if (containerRef.current) containerRef.current.textContent = cleanDiagram;
-        }
-      })();
-
-      return () => {
-        mounted = false;
-      };
-    }, [diagram, type]);
-
-    return <div ref={containerRef} aria-label={name || 'diagram'} className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm p-3 [&>svg]:w-full [&>svg]:h-auto" />;
-  }
 
   useEffect(() => {
     if (schoolId && bankId) {
@@ -348,7 +289,6 @@ export default function TeacherQuestionBankDetailPage() {
           questionType: generateQuestionType,
           count,
           topics,
-          includeDiagrams,
         }),
       });
 
@@ -832,10 +772,6 @@ export default function TeacherQuestionBankDetailPage() {
                       </div>
 
                       {/* Question Text */}
-                      {question.metadata?.diagram && (
-                        <DiagramRenderer diagram={question.metadata.diagram} type={question.metadata.diagram_type as any} name={`diagram-${question.id}`} />
-                      )}
-
                       {question.metadata?.imageUrl && (
                         <div className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm">
                           <img
@@ -1420,18 +1356,6 @@ export default function TeacherQuestionBankDetailPage() {
                     </button>
                   ))}
                 </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <input
-                    id="include-diagrams"
-                    type="checkbox"
-                    checked={includeDiagrams}
-                    onChange={(e) => setIncludeDiagrams(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <label htmlFor="include-diagrams" className="text-sm text-gray-700">
-                    Include diagrams when appropriate (AI chooses mermaid or SVG)
-                  </label>
-                </div>
               </div>
             )}
 
@@ -1456,10 +1380,6 @@ export default function TeacherQuestionBankDetailPage() {
                       <span className="font-semibold text-blue-700">
                         {generateQuestionType === 'objective' ? 'Multiple Choice' : 'Essay'}
                       </span>
-                    </div>
-                    <div className="flex items-center justify-between bg-white/60 px-4 py-3 rounded-lg">
-                      <span className="text-gray-700">Include diagrams</span>
-                      <span className="font-semibold text-blue-700">{includeDiagrams ? 'Yes' : 'No'}</span>
                     </div>
                     <div className="bg-white/60 px-4 py-3 rounded-lg">
                       <span className="text-gray-700 block mb-2">Topics</span>

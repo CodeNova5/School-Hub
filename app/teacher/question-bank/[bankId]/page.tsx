@@ -150,8 +150,17 @@ export default function TeacherQuestionBankDetailPage() {
     useEffect(() => {
       if (!diagram || !containerRef.current) return;
 
-      if (type === 'svg') {
-        containerRef.current.innerHTML = diagram;
+      // Clean diagram string from any code fences (e.g. ```xml ... ``` or ```svg ... ```)
+      let cleanDiagram = diagram.trim();
+      if (cleanDiagram.startsWith('```')) {
+        cleanDiagram = cleanDiagram.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
+      }
+
+      // Automatically determine if the diagram content is SVG
+      const isSvgType = type === 'svg' || cleanDiagram.startsWith('<svg') || cleanDiagram.includes('<svg');
+
+      if (isSvgType) {
+        containerRef.current.innerHTML = cleanDiagram;
         return;
       }
 
@@ -163,7 +172,7 @@ export default function TeacherQuestionBankDetailPage() {
           const mermaid: any = await import('mermaid').catch(() => null);
           if (!mermaid || !mermaid.mermaidAPI) {
             // fallback: render source as preformatted text
-            if (mounted && containerRef.current) containerRef.current.textContent = diagram;
+            if (mounted && containerRef.current) containerRef.current.textContent = cleanDiagram;
             return;
           }
           mermaid.initialize({ startOnLoad: false });
@@ -171,15 +180,15 @@ export default function TeacherQuestionBankDetailPage() {
           // mermaidAPI.render may be sync or callback-based depending on version
           const renderResult = await new Promise<string>((resolve) => {
             try {
-              const maybe = mermaid.mermaidAPI.render(id, diagram, (svgCode: string) => resolve(svgCode));
+              const maybe = mermaid.mermaidAPI.render(id, cleanDiagram, (svgCode: string) => resolve(svgCode));
               if (typeof maybe === 'string') resolve(maybe);
             } catch (e) {
               resolve('');
             }
           });
-          if (mounted && containerRef.current) containerRef.current.innerHTML = renderResult || diagram;
+          if (mounted && containerRef.current) containerRef.current.innerHTML = renderResult || cleanDiagram;
         } catch (e) {
-          if (containerRef.current) containerRef.current.textContent = diagram;
+          if (containerRef.current) containerRef.current.textContent = cleanDiagram;
         }
       })();
 
@@ -188,7 +197,7 @@ export default function TeacherQuestionBankDetailPage() {
       };
     }, [diagram, type]);
 
-    return <div ref={containerRef} aria-label={name || 'diagram'} className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm p-3" />;
+    return <div ref={containerRef} aria-label={name || 'diagram'} className="mb-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm p-3 [&>svg]:w-full [&>svg]:h-auto" />;
   }
 
   useEffect(() => {

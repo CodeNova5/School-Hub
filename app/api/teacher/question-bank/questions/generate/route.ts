@@ -15,6 +15,69 @@ type GeneratedQuestion = {
   diagram_type?: 'svg' | 'mermaid' | null;
 };
 
+function parseDiagram(row: Record<string, unknown>): { diagram: string | null; diagramType: 'svg' | 'mermaid' | null } {
+  const rawDiagram = row.diagram ? String(row.diagram).trim() : '';
+  const rawDiagramType = row.diagram_type ? String(row.diagram_type).trim().toLowerCase() : '';
+
+  if (!rawDiagram) {
+    return { diagram: null, diagramType: null };
+  }
+
+  // Clean code fences if present
+  let cleaned = rawDiagram;
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
+  }
+
+  let type: 'svg' | 'mermaid' | null = null;
+
+  // 1. Check explicit type if provided
+  if (rawDiagramType === 'svg' || rawDiagramType === 'mermaid') {
+    type = rawDiagramType;
+  } else {
+    // 2. Infer type from content
+    if (cleaned.includes('<svg') || cleaned.startsWith('<svg') || cleaned.startsWith('<?xml')) {
+      type = 'svg';
+    } else if (
+      cleaned.startsWith('graph') ||
+      cleaned.startsWith('flowchart') ||
+      cleaned.startsWith('sequenceDiagram') ||
+      cleaned.startsWith('classDiagram') ||
+      cleaned.startsWith('stateDiagram') ||
+      cleaned.startsWith('erDiagram') ||
+      cleaned.startsWith('gantt') ||
+      cleaned.startsWith('pie') ||
+      cleaned.startsWith('journey') ||
+      cleaned.startsWith('gitGraph') ||
+      /^(?:graph|sequenceDiagram|flowchart)\b/i.test(cleaned)
+    ) {
+      type = 'mermaid';
+    }
+  }
+
+  // If we couldn't infer the type but we have content, we should default to svg if it looks like XML/HTML, else mermaid
+  if (!type) {
+    if (cleaned.includes('<') && cleaned.includes('>')) {
+      type = 'svg';
+    } else {
+      type = 'mermaid';
+    }
+  }
+
+  // Final validation/cleanup based on determined type
+  if (type === 'svg') {
+    // Ensure it contains a valid svg tag
+    if (!cleaned.includes('<svg')) {
+      return { diagram: null, diagramType: null };
+    }
+    return { diagram: cleaned, diagramType: 'svg' };
+  } else {
+    // For mermaid, strip any leftover mermaid prefix/labels if they exist
+    const finalMermaid = cleaned.replace(/^mermaid\s*[:\n]?/i, '').trim();
+    return { diagram: finalMermaid, diagramType: 'mermaid' };
+  }
+}
+
 function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' | 'theory'): GeneratedQuestion[] {
   if (!Array.isArray(input)) return [];
 
@@ -67,6 +130,8 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
     if (!topic || !questionText) continue;
 
+    const { diagram, diagramType } = parseDiagram(row);
+
     if (questionType === 'objective') {
       const options = Array.isArray(row.options)
         ? row.options.map((v) => String(v || '').trim()).filter(Boolean)
@@ -76,22 +141,6 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
 
       const letter = resolveLetter(options, rawCorrect);
       if (!letter) continue; // invalid if we can't determine a letter
-
-      // optional diagram handling
-      const rawDiagram = row.diagram ? String(row.diagram).trim() : '';
-      let diagram: string | null = null;
-      let diagramType: 'svg' | 'mermaid' | null = null;
-      if (rawDiagram) {
-        // fenced mermaid
-        const fenced = rawDiagram.replace(/^```mermaid\s*/i, '').replace(/\s*```$/i, '').trim();
-        if (/^<svg[\s\S]*>/i.test(rawDiagram)) {
-          diagram = rawDiagram;
-          diagramType = 'svg';
-        } else if (/^```?mermaid/i.test(rawDiagram) || /^mermaid\s*[:\n]/i.test(rawDiagram) || /(?:graph|sequenceDiagram|flowchart)\b/i.test(rawDiagram)) {
-          diagram = fenced || rawDiagram.replace(/^mermaid\s*[:\n]?/i, '').trim();
-          diagramType = 'mermaid';
-        }
-      }
 
       normalized.push({
         topic,
@@ -106,28 +155,14 @@ function normalizeGeneratedQuestions(input: unknown, questionType: 'objective' |
     }
 
     // theory
-    const rawDiagramTheory = row.diagram ? String(row.diagram).trim() : '';
-    let diagramT: string | null = null;
-    let diagramTypeT: 'svg' | 'mermaid' | null = null;
-    if (rawDiagramTheory) {
-      const fenced = rawDiagramTheory.replace(/^```mermaid\s*/i, '').replace(/\s*```$/i, '').trim();
-      if (/^<svg[\s\S]*>/i.test(rawDiagramTheory)) {
-        diagramT = rawDiagramTheory;
-        diagramTypeT = 'svg';
-      } else if (/^```?mermaid/i.test(rawDiagramTheory) || /^mermaid\s*[:\n]/i.test(rawDiagramTheory) || /(?:graph|sequenceDiagram|flowchart)\b/i.test(rawDiagramTheory)) {
-        diagramT = fenced || rawDiagramTheory.replace(/^mermaid\s*[:\n]?/i, '').trim();
-        diagramTypeT = 'mermaid';
-      }
-    }
-
     normalized.push({
       topic,
       question_text: questionText,
       options: [],
       correct_answer: rawCorrect || null,
       explanation,
-      diagram: diagramT,
-      diagram_type: diagramTypeT,
+      diagram,
+      diagram_type: diagramType,
     });
   }
 
@@ -238,7 +273,7 @@ export async function POST(request: NextRequest) {
     const systemParts: string[] = [
       'You are an expert teacher question author.',
       'Return only JSON with shape {"questions": GeneratedQuestion[]}.',
-      'GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation.',
+      `GeneratedQuestion fields: topic, question_text, options (string[] for objective), correct_answer (the letter A, B, C, or D for objective, or the model answer string for theory), explanation${includeDiagrams ? ', diagram (string, optional, containing raw SVG markup or raw mermaid source), diagram_type ("svg" | "mermaid", optional, specifying the type of diagram)' : ''}.`,
       'Do not include markdown or extra commentary.',
     ];
 
@@ -252,8 +287,8 @@ export async function POST(request: NextRequest) {
     ];
 
     if (includeDiagrams) {
-      systemParts.splice(systemParts.length - 1, 0, 'Optional diagram: If a question requires a diagram include a "diagram" string and a "diagram_type" that is either "svg" or "mermaid". For mermaid diagrams return ONLY the mermaid source text (do not include ``` fences). For SVG diagrams return valid, standalone SVG markup starting with <svg ...> and containing explicit width/height attributes; do not include external resources, scripts, or data URLs. Prefer mermaid for flowcharts/diagrams when possible; use SVG only when precise vector markup is required. Limit diagram content to a reasonable size (under 5000 characters) and never include commentary or markdown in the diagram string.');
-      userParts.push('If a question requires a diagram include a field "diagram" containing either raw mermaid source (preferred) or raw SVG markup. For mermaid return only the source (no fences); for SVG return standalone SVG markup. Do not include any explanatory text in the diagram field.');
+      systemParts.splice(systemParts.length - 1, 0, 'Optional diagram: If a question requires a diagram to explain or visualize it, include a "diagram" string and a "diagram_type" that is either "svg" or "mermaid". For mermaid diagrams return ONLY the mermaid source text (do not include ``` fences). For SVG diagrams return valid, standalone SVG markup starting with <svg ...> and containing explicit width/height attributes; do not include external resources, scripts, or data URLs. Prefer mermaid for flowcharts/diagrams when possible; use SVG only when precise vector markup is required. Limit diagram content to a reasonable size (under 5000 characters) and never include commentary or markdown in the diagram string.');
+      userParts.push('If a question requires a diagram, include a field "diagram" containing either raw mermaid source (preferred) or raw SVG markup, and a field "diagram_type" containing either "mermaid" or "svg". For mermaid return only the source (no fences); for SVG return standalone SVG markup. Do not include any explanatory text in the diagram field.');
     }
 
     userParts.push('Output valid JSON only.');

@@ -148,7 +148,6 @@ export default function TeacherQuestionBankDetailPage() {
   const [includeDiagrams, setIncludeDiagrams] = useState(true);
 
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
-
   function DiagramRenderer({ diagram, type, name }: { diagram?: string | null; type?: 'svg' | 'mermaid' | 'tikz' | 'chemfig' | null; name?: string }) {
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -163,6 +162,26 @@ export default function TeacherQuestionBankDetailPage() {
     }, [diagram]);
 
     const isTikzOrChemfig = type === 'tikz' || type === 'chemfig';
+
+    // Generate a secure standalone LaTeX wrapper URL for rendering TikZ/Chemfig
+    const latexCompilerUrl = useMemo(() => {
+      if (!isTikzOrChemfig || !cleanDiagram) return '';
+
+      // Determine configuration packages needed based on selection
+      const latexPackageHeader = type === 'chemfig'
+        ? '\\usepackage{chemfig}'
+        : '\\usepackage{tikz}\n\\usetikzlibrary{calc,arrows.meta,positioning}';
+
+      // Standard standalone document container template
+      const documentBody = `\\documentclass[tikz,border=5pt]{standalone}
+${latexPackageHeader}
+\\begin{document}
+${cleanDiagram}
+\\end{document}`;
+
+      // Encode the document string safely into the academic compiler engine query string
+      return `https://rdr.api.boxscale.org/v1/compile?code=${encodeURIComponent(documentBody)}&format=svg`;
+    }, [cleanDiagram, type, isTikzOrChemfig]);
 
     useEffect(() => {
       if (isTikzOrChemfig || !cleanDiagram || !containerRef.current) return;
@@ -188,7 +207,6 @@ export default function TeacherQuestionBankDetailPage() {
           }
           mermaid.initialize({ startOnLoad: false });
           const id = `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-          // mermaidAPI.render may be sync or callback-based depending on version
           const renderResult = await new Promise<string>((resolve) => {
             try {
               const maybe = mermaid.mermaidAPI.render(id, cleanDiagram, (svgCode: string) => resolve(svgCode));
@@ -212,23 +230,42 @@ export default function TeacherQuestionBankDetailPage() {
       return (
         <div
           aria-label={name || 'diagram'}
-          className="mb-4 w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-sm flex flex-col"
+          className="mb-4 w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm flex flex-col"
         >
-          {/* Header/Tag */}
-          <div className="bg-gray-100/80 px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              LaTeX/TikZ Engine Layout
+          {/* Header/Tag bar indicating render layout mode */}
+          <div className="bg-gray-50 px-3 py-1.5 border-b border-gray-200 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Generated Diagram Preview
             </span>
             <span className="text-[10px] font-semibold text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100">
               {type === 'tikz' ? 'TikZ / Geometry' : 'Chemfig / Chemistry'}
             </span>
           </div>
 
-          {/* Code block */}
-          <div className="p-3 overflow-x-auto">
-            <pre className="text-xs font-mono text-gray-800 leading-relaxed whitespace-pre-wrap break-all select-all">
-              <code>{cleanDiagram}</code>
-            </pre>
+          {/* Active Vector Render Canvas Viewport */}
+          <div className="p-4 flex justify-center items-center min-h-[180px] bg-white relative">
+            {latexCompilerUrl ? (
+              <img
+                src={latexCompilerUrl}
+                alt="Compiled Mathematics Diagram Layout"
+                className="max-w-full max-h-72 object-contain select-none pointer-events-none"
+                loading="lazy"
+                onError={(e) => {
+                  // If compiler query encounters an explicit markup error, fall back gracefully to a view string
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = 'none';
+                  const parent = target.parentElement;
+                  if (parent) {
+                    const fallbackCodeBlock = document.createElement('pre');
+                    fallbackCodeBlock.className = "text-xs font-mono text-gray-500 bg-gray-50 p-2 rounded max-w-full overflow-x-auto";
+                    fallbackCodeBlock.innerText = cleanDiagram;
+                    parent.appendChild(fallbackCodeBlock);
+                  }
+                }}
+              />
+            ) : (
+              <div className="text-xs text-gray-400 font-mono">Compiling visual layout...</div>
+            )}
           </div>
         </div>
       );
@@ -1288,10 +1325,10 @@ export default function TeacherQuestionBankDetailPage() {
               <div key={item.step} className="flex-1">
                 <button
                   className={`w-full text-xs font-medium px-3 py-2 rounded-lg transition-all ${generateStep === item.step
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : generateStep > item.step
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-white text-gray-500 border border-gray-200'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : generateStep > item.step
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-white text-gray-500 border border-gray-200'
                     }`}
                 >
                   {item.step}. {item.title}
@@ -1442,8 +1479,8 @@ export default function TeacherQuestionBankDetailPage() {
                         key={level}
                         onClick={() => setGenerateDifficulty(level)}
                         className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${isSelected
-                            ? `bg-${color}-50 border-${color}-500 text-${color}-700`
-                            : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                          ? `bg-${color}-50 border-${color}-500 text-${color}-700`
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
                           }`}
                       >
                         <div className="text-xl mb-2">{icons[level]}</div>
@@ -1467,8 +1504,8 @@ export default function TeacherQuestionBankDetailPage() {
                       key={type}
                       onClick={() => setGenerateQuestionType(type)}
                       className={`py-4 text-sm font-semibold border-2 rounded-lg transition-all ${generateQuestionType === type
-                          ? 'bg-blue-50 border-blue-500 text-blue-700'
-                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
                         }`}
                     >
                       <div className="text-xl mb-2">{type === 'objective' ? '🎯' : '✍️'}</div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation'; // Added useSearchParams
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,19 @@ type BankRecord = {
   updated_at?: string;
 };
 
+// Added structure matching page.tsx for editing initialization
+type QuestionRecord = {
+  id: string;
+  topic: string;
+  question_text: string;
+  options: string[];
+  correct_answer?: string | null;
+  explanation?: string | null;
+  question_type: 'objective' | 'theory';
+  difficulty: 'easy' | 'medium' | 'hard';
+  visibility: 'private' | 'public_school';
+};
+
 type ContextPayload = {
   teacherId: string;
   subjectClasses: SubjectClassItem[];
@@ -42,8 +55,12 @@ type BankPayload = {
 
 export default function TeacherQuestionManualCreatePage() {
   const params = useParams<{ bankId: string }>();
+  const searchParams = useSearchParams(); // Hook to fetch ?questionId=
   const router = useRouter();
+
   const bankId = typeof params?.bankId === 'string' ? params.bankId : Array.isArray(params?.bankId) ? params.bankId[0] : '';
+  const questionId = searchParams?.get('questionId') || ''; // Identify if we are editing
+  const isEditingMode = !!questionId;
 
   const { schoolId, isLoading: schoolLoading } = useSchoolContext();
   const [teacherId, setTeacherId] = useState('');
@@ -52,7 +69,6 @@ export default function TeacherQuestionManualCreatePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Topic selection now requires choosing a term and then a topic from the bank's topic groups
   const [selectedTerm, setSelectedTerm] = useState<'1' | '2' | '3'>('1');
   const [topicGroups, setTopicGroups] = useState<{ id: string; title: string; topics: string[]; term?: number }[]>([]);
   const [availableTopics, setAvailableTopics] = useState<string[]>([]);
@@ -88,16 +104,11 @@ export default function TeacherQuestionManualCreatePage() {
     if (schoolId && bankId) {
       void loadPage();
     }
-  }, [schoolId, bankId]);
+  }, [schoolId, bankId, questionId]); // Reload page if questionId changes
 
   useEffect(() => {
-    // update available topics when groups or term selection changes
     const topics = topicGroups.filter((g) => String(g.term ?? 1) === selectedTerm).flatMap((g) => g.topics || []);
     setAvailableTopics(topics);
-    // clear selected topic if it is not in the new list
-    if (selectedTopic && !topics.some((t) => t === selectedTopic)) {
-      setSelectedTopic('');
-    }
   }, [topicGroups, selectedTerm]);
 
   useEffect(() => {
@@ -111,10 +122,8 @@ export default function TeacherQuestionManualCreatePage() {
       setQuestionImagePreview('');
       return;
     }
-
     const previewUrl = URL.createObjectURL(questionImageFile);
     setQuestionImagePreview(previewUrl);
-
     return () => URL.revokeObjectURL(previewUrl);
   }, [questionImageFile]);
 
@@ -127,11 +136,19 @@ export default function TeacherQuestionManualCreatePage() {
   async function loadPage() {
     setIsLoading(true);
     try {
-      const [contextResponse, bankResponse, groupsResponse] = await Promise.all([
+      // Build baseline promises
+      const promises: [Promise<Response>, Promise<Response>, Promise<Response>, Promise<Response>?] = [
         fetch('/api/teacher/question-bank/context', { cache: 'no-store' }),
         fetch(`/api/teacher/question-bank/banks/${bankId}`, { cache: 'no-store' }),
         fetch(`/api/teacher/question-bank/banks/${bankId}/topic-groups`, { cache: 'no-store' }),
-      ]);
+      ];
+
+      // If we are in editing mode, fetch the complete question records to prefill the state
+      if (questionId) {
+        promises.push(fetch(`/api/teacher/question-bank/banks/${bankId}/questions`, { cache: 'no-store' }));
+      }
+
+      const [contextResponse, bankResponse, groupsResponse, questionsResponse] = await Promise.all(promises);
 
       const contextPayload = (await contextResponse.json()) as ContextPayload | { error: string };
       const bankPayload = (await bankResponse.json()) as BankPayload | { error: string };
@@ -152,22 +169,51 @@ export default function TeacherQuestionManualCreatePage() {
       setSubjectClasses(contextPayload.subjectClasses || []);
       setBank(bankPayload.bank || null);
 
-      // groupsResponse may return an error shape; narrow before accessing `groups`
-      if (!groupsResponse.ok || 'error' in groupsPayload) {
-        setTopicGroups([]);
-        setAvailableTopics([]);
-      } else {
-        const groups = groupsPayload.groups || [];
-        setTopicGroups(groups);
-        // initialize available topics for default term
-        const initial = groups
-          .filter((g) => String(g.term ?? 1) === selectedTerm)
-          .flatMap((g) => g.topics || []);
-        setAvailableTopics(initial);
-      }
+      const groups = (!groupsResponse.ok || 'error' in groupsPayload) ? [] : (groupsPayload.groups || []);
+      setTopicGroups(groups);
 
-      setSelectedTopic('');
+      // Setup default visibility values
       setVisibility(bankPayload.bank?.visibility || 'private');
+
+      // Edit Mode Setup logic:
+      if (questionId && questionsResponse && questionsResponse.ok) {
+        const questionsPayload = await questionsResponse.json();
+        const existingQuestion = (questionsPayload.questions || []).find((q: QuestionRecord) => q.id === questionId) as QuestionRecord;
+
+        if (existingQuestion) {
+          setQuestionText(existingQuestion.question_text);
+          setQuestionType(existingQuestion.question_type);
+          setDifficulty(existingQuestion.difficulty);
+          setVisibility(existingQuestion.visibility);
+          setExplanation(existingQuestion.explanation || '');
+
+          // Infer active term based on where this topic belongs
+          const matchingGroup = groups.find(g => g.topics?.includes(existingQuestion.topic));
+          if (matchingGroup && matchingGroup.term) {
+            setSelectedTerm(String(matchingGroup.term) as '1' | '2' | '3');
+          }
+
+          setSelectedTopic(existingQuestion.topic);
+
+          if (existingQuestion.question_type === 'objective' && existingQuestion.options) {
+            const fetchedOpts = existingQuestion.options;
+            setOptionCount(fetchedOpts.length);
+            const extendedOpts = ['', '', '', '', '', ''];
+            fetchedOpts.forEach((val, idx) => { extendedOpts[idx] = val; });
+            setOptions(extendedOpts);
+
+            // Determine matching correct option index
+            const correctIdx = fetchedOpts.findIndex(o => o === existingQuestion.correct_answer);
+            if (correctIdx !== -1) {
+              setCorrectOptionIdx(correctIdx);
+            }
+          } else {
+            setCorrectAnswer(existingQuestion.correct_answer || '');
+          }
+        } else {
+          toast.error('Question not found in this bank');
+        }
+      }
     } catch (error) {
       console.error(error);
       toast.error('Failed to load question bank data');
@@ -178,7 +224,7 @@ export default function TeacherQuestionManualCreatePage() {
 
   async function handleSubmit() {
     if (!bank || bank.created_by_teacher_id !== teacherId) {
-      toast.error('You can only add questions to banks you created');
+      toast.error('You lack proper author permissions for this question bank');
       return;
     }
 
@@ -196,24 +242,15 @@ export default function TeacherQuestionManualCreatePage() {
 
     if (questionType === 'objective') {
       const cleanedOptions = activeOptions.map((opt) => opt.trim());
-
       if (cleanedOptions.some((opt) => !opt)) {
         toast.error(`Please fill out all ${optionCount} options before saving.`);
         return;
       }
-
       if (correctOptionIdx === null) {
         toast.error('Please mark one of the options as the correct answer.');
         return;
       }
-
       payloadOptions = cleanedOptions;
-
-      if (!payloadOptions[correctOptionIdx]) {
-        toast.error('Selected option is invalid');
-        return;
-      }
-
       payloadCorrectAnswer = payloadOptions[correctOptionIdx];
     } else {
       payloadOptions = [];
@@ -233,14 +270,20 @@ export default function TeacherQuestionManualCreatePage() {
         requestBody.append('options', JSON.stringify(payloadOptions));
         requestBody.append('correctAnswer', payloadCorrectAnswer);
         requestBody.append('explanation', trimmedExplanation);
-
         if (questionImageFile) {
           requestBody.append('imageFile', questionImageFile);
         }
       }
 
-      const response = await fetch(`/api/teacher/question-bank/banks/${bankId}/questions`, {
-        method: 'POST',
+      // Dynamically alternate endpoint method URL structure
+      const url = isEditingMode
+        ? `/api/teacher/question-bank/banks/${bankId}/questions/${questionId}` // Edit route
+        : `/api/teacher/question-bank/banks/${bankId}/questions`;             // Create route
+
+      const method = isEditingMode ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: requestBody ? undefined : { 'Content-Type': 'application/json' },
         body: requestBody || JSON.stringify({
           topic: trimmedTopic,
@@ -256,15 +299,15 @@ export default function TeacherQuestionManualCreatePage() {
 
       const payload = await response.json();
       if (!response.ok) {
-        toast.error(payload?.error || 'Failed to create question');
+        toast.error(payload?.error || `Failed to ${isEditingMode ? 'update' : 'create'} question`);
         return;
       }
 
-      toast.success('Question added');
+      toast.success(isEditingMode ? 'Question updated' : 'Question added');
       router.push(`/teacher/question-bank/${bankId}`);
     } catch (error) {
       console.error(error);
-      toast.error('Failed to create question');
+      toast.error(`Failed to ${isEditingMode ? 'update' : 'create'} question`);
     } finally {
       setIsSaving(false);
     }
@@ -275,12 +318,10 @@ export default function TeacherQuestionManualCreatePage() {
       setQuestionImageFile(null);
       return;
     }
-
     if (!file.type.startsWith('image/')) {
       toast.error('Please choose an image file');
       return;
     }
-
     setQuestionImageFile(file);
   }
 
@@ -310,8 +351,7 @@ export default function TeacherQuestionManualCreatePage() {
               <p className="text-sm text-gray-500">This bank may have been removed or you may lack access permissions.</p>
             </div>
             <Button variant="outline" onClick={() => router.push('/teacher/question-bank')} className="w-full">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to overview
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to overview
             </Button>
           </Card>
         </div>
@@ -326,24 +366,22 @@ export default function TeacherQuestionManualCreatePage() {
       <div className="w-full space-y-8 pb-16">
         <div className="space-y-6">
           <div className="flex items-center gap-2 text-sm">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-auto p-0 text-gray-500 hover:text-gray-900"
-              onClick={() => router.push(`/teacher/question-bank/${bankId}`)}
-            >
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Back to bank
+            <Button variant="ghost" size="sm" className="h-auto p-0 text-gray-500 hover:text-gray-900" onClick={() => router.push(`/teacher/question-bank/${bankId}`)} >
+              <ArrowLeft className="mr-1 h-4 w-4" /> Back to bank
             </Button>
           </div>
 
           <div className="space-y-3">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="space-y-2 flex-1">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Manual question entry</p>
-                <h1 className="text-4xl font-bold tracking-tight text-gray-900">Add a new question</h1>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  {isEditingMode ? 'Question Editor' : 'Manual question entry'}
+                </p>
+                <h1 className="text-4xl font-bold tracking-tight text-gray-900">
+                  {isEditingMode ? 'Edit question' : 'Add a new question'}
+                </h1>
                 <p className="max-w-2xl text-lg text-gray-600">
-                  Create a question for {bank.title} manually, without using AI generation.
+                  {isEditingMode ? 'Modify your question parameters and save updates live.' : `Create a question for ${bank.title} manually, without using AI generation.`}
                 </p>
               </div>
               <Badge variant="outline" className="h-fit self-start sm:self-auto">
@@ -355,7 +393,7 @@ export default function TeacherQuestionManualCreatePage() {
           {!isEditable && (
             <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 shadow-sm">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              <div>You can view this bank, but only the creator can add questions to it.</div>
+              <div>You can view this bank, but only the creator can alter questions in it.</div>
             </div>
           )}
         </div>
@@ -374,270 +412,136 @@ export default function TeacherQuestionManualCreatePage() {
                     <button
                       key={t}
                       type="button"
+                      disabled={!isEditable}
                       onClick={() => setSelectedTerm(t)}
-                      disabled={!isEditable || isSaving}
-                      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                        selectedTerm === t
-                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                          : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-                      }`}
+                      className={`flex-1 py-1.5 text-xs font-medium rounded-md border transition-colors ${selectedTerm === t
+                          ? 'bg-slate-900 text-white border-slate-900'
+                          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        }`}
                     >
                       Term {t}
                     </button>
                   ))}
                 </div>
 
-                <div className="flex gap-2 items-center">
-                  <select
-                    value={selectedTopic}
-                    onChange={(e) => setSelectedTopic(e.target.value)}
-                    disabled={!isEditable || isSaving || availableTopics.length === 0}
-                    className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
-                  >
-                    <option value="">Select a topic for Term {selectedTerm}</option>
-                    {availableTopics.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/teacher/question-bank/${bankId}/groups`)}
-                    className="flex-shrink-0"
-                  >
-                    Manage topics
-                  </Button>
-                </div>
-
-                {availableTopics.length === 0 && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    No topics available for Term {selectedTerm}. Create a topic group in the bank's groups page.
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Question type</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['objective', 'theory'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setQuestionType(type)}
-                      disabled={!isEditable || isSaving}
-                      className={`rounded-lg border px-3 py-3 text-sm font-medium transition-colors ${
-                        questionType === type
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      {type === 'objective' ? 'Multiple Choice' : 'Theory'}
-                    </button>
+                <select
+                  value={selectedTopic}
+                  disabled={!isEditable}
+                  onChange={(e) => setSelectedTopic(e.target.value)}
+                  className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 dynamic-select"
+                >
+                  <option value="">-- Select Topic --</option>
+                  {availableTopics.map((topic, idx) => (
+                    <option key={idx} value={topic}>{topic}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Type</Label>
+                  <select
+                    value={questionType}
+                    disabled={!isEditable}
+                    onChange={(e) => setQuestionType(e.target.value as any)}
+                    className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none"
+                  >
+                    <option value="objective">Multiple Choice</option>
+                    <option value="theory">Theory / Essay</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Difficulty</Label>
+                  <select
+                    value={difficulty}
+                    disabled={!isEditable}
+                    onChange={(e) => setDifficulty(e.target.value as any)}
+                    className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none"
+                  >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                  </select>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Question text</Label>
+              <Label className="text-sm font-medium text-gray-700">Question Text</Label>
               <Textarea
                 value={questionText}
                 onChange={(e) => setQuestionText(e.target.value)}
                 disabled={!isEditable || isSaving}
-                placeholder="Enter the full question text..."
-                rows={5}
+                placeholder="Type the question prompt here..."
+                rows={4}
               />
             </div>
 
-            <div className="space-y-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium text-gray-700">Question image</Label>
-                <p className="text-xs text-gray-500">Attach a diagram, chart, or screenshot. The file is stored in Supabase Storage.</p>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                <div className="flex-1 space-y-2">
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    disabled={!isEditable || isSaving}
-                    onChange={(e) => handleQuestionImageChange(e.target.files?.[0] || null)}
-                    className="h-11 border-gray-200 bg-white shadow-none"
-                  />
-                  {questionImageFile && (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <span className="font-medium text-gray-700">Selected:</span>
-                      <span className="truncate">{questionImageFile.name}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={!isEditable || isSaving}
-                        className="h-7 px-2 text-xs text-gray-500 hover:text-gray-900"
-                        onClick={() => setQuestionImageFile(null)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {questionImagePreview && (
-                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm sm:w-40">
-                    <img src={questionImagePreview} alt="Question preview" className="h-32 w-full object-cover" />
-                  </div>
-                )}
-              </div>
-            </div>
-
+            {/* Objective Options Structure renders dynamically */}
             {questionType === 'objective' && (
-              <div className="space-y-6 border-t border-gray-100 pt-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-base font-semibold text-gray-900">Configure options</Label>
-                    <p className="text-xs text-gray-500">Choose how many choices to render, then fill and select the correct answer.</p>
-                  </div>
-
-                  <div className="w-fit rounded-lg bg-gray-100 p-1">
-                    <div className="flex items-center gap-1.5">
-                      {[2, 3, 4, 5, 6].map((count) => (
-                        <button
-                          key={count}
-                          type="button"
-                          onClick={() => setOptionCount(count)}
-                          disabled={!isEditable || isSaving}
-                          className={`rounded-md px-3 py-1.5 text-xs font-semibold tracking-wide transition-all ${
-                            optionCount === count
-                              ? 'border border-gray-200/50 bg-white text-blue-600 shadow-sm'
-                              : 'text-gray-600 hover:bg-white/50 hover:text-gray-900'
-                          }`}
-                        >
-                          {count} Choices
-                        </button>
+              <div className="space-y-4 border-t border-gray-100 pt-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold text-gray-900">Options Configuration</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Count:</span>
+                    <select
+                      value={optionCount}
+                      disabled={!isEditable}
+                      onChange={(e) => setOptionCount(Number(e.target.value))}
+                      className="h-8 rounded border border-gray-300 px-2 text-xs focus:outline-none"
+                    >
+                      {[2, 3, 4, 5, 6].map(num => (
+                        <option key={num} value={num}>{num}</option>
                       ))}
-                    </div>
+                    </select>
                   </div>
                 </div>
 
-                <div className="grid gap-3">
-                  {Array.from({ length: optionCount }).map((_, idx) => {
-                    const currentLetter = String.fromCharCode(65 + idx);
-                    const isCorrect = correctOptionIdx === idx;
-
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-center gap-3 rounded-xl border p-3 transition-all duration-200 ${
-                          isCorrect
-                            ? 'border-emerald-300 bg-emerald-50/40 shadow-sm ring-1 ring-emerald-400/20'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
-                      >
-                        <div
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold transition-colors ${
-                            isCorrect
-                              ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
-                              : 'border-gray-200 bg-gray-50 text-gray-700'
-                          }`}
-                        >
-                          {currentLetter}
-                        </div>
-
-                        <div className="flex-1">
-                          <Input
-                            value={options[idx] || ''}
-                            onChange={(e) => handleOptionChange(idx, e.target.value)}
-                            disabled={!isEditable || isSaving}
-                            placeholder={`Enter option ${currentLetter}...`}
-                            className="h-11 border-gray-200 bg-transparent shadow-none focus-visible:ring-blue-500"
-                          />
-                        </div>
-
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {Array.from({ length: optionCount }).map((_, idx) => (
+                    <div key={idx} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-gray-400">Option {String.fromCharCode(65 + idx)}</span>
                         <button
                           type="button"
-                          disabled={!isEditable || isSaving}
+                          disabled={!isEditable}
                           onClick={() => setCorrectOptionIdx(idx)}
-                          className={`flex h-11 items-center gap-1.5 rounded-lg border px-4 text-xs font-medium transition-all ${
-                            isCorrect
-                              ? 'border-emerald-600 bg-emerald-600 font-semibold text-white'
-                              : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                          }`}
-                        >
-                          <div
-                            className={`flex h-4 w-4 items-center justify-center rounded-full border transition-all ${
-                              isCorrect ? 'border-white bg-white' : 'border-gray-300'
+                          className={`text-xs px-2 py-0.5 rounded transition-colors ${correctOptionIdx === idx
+                              ? 'bg-emerald-600 text-white font-medium'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }`}
-                          >
-                            {isCorrect && <div className="h-2 w-2 rounded-full bg-emerald-600" />}
-                          </div>
-                          <span className="hidden sm:inline">{isCorrect ? 'Correct Answer' : 'Mark Correct'}</span>
+                        >
+                          {correctOptionIdx === idx ? '✓ Correct Answer' : 'Mark Correct'}
                         </button>
                       </div>
-                    );
-                  })}
+                      <Input
+                        value={options[idx] || ''}
+                        onChange={(e) => handleOptionChange(idx, e.target.value)}
+                        disabled={!isEditable || isSaving}
+                        placeholder={`Option ${String.fromCharCode(65 + idx)} text`}
+                      />
+                    </div>
+                  ))}
                 </div>
-
-                {correctOptionIdx !== null && (
-                  <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-sm text-blue-700">
-                    <Sparkles className="h-4 w-4 shrink-0 text-blue-500" />
-                    <span>
-                      Option <strong>{String.fromCharCode(65 + correctOptionIdx)}</strong> is marked as the correct resolution for this question.
-                    </span>
-                  </div>
-                )}
               </div>
             )}
 
+            {/* Theory Correct Answer Setup */}
             {questionType === 'theory' && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                Theory questions do not require options. You can still include a model answer below.
-              </div>
-            )}
-
-            {questionType === 'theory' && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Model answer / explanation</Label>
+              <div className="space-y-2 border-t border-gray-100 pt-4">
+                <Label className="text-sm font-medium text-gray-700">Sample Correct Answer / Rubric Guidelines</Label>
                 <Textarea
                   value={correctAnswer}
                   onChange={(e) => setCorrectAnswer(e.target.value)}
                   disabled={!isEditable || isSaving}
-                  placeholder="Enter the suggested answer or marking guide..."
-                  rows={4}
+                  placeholder="Provide sample model solution text or evaluation guide..."
+                  rows={3}
                 />
               </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Difficulty</Label>
-                <select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value as 'easy' | 'medium' | 'hard')}
-                  disabled={!isEditable || isSaving}
-                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
-                >
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Visibility</Label>
-                <select
-                  value={visibility}
-                  onChange={(e) => setVisibility(e.target.value as 'private' | 'public_school')}
-                  disabled={!isEditable || isSaving}
-                  className="h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:bg-gray-50"
-                >
-                  <option value="private">Private (Only Me)</option>
-                  <option value="public_school">Shared with School</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-700">Explanation / notes</Label>
+            <div className="space-y-2 border-t border-gray-100 pt-4">
+              <Label className="text-sm font-medium text-gray-700">Explanation & Rationale</Label>
               <Textarea
                 value={explanation}
                 onChange={(e) => setExplanation(e.target.value)}
@@ -654,7 +558,7 @@ export default function TeacherQuestionManualCreatePage() {
                 className="flex-1 bg-slate-950 text-white hover:bg-slate-800"
               >
                 <Save className="mr-2 h-4 w-4" />
-                {isSaving ? 'Saving...' : 'Save Question'}
+                {isSaving ? 'Saving...' : isEditingMode ? 'Update Question' : 'Save Question'}
               </Button>
               <Button variant="outline" onClick={() => router.push(`/teacher/question-bank/${bankId}`)} className="flex-1">
                 Cancel
@@ -666,7 +570,11 @@ export default function TeacherQuestionManualCreatePage() {
                 <CheckCircle className="h-4 w-4" />
                 Ready to save
               </div>
-              <p>The question will be added directly to {bank.title} and appear in the bank list immediately after save.</p>
+              <p>
+                {isEditingMode
+                  ? "Changes made to the current question structure will overwrite the specific records in this bank instantly."
+                  : `The question will be added directly to ${bank.title} and appear in the bank list immediately after save.`}
+              </p>
             </div>
           </CardContent>
         </Card>

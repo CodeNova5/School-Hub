@@ -756,6 +756,7 @@ export default function TeacherQuestionBankDetailPage() {
                   {filteredQuestions.map((question, index) => (
                     <div key={question.id} className="pb-6 border-b border-gray-100 last:border-0 last:pb-0">
                       {/* Question Header */}
+                      {/* Question Header */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="outline" className="bg-gray-50 border-gray-200">
@@ -768,7 +769,21 @@ export default function TeacherQuestionBankDetailPage() {
                             {question.question_type === 'objective' ? 'Multiple Choice' : 'Essay'}
                           </Badge>
                         </div>
-                        <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+
+                        <div className="flex items-center gap-2">
+                          {isEditable && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                              onClick={() => router.push(`/teacher/question-bank/${bankId}/questions?questionId=${question.id}`)}
+                            >
+                              <PencilLine className="h-4 w-4 mr-1" />
+                              Edit
+                            </Button>
+                          )}
+                          <span className="text-xs font-semibold text-gray-400">#{index + 1}</span>
+                        </div>
                       </div>
 
                       {/* Question Text */}
